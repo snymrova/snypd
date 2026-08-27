@@ -30,7 +30,8 @@ Considered in depth (Astro 7.2 is excellent). Rejected as core because: it break
 
 - **Core pipeline: remark + `remark-directive`.** We need an AST for lint, `suggest_blocks`, typed primitives and `.md` twins. `Bun.markdown` outputs HTML/React/callbacks with no AST and no directives, so it is *not* the core parser.
 - `Bun.markdown` is used where structure doesn't matter: rendering spec examples, tool descriptions, the review diff view, the HTML baseline in the token benchmark.
-- `snypd bench markdown` compares remark vs `Bun.markdown` on the 10k corpus every release; if remark's cost ever dominates build time, a Rust directive-capable parser is the next step.
+- `snypd bench markdown` compares remark vs `Bun.markdown` on the 10k corpus every release; if remark's cost ever dominates build time, a Rust directive-capable parser is the next step. **S5 measurement:** micromark ≈ 0.4 MB/s on the corpus in Bun 1.4 and Node 22 alike (`Bun.markdown` ≈ 45 MB/s) — the cost is real and already dominates a cold 1k build, so the parser is the first item of the S12 speed pass (docs/07 §6). Everything downstream is insulated by the hash-keyed mdast cache (`@snypd/core` `MdastCache`): lint, rebuilds and `snypd://lint/*` never re-parse an unchanged file.
+- Frontmatter and the YAML bodies of `chart` / `diagram` / `flow` are parsed with `js-yaml`; the `yaml` package stays on the config path only (docs/07 decision 12).
 
 ## The renderer (`packages/render`)
 

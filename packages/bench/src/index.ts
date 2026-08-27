@@ -11,12 +11,13 @@ import { serve } from "@snypd/runtime";
 import { generate } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
-import { loadConfig } from "@snypd/core";
+import { loadConfig, lintSite, MdastCache } from "@snypd/core";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
   tokensPerPage: 2500, tokensToLearn: 6000,                          // tokens (docs/05)
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
+  lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
 };
 export const CI_FACTOR = 0.8;
 
@@ -26,7 +27,7 @@ export function budgetsFor(root: string): typeof BUDGETS {
   const b = loadConfig(root).config.bench.budgets as Record<string, number>;
   const num = (k: string, fallback: number) => (typeof b[k] === "number" ? b[k]! : fallback);
   return { buildPer100: num("buildPer100", BUDGETS.buildPer100), incremental: num("incremental", BUDGETS.incremental), mcpColdStart: num("mcpColdStart", BUDGETS.mcpColdStart),
-    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), mdReduction: num("mdReduction", BUDGETS.mdReduction) };
+    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000) };
 }
 
 /** `higherIsBetter` metrics (e.g. % reduction) breach when value < budget; no 80 % margin. */
@@ -54,6 +55,26 @@ export async function runBuild(n: number, runs: number): Promise<Metric> {
   });
   // Budget scales linearly with corpus size (≤ 2 s / 100 posts, docs/05).
   return { name: `build.cold.${n}`, value: +ms.toFixed(1), unit: "ms", budget: ACTIVE.buildPer100 * (n / 100) };
+}
+
+/**
+ * Lint the corpus (S5). `lint.<n>.cold` = read + parse (micromark) + tree + rules in a fresh cache — the
+ * whole validate stage from nothing; `lint.<n>` = tree + rules with the mdast cache warm, which is what a
+ * rebuild or an MCP `content.lint` call pays. The budget (≤ 1 s / 1k, docs/07 S5) is on the lint stage;
+ * cold parse is reported so the remark-vs-alternatives decision (docs/04, decision 5) has a number.
+ */
+export async function runLint(n: number, runs: number): Promise<Metric[]> {
+  const root = corpus(n);
+  const cold = await medianOf(runs, async () => lintSite(root, { cache: new MdastCache() }).ms);
+  const cache = new MdastCache();
+  lintSite(root, { cache });
+  const warm = await medianOf(runs, async () => lintSite(root, { cache }).ms);
+  const res = lintSite(root, { cache });
+  const scale = n / 1000;
+  return [
+    { name: `lint.${n}`, value: +warm.toFixed(1), unit: "ms", budget: ACTIVE.lintPer1000 * scale, note: `${res.errors} errors · ${res.warnings} warnings; mdast cache warm` },
+    { name: `lint.${n}.cold`, value: +cold.toFixed(1), unit: "ms", note: "parse (micromark) + lint from an empty cache; report-only" },
+  ];
 }
 
 /** Touch one post, rebuild without clearing dist. The stub rebuilds everything; S6 makes this a route-cache hit. */
@@ -148,11 +169,12 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   const cold = await runMcpColdStart(runs);   // first: measured from a quiet process, before the builds thrash the page cache (S4)
   for (const n of sizes) metrics.push(await runBuild(n, runs));
   metrics.push(await runIncremental(100, runs));
+  for (const n of sizes.filter((n) => n <= 1000)) metrics.push(...await runLint(n, runs));
   metrics.push(cold);
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
-  const report: Report = { version: "0.1.0-s4", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  const report: Report = { version: "0.1.0-s5", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));

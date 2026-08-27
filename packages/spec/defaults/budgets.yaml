@@ -14,6 +14,7 @@ budgets:
   tokensPerPage: 2500      # .md twin, median
   mdReduction: 85          # % fewer tokens than HTML
   tokensToLearn: 6000      # config + spec/primitives + theme
+  lintPer1000: 1000        # ms, lint stage (typed tree + rules) over 1k posts, mdast cache warm
   chart: { renderMs: 3, svgKb: 12 }
   diagram: { renderMs: 15, svgKb: 25, maxNodes: 40 }
   flow: { renderMs: 15, svgKb: 25, maxNodes: 40 }

@@ -11,6 +11,7 @@ export function createServer(root = process.env.SNYPD_ROOT ?? process.cwd()) {
   const lazy: Handlers = {
     listResources: async () => (h ??= (await import("./resources")).handlers(root)).listResources(),
     readResource: async (uri) => (h ??= (await import("./resources")).handlers(root)).readResource(uri),
+    listTemplates: async () => (h ??= (await import("./resources")).handlers(root)).listTemplates!(),
   };
   return { handle: (msg: Request) => dispatch(msg, lazy), listen: () => serveStdio(lazy) };
 }

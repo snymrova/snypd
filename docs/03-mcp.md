@@ -21,7 +21,7 @@ MCP spec target: **2025-11-25** (stable) with the **2026-07-28** RC tracked (cac
 | `snypd://media/{id}` | manifest entry |
 | `snypd://history/{type}/{slug}` | commits touching it |
 | `snypd://bench/latest` · `snypd://bench/profile/{id}` | benchmark reports as Markdown |
-| `snypd://lint/{type}/{slug}` | diagnostics |
+| `snypd://lint/{type}/{slug}` | diagnostics: rules 0–9 (docs/01) as `{rule, n, severity, line, message, hint}` — every entry carries a fix hint the agent can act on; served from S5, rules 10–11 need the S6 index |
 
 Resources carry `ttlMs`; content resources subscribe so the harness is told when a post changes under it. Session start = read three resources (`config`, `spec/primitives`, `theme`) — budgeted at ≤ 6,000 tokens total (05).
 

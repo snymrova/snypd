@@ -43,9 +43,21 @@ switch (cmd) {
     if (!c.ok) { console.error(formatDiagnostics(c.diagnostics)); process.exit(1); }
     break;
   }
+  case "lint": {     // debugging aid: `snypd lint [root|file.md]` — rules 0–9 (docs/01); exit 1 on errors
+    const { lintSite, formatSiteLint, lintMarkdown, formatLint } = await import("@snypd/core");
+    const target = args[0] ?? ".";
+    if (target.endsWith(".md")) {
+      const r = lintMarkdown(await Bun.file(target).text(), { file: target });
+      console.log(formatLint(r) || `${target}: clean (${r.words} words)`);
+      process.exit(r.errors ? 1 : 0);
+    }
+    const s = lintSite(target);
+    console.log(formatSiteLint(s));
+    process.exit(s.errors ? 1 : 0);
+  }
   case "init":
     console.error(`snypd ${cmd}: not yet implemented (see docs/07 schedule)`); process.exit(2);
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd config [root] [path]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 export {};

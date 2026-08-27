@@ -26,6 +26,17 @@ describe("stdio", () => {
       req(8, "resources/read", { uri: "snypd://spec/primitives/grid" }),
       req(9, "nope/nothing"),
     ]);
+    const [, templates, lintOk, lintMissing] = await session([
+      req(1, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "0" } }),
+      req(2, "resources/templates/list"),
+      req(3, "resources/read", { uri: "snypd://lint/post/post-00005" }),
+      req(4, "resources/read", { uri: "snypd://lint/post/nope" }),
+    ]);
+    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://lint/{type}/{slug}"]);
+    const lintRes = JSON.parse(lintOk.result.contents[0].text);
+    expect(lintRes.file).toBe("content/posts/post-00005.md");
+    expect(lintRes.errors).toBe(0); expect(lintRes.diagnostics).toEqual([]); expect(lintRes.words).toBeGreaterThan(100);
+    expect(lintMissing.error.code).toBe(-32002);
     expect(init.result.protocolVersion).toBe("2025-06-18");                 // negotiated down to what the client asked
     expect(init.result.serverInfo.name).toBe("snypd");
     const uris = list.result.resources.map((r: any) => r.uri);

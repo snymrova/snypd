@@ -41,17 +41,22 @@ export function generate(n: number, root = `corpora/${n}`) {
     for (let s = 0; s < 4; s++) {
       body.push(`## ${words(3)}\n\n${para()}\n`);
       if (s === 1) body.push(`:::callout{kind="note" title="${words(2)}"}\n${sentence()}\n:::\n`);
-      if (s === 2) body.push(`::stat-row\n::stat{value="${Math.floor(rnd()*100)}%" label="${words(2)}" source="https://snypd.rocks/bench"}\n::stat{value="${Math.floor(rnd()*900)}ms" label="${words(2)}" source="https://snypd.rocks/bench"}\n::\n`);
+      if (s === 2) body.push(`:::stat-row\n::stat{value="${Math.floor(rnd()*100)}%" label="${words(2)}" source="https://snypd.rocks/bench"}\n::stat{value="${Math.floor(rnd()*900)}ms" label="${words(2)}" source="https://snypd.rocks/bench"}\n:::\n`);
     }
-    if (i % 5 === 0) body.push(`::chart{type="bar" source="https://snypd.rocks/bench" caption="${words(3)}"}\n` +
-      `  data: { a: ${Math.floor(rnd()*100)}, b: ${Math.floor(rnd()*100)}, c: ${Math.floor(rnd()*100)} }\n`);
-    if (i % 10 === 0) body.push(`:::diagram{direction="lr"}\nparse -> validate -> transform -> render -> emit\n:::\n`);
+    // every 5th a chart, every 10th a diagram, every 20th a flow with ≥ 15 nodes (docs/07 §3) — all lint-clean
+    if (i % 5 === 0) body.push(`:::chart{type="bar" source="https://snypd.rocks/bench" caption="${sentence()}" unit="ms"}\n` +
+      ["a", "b", "c", "d"].map((l) => `- { label: ${l}, value: ${Math.floor(rnd()*100)} }`).join("\n") + `\n:::\n`);
+    if (i % 10 === 0) {
+      const ids = ["md", "parse", "validate", "transform", "render", "emit", "html", "twin"];
+      body.push(`:::diagram{direction="lr" caption="${sentence()}"}\nnodes:\n` + ids.map((id) => `  - { id: ${id}, label: ${id} ${pick(WORDS)} }`).join("\n") +
+        `\nedges:\n` + ids.slice(1).map((id, k) => `  - { from: ${ids[k]}, to: ${id} }`).join("\n") + `\n:::\n`);
+    }
     if (i % 20 === 0) {
-      const steps = Array.from({ length: 15 }, (_, k) => `${k + 1}. ${sentence()}`).join("\n");
-      body.push(`:::flow\n${steps}\n:::\n`);
+      const steps = Array.from({ length: 15 }, () => `  - ${sentence()}`).join("\n");
+      body.push(`:::flow{caption="${sentence()}"}\nsteps:\n${steps}\n:::\n`);
     }
     body.push(`:::faq\n### ${words(4)}?\n${sentence()}\n### ${words(4)}?\n${sentence()}\n:::\n`);
-    body.push(`::cta{title="${words(3)}" button="Read the spec" href="/spec"}\n`);
+    body.push(`::cta{title="${words(3)}" button="Read the spec" href="https://snypd.rocks/spec"}\n`);
     writeFileSync(join(dir, `${slug}.md`), body.join("\n"));
   }
   writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite:\n  name: corpus-${n}\n  url: https://corpus-${n}.snypd.rocks\ntheme:\n  use: base\n`);

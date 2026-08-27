@@ -1,8 +1,10 @@
 /**
  * Resources served in S4: `snypd://config` (merged YAML with provenance, @snypd/core), `snypd://spec/**`
  * (@snypd/spec), `snypd://types[/name]` and `snypd://taxonomies/{name}` (merged schemas, docs/03).
+ * S5 adds `snypd://lint/{type}/{slug}` — diagnostics for one file, rules 0–9 with fix hints.
  * Both packages are imported lazily on first use so cold start stays at the spawn floor.
  */
+import { relative } from "node:path";
 import type { Handlers } from "./protocol";
 import { E, RpcError } from "./protocol";
 
@@ -27,8 +29,21 @@ export function handlers(root: string): Handlers {
         ...Object.keys(c.config.taxonomies).map((n) => ({ uri: `snypd://taxonomies/${n}`, name: `taxonomies/${n}`, mimeType: JSON_, description: `Merged schema for taxonomy ${n}` })),
       ];
     },
+    async listTemplates() {
+      return [{ uriTemplate: "snypd://lint/{type}/{slug}", name: "lint", mimeType: JSON_, description: "Lint diagnostics for one content file: rule id, severity, line, message and a fix hint (docs/01 editorial lint)" }];
+    },
     async readResource(uri) {
       const text = (mimeType: string, text: string) => [{ uri, mimeType, text }];
+      const lintM = /^snypd:\/\/lint\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9/-]*)$/i.exec(uri);
+      if (lintM) {
+        const c = await loadCore(), cfg = await config();
+        const [, type, slug] = lintM;
+        const file = c.listContent(root, cfg).find((f) => f.type === type && f.slug === slug);
+        if (!file) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no ${type} with slug ${slug})`);
+        const site = c.lintSite(root, { cfg });   // whole site: rule 5 needs every route
+        const r = site.files.find((f) => f.file === relative(root, file.file))!;
+        return text(JSON_, JSON.stringify({ file: r.file, errors: r.errors, warnings: r.warnings, words: r.words, skipped: r.skipped, diagnostics: r.diagnostics }, null, 2));
+      }
       if (uri === "snypd://config") return text(YAML, (await config()).render());
       if (uri.startsWith("snypd://spec")) {
         const r = (await loadSpec()).resource(uri);
