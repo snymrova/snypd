@@ -1,0 +1,18 @@
+# Built-in taxonomies (docs/02 §4). v0.1: category, tag. series/cluster → v0.2.
+# Terms are files: content/taxonomies/{taxonomy}/{term}.md
+taxonomies:
+  category:
+    hierarchical: true
+    attaches: [post]
+    urlPattern: /category/{term}
+    fields:
+      title: { type: string, required: true }
+      description: { type: text }
+      parent: { type: ref, to: category }
+  tag:
+    hierarchical: false
+    attaches: [post]
+    urlPattern: /tag/{term}
+    fields:
+      title: { type: string, required: true }
+      description: { type: text }

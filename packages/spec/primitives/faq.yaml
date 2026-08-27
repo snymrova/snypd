@@ -1,0 +1,19 @@
+name: faq
+kind: container
+group: interaction
+purpose: Question-and-answer pairs, emitted as FAQPage schema. Body is "### question" headings each followed by the answer.
+props:
+  title: { type: string, default: FAQ }
+slots: { body: markdown, description: '"### Question" headings, each followed by answer paragraphs' }
+intent: Answer the three to six questions readers actually ask, one paragraph each.
+anti-intent: Not a place to restate the post. Not for one question (just write it).
+example: |
+  :::faq
+  ### Does llms.txt help ranking?
+  No. No search engine has announced support.
+
+  ### What does help?
+  A markdown twin served on `Accept: text/markdown`.
+  :::
+schema-emit: { type: FAQPage, from: headings }
+fallback: 'body as-is (headings + paragraphs)'

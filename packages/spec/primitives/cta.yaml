@@ -1,0 +1,15 @@
+name: cta
+kind: leaf
+group: interaction
+purpose: One call to action — a title, a line of body and a single button.
+props:
+  title: { type: string, required: true }
+  body: { type: markdown }
+  button: { type: string, required: true, description: Button label }
+  href: { type: url, required: true }
+  variant: { type: enum, values: [primary, subtle], default: primary }
+intent: The one next thing you want the reader to do, at the end of the post.
+anti-intent: Not mid-article. Not two of them. Not for links in prose.
+example: |
+  ::cta{title="Run the bench yourself" body="One binary, one command." button="Install" href="https://snypd.rocks/install"}
+fallback: '"**title** body — [button](href)"'

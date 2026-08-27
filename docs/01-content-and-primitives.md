@@ -31,10 +31,10 @@ cover: { image: /media/cover.png, eyebrow: Engineering }
 Serving a markdown twin cuts what an agent parses by 92%. llms.txt may do nothing.
 :::
 
-::stat-row
+:::stat-row
 ::stat{value="92%" label="fewer tokens" source="https://…/measurement"}
 ::stat{value="0" label="Google support for llms.txt" source="https://…"}
-::
+:::
 
 :::callout{kind="warning" title="The caveat"}
 `llms.txt` is the most-recommended and least-evidenced item on the list.

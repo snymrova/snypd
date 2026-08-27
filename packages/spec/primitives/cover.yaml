@@ -1,0 +1,15 @@
+name: cover
+kind: leaf
+group: structure
+purpose: The post header — title block with optional eyebrow, subtitle and image. At most one, first in the body. Omit it and the theme renders a cover from frontmatter.
+props:
+  title: { type: string, description: Defaults to frontmatter title }
+  subtitle: { type: string }
+  eyebrow: { type: string, description: Short label above the title, e.g. "Engineering" }
+  image: { type: image }
+  alt: { type: string, description: Required when image is set }
+intent: Open a post with a strong visual and a one-line promise.
+anti-intent: Not a section header (use "##"). Not for every page — a plain title is fine.
+example: |
+  ::cover{eyebrow="Engineering" subtitle="What a markdown twin actually saves" image="/media/cover.png" alt="Token counts side by side"}
+fallback: '"# title" line plus subtitle as a paragraph'

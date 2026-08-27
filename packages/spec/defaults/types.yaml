@@ -1,0 +1,54 @@
+# Built-in content types (docs/02 §3). v0.1: post, page, author. nav/redirect/media → v0.2.
+# A type = dir + frontmatter fields + allowed vocabulary + layout + taxonomies + urlPattern + mcp write policy.
+types:
+  post:
+    dir: content/posts
+    urlPattern: /posts/{slug}
+    layout: post
+    hierarchical: false
+    taxonomies: [category, tag]
+    vocabulary: all
+    mcp: { read: true, write: draft }
+    fields:
+      title: { type: string, required: true }
+      slug: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: Defaults to the filename }
+      date: { type: date, required: true }
+      updated: { type: date }
+      status: { type: ref, to: status, default: draft }
+      publishAt: { type: datetime }
+      description: { type: text, max: 160 }
+      author: { type: ref, to: author }
+      category: { type: ref, to: category }
+      tags: { type: list, of: { type: ref, to: tag } }
+      cover: { type: object, fields: { image: { type: image }, alt: { type: string }, eyebrow: { type: string } } }
+      canonical: { type: url }
+      noindex: { type: boolean, default: false }
+  page:
+    dir: content/pages
+    urlPattern: /{path}
+    layout: page
+    hierarchical: true
+    taxonomies: []
+    vocabulary: all
+    mcp: { read: true, write: draft }
+    fields:
+      title: { type: string, required: true }
+      slug: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      parent: { type: ref, to: page }
+      status: { type: ref, to: status, default: draft }
+      description: { type: text, max: 160 }
+      noindex: { type: boolean, default: false }
+  author:
+    dir: content/authors
+    urlPattern: /authors/{slug}
+    layout: null
+    hierarchical: false
+    taxonomies: []
+    vocabulary: [figure]
+    mcp: { read: true, write: draft }
+    fields:
+      name: { type: string, required: true }
+      slug: { type: string }
+      bio: { type: markdown }
+      avatar: { type: image }
+      url: { type: url }

@@ -1,0 +1,16 @@
+# Field-type DSL (docs/01 §field types). Used by frontmatter schemas, taxonomy terms and primitive props.
+# Common keys: required, default, description, min, max, pattern.
+fieldTypes:
+  string:   { json: string }
+  text:     { json: string, description: Multi-line plain text }
+  markdown: { json: string, description: Markdown, rendered with the same vocabulary }
+  number:   { json: number }
+  boolean:  { json: boolean }
+  date:     { json: string, format: date }
+  datetime: { json: string, format: date-time }
+  url:      { json: string, format: uri }
+  image:    { json: string, description: Path under content/media or an absolute URL }
+  ref:      { json: string, keys: [to], description: Slug of an item of type/taxonomy `to` }
+  list:     { json: array, keys: [of, min, max] }
+  enum:     { json: string, keys: [values] }
+  object:   { json: object, keys: [fields] }

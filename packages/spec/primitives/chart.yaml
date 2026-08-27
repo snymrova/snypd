@@ -1,0 +1,22 @@
+name: chart
+kind: container
+group: evidence
+purpose: A small static chart rendered to inline SVG at build time from inline data or a YAML file. The spec owns the geometry; the theme only supplies colours and type.
+props:
+  type: { type: enum, values: [bar, line, area, donut, lollipop], required: true }
+  data: { type: list, of: { type: object, fields: { label: { type: string, required: true }, value: { type: number, required: true }, series: { type: string } } }, description: Inline rows; or use src }
+  src: { type: string, description: Path to a YAML/JSON file with the same rows }
+  source: { type: url, required: true, description: Where the data came from. Lint fails without it. }
+  caption: { type: markdown, required: true, description: Says what the chart shows, in words }
+  unit: { type: string, description: Axis unit, e.g. "ms", "tokens" }
+  title: { type: string, description: SVG title for assistive tech; defaults to caption }
+slots: { body: yaml, description: 'Rows as a YAML list. Leaf form `::chart{src="…"}` or `data=` is also valid; then no body.' }
+intent: One comparison or one trend, ≤ 12 points, readable without the caption.
+anti-intent: Not a dashboard. Not two series unless they share a unit. Not for two numbers (use stat-row).
+example: |
+  :::chart{type="bar" source="https://snypd.rocks/bench" caption="Tokens per page, HTML vs markdown twin" unit="tokens"}
+  - { label: HTML, value: 6120 }
+  - { label: Markdown twin, value: 504 }
+  :::
+budget: { renderMs: 3, svgKb: 12 }
+fallback: 'markdown table of label | value (| series) followed by the caption; the data, not a picture'

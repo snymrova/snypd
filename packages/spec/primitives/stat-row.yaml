@@ -1,0 +1,14 @@
+name: stat-row
+kind: container
+group: evidence
+purpose: Two to four stats side by side, the numbers a post stands on.
+props: {}
+slots: { children: { type: list, of: { type: ref, to: stat }, min: 2, max: 4 } }
+intent: Lead a section with the numbers, then explain them.
+anti-intent: Not a table (use comparison in v0.2 or a markdown table). Never more than four.
+example: |
+  :::stat-row
+  ::stat{value="92%" label="fewer tokens" source="https://snypd.rocks/bench"}
+  ::stat{value="0" label="Google support for llms.txt" source="https://developers.google.com/search"}
+  :::
+fallback: 'bullet list of stats'

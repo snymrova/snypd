@@ -15,6 +15,7 @@
       "dependencies": {
         "@snypd/render": "workspace:*",
         "@snypd/runtime": "workspace:*",
+        "@snypd/spec": "workspace:*",
         "gpt-tokenizer": "^4.0.0",
       },
     },
@@ -29,6 +30,9 @@
     "packages/mcp": {
       "name": "@snypd/mcp",
       "version": "0.1.0",
+      "dependencies": {
+        "@snypd/spec": "workspace:*",
+      },
     },
     "packages/render": {
       "name": "@snypd/render",
@@ -41,6 +45,9 @@
     "packages/spec": {
       "name": "@snypd/spec",
       "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.9.0",
+      },
     },
     "packages/viz": {
       "name": "@snypd/viz",
@@ -87,5 +94,7 @@
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
+
+    "yaml": ["yaml@2.9.0", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA=="],
   }
 }

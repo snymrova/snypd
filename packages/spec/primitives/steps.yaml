@@ -1,0 +1,18 @@
+name: steps
+kind: container
+group: interaction
+purpose: An ordered procedure, emitted as HowTo schema. Body is a numbered markdown list; each item may have a bold lead-in.
+props:
+  title: { type: string }
+  time: { type: string, description: Total time, e.g. "10 min" }
+slots: { body: markdown, description: one ordered list; nested content allowed inside items }
+intent: Something the reader does in order and can tick off.
+anti-intent: Not for branching procedures (use flow). Not for lists of things (plain list).
+example: |
+  :::steps{title="Add a markdown twin" time="5 min"}
+  1. **Build** — `snypd build` writes `index.md` beside every `index.html`.
+  2. **Serve** — answer `Accept: text/markdown` with the twin.
+  3. **Verify** — `curl -H 'Accept: text/markdown' https://example.com/post/`.
+  :::
+schema-emit: { type: HowTo, from: list }
+fallback: 'the ordered list'

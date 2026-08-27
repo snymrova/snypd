@@ -1,0 +1,14 @@
+name: stat
+kind: leaf
+group: evidence
+purpose: One number with its label and where it came from. Usually inside a stat-row.
+props:
+  value: { type: string, required: true, description: The number as displayed, e.g. "92 %" }
+  label: { type: string, required: true }
+  source: { type: url, required: true, description: Where the number was measured or published. Lint fails without it. }
+  delta: { type: string, description: Change vs a baseline, e.g. "+12 pp" }
+intent: Evidence the reader can check with one click.
+anti-intent: No invented, rounded-for-effect or unsourced numbers. Not a KPI dashboard.
+example: |
+  ::stat{value="92%" label="fewer tokens" source="https://snypd.rocks/bench"}
+fallback: '"**value** label (source)"'

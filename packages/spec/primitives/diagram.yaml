@@ -1,0 +1,31 @@
+name: diagram
+kind: container
+group: evidence
+purpose: A box-and-arrow diagram laid out automatically (layered, deterministic) and rendered to inline SVG at build time. Nodes and edges are declared; no coordinates.
+props:
+  direction: { type: enum, values: [lr, tb], default: lr }
+  caption: { type: markdown, required: true }
+  title: { type: string, description: SVG title for assistive tech; defaults to caption }
+slots:
+  body:
+    type: yaml
+    description: |
+      nodes: list of { id, label?, kind?: box|rounded|pill }
+      edges: list of { from, to, label? }
+    max: { nodes: 40 }
+intent: Show how parts connect — a pipeline, a data flow, a dependency graph — in ≤ 40 nodes.
+anti-intent: Not for sequences of actions (use flow). Not org charts, not maps, not UI mockups. Lint fails above 40 nodes.
+example: |
+  :::diagram{direction="lr" caption="Content flows from git to two outputs."}
+  nodes:
+    - { id: md, label: markdown + YAML }
+    - { id: build, label: snypd build }
+    - { id: html, label: HTML }
+    - { id: twin, label: .md twin }
+  edges:
+    - { from: md, to: build }
+    - { from: build, to: html }
+    - { from: build, to: twin }
+  :::
+budget: { renderMs: 15, svgKb: 25, maxNodes: 40 }
+fallback: '"id → id (label)" edge list followed by the caption'

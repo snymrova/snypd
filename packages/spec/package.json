@@ -1,1 +1,10 @@
-{ "name": "@snypd/spec", "version": "0.1.0", "type": "module", "main": "src/index.ts", "license": "MIT" }
+{
+  "name": "@snypd/spec",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.9.0"
+  }
+}

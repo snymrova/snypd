@@ -1,0 +1,15 @@
+name: pullquote
+kind: container
+group: emphasis
+purpose: A sentence lifted from the text (or a cited source) and set large.
+props:
+  cite: { type: string, description: Who said it or where it is from }
+  href: { type: url }
+slots: { body: markdown }
+intent: One sentence, already in the post, worth reading twice.
+anti-intent: Not new information. Not more than one per screen.
+example: |
+  :::pullquote{cite="Google Search Central" href="https://developers.google.com/search"}
+  There is no ranking benefit from llms.txt.
+  :::
+fallback: 'blockquote with "— cite" attribution'

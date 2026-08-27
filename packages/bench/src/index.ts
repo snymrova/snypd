@@ -11,6 +11,7 @@ import { build } from "@snypd/render";
 import { serve } from "@snypd/runtime";
 import { generate } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
+import { resources as specResources } from "@snypd/spec";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
@@ -114,13 +115,14 @@ export function runTokensPerPage(n: number | string): Metric[] {
 }
 
 /**
- * Tokens to learn the site = size of the `config` + `spec/primitives/*` + `theme` MCP resources (docs/05).
- * S2: only `config` (snypd.yaml) exists. S3 adds the primitives, S13 the theme — each grows this number.
+ * Tokens to learn the site = the resources an agent reads at session start (docs/05):
+ * `config` + `spec` + `spec/primitives` + every `spec/primitives/{name}` + `theme` (S13).
+ * Counting every primitive is the conservative upper bound; the index alone is what a harness
+ * must read, the per-primitive YAML is what it reads before using a block.
  */
 export function learnSurface(root: string): Record<string, string> {
   const out: Record<string, string> = { "snypd://config": readFileSync(join(root, "snypd.yaml"), "utf8") };
-  const spec = "packages/spec/primitives";
-  if (existsSync(spec)) for (const f of readdirSync(spec)) if (f.endsWith(".yaml")) out[`snypd://spec/primitives/${f.slice(0, -5)}`] = readFileSync(join(spec, f), "utf8");
+  for (const r of specResources()) if (r.uri === "snypd://spec" || r.uri.startsWith("snypd://spec/primitives")) out[r.uri] = r.text();
   return out;
 }
 export function runTokensToLearn(n: number | string): Metric {
@@ -139,7 +141,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
-  const report: Report = { version: "0.1.0-s2", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  const report: Report = { version: "0.1.0-s3", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));

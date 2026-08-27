@@ -1,0 +1,33 @@
+name: flow
+kind: container
+group: evidence
+purpose: An ordered procedure with branches — steps plus yes/no decisions — written as YAML and rendered as a diagram. Sugar over diagram that needs no ids for the straight path; emits HowTo schema like steps.
+props:
+  direction: { type: enum, values: [tb, lr], default: tb }
+  caption: { type: markdown, required: true }
+  title: { type: string, description: SVG title for assistive tech; defaults to caption }
+slots:
+  body:
+    type: yaml
+    description: |
+      steps: list of items in order; a string is a step, a map { ask, yes, no } is a decision
+      whose yes/no are steps or nested lists; { then: id } jumps to a named step { id, do }.
+    max: { nodes: 40 }
+intent: A procedure with at most a handful of decisions that a reader follows top to bottom.
+anti-intent: Not for straight lists (use steps). Not for graphs that are not procedures (use diagram).
+example: |
+  :::flow{caption="Publishing is a merge; the agent never touches main."}
+  steps:
+    - Draft on branch snypd/draft-<slug>
+    - Run lint
+    - ask: Lint clean?
+      yes: Open preview
+      no: { then: fix }
+    - id: fix
+      do: Fix the reported rule and re-lint
+    - Human approves
+    - Merge to main
+  :::
+schema-emit: { type: HowTo, from: steps }
+budget: { renderMs: 15, svgKb: 25, maxNodes: 40 }
+fallback: 'numbered step list with "If ask — yes: … / no: …" lines, followed by the caption'

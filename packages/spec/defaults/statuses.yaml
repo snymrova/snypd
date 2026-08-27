@@ -1,0 +1,7 @@
+# Status machine (docs/02 §5, narrowed by docs/07 §2). v0.1: draft → published → trashed.
+# review / scheduled → v0.2. Transitions are enforced by lint and the type's mcp.write policy.
+statuses:
+  draft:     { public: false, transitions: [published, trashed], description: Being written; visible only in preview }
+  published: { public: true,  transitions: [draft, trashed],     description: Built and served }
+  trashed:   { public: false, transitions: [draft],              description: Moved to content/.trash; swept after 30 days }
+initialStatus: draft

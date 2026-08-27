@@ -1,0 +1,15 @@
+name: callout
+kind: container
+group: emphasis
+purpose: A boxed aside that must not be skipped — a warning, a tip, a note, or a line you want quoted.
+props:
+  kind: { type: enum, values: [note, tip, warning, danger, quote-me], default: note }
+  title: { type: string }
+slots: { body: markdown }
+intent: One idea per callout; the title is the idea, the body is the proof.
+anti-intent: Not for emphasis in general — lint warns above 3 per 1,000 words. Not a pullquote.
+example: |
+  :::callout{kind="warning" title="The caveat"}
+  `llms.txt` is the most-recommended and least-evidenced item on the list.
+  :::
+fallback: '"> **title**" blockquote with the body'

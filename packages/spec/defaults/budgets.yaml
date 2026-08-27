@@ -1,0 +1,19 @@
+# Default benchmark budgets (docs/05, docs/07 §1). Overridable in snypd.yaml › bench.budgets.
+# CI enforces 80 % of these (docs/07 §3).
+budgets:
+  buildPer100: 2000        # ms, cold build per 100 posts
+  incremental: 300         # ms, single-post rebuild
+  mcpColdStart: 50         # ms, spawn → initialize
+  ttfb: 50                 # ms, preview/SSR
+  lcp: 1200                # ms
+  cls: 0.05
+  lighthousePerf: 98
+  lighthouseA11y: 100
+  jsKb: 0                  # content pages
+  cssKb: 30
+  tokensPerPage: 2500      # .md twin, median
+  mdReduction: 85          # % fewer tokens than HTML
+  tokensToLearn: 6000      # config + spec/primitives + theme
+  chart: { renderMs: 3, svgKb: 12 }
+  diagram: { renderMs: 15, svgKb: 25, maxNodes: 40 }
+  flow: { renderMs: 15, svgKb: 25, maxNodes: 40 }

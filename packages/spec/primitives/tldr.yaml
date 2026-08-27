@@ -1,0 +1,14 @@
+name: tldr
+kind: container
+group: emphasis
+purpose: The 1–3 sentence summary an agent or skimmer reads first. One per post, directly after the cover.
+props: {}
+slots: { body: markdown }
+intent: State the finding and the caveat in plain words, no headings, no lists.
+anti-intent: Not an intro paragraph, not a teaser, not longer than 60 words.
+example: |
+  :::tldr
+  Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do nothing.
+  :::
+schema-emit: { description: body }
+fallback: '"**TL;DR** " prefix on the body paragraph'
