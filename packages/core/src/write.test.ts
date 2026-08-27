@@ -1,0 +1,182 @@
+import { describe, expect, test, beforeEach } from "bun:test";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { loadConfig } from "./index";
+import { createContent, updateContent, setStatus, trashContent, restoreContent, splitFrontmatter, target, publishCheck, approve, approvals, contentHash } from "./write";
+import { Repo, git, isRepoRoot, principal, draftBranch } from "./git";
+
+const root = "corpora/_test/write";
+const fresh = () => {
+  rmSync(root, { recursive: true, force: true });
+  mkdirSync(`${root}/content/posts`, { recursive: true });
+  writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
+};
+
+describe("write (S11)", () => {
+  beforeEach(fresh);
+
+  test("splitFrontmatter separates the block from the body, and tolerates a file without one", () => {
+    expect(splitFrontmatter("---\ntitle: a\n---\n\nBody.\n")).toEqual({ yaml: "title: a", body: "Body.\n", had: true });
+    expect(splitFrontmatter("Just prose.\n")).toEqual({ yaml: "", body: "Just prose.\n", had: false });
+  });
+
+  test("create: slug from the title, date defaulted, status forced to the initial one", () => {
+    const cfg = loadConfig(root);
+    const r = createContent(root, { type: "post", frontmatter: { title: "Hello, World!", status: "published" }, body: "## H\n\nWords.", cfg, now: new Date(2026, 7, 27, 12) });
+    expect(r.slug).toBe("hello-world");
+    expect(r.route).toBe("/posts/hello-world");
+    expect(r.status).toBe("draft");                       // an agent drafts, whatever it asked for
+    const src = readFileSync(r.file, "utf8");
+    expect(src).toStartWith("---\ntitle: Hello, World!\n");
+    expect(src).toContain("date: 2026-08-27");            // the type requires it
+    expect(src).toContain("status: draft");
+    expect(src.endsWith("Words.\n")).toBe(true);
+    expect(r.paths).toEqual(["content/posts/hello-world.md"]);
+    expect(r.lint!.diagnostics.some((d) => d.n === 0)).toBe(false);
+  });
+
+  test("create: refuses a duplicate, a bad slug, an unknown type and a type with mcp.write false", () => {
+    const cfg = loadConfig(root);
+    createContent(root, { type: "post", slug: "a", frontmatter: { title: "A" }, cfg });
+    expect(() => createContent(root, { type: "post", slug: "a", frontmatter: { title: "A" }, cfg })).toThrow(/already exists/);
+    expect(() => createContent(root, { type: "post", slug: "Not A Slug", frontmatter: { title: "A" }, cfg })).toThrow(/invalid slug/);
+    expect(() => createContent(root, { type: "ghost", slug: "a", cfg })).toThrow(/unknown type/);
+    expect(() => createContent(root, { type: "post", frontmatter: {}, cfg })).toThrow(/slug required/);
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntypes: { post: { mcp: { write: false } } }\n");
+    expect(() => createContent(root, { type: "post", slug: "b", frontmatter: { title: "B" }, cfg: loadConfig(root) })).toThrow(/not writable over MCP/);
+  });
+
+  test("update: a patch moves only the keys it names and keeps comments; null deletes", () => {
+    const cfg = loadConfig(root);
+    const t = target(root, cfg, "post", "keep");
+    writeFileSync(t.file, "---\ntitle: Keep\n# why this date\ndate: 2026-01-01\ntags: [ai]\ndescription: old\n---\n\nBody.\n");
+    const r = updateContent(root, { type: "post", slug: "keep", patch: { description: "new", tags: ["ai", "mcp"], canonical: null }, cfg });
+    const src = readFileSync(r.file, "utf8");
+    expect(src).toContain("# why this date");             // the comment survives
+    expect(src).toContain("date: 2026-01-01");
+    expect(src).toContain("description: new");
+    expect(src).toContain("- mcp");
+    expect(src).toContain("Body.");
+    expect(updateContent(root, { type: "post", slug: "keep", body: "New body.", cfg }).status).toBe("draft");
+    expect(readFileSync(t.file, "utf8")).toContain("New body.");
+    expect(() => updateContent(root, { type: "post", slug: "keep", patch: { status: "published" }, cfg })).toThrow(/not patchable/);
+    expect(() => updateContent(root, { type: "post", slug: "nope", body: "x", cfg })).toThrow(/no post with slug/);
+    expect(() => updateContent(root, { type: "post", slug: "keep", cfg })).toThrow(/nothing to update/);
+  });
+
+  test("set_status: only transitions the machine allows; publishing stamps updated", () => {
+    const cfg = loadConfig(root);
+    createContent(root, { type: "post", slug: "s", frontmatter: { title: "S", date: "2026-01-01" }, cfg });
+    expect(() => setStatus(root, { type: "post", slug: "s", status: "trashed", cfg })).not.toThrow();
+    expect(() => setStatus(root, { type: "post", slug: "s", status: "published", cfg })).toThrow(/not a transition/);   // trashed → draft only
+    setStatus(root, { type: "post", slug: "s", status: "draft", cfg });
+    const r = setStatus(root, { type: "post", slug: "s", status: "published", cfg, now: new Date(2026, 7, 27, 12) });
+    expect(r.status).toBe("published");
+    expect(readFileSync(r.file, "utf8")).toContain("updated: 2026-08-27");
+    expect(() => setStatus(root, { type: "post", slug: "s", status: "published", cfg })).toThrow(/already published/);
+    expect(() => setStatus(root, { type: "post", slug: "s", status: "nope", cfg })).toThrow(/unknown status/);
+  });
+
+  test("trash moves the file and restore brings it back as a draft", () => {
+    const cfg = loadConfig(root);
+    const c = createContent(root, { type: "post", slug: "t", frontmatter: { title: "T" }, cfg });
+    const r = trashContent(root, { type: "post", slug: "t", cfg });
+    expect(existsSync(c.file)).toBe(false);
+    expect(existsSync(`${root}/content/.trash/post/t.md`)).toBe(true);
+    expect(r.paths).toEqual(["content/posts/t.md", "content/.trash/post/t.md"]);
+    expect(readFileSync(`${root}/content/.trash/post/t.md`, "utf8")).toContain("status: trashed");
+    const b = restoreContent(root, { type: "post", slug: "t", cfg });
+    expect(existsSync(c.file)).toBe(true);
+    expect(b.status).toBe("draft");
+    expect(existsSync(`${root}/content/.trash/post/t.md`)).toBe(false);
+    expect(() => restoreContent(root, { type: "post", slug: "t", cfg })).toThrow(/nothing trashed/);
+  });
+
+  test("publish needs a human, and the approval covers one version only", async () => {
+    const cfg = loadConfig(root);
+    const c = createContent(root, { type: "post", slug: "p", frontmatter: { title: "P" }, cfg });
+    const ix = approvals(root);
+    let check = publishCheck(root, cfg, ix, "post", "p");
+    expect(check.ok).toBe(false);
+    expect(check.hint).toContain("/_snypd/review/post/p");
+    approve(ix, { type: "post", slug: "p", hash: contentHash(readFileSync(c.file, "utf8")), by: "sunny", at: "2026-08-27T10:00:00Z" });
+    expect(publishCheck(root, cfg, ix, "post", "p").ok).toBe(true);
+    updateContent(root, { type: "post", slug: "p", body: "Different words entirely.", cfg });
+    check = publishCheck(root, cfg, ix, "post", "p");
+    expect(check.ok).toBe(false);
+    expect(check.reason).toContain("changed after it was approved");
+  });
+
+  test("a type whose policy is publish needs no approval", async () => {
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntypes: { post: { mcp: { write: publish } } }\n");
+    const cfg = loadConfig(root);
+    createContent(root, { type: "post", slug: "free", frontmatter: { title: "F" }, cfg });
+    expect(publishCheck(root, cfg, approvals(root), "post", "free")).toMatchObject({ ok: true, policy: "publish" });
+  });
+});
+
+describe("git (S11)", () => {
+  const repo = "corpora/_test/repo";
+  const setup = () => {
+    rmSync(repo, { recursive: true, force: true });
+    mkdirSync(`${repo}/content/posts`, { recursive: true });
+    writeFileSync(`${repo}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
+    git(repo, "init", "-q", "-b", "main");
+    git(repo, "config", "user.email", "t@example.com"); git(repo, "config", "user.name", "T");
+    git(repo, "add", "-A"); git(repo, "commit", "-q", "-m", "init");
+  };
+
+  test("a directory inside another repo is not a site repo", () => {
+    expect(isRepoRoot("corpora/100")).toBe(false);       // toplevel is the snypd repo: a bench must never commit
+    expect(Repo.open("corpora/100")).toBeUndefined();
+  });
+
+  test("principal is the trailer value, overridable by env", () => {
+    expect(principal({ SNYPD_PRINCIPAL: "human:sunny" } as never)).toBe("human:sunny");
+    expect(principal({ USER: "sunny" } as never)).toBe("agent:claude-code/sunny");
+  });
+
+  test("a write commits to a per-item draft branch with the principal trailer, leaving main clean", () => {
+    setup();
+    const r = Repo.open(repo)!;
+    expect(r.branch()).toBe("main");
+    const cfg = loadConfig(repo);
+    const c = createContent(repo, { type: "post", slug: "first", frontmatter: { title: "First" }, body: "Words.", cfg });
+    const d = r.useDraft("post", "first", c.paths);
+    expect(d.branch).toBe(draftBranch("post", "first"));
+    expect(d.base).toBe("main");
+    expect(d.created).toBe(true);
+    const commit = r.commit(c.paths, "content: create post/first", "agent:claude-code/t");
+    expect(commit.committed).toBe(true);
+    expect(r.run("log", "-1", "--format=%B").stdout).toContain("Snypd-Principal: agent:claude-code/t");
+    expect(r.dirty()).toEqual([]);
+    expect(r.commit(c.paths, "content: create post/first").committed).toBe(false);   // nothing changed
+    expect(r.run("ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("");   // main never saw it
+    expect(r.history("content/posts/first.md")[0]).toMatchObject({ subject: "content: create post/first", principal: "agent:claude-code/t" });
+  });
+
+  test("a second write reuses the branch; publish merges it into the recorded base and deletes it", () => {
+    setup();
+    const r = Repo.open(repo)!;
+    const cfg = loadConfig(repo);
+    const c = createContent(repo, { type: "post", slug: "second", frontmatter: { title: "Second" }, cfg });
+    r.useDraft("post", "second", c.paths); r.commit(c.paths, "content: create post/second");
+    const u = updateContent(repo, { type: "post", slug: "second", body: "More.", cfg });
+    expect(r.useDraft("post", "second", u.paths)).toMatchObject({ created: false, base: "main" });
+    r.commit(u.paths, "content: update post/second");
+    const m = r.merge(draftBranch("post", "second"));
+    expect(m.ok).toBe(true);
+    expect(r.branch()).toBe("main");
+    expect(r.exists(draftBranch("post", "second"))).toBe(false);
+    expect(r.run("ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("content/posts/second.md");
+    expect(r.run("log", "-1", "--format=%B").stdout).toContain("Snypd-Principal:");
+  });
+
+  test("useDraft refuses to carry someone else's uncommitted work onto a draft branch", () => {
+    setup();
+    const r = Repo.open(repo)!;
+    writeFileSync(`${repo}/snypd.yaml`, "snypd: 1\nsite: { name: edited, url: https://t.example }\n");
+    const c = createContent(repo, { type: "post", slug: "third", frontmatter: { title: "Third" }, cfg: loadConfig(repo) });
+    expect(() => r.useDraft("post", "third", c.paths)).toThrow(/uncommitted change/);
+    expect(r.branch()).toBe("main");
+  });
+});

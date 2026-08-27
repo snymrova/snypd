@@ -10,7 +10,7 @@
  * The driver is behind @snypd/runtime (`bun:sqlite` | `node:sqlite`), never imported here.
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { load as parseYaml } from "js-yaml";
 import { openDatabase, type Db } from "@snypd/runtime";
@@ -68,7 +68,12 @@ export class SiteIndex {
   private constructor(readonly root: string, readonly path: string, private db: Db) {}
 
   static async open(root: string, path = join(root, INDEX_DIR, "index.sqlite")): Promise<SiteIndex> {
-    mkdirSync(join(path, ".."), { recursive: true });
+    const dir = join(path, "..");
+    mkdirSync(dir, { recursive: true });
+    // The index is disposable (docs/07 decision 13) and must never reach a commit — nor make the tree
+    // look dirty, which would stop a draft branch switch (git.ts). A self-ignoring directory needs no
+    // repo-level .gitignore and no cooperation from the site's own.
+    if (!existsSync(join(dir, ".gitignore"))) writeFileSync(join(dir, ".gitignore"), "*\n");
     const db = await openDatabase(path);
     db.transaction(() => { for (const stmt of SCHEMA.split(";")) if (stmt.trim()) db.run(stmt); });   // one transaction: one journal write, not one per table
     return new SiteIndex(root, path, db);

@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, beforeAll } from "bun:test";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "./server";
 import { PROTOCOL_VERSIONS } from "./protocol";
 
@@ -32,7 +33,7 @@ describe("stdio", () => {
       req(3, "resources/read", { uri: "snypd://lint/post/post-00005" }),
       req(4, "resources/read", { uri: "snypd://lint/post/nope" }),
     ]);
-    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://lint/{type}/{slug}"]);
+    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}"]);
     const lintRes = JSON.parse(lintOk.result.contents[0].text);
     expect(lintRes.file).toBe("content/posts/post-00005.md");
     expect(lintRes.errors).toBe(0); expect(lintRes.diagnostics).toEqual([]); expect(lintRes.words).toBeGreaterThan(100);
@@ -60,7 +61,7 @@ describe("stdio", () => {
     expect(out.map((m) => m.id)).toEqual([1, null, 2, 3, 4]);
     expect(out[0].result.protocolVersion).toBe(PROTOCOL_VERSIONS[0]);
     expect(out[1].error.code).toBe(-32700);
-    expect(out[3].result.tools).toEqual([]);
+    expect(out[3].result.tools.map((t: any) => t.name)).toEqual(["content.create", "content.update", "content.query", "content.lint", "content.set_status", "content.publish", "content.trash", "content.restore"]);
   });
 });
 
@@ -72,5 +73,96 @@ describe("in-process", () => {
     const missing = await s.handle({ jsonrpc: "2.0", id: 2, method: "resources/read", params: {} });
     expect((missing as any).error.code).toBe(-32602);
     expect(await s.handle({ jsonrpc: "2.0", method: "resources/read", params: {} })).toBeUndefined(); // notification → no reply even on error
+  });
+});
+
+/** S11: the write loop as an agent drives it — tools/call over the same stdio server, on a real repo. */
+describe("content.* tools", () => {
+  const site = "corpora/_test/mcp-site";
+  const call = (id: number, name: string, args: object = {}) => req(id, "tools/call", { name, arguments: args });
+  const structured = (m: any) => m.result.structuredContent;
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(`${site}/content/posts`, { recursive: true });
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
+    const { git } = await import("@snypd/core");
+    git(site, "init", "-q", "-b", "main");
+    git(site, "config", "user.email", "t@example.com"); git(site, "config", "user.name", "T");
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
+  });
+
+  test("create → query → lint → publish: refused without a human, then merged after approval", async () => {
+    const [, created, dupe, queried, linted, refused] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", frontmatter: { title: "Why MCP only", description: "A short answer." }, body: "## Why\n\nBecause the surface is the product.\n" }),
+      call(3, "content.create", { type: "post", slug: "why-mcp-only", frontmatter: { title: "Again" } }),
+      call(4, "content.query", { type: "post" }),
+      call(5, "content.lint", { type: "post", slug: "why-mcp-only" }),
+      call(6, "content.publish", { type: "post", slug: "why-mcp-only" }),
+    ], site);
+
+    expect(structured(created)).toMatchObject({ ok: true, type: "post", slug: "why-mcp-only", route: "/posts/why-mcp-only", status: "draft" });
+    expect(structured(created).git).toMatchObject({ enabled: true, committed: true, branch: "snypd/draft-post-why-mcp-only", base: "main" });
+    expect(created.result.content[0].text).toContain("committed");
+
+    expect(dupe.result.isError).toBe(true);                                   // a tool error, not a protocol error
+    expect(dupe.result.content[0].text).toContain("already exists");
+    expect(dupe.error).toBeUndefined();
+
+    expect(structured(queried)).toMatchObject({ ok: true, total: 1 });
+    expect(structured(queried).items[0]).toMatchObject({ slug: "why-mcp-only", status: "draft" });
+    expect(structured(linted)).toMatchObject({ ok: true, files: 1 });
+
+    expect(refused.result.isError).toBe(true);
+    expect(structured(refused).hint).toContain("/_snypd/review/post/why-mcp-only");
+
+    // the human approves the exact version on the review page (the preview server calls the same function)
+    const c = await import("@snypd/core");
+    const cfg = c.loadConfig(site);
+    const t = c.target(site, cfg, "post", "why-mcp-only");
+    c.approve(c.approvals(site), { type: "post", slug: "why-mcp-only", hash: c.contentHash(readFileSync(t.file, "utf8")), by: "sunny", at: new Date().toISOString() });
+
+    const [, published, again] = await session([req(1, "initialize"), call(2, "content.publish", { type: "post", slug: "why-mcp-only" }), call(3, "content.publish", { type: "post", slug: "why-mcp-only" })], site);
+    expect(structured(published)).toMatchObject({ ok: true, status: "published" });
+    expect(structured(published).git.merged).toBe(true);
+    expect(readFileSync(t.file, "utf8")).toContain("status: published");
+    expect(c.git(site, "rev-parse", "--abbrev-ref", "HEAD").stdout).toBe("main");
+    expect(c.git(site, "ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("content/posts/why-mcp-only.md");
+    expect(again.result.isError).toBe(true);                                   // the approval was spent
+  });
+
+  test("update patches one key, trash and restore move the file, and the resource reads it back", async () => {
+    const [, updated, read, trashed, gone, restored, history] = await session([
+      req(1, "initialize"),
+      call(2, "content.update", { type: "post", slug: "why-mcp-only", patch: { description: "The surface is the product." } }),
+      req(3, "resources/read", { uri: "snypd://content/post/why-mcp-only" }),
+      call(4, "content.trash", { type: "post", slug: "why-mcp-only" }),
+      req(5, "resources/read", { uri: "snypd://content/post/why-mcp-only" }),
+      call(6, "content.restore", { type: "post", slug: "why-mcp-only" }),
+      req(7, "resources/read", { uri: "snypd://history/post/why-mcp-only" }),
+    ], site);
+    expect(structured(updated)).toMatchObject({ ok: true, status: "published" });
+    expect(read.result.contents[0].text).toContain("description: The surface is the product.");
+    expect(read.result.contents[0].text).toContain("body: |");
+    expect(structured(trashed)).toMatchObject({ ok: true, status: "trashed" });
+    expect(gone.error.code).toBe(-32002);
+    expect(structured(restored)).toMatchObject({ ok: true, status: "draft" });
+    const h = JSON.parse(history.result.contents[0].text);
+    expect(h.git).toBe(true);
+    expect(h.commits[0].principal).toStartWith("agent:claude-code/");
+    expect(h.commits.map((x: any) => x.subject)).toContain("content: create post/why-mcp-only");
+  });
+
+  test("a bad status transition and an unknown tool come back as fixable text", async () => {
+    const [, badStatus, unknownTool, badArgs] = await session([
+      req(1, "initialize"),
+      call(2, "content.set_status", { type: "post", slug: "why-mcp-only", status: "nope" }),
+      call(3, "content.nope", {}),
+      req(4, "tools/call", { name: "content.create", arguments: [] }),
+    ], site);
+    expect(badStatus.result.content[0].text).toContain("unknown status");
+    expect(unknownTool.result.content[0].text).toContain("Tools: content.create");
+    expect(badArgs.error.code).toBe(-32602);
   });
 });

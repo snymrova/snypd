@@ -4,6 +4,16 @@
   "type": "module",
   "main": "src/index.ts",
   "license": "MIT",
-  "dependencies": { "@snypd/core": "workspace:*", "@snypd/spec": "workspace:*" },
-  "devDependencies": { "@modelcontextprotocol/sdk": "^1.30.0" }
+  "dependencies": {
+    "@snypd/core": "workspace:*",
+    "@snypd/spec": "workspace:*"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./tools": "./src/tools.ts",
+    "./server": "./src/server.ts"
+  }
 }

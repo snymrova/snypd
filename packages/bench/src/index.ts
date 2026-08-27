@@ -8,6 +8,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { build } from "@snypd/render";
+import { preview } from "@snypd/render/preview";
 import { serve } from "@snypd/runtime";
 import { generate } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
@@ -25,7 +26,7 @@ export const BUDGETS = {
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
-export const VERSION = "0.1.0-s10";
+export const VERSION = "0.1.0-s11";
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
@@ -131,7 +132,31 @@ export async function runMcpColdStart(runs: number): Promise<Metric> {
   return { name: "mcp.coldStart", value: +ms.toFixed(1), unit: "ms", budget: ACTIVE.mcpColdStart };
 }
 
-/** Time-to-first-byte (headers received) against the static server, median of `requests` after 5 warm-ups. */
+/**
+ * Time-to-first-byte against `snypd serve --preview` (S11) — the server the budget is written for
+ * (docs/05: preview/SSR), median of `requests` after 5 warm-ups, on an unchanged tree. A changed tree
+ * costs one incremental build on the first request after the change; that is `build.incremental`,
+ * measured separately, and pretending otherwise would hide which of the two moved.
+ */
+export async function runPreviewTtfb(n: number, requests: number): Promise<Metric> {
+  const root = corpus(n);
+  const s = await preview(root, { port: 0, watch: false });
+  try {
+    const url = `${s.url}/posts/post-00001/`;
+    for (let i = 0; i < 5; i++) await (await fetch(url)).text();
+    const xs: number[] = [];
+    for (let i = 0; i < requests; i++) {
+      const t0 = performance.now();
+      const res = await fetch(url);
+      xs.push(performance.now() - t0);
+      await res.text();
+    }
+    const draft = await fetch(`${s.url}/_snypd/review/post/post-00001`);
+    return { name: "preview.ttfb", value: +median(xs).toFixed(2), unit: "ms", budget: ACTIVE.ttfb, note: `serve --preview, unchanged tree, drafts included; review page ${draft.status === 200 ? "served" : `HTTP ${draft.status}`}` };
+  } finally { s.stop(); }
+}
+
+/** The S2 static floor: `dist/` over Bun.serve with no rebuild check. Report-only — nothing ships it. */
 export async function runTtfb(n: number, requests: number): Promise<Metric> {
   const root = corpus(n);
   if (!existsSync(join(root, "dist"))) await build(root);
@@ -146,7 +171,7 @@ export async function runTtfb(n: number, requests: number): Promise<Metric> {
       xs.push(performance.now() - t0);
       await res.text();
     }
-    return { name: "serve.ttfb", value: +median(xs).toFixed(2), unit: "ms", budget: ACTIVE.ttfb };
+    return { name: "serve.ttfb", value: +median(xs).toFixed(2), unit: "ms", note: "static dist/ over Bun.serve — the floor the preview server is measured against" };
   } finally { s.stop(); }
 }
 
@@ -340,6 +365,18 @@ export function learnSurface(root: string): Record<string, string> {
   for (const r of specResources()) if (r.uri === "snypd://spec" || r.uri.startsWith("snypd://spec/primitives")) out[r.uri] = r.text();
   return out;
 }
+/**
+ * What `tools/list` + `resources/templates/list` cost a session, on top of `tokens.learn` (S11).
+ * Report-only and deliberately a *separate* metric: `tokens.learn` is defined in docs/05 as config +
+ * spec/primitives + theme and has been comparable since S2 — folding the write surface into it would
+ * break that line. An agent that lists everything pays both, so both are on the page.
+ */
+export async function runTokensTools(): Promise<Metric> {
+  const { TOOLS } = await import("@snypd/mcp/tools");   // the subpath, not the index: tools.ts must stay off `snypd serve`'s import path
+  const tools = countTokens(JSON.stringify({ tools: TOOLS }));
+  return { name: "tokens.tools", value: tools, unit: "tokens", note: `${TOOLS.length} tools; paid once per session on top of tokens.learn, which docs/05 scopes to config + spec + theme` };
+}
+
 export function runTokensToLearn(n: number | string): Metric {
   const surface = learnSurface(corpus(n));
   const total = Object.values(surface).reduce((a, s) => a + countTokens(s), 0);
@@ -357,8 +394,10 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   for (const n of sizes.filter((n) => n <= 1000)) metrics.push(...await runLint(n, runs));
   metrics.push(cold);
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
+  metrics.push(await runPreviewTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
+  metrics.push(await runTokensTools());
   metrics.push(await runSurface(100));
   metrics.push(...runViz(runs));
   const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };

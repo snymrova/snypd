@@ -11,10 +11,12 @@ export interface ResourceContents { uri: string; mimeType?: string; text: string
 export interface ResourceTemplate { uriTemplate: string; name: string; mimeType?: string; description?: string }
 export interface Tool { name: string; description?: string; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[] }; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean } }
 export interface Prompt { name: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[] }
+/** tools/call result (2025-11-25). `structuredContent` mirrors the text for callers that parse. */
+export interface ToolResult { content: { type: "text"; text: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean }
 export interface InitializeResult { protocolVersion: string; capabilities: Record<string, unknown>; serverInfo: { name: string; version: string }; instructions?: string }
 
 export const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"] as const;
-export const SERVER = { name: "snypd", version: "0.1.0-s4" };
+export const SERVER = { name: "snypd", version: "0.1.0-s11" };
 
 export type Id = number | string | null;
 export interface Request { jsonrpc: "2.0"; id?: Id; method: string; params?: Record<string, unknown> }
@@ -29,13 +31,14 @@ export interface Handlers {
   readResource(uri: string): Promise<ResourceContents[]>;
   listTemplates?(): Promise<ResourceTemplate[]>;
   listTools?(): Promise<Tool[]>;
+  callTool?(name: string, args: Record<string, unknown>): Promise<ToolResult>;
   listPrompts?(): Promise<Prompt[]>;
 }
 
 export function initializeResult(params: Record<string, unknown> | undefined): InitializeResult {
   const asked = String(params?.protocolVersion ?? "");
   const protocolVersion = (PROTOCOL_VERSIONS as readonly string[]).includes(asked) ? asked : PROTOCOL_VERSIONS[0];
-  return { protocolVersion, capabilities: { resources: {}, tools: {}, prompts: {} }, serverInfo: SERVER, instructions: "Read snypd://config, then snypd://spec (and snypd://spec/primitives) before writing content." };
+  return { protocolVersion, capabilities: { resources: {}, tools: {}, prompts: {} }, serverInfo: SERVER, instructions: "Read snypd://config, then snypd://spec (and snypd://spec/primitives) before writing content. Writes go to a draft branch; publishing a draft-policy type needs a human to approve it on `snypd serve --preview`." };
 }
 
 /** One message in → zero or one response out. Notifications (no id) never produce output. */
@@ -55,6 +58,14 @@ export async function dispatch(msg: Request, h: Handlers): Promise<Response | un
         return ok({ contents: await h.readResource(uri) });
       }
       case "tools/list": return ok({ tools: (await h.listTools?.()) ?? [] });
+      case "tools/call": {
+        const name = msg.params?.name;
+        if (typeof name !== "string") throw new RpcError(E.INVALID_PARAMS, "params.name required");
+        if (!h.callTool) throw new RpcError(E.METHOD_NOT_FOUND, "This server exposes no tools");
+        const args = msg.params?.arguments;
+        if (args !== undefined && (typeof args !== "object" || args === null || Array.isArray(args))) throw new RpcError(E.INVALID_PARAMS, "params.arguments must be an object");
+        return ok(await h.callTool(name, (args as Record<string, unknown>) ?? {}));
+      }
       case "prompts/list": return ok({ prompts: (await h.listPrompts?.()) ?? [] });
       default:
         if (msg.method.startsWith("notifications/")) return undefined;
@@ -73,9 +84,12 @@ export async function dispatch(msg: Request, h: Handlers): Promise<Response | un
  */
 export function serveStdio(h: Handlers, input?: NodeJS.ReadableStream, output: NodeJS.WritableStream = process.stdout) {
   let buf = "";
-  let queue: Promise<unknown> = Promise.resolve();   // responses go out in request order
+  // One message is *handled* at a time, not merely answered in order: two writes arriving together
+  // would otherwise both start, and the second could finish first (S11 — a create raced its own
+  // duplicate check). `dispatch` is called by the chain, never before it.
+  let queue: Promise<unknown> = Promise.resolve();
   const send = (r: Response | undefined) => { if (r) output.write(JSON.stringify(r) + "\n"); };
-  const enqueue = (p: Promise<Response | undefined>) => { queue = queue.then(() => p).then(send, (e) => send({ jsonrpc: "2.0", id: null, error: { code: E.INTERNAL, message: String(e) } })); };
+  const enqueue = (run: () => Promise<Response | undefined>) => { queue = queue.then(run).then(send, (e) => send({ jsonrpc: "2.0", id: null, error: { code: E.INTERNAL, message: String(e) } })); };
   const feed = (chunk: string) => {
     buf += chunk;
     let nl;
@@ -83,8 +97,9 @@ export function serveStdio(h: Handlers, input?: NodeJS.ReadableStream, output: N
       const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
       if (!line) continue;
       let msg: Request;
-      try { msg = JSON.parse(line); } catch (e) { enqueue(Promise.resolve({ jsonrpc: "2.0", id: null, error: { code: E.PARSE, message: `Parse error: ${(e as Error).message}` } })); continue; }
-      enqueue(dispatch(msg, h));
+      try { msg = JSON.parse(line); } catch (e) { const err = e as Error; enqueue(async () => ({ jsonrpc: "2.0", id: null, error: { code: E.PARSE, message: `Parse error: ${err.message}` } })); continue; }
+      const m = msg;
+      enqueue(() => dispatch(m, h));
     }
   };
   if (!input && typeof Bun !== "undefined") {

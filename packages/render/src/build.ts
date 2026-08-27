@@ -19,7 +19,11 @@ import { Html } from "./jsx-runtime";
 import { resolveTokens, tokensCss } from "./tokens";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, type SurfaceEntry, type SurfaceSite } from "./emit";
 
-export interface BuildOptions { out?: string; cfg?: LoadedConfig; index?: SiteIndex; cache?: MdastCache }
+export interface BuildOptions {
+  out?: string; cfg?: LoadedConfig; index?: SiteIndex; cache?: MdastCache;
+  /** Render drafts too (everything but trashed). `snypd serve --preview` builds this way; `dist/` never does. */
+  drafts?: boolean;
+}
 export interface BuildResult {
   routes: number; artefacts: number; rendered: number; cached: number; removed: number; ms: number;
   phases: { config: number; theme: number; sync: number; plan: number; render: number };
@@ -51,18 +55,19 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const css = tokensCss(tokens) + (theme.css ?? "");
   const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c };
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses }));
-  const base = `${OUTPUT_FORMAT}:${theme.hash}:${configHash}`;
+  const base = `${OUTPUT_FORMAT}:${theme.hash}:${configHash}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }
   const isPublic = (f: IndexedFile) => c.statuses[f.status]?.public === true;
+  const visible = (f: IndexedFile) => (opts.drafts ? f.status !== "trashed" : isPublic(f));
   const url = (route: string) => absolute(site.url, route);
 
   // ── plan ────────────────────────────────────────────────────────────────────
   const entryOf = (f: IndexedFile): Entry => ({ route: f.route, type: f.type, slug: f.slug, title: f.title, date: f.date, updated: f.updated, status: f.status, description: typeof f.frontmatter.description === "string" ? f.frontmatter.description : undefined, frontmatter: f.frontmatter });
   const listKey = (es: Entry[]) => sha1(es.map((e) => [e.route, e.title, e.date ?? "", e.description ?? ""].join("|")).join("\n"));
   const newest = (a: IndexedFile, b: IndexedFile) => (b.date ?? "").localeCompare(a.date ?? "") || a.route.localeCompare(b.route);
-  const published = sync.files.filter(isPublic).sort(newest);
+  const published = sync.files.filter(visible).sort(newest);
   const termFiles = new Map<string, Record<string, unknown>>();
   const termMeta = (taxonomy: string, term: string): TermLink => {
     const k = `${taxonomy}/${term}`;

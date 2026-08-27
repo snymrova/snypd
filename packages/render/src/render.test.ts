@@ -1,9 +1,10 @@
-import { describe, expect, test, beforeAll } from "bun:test";
+import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig } from "@snypd/core";
+import { preview } from "./preview";
 
 describe("jsx runtime", () => {
   test("escapes strings, passes Html through, drops false/null attrs, renders void tags", () => {
@@ -253,5 +254,74 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const t = await loadTheme(loadConfig(bad));
     expect(t.coverage.find((c) => c.name === "tldr")!.status).toBe("own");
     expect(t.coverage.filter((c) => c.status === "missing").length).toBe(12);
+  });
+});
+
+/** S11: the preview server — drafts visible, the review page, and approval as the publish gate. */
+describe("preview (S11)", () => {
+  const site = "corpora/_test/preview";
+  let server: Awaited<ReturnType<typeof preview>>;
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(`${site}/content/posts`, { recursive: true });
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: preview, url: https://p.example }\n");
+    const { git } = await import("@snypd/core");
+    git(site, "init", "-q", "-b", "main");
+    git(site, "config", "user.email", "t@example.com"); git(site, "config", "user.name", "T");
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
+    const c = await import("@snypd/core");
+    const cfg = c.loadConfig(site);
+    c.createContent(site, { type: "post", slug: "live", frontmatter: { title: "Live", date: "2026-08-01" }, body: "Published words.", cfg });
+    c.setStatus(site, { type: "post", slug: "live", status: "published", cfg });
+    c.createContent(site, { type: "post", slug: "hidden", frontmatter: { title: "Hidden", date: "2026-08-02" }, body: "Draft words.", cfg });
+    server = await preview(site, { port: 0, watch: false });
+  });
+  afterAll(() => server?.stop());
+
+  test("a draft is served by the preview and absent from the production build", async () => {
+    expect((await fetch(`${server.url}/posts/hidden/`)).status).toBe(200);
+    expect(await (await fetch(`${server.url}/posts/hidden/`)).text()).toContain("Draft words.");
+    expect((await fetch(`${server.url}/posts/live/`)).status).toBe(200);
+    expect((await fetch(`${server.url}/posts/nope/`)).status).toBe(404);
+    expect(existsSync(`${site}/.snypd/preview/posts/hidden/index.html`)).toBe(true);
+    await build(site);                                                   // the real build, same index-free path
+    expect(existsSync(`${site}/dist/posts/live/index.html`)).toBe(true);
+    expect(existsSync(`${site}/dist/posts/hidden/index.html`)).toBe(false);
+  });
+
+  test("the .md twin still answers content negotiation", async () => {
+    const res = await fetch(`${server.url}/posts/hidden/`, { headers: { accept: "text/markdown" } });
+    expect(res.headers.get("content-type")).toContain("text/markdown");
+    expect(await res.text()).toContain("title: Hidden");
+  });
+
+  test("the review page shows the version, and approving it unlocks publish for that version only", async () => {
+    const c = await import("@snypd/core");
+    const cfg = c.loadConfig(site);
+    const page = await (await fetch(`${server.url}/_snypd/review/post/hidden`)).text();
+    expect(page).toContain("Review: post/hidden");
+    expect(page).toContain("needs a human");
+    expect(page).toContain("Approve this version");
+
+    expect((await fetch(`${server.url}/_snypd/approve/post/hidden`)).status).toBe(405);     // a GET can never approve
+    const posted = await fetch(`${server.url}/_snypd/approve/post/hidden`, { method: "POST", redirect: "manual", headers: { "x-snypd-reviewer": "sunny" } });
+    expect(posted.status).toBe(303);
+
+    const store = c.approvals(site);                                    // the file both servers read, not either index
+    expect(c.publishCheck(site, cfg, store, "post", "hidden")).toMatchObject({ ok: true });
+    expect(c.approvalOf(store, "post", "hidden")!.by).toBe("sunny");
+    c.updateContent(site, { type: "post", slug: "hidden", body: "Different words.", cfg });
+    expect(c.publishCheck(site, cfg, store, "post", "hidden").reason).toContain("changed after it was approved");
+    expect((await fetch(`${server.url}/_snypd/review/post/nope`)).status).toBe(404);
+  });
+
+  test("a content change is picked up by the next request, and nothing else rebuilds", async () => {
+    const c = await import("@snypd/core");
+    c.updateContent(site, { type: "post", slug: "hidden", body: "Rewritten in place.", cfg: c.loadConfig(site) });
+    const r = await server.rebuild();
+    expect(r.rendered).toBeGreaterThan(0);
+    expect(r.cached).toBeGreaterThan(r.rendered);                        // one route re-rendered, the rest kept
+    expect(await (await fetch(`${server.url}/posts/hidden/`)).text()).toContain("Rewritten in place.");
   });
 });

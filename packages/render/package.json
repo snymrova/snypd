@@ -6,9 +6,17 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./preview": "./src/preview.ts",
     "./jsx-runtime": "./src/jsx-runtime.ts",
     "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts"
   },
-  "dependencies": { "@snypd/core": "workspace:*", "@snypd/spec": "workspace:*", "js-yaml": "^5.4.1" },
-  "devDependencies": { "@types/js-yaml": "^4.0.9", "@types/mdast": "^4.0.4" }
+  "dependencies": {
+    "@snypd/core": "workspace:*",
+    "@snypd/spec": "workspace:*",
+    "js-yaml": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/mdast": "^4.0.4"
+  }
 }

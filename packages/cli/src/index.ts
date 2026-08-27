@@ -35,9 +35,16 @@ switch (cmd) {
     break;
   }
   case "serve": {
-    if (flags.has("--static")) {   // the S2 static stub; S11 replaces it with --preview
+    const port = Number(rest.find((a) => a.startsWith("--port="))?.slice(7) ?? 4321);
+    if (flags.has("--preview")) {   // S11: drafts rendered, review pages served, rebuild on change
+      const { preview } = await import("@snypd/render/preview");
+      const s = await preview(args[0] ?? ".", { port });
+      console.log(`snypd serve --preview → ${s.url}  (drafts included; approve at ${s.url}/_snypd/review/<type>/<slug>)`);
+      break;
+    }
+    if (flags.has("--static")) {   // the S2 static stub: dist/ exactly as built, no drafts
       const { serve } = await import("@snypd/runtime");
-      const s = serve(args[0] ?? ".", { port: Number(rest.find((a) => a.startsWith("--port="))?.slice(7) ?? 4321) });
+      const s = serve(args[0] ?? ".", { port });
       console.log(`snypd serve --static → ${s.url}`);
       break;
     }
@@ -70,6 +77,6 @@ switch (cmd) {
   case "init":
     console.error(`snypd ${cmd}: not yet implemented (see docs/07 schedule)`); process.exit(2);
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd serve [root] --preview|--static [--port=N] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 export {};

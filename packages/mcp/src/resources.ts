@@ -2,8 +2,12 @@
  * Resources served in S4: `snypd://config` (merged YAML with provenance, @snypd/core), `snypd://spec/**`
  * (@snypd/spec), `snypd://types[/name]` and `snypd://taxonomies/{name}` (merged schemas, docs/03).
  * S5 adds `snypd://lint/{type}/{slug}` — diagnostics for one file, rules 0–9 with fix hints.
+ * S11 adds `snypd://content/{type}/{slug}[.md]` and `snypd://history/{type}/{slug}`, both **templates**:
+ * one resource per post would put a thousand rows in `resources/list` and make the cheapest call on the
+ * server the most expensive one. An agent that wants the list calls `content.query`.
  * Both packages are imported lazily on first use so cold start stays at the spawn floor.
  */
+import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import type { Handlers } from "./protocol";
 import { E, RpcError } from "./protocol";
@@ -30,10 +34,31 @@ export function handlers(root: string): Handlers {
       ];
     },
     async listTemplates() {
-      return [{ uriTemplate: "snypd://lint/{type}/{slug}", name: "lint", mimeType: JSON_, description: "Lint diagnostics for one content file: rule id, severity, line, message and a fix hint (docs/01 editorial lint)" }];
+      return [
+        { uriTemplate: "snypd://content/{type}/{slug}", name: "content", mimeType: YAML, description: "One content item: its frontmatter, then the markdown body. Add `.md` for the file exactly as it is on disk" },
+        { uriTemplate: "snypd://history/{type}/{slug}", name: "history", mimeType: JSON_, description: "Commits touching one item, newest first, each with the principal that made it (docs/02 §7)" },
+        { uriTemplate: "snypd://lint/{type}/{slug}", name: "lint", mimeType: JSON_, description: "Lint diagnostics for one content file: rule id, severity, line, message and a fix hint (docs/01 editorial lint)" },
+      ];
     },
     async readResource(uri) {
       const text = (mimeType: string, text: string) => [{ uri, mimeType, text }];
+      const contentM = /^snypd:\/\/(content|history)\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9/-]*?)(\.md)?$/i.exec(uri);
+      if (contentM) {
+        const c = await loadCore(), cfg = await config();
+        const [, kind, type, slug, md] = contentM;
+        if (!cfg.config.types[type!]) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (unknown type ${type}; known: ${Object.keys(cfg.config.types).join(", ")})`);
+        const t = c.target(root, cfg, type!, slug!);
+        if (kind === "history") {
+          const repo = c.Repo.open(root);
+          return text(JSON_, JSON.stringify({ path: t.path, git: !!repo, commits: repo?.history(t.path) ?? [] }, null, 2));
+        }
+        let source: string;
+        try { source = readFileSync(t.file, "utf8"); }
+        catch { throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no ${type} with slug ${slug})`); }
+        if (md) return text("text/markdown", source);
+        const { yaml, body } = c.splitFrontmatter(source);
+        return text(YAML, `# ${t.path} → ${t.route}\n${yaml}\nbody: |\n${body.split("\n").map((l) => `  ${l}`).join("\n").replace(/\s+$/, "")}\n`);
+      }
       const lintM = /^snypd:\/\/lint\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9/-]*)$/i.exec(uri);
       if (lintM) {
         const c = await loadCore(), cfg = await config();

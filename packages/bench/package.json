@@ -10,6 +10,7 @@
     "@snypd/runtime": "workspace:*",
     "@snypd/spec": "workspace:*",
     "@snypd/core": "workspace:*",
-    "@snypd/viz": "workspace:*"
+    "@snypd/viz": "workspace:*",
+    "@snypd/mcp": "workspace:*"
   }
 }

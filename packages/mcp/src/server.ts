@@ -1,17 +1,21 @@
 /**
  * `snypd serve` — the MCP server on stdio (docs/03). `initialize` is answered by protocol.ts alone;
- * resources.ts is imported only when the first resources/* request arrives, so the cold-start
- * benchmark (spawn → initialize) measures the Bun floor plus this file.
+ * resources.ts and tools.ts are imported only when the first resources/* or tools/* request arrives,
+ * so the cold-start benchmark (spawn → initialize) measures the Bun floor plus this file.
  * Root = SNYPD_ROOT or cwd. Never write to stdout except protocol messages.
  */
 import { dispatch, serveStdio, type Handlers, type Request } from "./protocol";
 
 export function createServer(root = process.env.SNYPD_ROOT ?? process.cwd()) {
-  let h: Handlers | undefined;
+  let h: Handlers | undefined, t: Pick<Handlers, "listTools" | "callTool"> | undefined;
+  const res = async () => (h ??= (await import("./resources")).handlers(root));
+  const tools = async () => (t ??= (await import("./tools")).handlers(root));   // S11: writes load only when one is called
   const lazy: Handlers = {
-    listResources: async () => (h ??= (await import("./resources")).handlers(root)).listResources(),
-    readResource: async (uri) => (h ??= (await import("./resources")).handlers(root)).readResource(uri),
-    listTemplates: async () => (h ??= (await import("./resources")).handlers(root)).listTemplates!(),
+    listResources: async () => (await res()).listResources(),
+    readResource: async (uri) => (await res()).readResource(uri),
+    listTemplates: async () => (await res()).listTemplates!(),
+    listTools: async () => (await tools()).listTools!(),
+    callTool: async (name, args) => (await tools()).callTool!(name, args),
   };
   return { handle: (msg: Request) => dispatch(msg, lazy), listen: () => serveStdio(lazy) };
 }
