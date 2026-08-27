@@ -4,5 +4,12 @@
   "type": "module",
   "main": "src/index.ts",
   "license": "MIT",
-  "dependencies": { "gpt-tokenizer": "^4.0.0", "@snypd/render": "workspace:*", "@snypd/runtime": "workspace:*", "@snypd/spec": "workspace:*", "@snypd/core": "workspace:*" }
+  "dependencies": {
+    "gpt-tokenizer": "^4.0.0",
+    "@snypd/render": "workspace:*",
+    "@snypd/runtime": "workspace:*",
+    "@snypd/spec": "workspace:*",
+    "@snypd/core": "workspace:*",
+    "@snypd/viz": "workspace:*"
+  }
 }

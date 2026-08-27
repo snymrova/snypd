@@ -12,6 +12,8 @@
 | Markdown engines | remark vs `Bun.markdown` on 10k | report only |
 | TTFB, preview/SSR | curl loop against `snypd serve --preview` | ≤ 50 ms local |
 | MCP server cold start | spawn → `initialize` response | ≤ 50 ms |
+| Chart render / bytes (D3) | `snypd bench` renders every type on the worst shape the spec allows (12 points, long labels, grouped 2-series); worst type reported, not the mean | ≤ 3 ms · ≤ 12 KB per chart |
+| Diagram / flow render / bytes (D3) | same, at the 40-node lint cap (S9–S10) | ≤ 15 ms · ≤ 25 KB each |
 
 ## Beauty (the parts that are measurable)
 | Metric | How | Budget |

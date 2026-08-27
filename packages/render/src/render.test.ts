@@ -206,11 +206,22 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     r = await build(root);
     expect(existsSync(join(dist, "posts/d/index.html"))).toBe(true); expect(read("")).toContain("Draft D");
   });
-  test("chart / diagram / flow render their spec fallbacks (data, not pictures) until S8–S10", async () => {
+  test("S8: chart draws an svg through the build; diagram / flow still render their spec fallbacks", async () => {
     writeFileSync(join(root, "content/posts/v.md"), `---\ntitle: Viz\ndate: 2026-01-01\nstatus: published\n---\n\n:::chart{type="bar" source="https://x.y" caption="Cap" unit="ms"}\n- { label: a, value: 1 }\n- { label: b, value: 2 }\n:::\n\n:::diagram{caption="D"}\nnodes:\n  - { id: p, label: Parse }\n  - { id: r }\nedges:\n  - { from: p, to: r, label: then }\n:::\n\n:::flow{caption="F"}\nsteps:\n  - One\n  - { ask: Ok?, yes: Done, no: [Retry, { then: one }] }\n:::\n`);
     await build(root);
     const v = read("posts/v");
-    expect(v).toContain('<figure class="snypd-chart" data-type="bar"><table><thead><tr><th>label</th><th>value (ms)</th></tr></thead><tbody><tr><td>a</td><td>1</td></tr>');
+    expect(v).toContain('<figure class="snypd-chart" data-type="bar"><svg xmlns="http://www.w3.org/2000/svg"');
+    expect(v).toContain('data-chart="bar" role="img"');
+    expect(v).toContain("<title>Cap</title><desc>bar chart. a 1 ms, b 2 ms.</desc>");
+    expect(v).toContain('<figcaption>Cap (<a href="https://x.y" rel="external">source</a>)</figcaption>');
+    expect(v).toContain('var(--color-viz-1, #3d5a80)');   // base declares no tokens: the literal inside the var paints
+    expect(v.slice(v.indexOf('<figure class="snypd-chart"'), v.indexOf("</figure>"))).not.toContain("<script");
+    // the spec's fallback is still reachable — rows the renderer cannot read show as the data, not a picture
+    writeFileSync(join(root, "content/posts/w.md"), `---\ntitle: Broken\ndate: 2026-01-01\nstatus: published\n---\n\n:::chart{type="bar" source="https://x.y" caption="Cap" unit="ms"}\n- { label: a }\n:::\n\n::chart{type="bar" source="https://x.y" caption="Later" src="./d.yaml"}\n`);
+    await build(root);
+    const w = read("posts/w");
+    expect(w).toContain('<figure class="snypd-chart" data-type="bar"><table><thead><tr><th>label</th><th>value (ms)</th></tr></thead><tbody><tr><td>a</td><td>—</td></tr></tbody></table>');
+    expect(w).toContain('<figure class="snypd-chart" data-type="bar"><figcaption>Later');   // src= is not read in v0.1: caption only, never an empty table
     expect(v).toContain('<ol class="snypd-diagram-edges"><li>Parse -&gt; r (then)</li></ol>');
     expect(v).toContain("<li>Ok?<ul><li>yes: <ol><li>Done</li></ol></li><li>no: <ol><li>Retry</li><li>then: one</li></ol></li></ul></li>");
   });

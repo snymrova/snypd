@@ -13,12 +13,14 @@ import { generate } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
 import { loadConfig, lintSite, MdastCache, INDEX_DIR } from "@snypd/core";
+import { renderChart, CHART_TYPES, MAX_POINTS, type ChartRow, type ChartType } from "@snypd/viz";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
   tokensPerPage: 2500, tokensToLearn: 6000,                          // tokens (docs/05)
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
+  chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
 };
 export const CI_FACTOR = 0.8;
 
@@ -27,8 +29,11 @@ let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
 export function budgetsFor(root: string): typeof BUDGETS {
   const b = loadConfig(root).config.bench.budgets as Record<string, number>;
   const num = (k: string, fallback: number) => (typeof b[k] === "number" ? b[k]! : fallback);
+  /** Per-primitive budgets are nested (`budgets.chart.renderMs`), because that is the shape the spec declares. */
+  const per = (k: string, sub: string, fallback: number) => { const o = b[k] as unknown as Record<string, unknown> | undefined; return o && typeof o === "object" && typeof o[sub] === "number" ? o[sub] as number : fallback; };
   return { buildPer100: num("buildPer100", BUDGETS.buildPer100), incremental: num("incremental", BUDGETS.incremental), mcpColdStart: num("mcpColdStart", BUDGETS.mcpColdStart),
-    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000) };
+    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000),
+    chartRenderMs: per("chart", "renderMs", BUDGETS.chartRenderMs), chartSvgKb: per("chart", "svgKb", BUDGETS.chartSvgKb) };
 }
 
 /** `higherIsBetter` metrics (e.g. % reduction) breach when value < budget; no 80 % margin. */
@@ -162,6 +167,41 @@ export function runTokensPerPage(n: number | string): Metric[] {
 }
 
 /**
+ * D3 (docs/07 decision 4): per-primitive render time and bytes. Measured on the worst shape the spec's
+ * intent allows — 12 points, long labels, and the grouped two-series variant — not on a friendly one, and
+ * reported as the worst type rather than the mean: a budget that only the easy chart meets is not a budget.
+ * The unit under test is the geometry (`renderChart`), which is what the spec's `budget.renderMs` covers;
+ * the theme's 20 lines of JSX around it are measured by `build.*`.
+ */
+export function runViz(runs: number): Metric[] {
+  const long = (i: number) => `a fairly long category ${i + 1}`;
+  const shapes: Array<{ name: string; rows: ChartRow[] }> = [
+    { name: "12 points", rows: Array.from({ length: MAX_POINTS }, (_, i) => ({ label: long(i), value: 1234.56 * (i + 1) })) },
+    { name: "6 × 2 series", rows: Array.from({ length: 12 }, (_, i) => ({ label: long(i % 6), value: 987.6 * (i + 1), series: i % 2 ? "cold" : "warm" })) },
+  ];
+  const per: Array<{ type: ChartType; ms: number; kb: number }> = [];
+  for (const type of CHART_TYPES) {
+    let ms = 0, kb = 0;
+    for (const shape of shapes) {
+      const input = { type, data: shape.rows, unit: "milliseconds", caption: "Tokens per page, HTML vs the markdown twin" };
+      renderChart(input);   // warm the code path; the budget is steady-state, not first-call JIT
+      const xs: number[] = [];
+      for (let i = 0; i < runs * 8; i++) { const t = performance.now(); renderChart(input); xs.push(performance.now() - t); }
+      ms = Math.max(ms, median(xs));
+      kb = Math.max(kb, Buffer.byteLength(renderChart(input)!.svg) / 1024);
+    }
+    per.push({ type, ms, kb });
+  }
+  const worstMs = per.reduce((a, b) => (b.ms > a.ms ? b : a));
+  const worstKb = per.reduce((a, b) => (b.kb > a.kb ? b : a));
+  const note = per.map((p) => `${p.type} ${p.ms.toFixed(2)} ms / ${p.kb.toFixed(1)} KB`).join(" · ");
+  return [
+    { name: "viz.chart.renderMs", value: +worstMs.ms.toFixed(2), unit: "ms", budget: ACTIVE.chartRenderMs, note: `worst type (${worstMs.type}) on the worst shape — ${note}` },
+    { name: "viz.chart.svgKb", value: +worstKb.kb.toFixed(1), unit: "KB", budget: ACTIVE.chartSvgKb, note: `worst type (${worstKb.type}); zero JS, zero CSS` },
+  ];
+}
+
+/**
  * Agent-read surface completeness (docs/05): probe the built corpus + the static server for each item of the
  * surface. Public MCP (S19) joins the probe list when it exists; until then the metric covers the build-time
  * surface only, and says so.
@@ -219,7 +259,8 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
   metrics.push(await runSurface(100));
-  const report: Report = { version: "0.1.0-s7", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  metrics.push(...runViz(runs));
+  const report: Report = { version: "0.1.0-s8", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));

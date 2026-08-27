@@ -17,6 +17,7 @@
         "@snypd/render": "workspace:*",
         "@snypd/runtime": "workspace:*",
         "@snypd/spec": "workspace:*",
+        "@snypd/viz": "workspace:*",
         "gpt-tokenizer": "^4.0.0",
       },
     },
@@ -98,6 +99,7 @@
       "dependencies": {
         "@snypd/core": "workspace:*",
         "@snypd/render": "workspace:*",
+        "@snypd/viz": "workspace:*",
       },
     },
     "themes/editorial": {

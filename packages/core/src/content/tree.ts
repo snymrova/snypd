@@ -78,6 +78,45 @@ export function checkProp(f: FieldSpec, raw: string): { value: unknown; problem?
   }
 }
 
+/** The spec's intent line for `chart`: one comparison, this many points. Past it the picture stops working. */
+export const CHART_MAX_POINTS = 12;
+
+/**
+ * `chart` takes its rows three ways (spec: body YAML, `data=` inline, `src=` a file). This resolves the
+ * inline forms into `block.data` and reports the shapes an agent actually gets wrong, with the fix in the
+ * hint — `@snypd/viz` normalises the same shapes at render time but never speaks, because the renderer
+ * does not lint (html.ts). `src=` is parsed but not read in v0.1: the route key hashes the post, so a
+ * chart whose numbers live in another file would not rebuild when that file changed.
+ */
+function checkChart(b: Block, attrs: Record<string, string | null | undefined>, at: (rule: string, n: number, severity: Severity, message: string, hint: string) => void): void {
+  if (b.data === undefined && typeof attrs.data === "string" && attrs.data.trim()) {
+    try { b.data = parseYaml(attrs.data); }
+    catch (e) { at("invalid-prop", 2, "error", `\`chart\` prop \`data\` is not valid YAML/JSON: ${(e as Error).message.split("\n")[0]}`, 'Write the rows in the body instead: `- { label: HTML, value: 6120 }`'); }
+  }
+  if (typeof attrs.src === "string" && attrs.src.trim())
+    at("invalid-prop", 2, "warning", "`chart` prop `src` is not read in v0.1", "Put the rows in the body — a chart's numbers are part of the post, and a route only rebuilds when the post changes");
+  if (b.data === undefined) {
+    if (!attrs.src) at("required-prop", 2, "error", "`chart` has no data", "Add rows to the body (`- { label, value }`), or `data=`");
+    return;
+  }
+  const list = Array.isArray(b.data) ? b.data
+    : b.data && typeof b.data === "object" && Array.isArray((b.data as { rows?: unknown[] }).rows) ? (b.data as { rows: unknown[] }).rows
+    : b.data && typeof b.data === "object" && Array.isArray((b.data as { data?: unknown[] }).data) ? (b.data as { data: unknown[] }).data
+    : undefined;
+  if (!list) { at("invalid-prop", 2, "error", "`chart` data is not a list of rows", 'The body is a YAML list: `- { label: HTML, value: 6120 }`'); return; }
+  if (!list.length) { at("required-prop", 2, "error", "`chart` has no rows", 'Add at least one `- { label, value }`'); return; }
+  let bad = 0;
+  for (const [i, raw] of list.entries()) {
+    const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
+    const value = r ? (typeof r.value === "number" ? r.value : typeof r.value === "string" ? Number(r.value) : NaN) : NaN;
+    if (r && r.label !== undefined && r.label !== null && String(r.label) !== "" && Number.isFinite(value)) continue;
+    if (bad++ < 3) at("invalid-prop", 2, "error", `\`chart\` row ${i + 1} is not \`{ label, value }\``, 'Every row needs a label and a number: `- { label: HTML, value: 6120 }`');
+  }
+  if (bad > 3) at("invalid-prop", 2, "error", `\`chart\` has ${bad} malformed rows`, 'Every row needs a label and a number: `- { label: HTML, value: 6120 }`');
+  if (list.length > CHART_MAX_POINTS)
+    at("slot-limit", 2, "warning", `\`chart\` has ${list.length} points; the spec's intent is ≤ ${CHART_MAX_POINTS}`, "Show the comparison that matters and leave the rest to the table in the .md twin — a chart past a dozen points stops being readable");
+}
+
 /** Count nodes a diagram/flow body declares (for the 40-node lint). */
 export function countNodes(name: string, data: unknown): number {
   if (!data || typeof data !== "object") return 0;
@@ -160,8 +199,8 @@ export function buildTree(doc: ParsedDoc, source: string): PrimitiveTree {
         const n = countNodes(node.name, b.data);
         if (n > max) at("slot-limit", 2, "error", `\`${node.name}\` declares ${n} nodes; the limit is ${max}`, `Split it into two ${node.name}s or drop detail — readers cannot follow more than ${max} boxes`);
       }
-      if (node.name === "chart" && !b.data && !attrs.data && !attrs.src) at("required-prop", 2, "error", "`chart` has no data", "Add rows to the body (`- { label, value }`), or `data=`/`src=`");
     }
+    if (node.name === "chart") checkChart(b, attrs, at);
     return b;
   };
 

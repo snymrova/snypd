@@ -4,7 +4,8 @@ import { mkdirSync, rmSync, writeFileSync, existsSync, readdirSync } from "node:
 
 const FM = `---\ntitle: T\ndate: 2026-01-02\nstatus: draft\n---\n\n`;
 const POST_TYPE = { fields: { title: { type: "string", required: true }, date: { type: "date", required: true }, updated: { type: "date" }, status: { type: "ref", to: "status" }, slug: { type: "string", pattern: "^[a-z0-9-]+$" }, tags: { type: "list", of: { type: "ref", to: "tag" } }, cover: { type: "object", fields: { image: { type: "image" }, alt: { type: "string" } } } } } as const;
-const rules = (md: string, opts = {}) => lintMarkdown(md, { type: POST_TYPE as never, statuses: ["draft", "published", "trashed"], routes: new Set(["/", "/posts/a"]), ...opts }).diagnostics.map((d) => d.rule);
+const LINT_CTX = { type: POST_TYPE as never, statuses: ["draft", "published", "trashed"], routes: new Set(["/", "/posts/a"]) };
+const rules = (md: string, opts = {}) => lintMarkdown(md, { ...LINT_CTX, ...opts }).diagnostics.map((d) => d.rule);
 const find = (md: string, rule: string, opts = {}): Diagnostic | undefined => lintMarkdown(md, { type: POST_TYPE as never, statuses: ["draft", "published"], routes: new Set(["/", "/posts/a"]), ...opts }).diagnostics.find((d) => d.rule === rule);
 
 describe("parse → typed tree", () => {
@@ -60,6 +61,29 @@ describe("lint rules", () => {
     expect(find(`${FM}:::diagram{caption="c"}\nnodes:\n${nodes}\n:::\n`, "slot-limit")!.message).toContain("41 nodes; the limit is 40");
     expect(find(`${FM}:::flow{caption="c"}\nsteps: [\n:::\n`, "invalid-prop")!.message).toContain("not valid YAML");
     expect(find(`${FM}:::chart{type="bar" source="https://x" caption="c"}\n:::\n`, "required-prop")!.message).toBe("`chart` has no data");
+  });
+  test("2 chart rows: the three data forms, the shapes that break, and the point count (S8)", () => {
+    const chart = (body: string, attrs = "") => `${FM}:::chart{type="bar" source="https://x" caption="c"${attrs}}\n${body}\n:::\n`;
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => `- { label: r${i}, value: ${i} }`).join("\n");
+    expect(rules(chart(rows(3)))).toEqual([]);
+    expect(rules(chart(`- { label: a, value: "2" }`))).toEqual([]);                       // a quoted number is a number
+    expect(rules(chart(`rows:\n  - { label: a, value: 1 }`))).toEqual([]);                // the wrapped form
+    // `data=` is parsed into the block, so the leaf form carries rows without a body
+    const leaf = `${FM}::chart{type="bar" source="https://x" caption="c" data="[{label: a, value: 1}]"}\n`;
+    expect(rules(leaf)).toEqual([]);
+    expect(buildTree(parseMarkdown(leaf), leaf).blocks[0]!.data).toEqual([{ label: "a", value: 1 }]);
+    // `src=` parses but is not read in v0.1: a warning, and no "has no data" error on top of it
+    expect(rules(`${FM}::chart{type="bar" source="https://x" caption="c" src="./d.yaml"}\n`)).toEqual(["invalid-prop"]);
+    expect(find(`${FM}::chart{type="bar" source="https://x" caption="c" src="./d.yaml"}\n`, "invalid-prop")!.severity).toBe("warning");
+    expect(find(chart(`- { label: a }\n- 12\n- { value: 3 }`), "invalid-prop")!.message).toBe("`chart` row 1 is not `{ label, value }`");
+    expect(lintMarkdown(chart(`- { label: a }\n- 12\n- { value: 3 }`), LINT_CTX).diagnostics.filter((d) => d.rule === "invalid-prop").length).toBe(3);
+    expect(find(chart(`- { label: a, value: x }\n`.repeat(6)), "invalid-prop", {})!.message).toContain("row 1");
+    expect(lintMarkdown(chart(`- { label: a, value: x }\n`.repeat(6)), LINT_CTX).diagnostics.at(-1)!.message).toBe("`chart` has 6 malformed rows");
+    expect(find(chart(`totals: { a: 1 }`), "invalid-prop")!.message).toBe("`chart` data is not a list of rows");
+    expect(find(chart(`[]`), "required-prop")!.message).toBe("`chart` has no rows");
+    expect(find(chart(rows(12)), "slot-limit")).toBeUndefined();
+    expect(find(chart(rows(13)), "slot-limit")!.severity).toBe("warning");
+    expect(find(chart(rows(13)), "slot-limit")!.message).toContain("13 points; the spec's intent is ≤ 12");
   });
   test("3 unsourced stat / chart is an error with a hint; site paths do not count", () => {
     expect(find(`${FM}::stat{value="1" label="l"}\n`, "unsourced-evidence")!.hint).toContain("source=\"https://…\"");

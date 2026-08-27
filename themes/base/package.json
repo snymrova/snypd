@@ -1,1 +1,11 @@
-{ "name": "@snypd/theme-base", "version": "0.1.0", "type": "module", "license": "MIT", "dependencies": { "@snypd/render": "workspace:*", "@snypd/core": "workspace:*" } }
+{
+  "name": "@snypd/theme-base",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "dependencies": {
+    "@snypd/render": "workspace:*",
+    "@snypd/core": "workspace:*",
+    "@snypd/viz": "workspace:*"
+  }
+}

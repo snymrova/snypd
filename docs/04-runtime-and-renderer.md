@@ -56,6 +56,26 @@ content files ──parse──▶ mdast (+ directive nodes)
 - **SSR / preview.** `snypd serve --preview` runs the same render function behind `Bun.serve` with hot reload from the SQLite watcher. Hosted SSR (scheduled posts, per-request `/ask`) uses the same fetch handler; a Workers adapter is a plugin.
 - **Themes are TSX.** `theme.yaml` maps each primitive to a `.tsx` file exporting `(props, ctx) => JSX`. Rendered to strings. Theme authors (mostly agents) get a strict, tiny contract: props from the spec, `ctx.tokens`, `ctx.slots`, nothing else. `theme.check` type-checks the theme against the spec.
 
+## Viz (`packages/viz`)
+
+Charts, diagrams and flows are rendered to inline SVG **at build time** — no D3, no Mermaid runtime, no client JS (docs/07 decision 3). The package is dependency-free and pure: rows in, one `<svg>` string out, same bytes every run (a chart that reformatted itself per run would change its page's route key and re-render the whole site every build).
+
+**S8 — `chart`.** `renderChart({ type, data, unit, caption, title })` → `{ svg, warnings, rows, series, type }`, or `null` when nothing is drawable, which is the theme's signal to render the spec's declared fallback (a table of the data, not a picture). Geometry lives here so every theme inherits the same decisions:
+
+- `bar` and `lollipop` are **horizontal** — the category axis runs down the left. Chart labels are words, and horizontal rows read them at full size instead of rotating ticks 45°, which is both ugly and hostile to assistive tech.
+- `line` and `area` are vertical, x = the rows in order. `area` always includes 0 in its domain (it fills to a baseline); `line` does not (forcing 0 flattens a narrow trend).
+- `donut` has no axis: one slice per positive row, legend right with value and share.
+- Ticks are nice numbers (1 / 2 / 5 × 10ⁿ) and the domain rounds out to whole steps, so both ends of an axis land on a tick. Value labels are `font-variant-numeric: tabular-nums`.
+- A `series` column groups `bar`/`lollipop` and draws one line per series for `line`/`area`, with a legend; a series a category has no row for breaks the line rather than inventing a zero.
+- ≤ 12 points is the spec's intent. Past it the chart still renders — labels thin out, dots come off — and both lint (a warning) and the returned `warnings` say so.
+- The svg is `role="img"` with a `<title>` (the caption) and a `<desc>` that reads the data out loud, and it carries `max-width:100%;height:auto`, so it is responsive and accessible with zero CSS.
+
+**The theme seam.** Every paint is `var(--color-viz-*, <literal>)`: `base` declares no tokens and emits 0 KB of CSS, so the literals do the painting; a theme that declares `color.viz.1 … color.viz.6`, `color.viz.axis|grid|label|tick` in `theme.yaml` recolours every chart without touching viz. Text and stems fall back to `currentColor`, so charts follow the page into a dark theme with no token at all. The spec owns geometry, the theme owns colour and type — a theme can restyle a chart but never move a point.
+
+**Budgets (D3).** Per primitive, from the spec: `chart` ≤ 3 ms and ≤ 12 KB, `diagram`/`flow` ≤ 15 ms and ≤ 25 KB (S9–S10). `snypd bench` measures them on the worst shape the spec's intent allows (12 points, long labels, and the grouped two-series variant) and reports the worst type, not the mean — a budget only the easy chart meets is not a budget.
+
+**Where the rows come from.** The body YAML (`- { label, value, series }`) or `data=` on the leaf form; both are resolved into the block by the content pipeline, so they are cached with the post. `src=` (rows in a separate file) parses but is **not read in v0.1**: a route key hashes the post, so a chart whose numbers live elsewhere would not rebuild when those numbers changed. Lint says so with a warning rather than the renderer failing silently.
+
 ## `theme.yaml`
 
 ```yaml
