@@ -5,11 +5,13 @@ import { loadConfig, type LoadedConfig } from "../config";
 import { MdastCache } from "./cache";
 import { lint, type LintOptions, type LintResult } from "./lint";
 import type { Diagnostic } from "./tree";
+import { frontmatterKeyLine } from "./parse";
+import { taxonomyFields, type Move } from "../store";
 
 export { parseMarkdown, frontmatterKeyLine, type ParsedDoc } from "./parse";
 export { buildTree, checkProp, countNodes, type Block, type PrimitiveTree, type Diagnostic, type Severity } from "./tree";
 export { lint, formatLint, SLOP, type LintOptions, type LintResult, type TypeShape } from "./lint";
-export { MdastCache, hashSource, type CachedDoc } from "./cache";
+export { MdastCache, hashSource, type CachedDoc, type MdastStore } from "./cache";
 
 /** Lint one markdown string (parse + tree + rules). */
 export function lintMarkdown(source: string, opts: LintOptions = {}, cache?: MdastCache): LintResult {
@@ -42,8 +44,11 @@ export function listContent(root: string, cfg: LoadedConfig = loadConfig(root)):
 
 export interface SiteLint { files: LintResult[]; errors: number; warnings: number; ms: number; cache: { hits: number; misses: number } }
 
-/** Lint a whole site: routes feed rule 5, the merged type schema feeds rule 0. */
-export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedConfig } = {}): SiteLint {
+/**
+ * Lint a whole site: routes feed rule 5, the merged type schema feeds rule 0, the whole set feeds rule 11
+ * (a tag used once) and the index's move log feeds rule 10 (`SiteIndex.moves()`, passed as `moves`).
+ */
+export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedConfig; moves?: Move[] } = {}): SiteLint {
   const t0 = performance.now();
   const cfg = opts.cfg ?? loadConfig(root);
   const cache = opts.cache ?? new MdastCache();
@@ -51,10 +56,41 @@ export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedC
   const routes = new Set<string>(["/", ...content.map((c) => c.route)]);
   const statuses = Object.keys(cfg.config.statuses);
   const files: LintResult[] = [];
-  for (const c of content) {
-    const type = cfg.config.types[c.type]!;
+  const D = (rule: string, n: number, message: string, hint: string, line: number): Diagnostic => ({ rule, n, severity: "warning", message, hint, line });
+  // one cache lookup per file; rule 11 needs every file's terms before any file is reported
+  const flat = new Set(Object.entries(cfg.config.taxonomies).filter(([, t]) => !t.hierarchical).map(([n]) => n));
+  const termUse = new Map<string, Set<string>>();   // "taxonomy:term" → files
+  const docs = content.map((c) => {
     const src = readFileSync(c.file, "utf8");
-    const r = lintMarkdown(src, { type: { fields: type.fields as never, taxonomies: type.taxonomies }, statuses, routes, file: relative(root, c.file) }, cache);
+    const cached = cache.get(src);
+    const terms: { taxonomy: string; field: string; terms: string[] }[] = [];
+    for (const [taxonomy, field] of Object.entries(taxonomyFields(cfg.config.types[c.type]!))) {
+      if (!flat.has(taxonomy)) continue;
+      const v = cached.doc.frontmatter[field];
+      const list = [...new Set((Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]).map(String))];
+      terms.push({ taxonomy, field, terms: list });
+      for (const t of list) (termUse.get(`${taxonomy}:${t}`) ?? termUse.set(`${taxonomy}:${t}`, new Set()).get(`${taxonomy}:${t}`)!).add(c.file);
+    }
+    return { c, src, cached, terms };
+  });
+  const moves = new Map((opts.moves ?? []).map((m) => [m.path, m]));
+  for (const { c, src, cached, terms } of docs) {
+    const type = cfg.config.types[c.type]!;
+    const rel = relative(root, c.file);
+    const r = lint(cached.doc, cached.tree, src, { type: { fields: type.fields as never, taxonomies: type.taxonomies }, statuses, routes, file: rel });
+    // ── 10 slug change without a redirect ──────────────────────────────────
+    const mv = moves.get(rel.split("\\").join("/"));
+    if (mv) r.diagnostics.push(D("slug-change", 10, `Route changed from ${mv.from} to ${mv.to}; nothing redirects the old URL`, `Restore \`slug:\` (or the filename) so links to ${mv.from} keep working, or add a redirect (the redirect type lands in v0.2)`, frontmatterKeyLine(cached.doc, "slug")));
+    // ── 11 tag used once ───────────────────────────────────────────────────
+    for (const { taxonomy, field, terms: list } of terms) {
+      for (const t of list) {
+        if ((termUse.get(`${taxonomy}:${t}`)?.size ?? 0) > 1) continue;
+        const others = [...termUse.keys()].filter((k) => k.startsWith(`${taxonomy}:`) && termUse.get(k)!.size > 1).map((k) => k.slice(taxonomy.length + 1)).slice(0, 5);
+        r.diagnostics.push(D("tag-once", 11, `${taxonomy} \`${t}\` is used only here`, `A ${taxonomy} used once connects nothing — ${others.length ? `reuse one of ${others.map((o) => `\`${o}\``).join(", ")}` : "add it to a second post"} or drop it`, frontmatterKeyLine(cached.doc, field)));
+      }
+    }
+    r.diagnostics.sort((a, b) => a.line - b.line || a.n - b.n);
+    r.warnings = r.diagnostics.filter((d) => d.severity === "warning").length;
     files.push(r);
   }
   return { files, errors: files.reduce((n, f) => n + f.errors, 0), warnings: files.reduce((n, f) => n + f.warnings, 0), ms: performance.now() - t0, cache: { hits: cache.hits, misses: cache.misses } };

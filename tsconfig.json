@@ -1,9 +1,35 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"], "target": "ESNext", "module": "ESNext", "moduleResolution": "bundler",
-    "jsx": "react-jsx", "strict": true, "noEmit": true, "skipLibCheck": true,
-    "types": ["bun"],
-    "paths": { "@snypd/*": ["./packages/*/src"] }
+    "lib": [
+      "ESNext"
+    ],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [
+      "bun"
+    ],
+    "paths": {
+      "@snypd/render/jsx-runtime": [
+        "./packages/render/src/jsx-runtime"
+      ],
+      "@snypd/render/jsx-dev-runtime": [
+        "./packages/render/src/jsx-dev-runtime"
+      ],
+      "@snypd/*": [
+        "./packages/*/src"
+      ]
+    },
+    "jsxImportSource": "@snypd/render"
   },
-  "include": ["packages/**/*.ts", "packages/**/*.tsx", "themes/**/*.tsx"]
+  "include": [
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "themes/**/*.ts",
+    "themes/**/*.tsx"
+  ]
 }

@@ -1,0 +1,21 @@
+# The base theme: every primitive and layout, semantic HTML, no CSS, no JS. The floor other themes
+# extend (`extends: base`) and the theme Gate B is measured on (docs/07 S6, S12).
+theme: base
+version: 0.1.0
+spec: ^1
+layouts: [post, page, index, term, author]
+primitives:
+  callout:   ./primitives/callout.tsx
+  chart:     ./primitives/chart.tsx
+  cover:     ./primitives/cover.tsx
+  cta:       ./primitives/cta.tsx
+  diagram:   ./primitives/diagram.tsx
+  faq:       ./primitives/faq.tsx
+  figure:    ./primitives/figure.tsx
+  flow:      ./primitives/flow.tsx
+  pullquote: ./primitives/pullquote.tsx
+  stat:      ./primitives/stat.tsx
+  stat-row:  ./primitives/stat-row.tsx
+  steps:     ./primitives/steps.tsx
+  tldr:      ./primitives/tldr.tsx
+personality: Unstyled. Semantic HTML only, one class per primitive (`snypd-<name>`), so a child theme styles it without touching markup.

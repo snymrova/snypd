@@ -13,7 +13,7 @@ import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
 import { ConfigSchema, type Config } from "./schema";
 
 export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string }
-export interface LayerInfo { name: Layer["name"]; from?: string; file?: string; found: boolean; note?: string }
+export interface LayerInfo { name: Layer["name"]; from?: string; file?: string; found: boolean; note?: string; /** absolute directory (theme layer): where layouts/ and primitives/ live */ dir?: string }
 export interface LoadedConfig {
   root: string; env: string; ok: boolean;
   config: Config; raw: Record<string, unknown>;
@@ -99,7 +99,7 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const themeYaml = themeDir && existsSync(join(themeDir, "theme.yaml")) ? join(themeDir, "theme.yaml") : undefined;
   if (themeYaml) merged = mergeLayer(merged, readLayer(root, "theme", themeYaml, diags, themeName, (v) => ({ theme: v })), prov);
   else if (!themeDir) diags.push({ level: "warning", path: "theme.use", message: `theme "${themeName}" not found (looked for themes/${themeName}, node_modules/${themeName}, node_modules/snypd-theme-${themeName})`, source: prov.get("theme.use") });
-  layers.push({ name: "theme", from: themeName, file: themeYaml ? rel(root, themeYaml) : undefined, found: !!themeDir, note: themeDir && !themeYaml ? "no theme.yaml yet" : undefined });
+  layers.push({ name: "theme", from: themeName, file: themeYaml ? rel(root, themeYaml) : undefined, found: !!themeDir, dir: themeDir, note: themeDir && !themeYaml ? "no theme.yaml yet" : undefined });
 
   // 3. plugins' snypd.yaml, declared order
   for (const entry of pluginList) {
@@ -200,6 +200,8 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
         const v = getPath(raw, p);
         if (isObj(v) || Array.isArray(v)) {
           if (allFrom(prov, p, v, "spec")) { pair.value = doc.createNode(`<@snypd/spec default — ${pointer(p)}>`) as Node; continue; }
+          const th = prov.get(pathKey(p));
+          if (path[0] === "theme" && th?.layer === "theme" && allFrom(prov, p, v, "theme")) { pair.value = doc.createNode(`<theme ${th.from} default — ${th.file}${th.line ? `:${th.line}` : ""}>`) as Node; continue; }   // the primitive map, layouts: theme-sized, not site-sized
           const inh = prov.get(pathKey(p));
           if (inh?.layer === "inherited" && allFrom(prov, p, v, "inherited")) { pair.value = doc.createNode(`<inherited from types.${inh.from}>`) as Node; continue; }
         }
@@ -214,7 +216,7 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
   const head = [
     `# snypd://config — merged (env: ${env}). Layers, later wins:`,
     ...layers.map((l, i) => `#   ${i + 1}. ${l.name}${l.from ? ` ${l.from}` : ""}${l.file ? ` (${l.file})` : ""}${l.note ? ` — ${l.note}` : l.found ? "" : " — not found"}`),
-    `# Lines without "← file:line" are @snypd/spec defaults; untouched subtrees are collapsed to their snypd://spec/* resource.`,
+    `# Lines without "← file:line" are @snypd/spec defaults; untouched subtrees are collapsed to their snypd://spec/* resource (theme.yaml subtrees to their file:line).`,
     ...(diags.length ? ["# Diagnostics:", ...diags.map((x) => `#   ${x.level}: ${x.path ? `${x.path}: ` : ""}${x.message}${x.where ? ` (${x.where})` : ""}`)] : []),
   ];
   return `${head.join("\n")}\n${String(doc)}`;

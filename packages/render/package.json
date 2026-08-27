@@ -1,1 +1,14 @@
-{ "name": "@snypd/render", "version": "0.1.0", "type": "module", "main": "src/index.ts", "license": "MIT" }
+{
+  "name": "@snypd/render",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts"
+  },
+  "dependencies": { "@snypd/core": "workspace:*", "@snypd/spec": "workspace:*", "js-yaml": "^5.4.1" },
+  "devDependencies": { "@types/js-yaml": "^4.0.9", "@types/mdast": "^4.0.4" }
+}

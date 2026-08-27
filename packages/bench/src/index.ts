@@ -1,7 +1,8 @@
 /**
  * `snypd bench` — the harness everything is built inside (docs/05, docs/07 §3).
  * S2 scope: build cold + incremental, MCP cold start, TTFB, tokens/page, tokens-to-learn,
- * corpora 100 / 1k / 10k, bench/latest.{md,json}, compare, breach.
+ * corpora 100 / 1k / 10k, bench/latest.{md,json}, compare, breach. S5: lint. S6: cold = no dist, no
+ * `.snypd` index; incremental = one post's body edited (a real route re-render), noop = touch only.
  * Budgets: spec defaults ← snypd.yaml › bench.budgets of the corpus root (via @snypd/core); CI enforces 80 %.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
@@ -11,7 +12,7 @@ import { serve } from "@snypd/runtime";
 import { generate } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
-import { loadConfig, lintSite, MdastCache } from "@snypd/core";
+import { loadConfig, lintSite, MdastCache, INDEX_DIR } from "@snypd/core";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
@@ -49,12 +50,14 @@ export function corpus(n: number | string) {
 
 export async function runBuild(n: number, runs: number): Promise<Metric> {
   const root = corpus(n);
-  const ms = await medianOf(runs, async () => {
+  let routes = 0;
+  const ms = await medianOf(n >= 10000 ? 1 : runs, async () => {   // 10k cold = ~1 min of micromark; one run
     rmSync(join(root, "dist"), { recursive: true, force: true });
-    return (await build(root)).ms;
+    rmSync(join(root, INDEX_DIR), { recursive: true, force: true });
+    const r = await build(root); routes = r.routes; return r.ms;
   });
   // Budget scales linearly with corpus size (≤ 2 s / 100 posts, docs/05).
-  return { name: `build.cold.${n}`, value: +ms.toFixed(1), unit: "ms", budget: ACTIVE.buildPer100 * (n / 100) };
+  return { name: `build.cold.${n}`, value: +ms.toFixed(1), unit: "ms", budget: ACTIVE.buildPer100 * (n / 100), note: `${routes} routes, no dist, no index` };
 }
 
 /**
@@ -77,16 +80,30 @@ export async function runLint(n: number, runs: number): Promise<Metric[]> {
   ];
 }
 
-/** Touch one post, rebuild without clearing dist. The stub rebuilds everything; S6 makes this a route-cache hit. */
-export async function runIncremental(n: number, runs: number): Promise<Metric> {
+/**
+ * Edit one post's body (append a paragraph), rebuild without clearing anything: the post's route re-renders,
+ * everything else is a route-cache hit. `build.noop.<n>` (report-only) touches the mtime only — the floor.
+ */
+export async function runIncremental(n: number, runs: number): Promise<Metric[]> {
   const root = corpus(n);
-  if (!existsSync(join(root, "dist"))) await build(root);
+  await build(root);
   const post = join(root, "content", "posts", "post-00001.md");
-  const ms = await medianOf(runs, async () => {
+  const original = readFileSync(post, "utf8");
+  let last: { rendered: number; cached: number } = { rendered: 0, cached: 0 };
+  const edit = await medianOf(runs, async () => {
+    writeFileSync(post, `${original}\nEdited at ${performance.now()} for the incremental benchmark.\n`);
+    const r = await build(root); last = r;
+    writeFileSync(post, original); await build(root);   // restore, untimed
+    return r.ms;
+  });
+  const noop = await medianOf(runs, async () => {
     const now = new Date(); utimesSync(post, now, now);
     return (await build(root)).ms;
   });
-  return { name: `build.incremental.${n}`, value: +ms.toFixed(1), unit: "ms", budget: ACTIVE.incremental };
+  return [
+    { name: `build.incremental.${n}`, value: +edit.toFixed(1), unit: "ms", budget: ACTIVE.incremental, note: `one body edit → ${last.rendered} rendered, ${last.cached} cached` },
+    { name: `build.noop.${n}`, value: +noop.toFixed(1), unit: "ms", note: "touch only (mtime): stat + one hash, nothing rendered; report-only" },
+  ];
 }
 
 export async function runMcpColdStart(runs: number): Promise<Metric> {
@@ -140,7 +157,7 @@ export function runTokensPerPage(n: number | string): Metric[] {
     { name: "tokens.page.md", value: mMd, unit: "tokens", budget: ACTIVE.tokensPerPage },
     { name: "tokens.page.html", value: mHtml, unit: "tokens" },
     { name: "tokens.page.reduction", value: +((1 - mMd / mHtml) * 100).toFixed(1), unit: "%", higherIsBetter: true,
-      note: `budget ${BUDGETS.mdReduction} % enforced from S7 (stub HTML is the markdown in a <pre>)` },
+      note: `real theme HTML from S6; budget ${BUDGETS.mdReduction} % enforced from S7 (twins + llms.txt)` },
   ];
 }
 
@@ -168,13 +185,13 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   ACTIVE = budgetsFor(corpus(100));
   const cold = await runMcpColdStart(runs);   // first: measured from a quiet process, before the builds thrash the page cache (S4)
   for (const n of sizes) metrics.push(await runBuild(n, runs));
-  metrics.push(await runIncremental(100, runs));
+  metrics.push(...await runIncremental(100, runs));
   for (const n of sizes.filter((n) => n <= 1000)) metrics.push(...await runLint(n, runs));
   metrics.push(cold);
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
-  const report: Report = { version: "0.1.0-s5", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  const report: Report = { version: "0.1.0-s6", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));

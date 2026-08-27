@@ -6,3 +6,4 @@ corpora/*/dist/
 bench/*.json
 corpora/_test/
 corpora/10000/
+.scratch/

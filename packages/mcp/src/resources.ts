@@ -40,7 +40,9 @@ export function handlers(root: string): Handlers {
         const [, type, slug] = lintM;
         const file = c.listContent(root, cfg).find((f) => f.type === type && f.slug === slug);
         if (!file) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no ${type} with slug ${slug})`);
-        const site = c.lintSite(root, { cfg });   // whole site: rule 5 needs every route
+        const index = await c.SiteIndex.open(root); index.sync(cfg);
+        const site = c.lintSite(root, { cfg, moves: index.moves(), cache: new c.MdastCache(index.mdastStore()) });   // whole site: rule 5 needs every route, 11 every tag, 10 the move log
+        index.close();
         const r = site.files.find((f) => f.file === relative(root, file.file))!;
         return text(JSON_, JSON.stringify({ file: r.file, errors: r.errors, warnings: r.warnings, words: r.words, skipped: r.skipped, diagnostics: r.diagnostics }, null, 2));
       }

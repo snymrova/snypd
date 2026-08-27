@@ -4,3 +4,4 @@ export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, ROLE
 export { describeSource, type Source, type Provenance, type LayerName } from "./merge";
 export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "./yaml";
 export * from "./content";
+export { SiteIndex, readFrontmatter, taxonomyFields, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";

@@ -35,6 +35,7 @@
       "name": "@snypd/core",
       "version": "0.1.0",
       "dependencies": {
+        "@snypd/runtime": "workspace:*",
         "@snypd/spec": "workspace:*",
         "@types/mdast": "^4.0.4",
         "js-yaml": "^5.4.1",
@@ -66,6 +67,15 @@
     "packages/render": {
       "name": "@snypd/render",
       "version": "0.1.0",
+      "dependencies": {
+        "@snypd/core": "workspace:*",
+        "@snypd/spec": "workspace:*",
+        "js-yaml": "^5.4.1",
+      },
+      "devDependencies": {
+        "@types/js-yaml": "^4.0.9",
+        "@types/mdast": "^4.0.4",
+      },
     },
     "packages/runtime": {
       "name": "@snypd/runtime",
@@ -85,6 +95,10 @@
     "themes/base": {
       "name": "@snypd/theme-base",
       "version": "0.1.0",
+      "dependencies": {
+        "@snypd/core": "workspace:*",
+        "@snypd/render": "workspace:*",
+      },
     },
     "themes/editorial": {
       "name": "@snypd/theme-editorial",

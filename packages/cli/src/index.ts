@@ -8,7 +8,9 @@ switch (cmd) {
   case "build": {
     const { build } = await import("@snypd/render");
     const r = await build(args[0] ?? ".");
-    console.log(`built ${r.routes} routes in ${r.ms.toFixed(1)} ms`);
+    const own = r.theme.coverage.filter((c) => c.status === "own").length;
+    console.log(`built ${r.routes} routes (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${own}/${r.theme.coverage.length} primitives)`);
+    if (flags.has("--verbose")) console.log(Object.entries(r.phases).map(([k, v]) => `${k} ${v.toFixed(1)} ms`).join(" · "));
     break;
   }
   case "bench": {
@@ -43,15 +45,18 @@ switch (cmd) {
     if (!c.ok) { console.error(formatDiagnostics(c.diagnostics)); process.exit(1); }
     break;
   }
-  case "lint": {     // debugging aid: `snypd lint [root|file.md]` — rules 0–9 (docs/01); exit 1 on errors
-    const { lintSite, formatSiteLint, lintMarkdown, formatLint } = await import("@snypd/core");
+  case "lint": {     // debugging aid: `snypd lint [root|file.md]` — rules 0–11 (docs/01); exit 1 on errors
+    const { lintSite, formatSiteLint, lintMarkdown, formatLint, SiteIndex, loadConfig } = await import("@snypd/core");
     const target = args[0] ?? ".";
     if (target.endsWith(".md")) {
       const r = lintMarkdown(await Bun.file(target).text(), { file: target });
       console.log(formatLint(r) || `${target}: clean (${r.words} words)`);
       process.exit(r.errors ? 1 : 0);
     }
-    const s = lintSite(target);
+    const cfg = loadConfig(target);
+    const index = await SiteIndex.open(target); index.sync(cfg);   // rule 10 reads the move log
+    const s = lintSite(target, { cfg, moves: index.moves(), cache: new (await import("@snypd/core")).MdastCache(index.mdastStore()) });
+    index.close();
     console.log(formatSiteLint(s));
     process.exit(s.errors ? 1 : 0);
   }

@@ -143,6 +143,7 @@ describe("diagnostics", () => {
     const c = loadConfig("corpora/100");
     expect(c.ok).toBe(true);
     expect(c.diagnostics).toEqual([]);
-    expect(c.layers.find((l) => l.name === "theme")!.note).toBe("no theme.yaml yet");
+    const theme = c.layers.find((l) => l.name === "theme")!;
+    expect(theme.found).toBe(true); expect(theme.file!.endsWith("themes/base/theme.yaml")).toBe(true); expect(theme.dir!.endsWith("themes/base")).toBe(true);
   });
 });

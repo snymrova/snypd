@@ -12,7 +12,8 @@
  *  7 stale-updated      `updated` before `date`; `updatedNote` without `updated`   (git-based staleness: S11)
  *  8 slop-phrase        phrases from the slop list
  *  9 callout-density    more than N callouts per 1,000 words
- * Rules 10 (slug change without redirect) and 11 (tag used once) need the site index — S6.
+ * 10 slug-change        route changed since the file was first indexed and nothing redirects the old one   (lintSite, from the index)
+ * 11 tag-once           a tag no other post uses                                                          (lintSite)
  */
 import type { Node, Parent, Heading, Link, Image, Text } from "mdast";
 import type { FieldSpec } from "@snypd/spec";

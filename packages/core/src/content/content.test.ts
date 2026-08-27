@@ -151,3 +151,29 @@ describe("lintSite", () => {
     rmSync("corpora/_test/site", { recursive: true, force: true });
   });
 });
+
+describe("site rules 10–11 (S6)", () => {
+  const root = "corpora/_test/lint-site";
+  const site = (posts: Record<string, string>) => {
+    rmSync(root, { recursive: true, force: true }); mkdirSync(`${root}/content/posts`, { recursive: true });
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
+    for (const [slug, body] of Object.entries(posts)) writeFileSync(`${root}/content/posts/${slug}.md`, body);
+  };
+  const post = (tags: string, extra = "") => `---\ntitle: T\ndate: 2026-01-01\nstatus: published\ntags: [${tags}]\n${extra}---\n\nWords here.\n`;
+  test("11 tag-once: a tag no other post uses warns at the tags line and names reusable ones", () => {
+    site({ a: post("ai, mcp"), b: post("ai"), c: post("solo, ai") });
+    const s = lintSite(root);
+    const d = s.files.flatMap((f) => f.diagnostics.map((x) => ({ file: f.file, ...x })));
+    expect(d.map((x) => [x.file, x.rule, x.line])).toEqual([["content/posts/a.md", "tag-once", 5], ["content/posts/c.md", "tag-once", 5]]);
+    expect(d[0]!.message).toBe("tag `mcp` is used only here");
+    expect(d[0]!.hint).toContain("reuse one of `ai`");
+    expect(s.warnings).toBe(2); expect(s.errors).toBe(0);
+  });
+  test("10 slug-change: a move the index recorded warns until the route is restored", () => {
+    site({ a: post("ai"), b: post("ai") });
+    const d = lintSite(root, { moves: [{ path: "content/posts/a.md", from: "/posts/old", to: "/posts/a" }] }).files[0]!.diagnostics;
+    expect(d.map((x) => x.rule)).toEqual(["slug-change"]);
+    expect(d[0]!.message).toBe("Route changed from /posts/old to /posts/a; nothing redirects the old URL");
+    expect(lintSite(root).warnings).toBe(0);
+  });
+});
