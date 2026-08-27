@@ -154,6 +154,66 @@ function checkDiagram(b: Block, at: (rule: string, n: number, severity: Severity
   }
 }
 
+/**
+ * `flow` is sugar over `diagram` (spec: a `steps:` list where a string is a step, `{ id, do }` a named step,
+ * `{ ask, yes, no }` a decision and `{ then: id }` a jump). This reports the shapes an agent actually gets
+ * wrong, with the fix in the hint — `@snypd/viz` drops the same shapes at render time but never speaks,
+ * because the renderer does not lint (html.ts). The 40-node cap is the generic slot-limit check, from the spec.
+ */
+function checkFlow(b: Block, at: (rule: string, n: number, severity: Severity, message: string, hint: string) => void): void {
+  const body = b.data;
+  if (body === undefined) { at("required-prop", 2, "error", "`flow` has no body", "The body is the procedure: `steps:` with one item per step — see snypd://spec/primitives/flow"); return; }
+  if (!body || typeof body !== "object" || Array.isArray(body)) { at("invalid-prop", 2, "error", "`flow` body is not `steps:`", "The body is a YAML map with a `steps:` list, not a bare list"); return; }
+  const steps = (body as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) { at("required-prop", 2, "error", "`flow` has no `steps:` list", "Add `steps:` with one item per step: `- Run lint`"); return; }
+  if (!steps.length) { at("required-prop", 2, "error", "`flow` has no steps", "Add at least one step under `steps:`"); return; }
+
+  const KEYS = ["id", "do", "ask", "yes", "no", "then"];
+  const ids = new Set<string>();
+  const jumps: string[] = [];
+  let decisions = 0;
+
+  const walk = (list: unknown[], where: string): void => {
+    for (const [i, raw] of list.entries()) {
+      const at_ = `${where} ${i + 1}`;
+      if (typeof raw === "string" || typeof raw === "number") {
+        if (!String(raw).trim()) at("invalid-prop", 2, "error", `\`flow\` ${at_} is empty`, "A step is the sentence a reader follows: `- Run lint`");
+        continue;
+      }
+      if (Array.isArray(raw) || !raw || typeof raw !== "object") {
+        at("invalid-prop", 2, "error", `\`flow\` ${at_} is not a step, a decision or a jump`, "A step is a string or `{ id, do }`, a decision is `{ ask, yes, no }`, a jump is `{ then: id }`");
+        continue;
+      }
+      const o = raw as Record<string, unknown>;
+      for (const k of Object.keys(o)) if (!KEYS.includes(k))
+        at("unknown-prop", 2, "warning", `\`flow\` ${at_} has no key \`${k}\``, `A step's keys are ${KEYS.join(", ")} — check snypd://spec/primitives/flow`);
+      const id = o.id === undefined || o.id === null ? "" : String(o.id);
+      if (id) {
+        if (ids.has(id)) at("invalid-prop", 2, "error", `\`flow\` declares step \`${id}\` twice`, "Two steps cannot share an id — a `then:` would not know which one it means");
+        ids.add(id);
+      }
+      if (o.then !== undefined && o.then !== null && o.ask === undefined && o.do === undefined) { jumps.push(String(o.then)); continue; }
+      if (o.ask !== undefined && o.ask !== null) {
+        decisions++;
+        if (!String(o.ask).trim()) at("invalid-prop", 2, "error", `\`flow\` ${at_} asks nothing`, "A decision is the question the reader answers: `- { ask: Lint clean?, yes: …, no: … }`");
+        if ((o.yes === undefined || o.yes === null) && (o.no === undefined || o.no === null))
+          at("invalid-prop", 2, "warning", `\`flow\` ${at_} is a decision with neither \`yes:\` nor \`no:\``, "Give the decision at least one branch, or write it as a plain step — both answers going to the same place is not a decision");
+        for (const [branch, name] of [[o.yes, "yes"], [o.no, "no"]] as const)
+          if (branch !== undefined && branch !== null) walk(Array.isArray(branch) ? branch : [branch], `${at_} \`${name}:\` step`);
+        continue;
+      }
+      if (o.do === undefined || o.do === null || !String(o.do).trim())
+        at("required-prop", 2, "error", `\`flow\` ${at_} has no \`do:\``, id ? `A named step says what it does: \`- { id: ${id}, do: Fix the reported rule }\`` : "A step is a string, or `{ id, do }` when a `then:` needs to point at it");
+    }
+  };
+  walk(steps, "step");
+
+  for (const j of jumps) if (!ids.has(j))
+    at("invalid-prop", 2, "error", `\`flow\` jumps to \`${j}\`, which is not a step id`, `Add \`- { id: ${j}, do: … }\` to \`steps:\`, or fix the id — a jump to nothing leaves the branch hanging`);
+  if (!decisions)
+    at("invalid-prop", 2, "warning", "`flow` has no decisions", "A procedure with no branches is a `steps` list — `:::steps` reads better and emits the same HowTo schema (spec: flow anti-intent)");
+}
+
 /** Count nodes a diagram/flow body declares (for the 40-node lint). */
 export function countNodes(name: string, data: unknown): number {
   if (!data || typeof data !== "object") return 0;
@@ -239,6 +299,7 @@ export function buildTree(doc: ParsedDoc, source: string): PrimitiveTree {
     }
     if (node.name === "chart") checkChart(b, attrs, at);
     if (node.name === "diagram") checkDiagram(b, at);
+    if (node.name === "flow") checkFlow(b, at);
     return b;
   };
 

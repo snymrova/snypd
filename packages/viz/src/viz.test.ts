@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { renderChart, normalizeRows, renderDiagram, normalizeGraph, layoutGraph, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type LayoutItem } from "./index";
+import { renderChart, normalizeRows, renderDiagram, normalizeGraph, renderFlow, desugarFlow, layoutGraph, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type LayoutItem } from "./index";
 import { band, linear, niceDomain, niceStep, points, ticks } from "./scale";
 import { arc, clip, n, num, path } from "./svg";
 
@@ -289,5 +289,120 @@ describe("renderDiagram", () => {
     expect(r.svg).toContain("&lt;script&gt;&amp;&quot;");
     expect(r.svg).toContain("<title>&lt;b&gt;c&lt;/b&gt;</title>");
     expect(r.svg).toContain("&lt;i&gt;");
+  });
+});
+
+/** The picture as a reader would read it: `label --edge label--> label`, in emission order. */
+const arrows = (data: unknown): string[] => {
+  const g = desugarFlow(data);
+  const label = new Map(g.nodes.map((x) => [x.id, x.label]));
+  return g.edges.map((e) => `${label.get(e.from)} -${e.label ? `${e.label}-` : ""}> ${label.get(e.to)}`);
+};
+
+describe("desugarFlow", () => {
+  test("a list of strings is a chain, and every step is a rounded box", () => {
+    const g = desugarFlow({ steps: ["one", "two", "three"] });
+    expect(g.nodes.map((x) => x.label)).toEqual(["one", "two", "three"]);
+    expect(new Set(g.nodes.map((x) => x.kind))).toEqual(new Set(["rounded"]));
+    expect(arrows({ steps: ["one", "two", "three"] })).toEqual(["one -> two", "two -> three"]);
+    expect(g.warnings).toEqual([]);
+  });
+  test("a decision is a diamond whose branches rejoin the next step", () => {
+    expect(arrows({ steps: ["a", { ask: "ok?", yes: "b", no: "c" }, "d"] }))
+      .toEqual(["a -> ok?", "ok? -yes-> b", "b -> d", "ok? -no-> c", "c -> d"]);
+    expect(desugarFlow({ steps: [{ ask: "ok?" }] }).nodes[0]!.kind).toBe("diamond");
+  });
+  test("a branch with no steps carries straight on, labelled", () => {
+    expect(arrows({ steps: [{ ask: "ok?", no: "fix it" }, "ship"] }))
+      .toEqual(["ok? -yes-> ship", "ok? -no-> fix it", "fix it -> ship"]);
+  });
+  test("a nested list runs in order and rejoins once, at the end", () => {
+    expect(arrows({ steps: [{ ask: "ok?", yes: ["log", "tag"] }, "ship"] }))
+      .toEqual(["ok? -yes-> log", "log -> tag", "tag -> ship", "ok? -no-> ship"]);
+  });
+  test("the spec's own example: a forward `then:` lands out of line, and the straight path steps over it", () => {
+    // docs: snypd://spec/primitives/flow. Without decision 19 the `yes` branch would fall into "fix" on
+    // its way past — the one thing the picture must not say.
+    const spec = { steps: [
+      "Draft on branch", "Run lint",
+      { ask: "Lint clean?", yes: "Open preview", no: { then: "fix" } },
+      { id: "fix", do: "Fix and re-lint" },
+      "Human approves",
+    ] };
+    expect(arrows(spec)).toEqual([
+      "Draft on branch -> Run lint",
+      "Run lint -> Lint clean?",
+      "Lint clean? -yes-> Open preview",
+      "Open preview -> Human approves",
+      "Lint clean? -no-> Fix and re-lint",
+      "Fix and re-lint -> Human approves",
+    ]);
+  });
+  test("a `then:` back to an earlier step is a loop, and that step stays on the straight path", () => {
+    const retry = { steps: [{ id: "lint", do: "Run lint" }, { ask: "clean?", no: { then: "lint" } }, "Ship"] };
+    expect(arrows(retry)).toEqual(["Run lint -> clean?", "clean? -yes-> Ship", "clean? -no-> Run lint"]);
+    expect(renderFlow({ data: retry })!.warnings).toEqual([]);   // the cycle is broken by the layout, not rejected
+  });
+  test("a jump in the straight list sends the path there instead of onwards", () => {
+    expect(arrows({ steps: [{ id: "top", do: "Start" }, "Work", { then: "top" }] }))
+      .toEqual(["Start -> Work", "Work -> Start"]);
+  });
+  test("what an agent gets wrong is dropped and named, never drawn as something else", () => {
+    expect(desugarFlow({ steps: [{ then: "ghost" }, "a"] }).warnings[0]).toContain("`ghost`, which is not a step id");
+    expect(desugarFlow({ steps: [[1, 2]] }).warnings[0]).toContain("not a step, a decision or a jump");
+    expect(desugarFlow({ steps: [{ id: "a", do: "A" }, { id: "a", do: "B" }] }).warnings[0]).toContain("twice");
+    expect(desugarFlow({ steps: [{ id: "a" }] }).warnings[0]).toContain("no `do:`");
+    expect(desugarFlow({ steps: [{ do: "A", when: "later" }] }).warnings[0]).toContain("no key `when`");
+    expect(desugarFlow({ steps: "later" }).warnings[0]).toContain("no `steps:` list");
+    expect(desugarFlow([{ do: "A" }]).warnings[0]).toContain("not `steps:`");
+    expect(desugarFlow(undefined).warnings).toEqual([]);        // an absent body is the theme's fallback, not a complaint
+  });
+  test("a generated id never lands on one the author wrote", () => {
+    const g = desugarFlow({ steps: ["a", { id: "%1", do: "b" }, "c"] });
+    expect(new Set(g.nodes.map((x) => x.id)).size).toBe(3);
+    expect(g.nodes.map((x) => x.label)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("renderFlow", () => {
+  test("nothing drawable → null, which is the theme's signal to fall back to the step list", () => {
+    expect(renderFlow({ data: undefined })).toBe(null);
+    expect(renderFlow({ data: { steps: [] } })).toBe(null);
+    expect(renderFlow({ data: { nope: 1 } })).toBe(null);
+  });
+  test("top to bottom by default (spec), and the caption is the accessible name", () => {
+    const r = renderFlow({ data: { steps: ["one", { ask: "ok?", yes: "yes", no: "no" }] }, caption: "How a draft ships" })!;
+    expect(r.direction).toBe("tb");
+    expect(r.svg).toContain('class="snypd-flow-svg" data-direction="tb"');
+    expect(r.svg).toContain("<title>How a draft ships</title>");
+    expect(r.svg).toContain("<desc>Flowchart, 3 steps and 1 decision.");
+    expect(renderFlow({ data: { steps: ["a", "b"] }, direction: "sideways" })!.warnings[0]).toContain("top to bottom");
+    const wide = renderFlow({ data: { steps: ["a", "b", "c"] }, direction: "lr" })!.svg.match(/viewBox="0 0 (\d+) (\d+)"/)!;
+    expect(+wide[1]!).toBeGreaterThan(+wide[2]!);
+  });
+  test("a decision is a rhombus, a step is a rounded rect — a reader can tell them apart", () => {
+    const r = renderFlow({ data: { steps: ["run it", { ask: "clean?", yes: "ship", no: "fix" }] } })!;
+    expect([...r.svg.matchAll(/<rect [^>]*rx="8"/g)].length).toBe(3);
+    expect([...r.svg.matchAll(/<path d="M[\d.]+ [\d.]+(?:L[\d.]+ [\d.]+){3}Z"\/>/g)].length).toBe(1);   // four corners: an arrowhead has three
+  });
+  test("the same flow renders the same bytes twice — a route key depends on it", () => {
+    const data = { steps: ["a", { ask: "ok?", yes: "b", no: { then: "c" } }, { id: "c", do: "C" }, "d"] };
+    expect(renderFlow({ data, caption: "c" })!.svg).toBe(renderFlow({ data, caption: "c" })!.svg);
+  });
+  test("at the spec's cap it fits the byte budget; past it it draws and says so", () => {
+    /** Each round is three nodes: a step, the decision after it and the fix its `no` branch runs. */
+    const rounds = (k: number) => Array.from({ length: k }, (_, i) => [`step number ${i} of the pipeline`, { ask: `is ${i} ok?`, no: `fix ${i}` }]).flat();
+    const steps = rounds(16);
+    const at = renderFlow({ data: { steps: rounds(13) }, caption: "the cap" })!;   // 13 × 3 = 39, one under the cap
+    expect(at.nodes.length).toBeLessThanOrEqual(MAX_NODES);
+    expect(at.warnings).toEqual([]);
+    expect(kb(at.svg)).toBeLessThan(DIAGRAM_KB);   // spec: flow.budget.svgKb, the same 25 KB
+    expect(renderFlow({ data: { steps } })!.warnings[0]).toContain(`the spec's cap is ${MAX_NODES}`);
+  });
+  test("labels and captions are escaped, not injected", () => {
+    const r = renderFlow({ data: { steps: ['<script>&"', { ask: "<i>", yes: "ok" }] }, caption: "<b>c</b>" })!;
+    expect(r.svg).not.toContain("<script");
+    expect(r.svg).toContain("&lt;script&gt;&amp;&quot;");
+    expect(r.svg).toContain("<title>&lt;b&gt;c&lt;/b&gt;</title>");
   });
 });

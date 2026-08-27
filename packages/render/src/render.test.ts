@@ -206,7 +206,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     r = await build(root);
     expect(existsSync(join(dist, "posts/d/index.html"))).toBe(true); expect(read("")).toContain("Draft D");
   });
-  test("S8/S9: chart and diagram draw svgs through the build; flow still renders its spec fallback", async () => {
+  test("S8/S9/S10: chart, diagram and flow draw svgs through the build, each with its spec fallback behind it", async () => {
     writeFileSync(join(root, "content/posts/v.md"), `---\ntitle: Viz\ndate: 2026-01-01\nstatus: published\n---\n\n:::chart{type="bar" source="https://x.y" caption="Cap" unit="ms"}\n- { label: a, value: 1 }\n- { label: b, value: 2 }\n:::\n\n:::diagram{caption="D"}\nnodes:\n  - { id: p, label: Parse }\n  - { id: r }\nedges:\n  - { from: p, to: r, label: then }\n:::\n\n:::flow{caption="F"}\nsteps:\n  - One\n  - { ask: Ok?, yes: Done, no: [Retry, { then: one }] }\n:::\n`);
     await build(root);
     const v = read("posts/v");
@@ -230,7 +230,17 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(root, "content/posts/x.md"), `---\ntitle: NoNodes\ndate: 2026-01-01\nstatus: published\n---\n\n:::diagram{caption="E"}\nedges:\n  - { from: a, to: b }\n:::\n`);
     await build(root);
     expect(read("posts/x")).toContain('<ol class="snypd-diagram-edges"><li>a -&gt; b</li></ol>');
-    expect(v).toContain("<li>Ok?<ul><li>yes: <ol><li>Done</li></ol></li><li>no: <ol><li>Retry</li><li>then: one</li></ol></li></ul></li>");
+    // S10: the flow desugars to a graph and goes through the same painter — a decision is a diamond, its
+    // branches are labelled edges, and the sugar's `then:` is an edge back to the step it names.
+    expect(v).toContain('<figure class="snypd-flow" data-direction="tb"><svg xmlns="http://www.w3.org/2000/svg"');
+    expect(v).toContain('class="snypd-flow-svg" data-direction="tb"');
+    expect(v).toContain("<desc>Flowchart, 3 steps and 1 decision. One, then Ok?. Ok? — yes: Done; no: Retry.</desc>");
+    expect(v).toMatch(/<path d="M83 97\.5L137 125L83 152\.5L29 125Z"\/>/);   // the decision, as a rhombus
+    expect(v).toContain(">yes<");
+    expect(v).not.toContain("<li>yes: ");
+    writeFileSync(join(root, "content/posts/y.md"), `---\ntitle: NoSteps\ndate: 2026-01-01\nstatus: published\n---\n\n:::flow{caption="G"}\nnope: true\n:::\n`);
+    await build(root);
+    expect(read("posts/y")).toContain('<figure class="snypd-flow" data-direction="tb"><figcaption>G</figcaption></figure>');   // no steps at all: the caption, never an empty list
   });
   test("loadTheme: missing layout file is an error, missing primitive is generic + reported", async () => {
     const bad = "corpora/_test/theme-bad";

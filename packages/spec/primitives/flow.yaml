@@ -12,6 +12,9 @@ slots:
     description: |
       steps: list of items in order; a string is a step, a map { ask, yes, no } is a decision
       whose yes/no are steps or nested lists; { then: id } jumps to a named step { id, do }.
+      A branch with no yes:/no: carries straight on, labelled. A named step that only earlier
+      steps jump forward to sits out of the line — the straight path steps over it, and only the
+      branch naming it goes there; a jump back to an earlier step is a loop and changes nothing.
     max: { nodes: 40 }
 intent: A procedure with at most a handful of decisions that a reader follows top to bottom.
 anti-intent: Not for straight lists (use steps). Not for graphs that are not procedures (use diagram).

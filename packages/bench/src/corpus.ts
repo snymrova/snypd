@@ -61,7 +61,24 @@ export function generate(n: number, root = `corpora/${n}`) {
         `\nedges:\n` + edges.map(([from, to], k) => `  - { from: ${from}, to: ${to}${k % 4 === 0 ? `, label: ${pick(WORDS)} }` : " }"}`).join("\n") + `\n:::\n`);
     }
     if (i % 20 === 0) {
-      const steps = Array.from({ length: 15 }, () => `  - ${sentence()}`).join("\n");
+      // Decisions, a branch that rejoins and a jump back: a straight list of 15 steps is a `steps` block
+      // (lint says so from S10) and exercises none of the desugar — no join edges, no cycle to break.
+      const steps = [
+        `  - { id: start, do: ${sentence()} }`,
+        `  - ${sentence()}`,
+        `  - ask: ${words(3)}?`,
+        `    yes: ${sentence()}`,
+        `    no: { then: start }`,
+        `  - ${sentence()}`,
+        `  - ask: ${words(3)}?`,
+        `    yes:`,
+        `      - ${sentence()}`,
+        `      - ${sentence()}`,
+        `    no: { then: fix }`,
+        `  - { id: fix, do: ${sentence()} }`,
+        `  - ${sentence()}`,
+        `  - ${sentence()}`,
+      ].join("\n");
       body.push(`:::flow{caption="${sentence()}"}\nsteps:\n${steps}\n:::\n`);
     }
     body.push(`:::faq\n### ${words(4)}?\n${sentence()}\n### ${words(4)}?\n${sentence()}\n:::\n`);

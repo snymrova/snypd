@@ -23,7 +23,13 @@ import { EDGE, HALO, LABEL, NODE_FILL, NODE_STROKE, TICK } from "./palette";
 import { clip, el, escape, n, text, textWidth } from "./svg";
 
 export type Direction = "lr" | "tb";
-export type NodeKind = "box" | "rounded" | "pill";
+/**
+ * `diamond` is not in the spec's `diagram` vocabulary and a diagram body cannot ask for it (`isKind`
+ * checks `NODE_KINDS`). It exists because `flow` (S10) desugars a decision into a node, and a decision
+ * that looks like a step is the one thing a flowchart must not do.
+ */
+export type NodeKind = "box" | "rounded" | "pill" | "diamond";
+/** The kinds a `diagram` body may name — the spec's list, and what lint rule 2 checks against. */
 export const NODE_KINDS: NodeKind[] = ["box", "rounded", "pill"];
 export interface DiagramNode { id: string; label: string; kind: NodeKind }
 export interface DiagramEdge { from: string; to: string; label?: string }
@@ -42,10 +48,20 @@ export const MAX_NODES = 40;
 
 const FS = { node: 13, edge: 11 };
 const PAD_X = 14, PAD_Y = 10, LINE_H = 17, MIN_W = 68, MAX_W = 172, MAX_LINES = 3, MIN_H = 34;
+/** A diamond wraps earlier than a box: the same words in a rhombus are 1.6× as wide (see `measure`). */
+const DIAMOND_W = 160;
 const MARGIN = 6, ARROW = 8, ARROW_HALF = 3.6, CORNER = 7;
 
 const isKind = (s: unknown): s is NodeKind => NODE_KINDS.includes(s as NodeKind);
 const isDirection = (s: unknown): s is Direction => s === "lr" || s === "tb";
+
+/** `direction=` as written → the axis, plus the warning when it was written wrong. `diagram` reads left to
+ * right by default, `flow` top to bottom (spec) — the fallback is the caller's, the parsing is shared. */
+export function pickDirection(raw: unknown, fallback: Direction): { direction: Direction; warning?: string } {
+  if (raw === undefined || raw === null || raw === "") return { direction: fallback };
+  if (isDirection(raw)) return { direction: raw };
+  return { direction: fallback, warning: `unknown direction "${String(raw)}"; laid out ${fallback === "lr" ? "left to right" : "top to bottom"}` };
+}
 
 /**
  * Parsed YAML body → nodes and edges. Tolerates what an agent writes (`nodes: [md, build]` as bare ids as
@@ -90,8 +106,8 @@ export function normalizeGraph(data: unknown): { nodes: DiagramNode[]; edges: Di
 }
 
 /** Words → at most `MAX_LINES` lines that fit the box; the last one takes an ellipsis rather than overflow. */
-function wrapLabel(label: string): string[] {
-  const room = MAX_W - PAD_X * 2;
+function wrapLabel(label: string, maxW = MAX_W): string[] {
+  const room = maxW - PAD_X * 2;
   const chars = Math.max(4, Math.floor(room / (FS.node * 0.55)));
   const lines: string[] = [];
   let cur = "";
@@ -111,8 +127,15 @@ function wrapLabel(label: string): string[] {
 interface Box { id: string; lines: string[]; w: number; h: number; kind: NodeKind }
 
 const measure = (node: DiagramNode): Box => {
-  const lines = wrapLabel(node.label);
-  const w = Math.min(MAX_W, Math.max(MIN_W, Math.ceil(Math.max(...lines.map((l) => textWidth(l, FS.node)))) + PAD_X * 2));
+  const lines = wrapLabel(node.label, node.kind === "diamond" ? DIAMOND_W : MAX_W);
+  const tw = Math.ceil(Math.max(...lines.map((l) => textWidth(l, FS.node))));
+  if (node.kind === "diamond") {
+    // A rhombus only holds what satisfies |x|/(w/2) + |y|/(h/2) ≤ 1, so text that fits a box needs
+    // ≈ 1.6× the width and ≈ 2.6× the height inside a diamond. A decision is wide and shallow on purpose:
+    // widening is cheap (one rank is as tall as its tallest node either way), heightening pushes ranks apart.
+    return { id: node.id, lines, w: Math.max(MIN_W + 40, Math.ceil(tw * 1.6) + 24), h: Math.max(MIN_H + 16, Math.ceil(lines.length * LINE_H * 2.6) + 10), kind: node.kind };
+  }
+  const w = Math.min(MAX_W, Math.max(MIN_W, tw + PAD_X * 2));
   return { id: node.id, lines, w, h: Math.max(MIN_H, lines.length * LINE_H + PAD_Y * 2), kind: node.kind };
 };
 
@@ -220,17 +243,16 @@ function describe(nodes: DiagramNode[], edges: DiagramEdge[]): string {
   return `Diagram, ${nodes.length} node${nodes.length === 1 ? "" : "s"}, ${edges.length} connection${edges.length === 1 ? "" : "s"}. ${body}${more}.`;
 }
 
-/**
- * Nodes and edges → one `<svg>`. Returns `null` when there is nothing to draw, which is the theme's signal
- * to render the spec's declared fallback (the edge list) instead of an empty picture.
- */
-export function renderDiagram(input: DiagramInput): DiagramResult | null {
-  const { nodes, edges, warnings } = normalizeGraph(input.data);
-  if (input.direction !== undefined && !isDirection(input.direction)) warnings.push(`unknown direction "${String(input.direction)}"; laid out left to right`);
-  const direction: Direction = isDirection(input.direction) ? input.direction : "lr";
-  if (!nodes.length) return null;
-  if (nodes.length > MAX_NODES) warnings.push(`${nodes.length} nodes; the spec's cap is ${MAX_NODES} — past it the picture stops being followable`);
+/** What the painter needs beyond the graph itself; `flow` (S10) supplies its own name, prose and class. */
+export interface DrawOptions { direction: Direction; name: string; desc: string; className: string }
 
+/**
+ * The painter: normalised nodes and edges → one `<svg>`. `renderDiagram` reaches it through a YAML body,
+ * `renderFlow` (flow.ts) through the sugar it desugars — one layout and one set of geometry decisions for
+ * both, which is what "flow is sugar over diagram" (docs/07 S10) has to mean to be worth anything.
+ */
+export function drawGraph(nodes: DiagramNode[], edges: DiagramEdge[], opts: DrawOptions): { svg: string; ranks: number } {
+  const { direction } = opts;
   const boxes = new Map(nodes.map((node) => [node.id, measure(node)]));
   const lr = direction === "lr";
   const items: LayoutItem[] = nodes.map((node) => {
@@ -249,7 +271,9 @@ export function renderDiagram(input: DiagramInput): DiagramResult | null {
   // `layout.edges` keeps the input order — nothing was filtered, because `normalizeGraph` already dropped
   // the edges a layout cannot take (unknown endpoint, self-loop) and said so.
   const half = (id: string) => (lr ? boxes.get(id)!.w : boxes.get(id)!.h) / 2;
-  const cross = (id: string) => (lr ? boxes.get(id)!.h : boxes.get(id)!.w);
+  // A diamond has no flat side to fan across — an edge attaching a third of the way along it would end in
+  // the white space beside the point. Zero fan puts every edge on the apex, which is what a fork looks like.
+  const cross = (id: string) => (boxes.get(id)!.kind === "diamond" ? 0 : lr ? boxes.get(id)!.h : boxes.get(id)!.w);
   const ends = edges.map((e) => {
     const a = placed.get(e.from)!, b = placed.get(e.to)!;
     const ahead = b.u >= a.u;
@@ -304,17 +328,36 @@ export function renderDiagram(input: DiagramInput): DiagramResult | null {
   for (const node of nodes) {
     const p = placed.get(node.id)!, b = boxes.get(node.id)!;
     const [cx, cy] = xy(p);
-    const rx = b.kind === "pill" ? b.h / 2 : b.kind === "rounded" ? 8 : 2;
-    rects += el("rect", { x: n(cx - b.w / 2), y: n(cy - b.h / 2), width: n(b.w), height: n(b.h), rx: n(rx) });
+    if (b.kind === "diamond") {
+      rects += el("path", { d: `M${n(cx)} ${n(cy - b.h / 2)}L${n(cx + b.w / 2)} ${n(cy)}L${n(cx)} ${n(cy + b.h / 2)}L${n(cx - b.w / 2)} ${n(cy)}Z` });
+    } else {
+      const rx = b.kind === "pill" ? b.h / 2 : b.kind === "rounded" ? 8 : 2;
+      rects += el("rect", { x: n(cx - b.w / 2), y: n(cy - b.h / 2), width: n(b.w), height: n(b.h), rx: n(rx) });
+    }
     for (const [i, line] of b.lines.entries())
       labels += text(line, { x: n(cx), y: n(cy - ((b.lines.length - 1) * LINE_H) / 2 + i * LINE_H + 4.5) });
   }
   body += el("g", { fill: NODE_FILL, stroke: NODE_STROKE }, rects);
   body += el("g", { "font-size": FS.node, fill: LABEL, "text-anchor": "middle" }, labels);
 
-  const name = input.title ?? input.caption ?? "diagram";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"` +
-    ` class="snypd-diagram-svg" data-direction="${direction}" role="img" style="max-width:100%;height:auto">` +
-    `<title>${escape(name)}</title><desc>${escape(describe(nodes, edges))}</desc>${body}</svg>`;
+    ` class="${opts.className}" data-direction="${direction}" role="img" style="max-width:100%;height:auto">` +
+    `<title>${escape(opts.name)}</title><desc>${escape(opts.desc)}</desc>${body}</svg>`;
+  return { svg, ranks };
+}
+
+/**
+ * A `diagram` body → one `<svg>`. Returns `null` when there is nothing to draw, which is the theme's signal
+ * to render the spec's declared fallback (the edge list) instead of an empty picture.
+ */
+export function renderDiagram(input: DiagramInput): DiagramResult | null {
+  const { nodes, edges, warnings } = normalizeGraph(input.data);
+  const { direction, warning } = pickDirection(input.direction, "lr");
+  if (warning) warnings.push(warning);
+  if (!nodes.length) return null;
+  if (nodes.length > MAX_NODES) warnings.push(`${nodes.length} nodes; the spec's cap is ${MAX_NODES} — past it the picture stops being followable`);
+  const { svg, ranks } = drawGraph(nodes, edges, {
+    direction, name: input.title ?? input.caption ?? "diagram", desc: describe(nodes, edges), className: "snypd-diagram-svg",
+  });
   return { svg, warnings, nodes, edges, ranks, direction };
 }

@@ -21,6 +21,13 @@ switch (cmd) {
       if (rows.some((r) => r.regressed)) process.exit(1);
       break;
     }
+    if (args[0] === "visual") {   // D3 only: every visual primitive at its worst shape, no build (S10)
+      const r = await bench.visual({ quick: flags.has("--quick") });
+      console.log(bench.toMarkdown(r));
+      const over = bench.breaches(r);
+      if (over.length && flags.has("--ci")) { console.error(`budget breach: ${over.join(", ")}`); process.exit(1); }
+      break;
+    }
     const report = await bench.run({ quick: flags.has("--quick") });
     console.log(bench.toMarkdown(report));
     const bad = bench.breaches(report);

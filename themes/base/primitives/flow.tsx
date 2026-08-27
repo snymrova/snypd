@@ -1,5 +1,15 @@
 import type { PrimitiveProps, Html } from "@snypd/render";
-/** S6: the spec fallback — an ordered step list with nested yes/no branches. Diagram lands in S10 (viz/flow). */
+import { raw } from "@snypd/render";
+import { renderFlow } from "@snypd/viz";
+/**
+ * S10: the SVG from `@snypd/viz` — the sugar desugars to a graph and goes through the `diagram` painter,
+ * so a flow inherits the same layout, the same `--color-viz-*` seam and the same zero client JS.
+ *
+ * The spec's declared fallback ("a numbered step list with If ask — yes: … / no: … lines") is the path for a
+ * body the renderer cannot lay out: no `steps:`, or steps it could not read. It shows what the author
+ * actually wrote, so the page still carries the procedure while lint (rule 2) says why there is no picture.
+ * Renderer warnings are not printed here: the renderer does not lint (html.ts).
+ */
 type Step = string | { id?: string; do?: string; ask?: string; yes?: Step | Step[]; no?: Step | Step[]; then?: string };
 function Steps({ steps }: { steps: Step[] }): Html {
   return <ol>{steps.map((s) => <Item step={s} />)}</ol>;
@@ -25,11 +35,14 @@ function Branch({ b }: { b?: Step | Step[] }): Html {
   return <Steps steps={[b]} />;
 }
 export default function Flow({ props, data }: PrimitiveProps): Html {
+  const direction = props.direction as string | undefined;
+  const caption = props.caption as string | undefined;
+  const flow = renderFlow({ data, direction, caption, title: props.title as string | undefined });
   const d = (data ?? {}) as { steps?: Step[] };
   return (
-    <figure class="snypd-flow" data-direction={props.direction as string}>
-      <Steps steps={d.steps ?? []} />
-      <figcaption>{props.caption as string}</figcaption>
+    <figure class="snypd-flow" data-direction={direction}>
+      {flow ? raw(flow.svg) : (d.steps ?? []).length ? <Steps steps={d.steps ?? []} /> : null}
+      <figcaption>{caption}</figcaption>
     </figure>
   );
 }

@@ -85,6 +85,25 @@ describe("lint rules", () => {
     expect(find(chart(rows(13)), "slot-limit")!.severity).toBe("warning");
     expect(find(chart(rows(13)), "slot-limit")!.message).toContain("13 points; the spec's intent is ≤ 12");
   });
+  test("2 flow steps: the sugar's shapes, the jumps that go nowhere, and the flow that is a list (S10)", () => {
+    const flow = (body: string) => `${FM}:::flow{caption="c"}\n${body}\n:::\n`;
+    const msgs = (body: string) => lintMarkdown(flow(body), LINT_CTX).diagnostics.map((d) => d.message);
+    const ok = "steps:\n  - Run lint\n  - { ask: Clean?, yes: Ship, no: { then: fix } }\n  - { id: fix, do: Fix it }";
+    expect(rules(flow(ok))).toEqual([]);
+    expect(msgs("steps:\n  - Run lint\n  - Ship")).toEqual(["`flow` has no decisions"]);   // anti-intent: that is a `steps` list
+    expect(find(flow("steps:\n  - Run lint"), "invalid-prop")!.hint).toContain("`:::steps`");
+    expect(msgs("nope: true")).toEqual(["`flow` has no `steps:` list"]);
+    expect(msgs("- Run lint")).toEqual(["`flow` body is not `steps:`"]);
+    expect(msgs("steps: []")).toEqual(["`flow` has no steps"]);
+    expect(msgs(`steps:\n  - { ask: Clean?, yes: Ship, no: { then: ghost } }`)).toEqual(["`flow` jumps to `ghost`, which is not a step id"]);
+    expect(msgs(`steps:\n  - { do: "" }\n  - { ask: Clean?, yes: Ship }`)[0]).toBe("`flow` step 1 has no `do:`");
+    expect(msgs(`steps:\n  - { id: a, do: A }\n  - { id: a, do: B }\n  - { ask: Q?, yes: Y }`)[0]).toBe("`flow` declares step `a` twice");
+    expect(msgs(`steps:\n  - { do: A, when: later }\n  - { ask: Q?, yes: Y }`)[0]).toBe("`flow` step 1 has no key `when`");
+    expect(msgs(`steps:\n  - { ask: Clean? }`)[0]).toContain("neither `yes:` nor `no:`");
+    expect(msgs(`steps:\n  - [a, b]\n  - { ask: Q?, no: N }`)[0]).toContain("not a step, a decision or a jump");
+    // a branch is linted like the list it is: `yes:` and `no:` name where the problem is
+    expect(msgs(`steps:\n  - { ask: Q?, yes: [Ship, { id: x }] }`)[0]).toBe("`flow` step 1 `yes:` step 2 has no `do:`");
+  });
   test("3 unsourced stat / chart is an error with a hint; site paths do not count", () => {
     expect(find(`${FM}::stat{value="1" label="l"}\n`, "unsourced-evidence")!.hint).toContain("source=\"https://…\"");
     expect(find(`${FM}::stat{value="1" label="l" source="/bench"}\n`, "unsourced-evidence")).toBeDefined();

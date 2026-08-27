@@ -13,7 +13,7 @@ import { generate } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
 import { loadConfig, lintSite, MdastCache, INDEX_DIR } from "@snypd/core";
-import { renderChart, renderDiagram, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
+import { renderChart, renderDiagram, renderFlow, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
@@ -22,8 +22,10 @@ export const BUDGETS = {
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
   chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
   diagramRenderMs: 15, diagramSvgKb: 25,                             // D3, per diagram (spec: diagram.budget)
+  flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
+export const VERSION = "0.1.0-s10";
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
@@ -35,12 +37,13 @@ export function budgetsFor(root: string): typeof BUDGETS {
   return { buildPer100: num("buildPer100", BUDGETS.buildPer100), incremental: num("incremental", BUDGETS.incremental), mcpColdStart: num("mcpColdStart", BUDGETS.mcpColdStart),
     ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000),
     chartRenderMs: per("chart", "renderMs", BUDGETS.chartRenderMs), chartSvgKb: per("chart", "svgKb", BUDGETS.chartSvgKb),
-    diagramRenderMs: per("diagram", "renderMs", BUDGETS.diagramRenderMs), diagramSvgKb: per("diagram", "svgKb", BUDGETS.diagramSvgKb) };
+    diagramRenderMs: per("diagram", "renderMs", BUDGETS.diagramRenderMs), diagramSvgKb: per("diagram", "svgKb", BUDGETS.diagramSvgKb),
+    flowRenderMs: per("flow", "renderMs", BUDGETS.flowRenderMs), flowSvgKb: per("flow", "svgKb", BUDGETS.flowSvgKb) };
 }
 
 /** `higherIsBetter` metrics (e.g. % reduction) breach when value < budget; no 80 % margin. */
 export interface Metric { name: string; value: number; unit: string; budget?: number; higherIsBetter?: boolean; note?: string }
-export interface Report { version: string; bun: string; date: string; tokenizer: string; metrics: Metric[] }
+export interface Report { version: string; bun: string; date: string; tokenizer: string; metrics: Metric[]; /** Which suite ran; `bench compare` reads reports of the same suite. */ suite?: string }
 
 function median(xs: number[]) { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]!; }
 async function medianOf(runs: number, fn: () => Promise<number>) {
@@ -201,6 +204,7 @@ export function runViz(runs: number): Metric[] {
     { name: "viz.chart.renderMs", value: +worstMs.ms.toFixed(2), unit: "ms", budget: ACTIVE.chartRenderMs, note: `worst type (${worstMs.type}) on the worst shape — ${note}` },
     { name: "viz.chart.svgKb", value: +worstKb.kb.toFixed(1), unit: "KB", budget: ACTIVE.chartSvgKb, note: `worst type (${worstKb.type}); zero JS, zero CSS` },
     ...runVizDiagram(runs),
+    ...runVizFlow(runs),
   ];
 }
 
@@ -239,6 +243,63 @@ export function runVizDiagram(runs: number): Metric[] {
     { name: "viz.diagram.renderMs", value: +worstMs.ms.toFixed(2), unit: "ms", budget: ACTIVE.diagramRenderMs, note: `worst shape (${worstMs.shape}) at the ${MAX_NODES}-node cap, layout cache defeated — ${note}` },
     { name: "viz.diagram.svgKb", value: +worstKb.kb.toFixed(1), unit: "KB", budget: ACTIVE.diagramSvgKb, note: `worst shape (${worstKb.shape}); zero JS, zero CSS` },
   ];
+}
+
+/**
+ * D3 for `flow` (S10), at the spec's 40-node cap on three shapes that stress the desugar as well as the
+ * layout: a ladder of decisions whose branches rejoin (the join edges are what a flow has and a diagram does
+ * not), a retry loop where every third decision jumps back to an earlier step (cycle breaking through the
+ * sugar), and nested decisions inside branches (recursion depth). Worst shape reported, layout cache
+ * defeated per measurement — the same rules as `diagram`, because it is the same painter underneath.
+ */
+export function runVizFlow(runs: number): Metric[] {
+  const step = (i: number) => `stage ${i} of the publishing pipeline`;
+  /** ~40 nodes each: the cap is on nodes, and a decision plus its two branches is three of them. */
+  const shapes: Array<{ name: string; data: { steps: unknown[] } }> = [
+    { name: "ladder", data: { steps: Array.from({ length: 10 }, (_, i) => [step(i * 2), { ask: `is stage ${i} clean?`, yes: step(i * 2 + 1), no: `fix stage ${i} and retry` }]).flat() } },
+    { name: "retry loop", data: { steps: Array.from({ length: 8 }, (_, i) => [
+      { id: `s${i}`, do: step(i) },
+      { ask: `did stage ${i} pass?`, yes: [`record stage ${i}`, `publish stage ${i}`], no: i % 3 === 2 ? { then: `s${Math.max(0, i - 2)}` } : `fix stage ${i}` },
+    ]).flat() } },
+    // Four rounds of nine nodes plus a four-step tail: 40 exactly, the cap the budget is stated at.
+    { name: "nested", data: { steps: [...Array.from({ length: 4 }, (_, i) => [step(i), {
+      ask: `is stage ${i} ready?`,
+      yes: [{ ask: `is stage ${i} signed off?`, yes: `ship stage ${i}`, no: `ask a human about stage ${i}` }],
+      no: [`fix stage ${i}`, { ask: `did the fix work for ${i}?`, yes: `re-run stage ${i}`, no: `escalate stage ${i}` }],
+    }]).flat(), ...Array.from({ length: 4 }, (_, i) => step(20 + i))] } },
+  ];
+  const per: Array<{ shape: string; ms: number; kb: number; nodes: number }> = [];
+  for (const shape of shapes) {
+    // The layout cache is keyed on the geometry, so every measured render carries the run number in its
+    // words — different labels, different box widths, a layout that has to be computed.
+    const fresh = (k: number) => JSON.parse(JSON.stringify(shape.data).replaceAll("stage ", `stage ${k}.`)) as { steps: unknown[] };
+    renderFlow({ data: fresh(-1), caption: "warm" });   // warm the code path; the budget is steady-state
+    const xs: number[] = [];
+    for (let i = 0; i < runs * 4; i++) { const t = performance.now(); renderFlow({ data: fresh(i), caption: "How a draft becomes a post" }); xs.push(performance.now() - t); }
+    const one = renderFlow({ data: shape.data, caption: "How a draft becomes a post" })!;
+    per.push({ shape: shape.name, ms: median(xs), kb: Buffer.byteLength(one.svg) / 1024, nodes: one.nodes.length });
+  }
+  const worstMs = per.reduce((a, b) => (b.ms > a.ms ? b : a));
+  const worstKb = per.reduce((a, b) => (b.kb > a.kb ? b : a));
+  const note = per.map((p) => `${p.shape} ${p.nodes} steps ${p.ms.toFixed(2)} ms / ${p.kb.toFixed(1)} KB`).join(" · ");
+  return [
+    { name: "viz.flow.renderMs", value: +worstMs.ms.toFixed(2), unit: "ms", budget: ACTIVE.flowRenderMs, note: `worst shape (${worstMs.shape}) at the ${MAX_NODES}-node cap, layout cache defeated — ${note}` },
+    { name: "viz.flow.svgKb", value: +worstKb.kb.toFixed(1), unit: "KB", budget: ACTIVE.flowSvgKb, note: `worst shape (${worstKb.shape}); zero JS, zero CSS` },
+  ];
+}
+
+/**
+ * `snypd bench visual` (docs/07 S10, gate D3): the per-primitive suite on its own — every visual primitive
+ * at the worst shape its spec allows, with the render-time and byte budget beside it. It is the whole of D3
+ * and none of D2, so it runs in a second and a viz change can be measured without a build.
+ */
+export async function visual(opts: { quick?: boolean } = {}): Promise<Report> {
+  ACTIVE = budgetsFor(corpus(100));
+  const report: Report = { version: VERSION, suite: "visual", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics: runViz(opts.quick ? 3 : 7) };
+  mkdirSync("bench", { recursive: true });
+  writeFileSync("bench/visual.json", JSON.stringify(report, null, 2));
+  writeFileSync("bench/visual.md", toMarkdown(report));
+  return report;
 }
 
 /**
@@ -300,7 +361,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(runTokensToLearn(100));
   metrics.push(await runSurface(100));
   metrics.push(...runViz(runs));
-  const report: Report = { version: "0.1.0-s9", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));
@@ -319,7 +380,7 @@ export function toMarkdown(r: Report) {
     const b = m.budget !== undefined ? `${m.higherIsBetter ? "≥ " : ""}${m.budget} ${m.unit}` : "—";
     return `| \`${m.name}\` | ${m.value} ${m.unit} | ${b} | ${label[status(m)]} | ${m.note ?? ""} |`;
   });
-  return `# snypd bench — latest\n\n**Version** ${r.version} · **Bun** ${r.bun} · **Date** ${r.date} · **Tokenizer** ${r.tokenizer}\n\n| Metric | Value | Budget | Status | Note |\n|---|---|---|---|---|\n${rows.join("\n")}\n\nCI passes at ≤ 80 % of budget (docs/07 §3). Corpora are deterministic (\`bun run corpus <n>\`); 10k is generated on demand, not checked in.\n`;
+  return `# snypd bench — ${r.suite ?? "latest"}\n\n**Version** ${r.version} · **Bun** ${r.bun} · **Date** ${r.date} · **Tokenizer** ${r.tokenizer}\n\n| Metric | Value | Budget | Status | Note |\n|---|---|---|---|---|\n${rows.join("\n")}\n\nCI passes at ≤ 80 % of budget (docs/07 §3). Corpora are deterministic (\`bun run corpus <n>\`); 10k is generated on demand, not checked in.\n`;
 }
 
 /** Names of metrics over the CI threshold. */
