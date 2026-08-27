@@ -116,7 +116,7 @@ If D1 fails — not obviously better than a markdown folder + Claude Code — st
 ## 5. Session log
 | S | Date | PR | Bench diff | Notes |
 |---|---|---|---|---|
-| — | — | — | — | starts with S1 |
+| S1 | 2026-08-27 | main (initial) | floor: build.cold.100 13 ms · build.cold.1000 131 ms · mcp.coldStart 28 ms (stub) | Bun 1.4.0 + 1.3.14 lanes green; corpus generator; bench compare/breach; stub renderer + stub MCP |
 
 ## 6. Risks
 

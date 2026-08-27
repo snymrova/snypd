@@ -1,0 +1,6 @@
+snypd: 1
+site:
+  name: corpus-100
+  url: https://corpus-100.snypd.rocks
+theme:
+  use: base

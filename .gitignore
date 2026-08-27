@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.snypd/
+corpora/*/dist/
+bench/*.json
+corpora/_test/

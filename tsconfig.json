@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext"], "target": "ESNext", "module": "ESNext", "moduleResolution": "bundler",
+    "jsx": "react-jsx", "strict": true, "noEmit": true, "skipLibCheck": true,
+    "types": ["bun"],
+    "paths": { "@snypd/*": ["./packages/*/src"] }
+  },
+  "include": ["packages/**/*.ts", "packages/**/*.tsx", "themes/**/*.tsx"]
+}
