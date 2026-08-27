@@ -1,6 +1,6 @@
 # 03 — The MCP surface
 
-MCP spec target: **2025-11-25** (stable) with the **2026-07-28** RC tracked (cache `ttlMs` on list responses, MRTR replacing server-initiated elicitation; roots/sampling/logging deprecated — we use none of the three). SDK: official `@modelcontextprotocol/sdk` (TypeScript).
+MCP spec target: **2025-11-25** (stable) with the **2026-07-28** RC tracked (cache `ttlMs` on list responses, MRTR replacing server-initiated elicitation; roots/sampling/logging deprecated — we use none of the three). SDK: **none at runtime** — the official `@modelcontextprotocol/sdk` costs ~140 ms to import, 3× the cold-start budget (measured S4); `@snypd/mcp` speaks JSON-RPC 2.0 over stdio itself (`protocol.ts`, zero imports, result shapes mirrored from the SDK's `types.js`; docs/07 decision 11).
 
 ## Transports
 
@@ -12,7 +12,7 @@ MCP spec target: **2025-11-25** (stable) with the **2026-07-28** RC tracked (cac
 ### Resources (read, cacheable, subscribable)
 | URI | Content |
 |---|---|
-| `snypd://config` | merged YAML with provenance |
+| `snypd://config` | merged YAML with provenance: `# ← file:line, overrides …` on every non-default line; untouched spec subtrees collapse to their `snypd://spec/*` pointer (S4) |
 | `snypd://spec` · `snypd://spec/primitives` · `snypd://spec/primitives/{name}` | the vocabulary, one line each / full schema + intent + example + preview image |
 | `snypd://types` · `snypd://types/{name}` | merged type schemas |
 | `snypd://taxonomies/{name}` · `…/{name}/{term}` | terms and term files |

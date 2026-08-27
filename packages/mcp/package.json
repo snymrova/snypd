@@ -1,1 +1,9 @@
-{ "name": "@snypd/mcp", "version": "0.1.0", "type": "module", "main": "src/index.ts", "license": "MIT", "dependencies": { "@snypd/spec": "workspace:*" } }
+{
+  "name": "@snypd/mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "dependencies": { "@snypd/core": "workspace:*", "@snypd/spec": "workspace:*" },
+  "devDependencies": { "@modelcontextprotocol/sdk": "^1.30.0" }
+}

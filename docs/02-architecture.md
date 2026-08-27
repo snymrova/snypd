@@ -14,7 +14,7 @@ Resolution order, later wins, deep-merged; arrays append unless tagged `!replace
 5. snypd.<env>.yaml           dev / preview / prod
 ```
 
-`snypd://config` returns the merged result; `site.explain_config(path)` returns provenance ("`types.post.urlPattern` ← snypd.yaml:14, overrides spec default").
+`snypd://config` returns the merged result; `site.explain_config(path)` returns provenance ("`types.post.urlPattern` ← snypd.yaml:14, overrides spec default"). `theme.yaml` merges under `theme:`; a plugin's `snypd.yaml` merges at the root. `types.<x>.extends: <base>` is resolved after merging: inherit the base, then override — for `extends` arrays replace (a `caseStudy` that lists `taxonomies: [industry]` does not also get `post`'s), and inherited keys are attributed "inherited from types.post". Dotted keys are bracketed in paths: `theme.tokens[color.accent]`.
 
 ## 2. `snypd.yaml`
 

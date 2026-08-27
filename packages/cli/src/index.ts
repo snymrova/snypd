@@ -26,14 +26,26 @@ switch (cmd) {
     break;
   }
   case "serve": {
-    const { serve } = await import("@snypd/runtime");
-    const s = serve(args[0] ?? ".", { port: Number(rest.find((a) => a.startsWith("--port="))?.slice(7) ?? 4321) });
-    console.log(`snypd serve (static stub, S11 adds --preview) → ${s.url}`);
+    if (flags.has("--static")) {   // the S2 static stub; S11 replaces it with --preview
+      const { serve } = await import("@snypd/runtime");
+      const s = serve(args[0] ?? ".", { port: Number(rest.find((a) => a.startsWith("--port="))?.slice(7) ?? 4321) });
+      console.log(`snypd serve --static → ${s.url}`);
+      break;
+    }
+    const { createServer } = await import("@snypd/mcp");   // MCP on stdio (docs/03); stdout is the protocol
+    createServer(args[0] ?? process.env.SNYPD_ROOT ?? process.cwd()).listen();
+    break;
+  }
+  case "config": {   // debugging aid: `snypd config [root] [path]` prints snypd://config or explains one path
+    const { loadConfig, formatDiagnostics } = await import("@snypd/core");
+    const c = loadConfig(args[0] ?? ".");
+    if (args[1]) console.log(c.explain(args[1])); else console.log(c.render());
+    if (!c.ok) { console.error(formatDiagnostics(c.diagnostics)); process.exit(1); }
     break;
   }
   case "init":
     console.error(`snypd ${cmd}: not yet implemented (see docs/07 schedule)`); process.exit(2);
   default:
-    console.log("usage: snypd <serve|build|bench|init>"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd config [root] [path]"); process.exit(cmd ? 1 : 0);
 }
 export {};
