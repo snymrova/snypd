@@ -25,13 +25,13 @@
 ## Agent-friendliness (nobody else benchmarks this)
 | Metric | How | Budget |
 |---|---|---|
-| Tokens per page, `.md` twin vs HTML | standard tokeniser on both | median ≤ 2,500; ≥ 85 % reduction |
+| Tokens per page, `.md` twin vs HTML | standard tokeniser on both | median ≤ 2,500; ≥ 85 % reduction — the reduction is measured on a styled theme (`editorial`, S13), not on `base`, which has no chrome to save (docs/07 decision 15) |
 | Tokens to learn the site | size of `config` + `spec/primitives` + `theme` resources | ≤ 6,000 |
 | Time-to-first-post | scripted run from a fresh harness with only the MCP: tool calls and seconds to a lint-clean published draft; 3 models | ≤ 8 tool calls |
 | First-attempt lint pass rate on `write-post` | 20 topics × 3 models | ≥ 80 % |
 | `suggest_blocks` precision | 50 hand-labelled posts | ≥ 0.8 |
 | MCP latency p50 / p95 per tool | server timing | reads ≤ 50 ms; `render_preview` ≤ 2 s |
-| Agent-read surface completeness | probe: llms.txt, `.md` twins, `Accept: text/markdown`, `link rel=alternate`, JSON API, public MCP | 100 % |
+| Agent-read surface completeness | `snypd bench` probes the built corpus and the server: llms.txt, `.md` twin, `Accept: text/markdown`, `link rel=alternate` (markdown + feed), JSON API, feed, sitemap+robots, JSON-LD; public MCP joins in S19 | 100 %, enforced from S7 |
 
 ## Tooling
 Unlighthouse CI · `bun test --parallel --shard` · `Bun.WebView` / Playwright · `--cpu-prof-md` / `--heap-prof-md` / `--metafile-md` as attachable profiles · a tiny scripted-agent harness in `packages/bench/agent/` that drives the MCP with a fixed prompt and counts calls.

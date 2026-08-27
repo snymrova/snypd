@@ -157,8 +157,35 @@ export function runTokensPerPage(n: number | string): Metric[] {
     { name: "tokens.page.md", value: mMd, unit: "tokens", budget: ACTIVE.tokensPerPage },
     { name: "tokens.page.html", value: mHtml, unit: "tokens" },
     { name: "tokens.page.reduction", value: +((1 - mMd / mHtml) * 100).toFixed(1), unit: "%", higherIsBetter: true,
-      note: `real theme HTML from S6; budget ${BUDGETS.mdReduction} % enforced from S7 (twins + llms.txt)` },
+      note: `vs this theme's own HTML; the ${BUDGETS.mdReduction} % budget applies from S13 (a styled theme) — see docs/07 decision 15` },
   ];
+}
+
+/**
+ * Agent-read surface completeness (docs/05): probe the built corpus + the static server for each item of the
+ * surface. Public MCP (S19) joins the probe list when it exists; until then the metric covers the build-time
+ * surface only, and says so.
+ */
+export async function runSurface(n: number | string): Promise<Metric> {
+  const root = corpus(n);
+  const dist = join(root, "dist");
+  const slug = readdirSync(join(dist, "posts")).find((s) => existsSync(join(dist, "posts", s, "index.md")))!;
+  const html = readFileSync(join(dist, "posts", slug, "index.html"), "utf8");
+  const s = serve(root);
+  const checks: Record<string, boolean> = {};
+  try {
+    checks["llms.txt"] = existsSync(join(dist, "llms.txt")) && readFileSync(join(dist, "llms.txt"), "utf8").includes("index.md");
+    checks[".md twin"] = existsSync(join(dist, "posts", slug, "index.md"));
+    checks["Accept: text/markdown"] = (await (await fetch(`${s.url}/posts/${slug}/`, { headers: { accept: "text/markdown" } })).text()).startsWith("---");
+    checks["link rel=alternate"] = html.includes('rel="alternate" type="text/markdown"') && html.includes('rel="alternate" type="application/rss+xml"');
+    checks["JSON API"] = existsSync(join(dist, "api", "site.json")) && existsSync(join(dist, "api", "post", `${slug}.json`));
+    checks["feed.xml"] = existsSync(join(dist, "feed.xml"));
+    checks["sitemap.xml"] = existsSync(join(dist, "sitemap.xml")) && existsSync(join(dist, "robots.txt"));
+    checks["JSON-LD"] = html.includes('<script type="application/ld+json">');
+  } finally { s.stop(); }
+  const names = Object.keys(checks), ok = names.filter((k) => checks[k]);
+  return { name: "surface.completeness", value: +((ok.length / names.length) * 100).toFixed(0), unit: "%", budget: 100, higherIsBetter: true,
+    note: `${ok.length}/${names.length}: ${names.map((k) => `${checks[k] ? "✓" : "✗"} ${k}`).join(", ")}; public MCP joins in S19` };
 }
 
 /**
@@ -191,7 +218,8 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
-  const report: Report = { version: "0.1.0-s6", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  metrics.push(await runSurface(100));
+  const report: Report = { version: "0.1.0-s7", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));

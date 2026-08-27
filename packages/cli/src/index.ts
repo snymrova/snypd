@@ -9,7 +9,7 @@ switch (cmd) {
     const { build } = await import("@snypd/render");
     const r = await build(args[0] ?? ".");
     const own = r.theme.coverage.filter((c) => c.status === "own").length;
-    console.log(`built ${r.routes} routes (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${own}/${r.theme.coverage.length} primitives)`);
+    console.log(`built ${r.routes} routes + ${r.artefacts} artefacts (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${own}/${r.theme.coverage.length} primitives)`);
     if (flags.has("--verbose")) console.log(Object.entries(r.phases).map(([k, v]) => `${k} ${v.toFixed(1)} ms`).join(" · "));
     break;
   }

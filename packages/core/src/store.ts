@@ -77,7 +77,7 @@ export class SiteIndex {
   /** Bring the index up to date with the content tree. Cheap when nothing changed (one stat per file). */
   sync(cfg: LoadedConfig): SyncResult {
     const t0 = performance.now();
-    const existing = new Map(this.db.all<IndexedFile & { frontmatter: string }>("SELECT * FROM files").map((r) => [r.path, r]));
+    const existing = new Map(this.db.all<IndexedFile & { frontmatter: string }>("SELECT * FROM files").map((r) => [r.path, { ...r, date: r.date ?? undefined, updated: r.updated ?? undefined }]));   // NULL → undefined, as a cold sync produces
     const seen = new Set<string>();
     const changed: string[] = [], moved: Move[] = [];
     let hashed = 0;
@@ -149,6 +149,8 @@ export class SiteIndex {
   route(route: string): RouteRow | undefined { const r = this.db.get<{ route: string; key: string; outputs: string }>("SELECT * FROM routes WHERE route = ?", route); return r && { ...r, outputs: JSON.parse(r.outputs) }; }
   setRoute(route: string, key: string, outputs: string[]) { this.db.run("INSERT OR REPLACE INTO routes VALUES (?, ?, ?)", route, key, JSON.stringify(outputs)); }
   deleteRoute(route: string) { this.db.run("DELETE FROM routes WHERE route = ?", route); }
+  /** Forget every route (the renderer calls this when its output layout changes; dist/ is then rebuilt, not pruned). */
+  clearRoutes() { this.db.run("DELETE FROM routes"); }
   /** Backing store for `MdastCache` (parsed documents by content hash) — same file, one transaction per build. */
   mdastStore(): MdastStore {
     return {

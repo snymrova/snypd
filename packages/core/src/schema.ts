@@ -39,17 +39,22 @@ export const StatusSchema = z.object({ public: z.boolean(), transitions: z.array
 
 export const ROLES = ["subscriber", "contributor", "author", "editor", "admin"] as const;
 
+export const TokenDeclSchema = z.object({ default: z.union([z.string(), z.number()]), customisable: z.boolean().optional(), kind: z.string().optional(), description: z.string().optional() }).strict();
+export type TokenDecl = z.infer<typeof TokenDeclSchema>;
+
 export const ConfigSchema = z.object({
   snypd: z.literal(1),
   site: z.object({
     name: z.string().min(1),
     url: z.url(),
+    description: z.string().optional(),
     locales: z.array(z.string()).min(1).default(["en"]),
     defaultLocale: z.string().default("en"),
   }).passthrough(),
   theme: z.object({
     use: z.string().default("base"),
-    tokens: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
+    /** `snypd.yaml` sets scalars; `theme.yaml` declares `{ default, customisable, kind, description }` (docs/04). */
+    tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).default({}),
   }).passthrough().default({ use: "base", tokens: {} }),
   types: z.record(slug, TypeSchema).default({}),
   taxonomies: z.record(slug, TaxonomySchema).default({}),

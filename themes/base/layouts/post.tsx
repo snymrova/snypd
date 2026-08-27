@@ -1,11 +1,11 @@
 import type { LayoutProps, Html } from "@snypd/render";
 import Shell from "./shell";
 
-export default function Post({ ctx, page, route, title, description }: LayoutProps): Html {
+export default function Post({ ctx, page, route, title, description, jsonLd }: LayoutProps): Html {
   const p = page!;
   const cover = p.frontmatter.cover as { image?: string; alt?: string; eyebrow?: string } | undefined;
   return (
-    <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route}>
+    <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd}>
       <main>
         <article class="snypd-post">
           <header class="snypd-cover">

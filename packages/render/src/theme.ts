@@ -13,9 +13,12 @@ import { sha1, type Block, type Config, type LoadedConfig } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 
 export interface SiteCtx {
-  site: { name: string; url: string };
-  tokens: Record<string, string | number>;
+  site: { name: string; url: string; description?: string };
+  /** Resolved design tokens (theme.yaml defaults ← snypd.yaml overrides), also emitted as CSS vars (tokens.ts). */
+  tokens: Record<string, string>;
   theme: { name: string };
+  /** Site-relative urls of emitted assets: `css` when the theme has tokens or a stylesheet; feeds always. */
+  assets: { css?: string; feed: string; llms: string; api: string };
   config: Config;
 }
 export interface Entry {
@@ -49,13 +52,17 @@ export interface LayoutProps {
   /** Listed items (index, term, author). */
   entries: Entry[];
   term?: TermLink;
+  /** JSON-LD for the page (emit.ts): one or more objects, newline-separated, ready for one <script>. */
+  jsonLd?: string;
 }
 export type LayoutComponent = (p: LayoutProps) => Html;
 
-export interface ThemeYaml { theme?: string; version?: string; spec?: string; extends?: string; layouts?: string[]; primitives?: Record<string, string | { fallback: string }>; personality?: string; tokens?: Record<string, unknown> }
+export interface ThemeYaml { theme?: string; version?: string; spec?: string; extends?: string; layouts?: string[]; primitives?: Record<string, string | { fallback: string }>; personality?: string; tokens?: Record<string, unknown>; /** one stylesheet, relative to the theme dir; emitted as assets/theme.css after the token vars (docs/04) */ css?: string }
 export interface Coverage { name: string; status: "own" | "fallback" | "missing"; via?: string }
 export interface Theme {
   name: string; dir: string; hash: string; yaml: ThemeYaml;
+  /** The theme's stylesheet source, if `css:` is declared. */
+  css?: string;
   layouts: Record<string, LayoutComponent>;
   primitives: Record<string, PrimitiveComponent>;
   coverage: Coverage[];
@@ -121,7 +128,13 @@ export async function loadTheme(cfg: LoadedConfig): Promise<Theme> {
     else if (entry && typeof map[entry.fallback] === "string") { primitives[n] = await mod(join(dir, map[entry.fallback] as string)) as PrimitiveComponent; coverage.push({ name: n, status: "fallback", via: entry.fallback }); }
     else { primitives[n] = genericPrimitive; coverage.push({ name: n, status: "missing" }); }
   }
-  const theme = { name, dir, hash, yaml, layouts, primitives, coverage, stamp };
+  let css: string | undefined;
+  if (yaml.css) {
+    const f = join(dir, yaml.css);
+    if (!existsSync(f)) throw new Error(`theme ${name}: css "${yaml.css}" is declared in theme.yaml but ${relative(dir, f)} is missing`);
+    css = readFileSync(f, "utf8");
+  }
+  const theme = { name, dir, hash, yaml, css, layouts, primitives, coverage, stamp };
   loaded.set(dir, theme);
   return theme;
 }
