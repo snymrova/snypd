@@ -52,9 +52,13 @@ export function generate(n: number, root = `corpora/${n}`) {
         ["a", "b", "c", "d"].map((l) => `- { label: ${l}, value: ${Math.floor(rnd()*100)} }`).join("\n") + `\n:::\n`);
     }
     if (i % 10 === 0) {
+      // A branching graph, not a chain: a chain exercises none of the layout (one node per rank, no
+      // crossings, no dummies), so a build of the corpus would say nothing about the S9 budget.
       const ids = ["md", "parse", "validate", "transform", "render", "emit", "html", "twin"];
+      const edges = [["md","parse"],["parse","validate"],["parse","transform"],["validate","render"],["transform","render"],
+        ["render","emit"],["emit","html"],["emit","twin"],["md","twin"],["validate","md"]];
       body.push(`:::diagram{direction="lr" caption="${sentence()}"}\nnodes:\n` + ids.map((id) => `  - { id: ${id}, label: ${id} ${pick(WORDS)} }`).join("\n") +
-        `\nedges:\n` + ids.slice(1).map((id, k) => `  - { from: ${ids[k]}, to: ${id} }`).join("\n") + `\n:::\n`);
+        `\nedges:\n` + edges.map(([from, to], k) => `  - { from: ${from}, to: ${to}${k % 4 === 0 ? `, label: ${pick(WORDS)} }` : " }"}`).join("\n") + `\n:::\n`);
     }
     if (i % 20 === 0) {
       const steps = Array.from({ length: 15 }, () => `  - ${sentence()}`).join("\n");

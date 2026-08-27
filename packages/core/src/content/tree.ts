@@ -117,6 +117,43 @@ function checkChart(b: Block, attrs: Record<string, string | null | undefined>, 
     at("slot-limit", 2, "warning", `\`chart\` has ${list.length} points; the spec's intent is ≤ ${CHART_MAX_POINTS}`, "Show the comparison that matters and leave the rest to the table in the .md twin — a chart past a dozen points stops being readable");
 }
 
+/**
+ * `diagram` declares its graph in the body (spec: `nodes:` a list of `{ id, label?, kind? }`, `edges:` a
+ * list of `{ from, to, label? }`). This reports the shapes an agent actually gets wrong, with the fix in the
+ * hint — `@snypd/viz` drops the same shapes at render time but never speaks, because the renderer does not
+ * lint (html.ts). The 40-node cap is enforced by the generic slot-limit check above, from the spec.
+ */
+function checkDiagram(b: Block, at: (rule: string, n: number, severity: Severity, message: string, hint: string) => void): void {
+  const body = b.data;
+  if (body === undefined) { at("required-prop", 2, "error", "`diagram` has no body", "The body is the graph: `nodes:` then `edges:` — see snypd://spec/primitives/diagram"); return; }
+  if (!body || typeof body !== "object" || Array.isArray(body)) { at("invalid-prop", 2, "error", "`diagram` body is not `nodes:` and `edges:`", "The body is a YAML map with a `nodes:` list and an `edges:` list, not a bare list"); return; }
+  const o = body as { nodes?: unknown; edges?: unknown };
+  if (!Array.isArray(o.nodes)) { at("required-prop", 2, "error", "`diagram` has no `nodes:` list", "Add `nodes:` with one `- { id: md, label: markdown }` per box"); return; }
+  if (!o.nodes.length) { at("required-prop", 2, "error", "`diagram` has no nodes", "Add at least one `- { id, label }` under `nodes:`"); return; }
+
+  const ids = new Set<string>();
+  for (const [i, raw] of o.nodes.entries()) {
+    const r = typeof raw === "string" || typeof raw === "number" ? { id: String(raw) } : raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : undefined;
+    const id = r && r.id !== undefined && r.id !== null ? String(r.id) : "";
+    if (!id) { at("invalid-prop", 2, "error", `\`diagram\` node ${i + 1} has no \`id\``, "Every node needs an id the edges can point at: `- { id: build, label: snypd build }`"); continue; }
+    if (ids.has(id)) at("invalid-prop", 2, "error", `\`diagram\` declares node \`${id}\` twice`, "Two boxes cannot share an id — rename one, or drop the duplicate");
+    ids.add(id);
+    if (r!.kind !== undefined && !["box", "rounded", "pill"].includes(String(r!.kind)))
+      at("invalid-prop", 2, "warning", `\`diagram\` node \`${id}\` has kind "${String(r!.kind)}"`, "`kind` is `box`, `rounded` or `pill`; anything else is drawn as a box");
+  }
+
+  if (o.edges !== undefined && !Array.isArray(o.edges)) { at("invalid-prop", 2, "error", "`diagram` `edges:` is not a list", "`edges:` is a YAML list: `- { from: md, to: build }`"); return; }
+  for (const [i, raw] of (Array.isArray(o.edges) ? o.edges : []).entries()) {
+    const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : undefined;
+    const from = r && r.from !== undefined && r.from !== null ? String(r.from) : "";
+    const to = r && r.to !== undefined && r.to !== null ? String(r.to) : "";
+    if (!from || !to) { at("invalid-prop", 2, "error", `\`diagram\` edge ${i + 1} is not \`{ from, to }\``, "Every edge needs both ends: `- { from: md, to: build }`"); continue; }
+    for (const end of [from, to]) if (!ids.has(end))
+      at("invalid-prop", 2, "error", `\`diagram\` edge ${i + 1} points at \`${end}\`, which is not a node`, `Add \`- { id: ${end} }\` to \`nodes:\`, or fix the id — an edge to nothing is not drawn`);
+    if (from && from === to) at("invalid-prop", 2, "warning", `\`diagram\` edge ${i + 1} points \`${from}\` at itself`, "A self-loop is not drawn; say it in the caption, or split the box in two");
+  }
+}
+
 /** Count nodes a diagram/flow body declares (for the 40-node lint). */
 export function countNodes(name: string, data: unknown): number {
   if (!data || typeof data !== "object") return 0;
@@ -201,6 +238,7 @@ export function buildTree(doc: ParsedDoc, source: string): PrimitiveTree {
       }
     }
     if (node.name === "chart") checkChart(b, attrs, at);
+    if (node.name === "diagram") checkDiagram(b, at);
     return b;
   };
 

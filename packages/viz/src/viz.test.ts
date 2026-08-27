@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { renderChart, normalizeRows, CHART_TYPES, MAX_POINTS, type ChartRow } from "./index";
+import { renderChart, normalizeRows, renderDiagram, normalizeGraph, layoutGraph, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type LayoutItem } from "./index";
 import { band, linear, niceDomain, niceStep, points, ticks } from "./scale";
 import { arc, clip, n, num, path } from "./svg";
 
@@ -174,5 +174,120 @@ describe("renderChart", () => {
     expect(r.svg).not.toContain("<script");
     expect(r.svg).toContain("&lt;script&gt;&amp;&quot;");
     expect(r.svg).toContain("<title>&lt;b&gt;c&lt;/b&gt;</title>");
+  });
+});
+
+
+// ---- S9: diagram ---------------------------------------------------------------------------------
+
+/** spec: diagram.budget.svgKb */
+const DIAGRAM_KB = 25;
+const box = (id: string): LayoutItem => ({ id, rankSize: 80, crossSize: 34 });
+const graph = (nodes: string[], edges: Array<[string, string]>) =>
+  ({ nodes: nodes.map((id) => ({ id, label: id })), edges: edges.map(([from, to]) => ({ from, to })) });
+const chain = (n: number) => graph(Array.from({ length: n }, (_, i) => `n${i}`), Array.from({ length: n - 1 }, (_, i) => [`n${i}`, `n${i + 1}`] as [string, string]));
+
+describe("layout", () => {
+  test("ranks follow the longest path, not the first one found", () => {
+    const r = layoutGraph(["a", "b", "c", "d"].map(box), [{ from: "a", to: "b" }, { from: "b", to: "c" }, { from: "a", to: "c" }, { from: "c", to: "d" }]);
+    expect([...r.placed.values()].map((p) => p.rank)).toEqual([0, 1, 2, 3]);   // a→c does not pull c up to rank 1
+    expect(r.ranks).toBe(4);
+  });
+  test("a cycle is broken, not dropped: every node still gets its own rank", () => {
+    const r = layoutGraph(["a", "b", "c"].map(box), [{ from: "a", to: "b" }, { from: "b", to: "c" }, { from: "c", to: "a" }]);
+    expect([...r.placed.values()].map((p) => p.rank)).toEqual([0, 1, 2]);
+    expect(r.edges.filter((e) => e.reversed).map((e) => `${e.from}>${e.to}`)).toEqual(["c>a"]);
+  });
+  test("an edge that skips ranks is routed through a dummy per rank it crosses", () => {
+    const r = layoutGraph(["a", "b", "c", "d"].map(box), [{ from: "a", to: "b" }, { from: "b", to: "c" }, { from: "c", to: "d" }, { from: "a", to: "d" }]);
+    const long = r.edges.find((e) => e.from === "a" && e.to === "d")!;
+    expect(long.via.length).toBe(2);                                          // ranks 1 and 2
+    expect(long.via.map((p) => p.u)).toEqual([...long.via].sort((x, y) => x.u - y.u).map((p) => p.u));
+    expect(r.edges.find((e) => e.from === "a" && e.to === "b")!.via).toEqual([]);
+  });
+  test("nodes sharing a rank never overlap, and self-loops are ignored", () => {
+    const r = layoutGraph(["a", "b", "c", "d"].map(box), [{ from: "a", to: "b" }, { from: "a", to: "c" }, { from: "a", to: "d" }, { from: "b", to: "b" }]);
+    const same = ["b", "c", "d"].map((id) => r.placed.get(id)!.v).sort((x, y) => x - y);
+    for (let i = 1; i < same.length; i++) expect(same[i]! - same[i - 1]!).toBeGreaterThanOrEqual(34);
+    expect(r.edges.some((e) => e.from === "b" && e.to === "b")).toBe(false);
+  });
+  test("an empty graph lays out to nothing rather than throwing", () => {
+    expect(layoutGraph([], [])).toEqual({ placed: new Map(), edges: [], ranks: 0, uSize: 0, vSize: 0 });
+  });
+});
+
+describe("normalizeGraph", () => {
+  test("takes the shapes an agent writes, warns about the rest", () => {
+    expect(normalizeGraph({ nodes: ["md", "build"] }).nodes).toEqual([{ id: "md", label: "md", kind: "box" }, { id: "build", label: "build", kind: "box" }]);
+    expect(normalizeGraph({ nodes: [{ id: "a", label: "A", kind: "pill" }] }).nodes[0]!.kind).toBe("pill");
+    expect(normalizeGraph({ nodes: [{ id: "a", kind: "hexagon" }] }).warnings[0]).toContain("drawn as a box");
+    expect(normalizeGraph({ nodes: [{ id: "a" }, { id: "a" }] }).warnings[0]).toContain("declared twice");
+    expect(normalizeGraph([{ id: "a" }]).warnings[0]).toContain("not `nodes:` and `edges:`");
+    expect(normalizeGraph({ edges: [] }).warnings[0]).toContain("no `nodes:` list");
+  });
+  test("an edge to a node that does not exist is dropped and named", () => {
+    const g = normalizeGraph({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ from: "a", to: "b" }, { from: "a", to: "ghost" }, { from: "a", to: "a" }, { to: "b" }] });
+    expect(g.edges).toEqual([{ from: "a", to: "b", label: undefined }]);
+    expect(g.warnings.join(" ")).toContain("`ghost`, which is not a node");
+    expect(g.warnings.join(" ")).toContain("at itself");
+    expect(g.warnings.join(" ")).toContain("needs both");
+  });
+});
+
+describe("renderDiagram", () => {
+  test("nothing drawable → null, which is the theme's signal to fall back to the edge list", () => {
+    expect(renderDiagram({ data: undefined })).toBe(null);
+    expect(renderDiagram({ data: { edges: [{ from: "a", to: "b" }] } })).toBe(null);
+    expect(renderDiagram({ data: { nodes: [] } })).toBe(null);
+  });
+  test("one box and one arrowhead per node and edge, and the caption is the accessible name", () => {
+    const r = renderDiagram({ data: graph(["a", "b", "c"], [["a", "b"], ["b", "c"]]), caption: "How a post becomes a page" })!;
+    expect([...r.svg.matchAll(/<rect /g)].length).toBe(3);
+    expect([...r.svg.matchAll(/<path /g)].length).toBe(4);                     // two runs + two heads
+    expect(r.svg).toContain("<title>How a post becomes a page</title>");
+    expect(r.svg).toContain("<desc>Diagram, 3 nodes, 2 connections. a to b; b to c.</desc>");
+    expect(r.warnings).toEqual([]);
+  });
+  test("direction turns the ranks without a second code path", () => {
+    const wide = renderDiagram({ data: chain(4), direction: "lr" })!.svg.match(/viewBox="0 0 (\d+) (\d+)"/)!;
+    const tall = renderDiagram({ data: chain(4), direction: "tb" })!.svg.match(/viewBox="0 0 (\d+) (\d+)"/)!;
+    expect(+wide[1]!).toBeGreaterThan(+wide[2]!);
+    expect(+tall[2]!).toBeGreaterThan(+tall[1]!);
+    expect(renderDiagram({ data: chain(2), direction: "sideways" })!.warnings[0]).toContain("laid out left to right");
+  });
+  test("edges leaving one box fan out instead of stacking on one pixel", () => {
+    const r = renderDiagram({ data: graph(["a", "b", "c", "d"], [["a", "b"], ["a", "c"], ["a", "d"]]) })!;
+    const starts = [...r.svg.matchAll(/<path d="M(-?[\d.]+) (-?[\d.]+)/g)].slice(0, 3).map((m) => m[2]);
+    expect(new Set(starts).size).toBe(3);
+  });
+  test("kind changes the corner, never the geometry", () => {
+    const rx = (kind: string) => renderDiagram({ data: { nodes: [{ id: "a", label: "a", kind }] } })!.svg.match(/rx="([\d.]+)"/)![1];
+    expect([rx("box"), rx("rounded"), rx("pill")]).toEqual(["2", "8", "18.5"]);   // pill = half the box height
+  });
+  test("the same graph renders the same bytes twice — a route key depends on it", () => {
+    const once = renderDiagram({ data: chain(6), caption: "c" })!.svg;
+    const twice = renderDiagram({ data: chain(6), caption: "c" })!.svg;
+    expect(twice).toBe(once);
+  });
+  test("the layout cache keys on geometry, so the same shape with other words still says the other words", () => {
+    const a = renderDiagram({ data: graph(["x", "y"], [["x", "y"]]) })!.svg;
+    const b = renderDiagram({ data: { nodes: [{ id: "x", label: "one" }, { id: "y", label: "two" }], edges: [{ from: "x", to: "y" }] } })!.svg;
+    expect(b).toContain(">one<");
+    expect(b).not.toContain(">x<");
+    expect(b.match(/viewBox="[^"]+"/)![0]).toBe(a.match(/viewBox="[^"]+"/)![0]);
+  });
+  test("at the spec's cap it still fits the byte budget; past the cap it draws and says so", () => {
+    const at = renderDiagram({ data: chain(MAX_NODES), caption: "the cap" })!;
+    expect(at.warnings).toEqual([]);
+    expect(kb(at.svg)).toBeLessThan(DIAGRAM_KB);
+    const over = renderDiagram({ data: chain(MAX_NODES + 8) })!;
+    expect(over.warnings[0]).toContain(`the spec's cap is ${MAX_NODES}`);
+  });
+  test("labels and captions are escaped, not injected", () => {
+    const r = renderDiagram({ data: { nodes: [{ id: "a", label: '<script>&"' }, { id: "b", label: "b" }], edges: [{ from: "a", to: "b", label: "<i>" }] }, caption: "<b>c</b>" })!;
+    expect(r.svg).not.toContain("<script");
+    expect(r.svg).toContain("&lt;script&gt;&amp;&quot;");
+    expect(r.svg).toContain("<title>&lt;b&gt;c&lt;/b&gt;</title>");
+    expect(r.svg).toContain("&lt;i&gt;");
   });
 });

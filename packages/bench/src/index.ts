@@ -13,7 +13,7 @@ import { generate } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
 import { loadConfig, lintSite, MdastCache, INDEX_DIR } from "@snypd/core";
-import { renderChart, CHART_TYPES, MAX_POINTS, type ChartRow, type ChartType } from "@snypd/viz";
+import { renderChart, renderDiagram, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
@@ -21,6 +21,7 @@ export const BUDGETS = {
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
   chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
+  diagramRenderMs: 15, diagramSvgKb: 25,                             // D3, per diagram (spec: diagram.budget)
 };
 export const CI_FACTOR = 0.8;
 
@@ -33,7 +34,8 @@ export function budgetsFor(root: string): typeof BUDGETS {
   const per = (k: string, sub: string, fallback: number) => { const o = b[k] as unknown as Record<string, unknown> | undefined; return o && typeof o === "object" && typeof o[sub] === "number" ? o[sub] as number : fallback; };
   return { buildPer100: num("buildPer100", BUDGETS.buildPer100), incremental: num("incremental", BUDGETS.incremental), mcpColdStart: num("mcpColdStart", BUDGETS.mcpColdStart),
     ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000),
-    chartRenderMs: per("chart", "renderMs", BUDGETS.chartRenderMs), chartSvgKb: per("chart", "svgKb", BUDGETS.chartSvgKb) };
+    chartRenderMs: per("chart", "renderMs", BUDGETS.chartRenderMs), chartSvgKb: per("chart", "svgKb", BUDGETS.chartSvgKb),
+    diagramRenderMs: per("diagram", "renderMs", BUDGETS.diagramRenderMs), diagramSvgKb: per("diagram", "svgKb", BUDGETS.diagramSvgKb) };
 }
 
 /** `higherIsBetter` metrics (e.g. % reduction) breach when value < budget; no 80 % margin. */
@@ -198,6 +200,44 @@ export function runViz(runs: number): Metric[] {
   return [
     { name: "viz.chart.renderMs", value: +worstMs.ms.toFixed(2), unit: "ms", budget: ACTIVE.chartRenderMs, note: `worst type (${worstMs.type}) on the worst shape — ${note}` },
     { name: "viz.chart.svgKb", value: +worstKb.kb.toFixed(1), unit: "KB", budget: ACTIVE.chartSvgKb, note: `worst type (${worstKb.type}); zero JS, zero CSS` },
+    ...runVizDiagram(runs),
+  ];
+}
+
+/**
+ * D3 for `diagram` (S9), measured at the spec's 40-node cap on three shapes that stress different phases of
+ * the layout: a deep chain (many ranks, long edges to route), a wide bipartite layer (the crossing-reduction
+ * sweeps and the transpose), and a graph with feedback edges (cycle breaking). The worst shape is reported,
+ * not the mean, and the layout cache is defeated per measurement — a budget that only measures a cache hit
+ * would say nothing about the first build of a site.
+ */
+export function runVizDiagram(runs: number): Metric[] {
+  const label = (i: number) => `stage ${i} of the pipeline`;
+  const nodes = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `n${i}`, label: label(i) }));
+  const shapes: Array<{ name: string; data: { nodes: unknown[]; edges: unknown[] } }> = [
+    { name: "chain", data: { nodes: nodes(MAX_NODES), edges: Array.from({ length: MAX_NODES - 1 }, (_, i) => ({ from: `n${i}`, to: `n${i + 1}`, label: i % 5 === 0 ? "then" : undefined })) } },
+    { name: "wide", data: { nodes: nodes(MAX_NODES), edges: Array.from({ length: 20 }, (_, i) => [{ from: `n${i}`, to: `n${20 + ((i * 3) % 20)}` }, { from: `n${i}`, to: `n${20 + ((i * 7 + 5) % 20)}` }]).flat() } },
+    { name: "feedback", data: { nodes: nodes(MAX_NODES), edges: Array.from({ length: MAX_NODES }, (_, i) => (i % 6 === 5 ? { from: `n${i}`, to: `n${i - 5}`, label: "again" } : { from: `n${i}`, to: `n${(i + 1) % MAX_NODES}` })) } },
+  ];
+  const per: Array<{ shape: string; ms: number; kb: number }> = [];
+  for (const shape of shapes) {
+    // A fresh caption per run is not enough — the layout cache is keyed on the geometry, so the node ids
+    // carry the run number and every measured render lays the graph out from scratch.
+    const fresh = (k: number) => ({
+      nodes: (shape.data.nodes as Array<{ id: string; label: string }>).map((x) => ({ ...x, id: `${x.id}r${k}` })),
+      edges: (shape.data.edges as Array<{ from: string; to: string; label?: string }>).map((x) => ({ ...x, from: `${x.from}r${k}`, to: `${x.to}r${k}` })),
+    });
+    renderDiagram({ data: fresh(-1), caption: "warm" });   // warm the code path; the budget is steady-state
+    const xs: number[] = [];
+    for (let i = 0; i < runs * 4; i++) { const t = performance.now(); renderDiagram({ data: fresh(i), caption: "How a post becomes a page" }); xs.push(performance.now() - t); }
+    per.push({ shape: shape.name, ms: median(xs), kb: Buffer.byteLength(renderDiagram({ data: shape.data, caption: "How a post becomes a page" })!.svg) / 1024 });
+  }
+  const worstMs = per.reduce((a, b) => (b.ms > a.ms ? b : a));
+  const worstKb = per.reduce((a, b) => (b.kb > a.kb ? b : a));
+  const note = per.map((p) => `${p.shape} ${p.ms.toFixed(2)} ms / ${p.kb.toFixed(1)} KB`).join(" · ");
+  return [
+    { name: "viz.diagram.renderMs", value: +worstMs.ms.toFixed(2), unit: "ms", budget: ACTIVE.diagramRenderMs, note: `worst shape (${worstMs.shape}) at the ${MAX_NODES}-node cap, layout cache defeated — ${note}` },
+    { name: "viz.diagram.svgKb", value: +worstKb.kb.toFixed(1), unit: "KB", budget: ACTIVE.diagramSvgKb, note: `worst shape (${worstKb.shape}); zero JS, zero CSS` },
   ];
 }
 
@@ -260,7 +300,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(runTokensToLearn(100));
   metrics.push(await runSurface(100));
   metrics.push(...runViz(runs));
-  const report: Report = { version: "0.1.0-s8", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  const report: Report = { version: "0.1.0-s9", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));

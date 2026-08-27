@@ -206,7 +206,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     r = await build(root);
     expect(existsSync(join(dist, "posts/d/index.html"))).toBe(true); expect(read("")).toContain("Draft D");
   });
-  test("S8: chart draws an svg through the build; diagram / flow still render their spec fallbacks", async () => {
+  test("S8/S9: chart and diagram draw svgs through the build; flow still renders its spec fallback", async () => {
     writeFileSync(join(root, "content/posts/v.md"), `---\ntitle: Viz\ndate: 2026-01-01\nstatus: published\n---\n\n:::chart{type="bar" source="https://x.y" caption="Cap" unit="ms"}\n- { label: a, value: 1 }\n- { label: b, value: 2 }\n:::\n\n:::diagram{caption="D"}\nnodes:\n  - { id: p, label: Parse }\n  - { id: r }\nedges:\n  - { from: p, to: r, label: then }\n:::\n\n:::flow{caption="F"}\nsteps:\n  - One\n  - { ask: Ok?, yes: Done, no: [Retry, { then: one }] }\n:::\n`);
     await build(root);
     const v = read("posts/v");
@@ -222,7 +222,14 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const w = read("posts/w");
     expect(w).toContain('<figure class="snypd-chart" data-type="bar"><table><thead><tr><th>label</th><th>value (ms)</th></tr></thead><tbody><tr><td>a</td><td>—</td></tr></tbody></table>');
     expect(w).toContain('<figure class="snypd-chart" data-type="bar"><figcaption>Later');   // src= is not read in v0.1: caption only, never an empty table
-    expect(v).toContain('<ol class="snypd-diagram-edges"><li>Parse -&gt; r (then)</li></ol>');
+    // S9: the diagram is laid out and drawn; a body with no nodes still falls back to the spec's edge list
+    expect(v).toContain('<figure class="snypd-diagram" data-direction="lr"><svg xmlns="http://www.w3.org/2000/svg"');
+    expect(v).toContain("<desc>Diagram, 2 nodes, 1 connection. Parse to r (then).</desc>");
+    expect(v).toContain('var(--color-viz-node, rgba(128,128,128,.09))');
+    expect(v).not.toContain('class="snypd-diagram-edges"');
+    writeFileSync(join(root, "content/posts/x.md"), `---\ntitle: NoNodes\ndate: 2026-01-01\nstatus: published\n---\n\n:::diagram{caption="E"}\nedges:\n  - { from: a, to: b }\n:::\n`);
+    await build(root);
+    expect(read("posts/x")).toContain('<ol class="snypd-diagram-edges"><li>a -&gt; b</li></ol>');
     expect(v).toContain("<li>Ok?<ul><li>yes: <ol><li>Done</li></ol></li><li>no: <ol><li>Retry</li><li>then: one</li></ol></li></ul></li>");
   });
   test("loadTheme: missing layout file is an error, missing primitive is generic + reported", async () => {
