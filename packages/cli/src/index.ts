@@ -25,7 +25,12 @@ switch (cmd) {
     if (bad.length && flags.has("--ci")) { console.error(`budget breach: ${bad.join(", ")}`); process.exit(1); }
     break;
   }
-  case "serve":
+  case "serve": {
+    const { serve } = await import("@snypd/runtime");
+    const s = serve(args[0] ?? ".", { port: Number(rest.find((a) => a.startsWith("--port="))?.slice(7) ?? 4321) });
+    console.log(`snypd serve (static stub, S11 adds --preview) → ${s.url}`);
+    break;
+  }
   case "init":
     console.error(`snypd ${cmd}: not yet implemented (see docs/07 schedule)`); process.exit(2);
   default:

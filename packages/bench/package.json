@@ -1,1 +1,8 @@
-{ "name": "@snypd/bench", "version": "0.1.0", "type": "module", "main": "src/index.ts", "license": "MIT" }
+{
+  "name": "@snypd/bench",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "dependencies": { "gpt-tokenizer": "^4.0.0", "@snypd/render": "workspace:*", "@snypd/runtime": "workspace:*" }
+}

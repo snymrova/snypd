@@ -1,38 +1,65 @@
 /**
  * `snypd bench` — the harness everything is built inside (docs/05, docs/07 §3).
- * S1 scope: build timer (cold), MCP cold start (stub), bench/latest.md + latest.json, compare.
- * Budgets come from snypd.yaml › bench.budgets; CI enforces 80 % of them.
+ * S2 scope: build cold + incremental, MCP cold start, TTFB, tokens/page, tokens-to-learn,
+ * corpora 100 / 1k / 10k, bench/latest.{md,json}, compare, breach.
+ * Budgets come from docs/05 defaults (snypd.yaml › bench.budgets overrides land with core in S4);
+ * CI enforces 80 % of them.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { build } from "@snypd/render";
+import { serve } from "@snypd/runtime";
 import { generate } from "./corpus";
+import { countTokens, TOKENIZER } from "./tokens";
 
-export const BUDGETS = { buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50 }; // ms
+export const BUDGETS = {
+  buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
+  tokensPerPage: 2500, tokensToLearn: 6000,                          // tokens (docs/05)
+  mdReduction: 85,                                                   // % (enforced from S7, real HTML)
+};
 export const CI_FACTOR = 0.8;
 
-export interface Metric { name: string; value: number; unit: string; budget?: number }
-export interface Report { version: string; bun: string; date: string; metrics: Metric[] }
+/** `higherIsBetter` metrics (e.g. % reduction) breach when value < budget; no 80 % margin. */
+export interface Metric { name: string; value: number; unit: string; budget?: number; higherIsBetter?: boolean; note?: string }
+export interface Report { version: string; bun: string; date: string; tokenizer: string; metrics: Metric[] }
 
-async function median(runs: number, fn: () => Promise<number>) {
+function median(xs: number[]) { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]!; }
+async function medianOf(runs: number, fn: () => Promise<number>) {
   const xs: number[] = [];
   for (let i = 0; i < runs; i++) xs.push(await fn());
-  xs.sort((a, b) => a - b);
-  return xs[Math.floor(xs.length / 2)]!;
+  return median(xs);
+}
+
+export function corpus(n: number | string) {
+  const root = `corpora/${n}`;
+  if (!existsSync(join(root, "content"))) generate(Number(n), root);
+  return root;
 }
 
 export async function runBuild(n: number, runs: number): Promise<Metric> {
-  const root = `corpora/${n}`;
-  if (!existsSync(join(root, "content"))) generate(n, root);
-  const ms = await median(runs, async () => {
+  const root = corpus(n);
+  const ms = await medianOf(runs, async () => {
     rmSync(join(root, "dist"), { recursive: true, force: true });
     return (await build(root)).ms;
   });
-  return { name: `build.cold.${n}`, value: +ms.toFixed(1), unit: "ms", budget: n === 100 ? BUDGETS.buildPer100 : undefined };
+  // Budget scales linearly with corpus size (≤ 2 s / 100 posts, docs/05).
+  return { name: `build.cold.${n}`, value: +ms.toFixed(1), unit: "ms", budget: BUDGETS.buildPer100 * (n / 100) };
+}
+
+/** Touch one post, rebuild without clearing dist. The stub rebuilds everything; S6 makes this a route-cache hit. */
+export async function runIncremental(n: number, runs: number): Promise<Metric> {
+  const root = corpus(n);
+  if (!existsSync(join(root, "dist"))) await build(root);
+  const post = join(root, "content", "posts", "post-00001.md");
+  const ms = await medianOf(runs, async () => {
+    const now = new Date(); utimesSync(post, now, now);
+    return (await build(root)).ms;
+  });
+  return { name: `build.incremental.${n}`, value: +ms.toFixed(1), unit: "ms", budget: BUDGETS.incremental };
 }
 
 export async function runMcpColdStart(runs: number): Promise<Metric> {
-  const ms = await median(runs, async () => {
+  const ms = await medianOf(runs, async () => {
     const t0 = performance.now();
     const proc = Bun.spawn(["bun", "run", "packages/mcp/src/server.ts"], { stdin: "pipe", stdout: "pipe", stderr: "ignore" });
     proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "bench", version: "0" } } }) + "\n");
@@ -46,41 +73,104 @@ export async function runMcpColdStart(runs: number): Promise<Metric> {
   return { name: "mcp.coldStart", value: +ms.toFixed(1), unit: "ms", budget: BUDGETS.mcpColdStart };
 }
 
+/** Time-to-first-byte (headers received) against the static server, median of `requests` after 5 warm-ups. */
+export async function runTtfb(n: number, requests: number): Promise<Metric> {
+  const root = corpus(n);
+  if (!existsSync(join(root, "dist"))) await build(root);
+  const s = serve(root);
+  try {
+    const url = `${s.url}/posts/post-00001/`;
+    for (let i = 0; i < 5; i++) await (await fetch(url)).text();
+    const xs: number[] = [];
+    for (let i = 0; i < requests; i++) {
+      const t0 = performance.now();
+      const res = await fetch(url);
+      xs.push(performance.now() - t0);
+      await res.text();
+    }
+    return { name: "serve.ttfb", value: +median(xs).toFixed(2), unit: "ms", budget: BUDGETS.ttfb };
+  } finally { s.stop(); }
+}
+
+/** Tokens per page: `.md` twin vs HTML over every built route; median of each and the % reduction. */
+export function runTokensPerPage(n: number | string): Metric[] {
+  const root = corpus(n);
+  const posts = join(root, "dist", "posts");
+  if (!existsSync(posts)) throw new Error(`build ${root} first`);
+  const md: number[] = [], html: number[] = [];
+  for (const slug of readdirSync(posts)) {
+    const d = join(posts, slug);
+    if (!existsSync(join(d, "index.md"))) continue;
+    md.push(countTokens(readFileSync(join(d, "index.md"), "utf8")));
+    html.push(countTokens(readFileSync(join(d, "index.html"), "utf8")));
+  }
+  const mMd = median(md), mHtml = median(html);
+  return [
+    { name: "tokens.page.md", value: mMd, unit: "tokens", budget: BUDGETS.tokensPerPage },
+    { name: "tokens.page.html", value: mHtml, unit: "tokens" },
+    { name: "tokens.page.reduction", value: +((1 - mMd / mHtml) * 100).toFixed(1), unit: "%", higherIsBetter: true,
+      note: `budget ${BUDGETS.mdReduction} % enforced from S7 (stub HTML is the markdown in a <pre>)` },
+  ];
+}
+
+/**
+ * Tokens to learn the site = size of the `config` + `spec/primitives/*` + `theme` MCP resources (docs/05).
+ * S2: only `config` (snypd.yaml) exists. S3 adds the primitives, S13 the theme — each grows this number.
+ */
+export function learnSurface(root: string): Record<string, string> {
+  const out: Record<string, string> = { "snypd://config": readFileSync(join(root, "snypd.yaml"), "utf8") };
+  const spec = "packages/spec/primitives";
+  if (existsSync(spec)) for (const f of readdirSync(spec)) if (f.endsWith(".yaml")) out[`snypd://spec/primitives/${f.slice(0, -5)}`] = readFileSync(join(spec, f), "utf8");
+  return out;
+}
+export function runTokensToLearn(n: number | string): Metric {
+  const surface = learnSurface(corpus(n));
+  const total = Object.values(surface).reduce((a, s) => a + countTokens(s), 0);
+  return { name: "tokens.learn", value: total, unit: "tokens", budget: BUDGETS.tokensToLearn, note: `${Object.keys(surface).length} resources` };
+}
+
 export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   const runs = opts.quick ? 3 : 7;
-  const sizes = opts.quick ? [100] : [100, 1000];
+  const sizes = opts.quick ? [100] : [100, 1000, 10000];
   const metrics: Metric[] = [];
   for (const n of sizes) metrics.push(await runBuild(n, runs));
+  metrics.push(await runIncremental(100, runs));
   metrics.push(await runMcpColdStart(runs));
-  const report: Report = { version: "0.1.0-s1", bun: Bun.version, date: new Date().toISOString(), metrics };
+  metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
+  metrics.push(...runTokensPerPage(100));
+  metrics.push(runTokensToLearn(100));
+  const report: Report = { version: "0.1.0-s2", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));
   writeFileSync("bench/latest.md", toMarkdown(report));
   return report;
 }
 
-export function toMarkdown(r: Report) {
-  const rows = r.metrics.map((m) => {
-    const b = m.budget ? `${m.budget} ${m.unit}` : "—";
-    const ci = m.budget ? m.budget * CI_FACTOR : undefined;
-    const status = ci === undefined ? "report" : m.value <= ci ? "✅" : m.value <= m.budget! ? "⚠️ over CI (80 %)" : "❌ over budget";
-    return `| \`${m.name}\` | ${m.value} ${m.unit} | ${b} | ${status} |`;
-  });
-  return `# snypd bench — latest\n\n**Version** ${r.version} · **Bun** ${r.bun} · **Date** ${r.date}\n\n| Metric | Value | Budget | Status |\n|---|---|---|---|\n${rows.join("\n")}\n\nCI passes at ≤ 80 % of budget (docs/07 §3).\n`;
+export function status(m: Metric): "report" | "ok" | "ci" | "budget" {
+  if (m.budget === undefined) return "report";
+  if (m.higherIsBetter) return m.value >= m.budget ? "ok" : "budget";
+  return m.value <= m.budget * CI_FACTOR ? "ok" : m.value <= m.budget ? "ci" : "budget";
 }
 
-/** Fails (returns names) for metrics over CI threshold. */
-export function breaches(r: Report) {
-  return r.metrics.filter((m) => m.budget !== undefined && m.value > m.budget * CI_FACTOR).map((m) => m.name);
+export function toMarkdown(r: Report) {
+  const label = { report: "report", ok: "✅", ci: "⚠️ over CI (80 %)", budget: "❌ over budget" };
+  const rows = r.metrics.map((m) => {
+    const b = m.budget !== undefined ? `${m.higherIsBetter ? "≥ " : ""}${m.budget} ${m.unit}` : "—";
+    return `| \`${m.name}\` | ${m.value} ${m.unit} | ${b} | ${label[status(m)]} | ${m.note ?? ""} |`;
+  });
+  return `# snypd bench — latest\n\n**Version** ${r.version} · **Bun** ${r.bun} · **Date** ${r.date} · **Tokenizer** ${r.tokenizer}\n\n| Metric | Value | Budget | Status | Note |\n|---|---|---|---|---|\n${rows.join("\n")}\n\nCI passes at ≤ 80 % of budget (docs/07 §3). Corpora are deterministic (\`bun run corpus <n>\`); 10k is generated on demand, not checked in.\n`;
 }
+
+/** Names of metrics over the CI threshold. */
+export function breaches(r: Report) { return r.metrics.filter((m) => status(m) !== "ok" && status(m) !== "report").map((m) => m.name); }
 
 export function compare(a: Report, b: Report, threshold = 0.10) {
   const out: { name: string; a: number; b: number; delta: number; regressed: boolean }[] = [];
   for (const m of b.metrics) {
     const prev = a.metrics.find((x) => x.name === m.name);
-    if (!prev) continue;
+    if (!prev || prev.value === 0) continue;
     const delta = (m.value - prev.value) / prev.value;
-    out.push({ name: m.name, a: prev.value, b: m.value, delta, regressed: delta > threshold });
+    out.push({ name: m.name, a: prev.value, b: m.value, delta, regressed: m.higherIsBetter ? delta < -threshold : delta > threshold });
   }
   return out;
 }

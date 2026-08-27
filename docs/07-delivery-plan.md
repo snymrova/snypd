@@ -117,6 +117,7 @@ If D1 fails — not obviously better than a markdown folder + Claude Code — st
 | S | Date | PR | Bench diff | Notes |
 |---|---|---|---|---|
 | S1 | 2026-08-27 | main (initial) | floor: build.cold.100 13 ms · build.cold.1000 131 ms · mcp.coldStart 28 ms (stub) | Bun 1.4.0 + 1.3.14 lanes green; corpus generator; bench compare/breach; stub renderer + stub MCP |
+| S2 | 2026-08-27 | main | floor: build.cold.100 13 ms · 1k 133 ms · 10k 1.30 s · incremental.100 6 ms (stub = full rebuild) · mcp.coldStart 28 ms · serve.ttfb 0.12 ms (static stub) · tokens.page.md 504 (o200k) · md-vs-html reduction 6 % (stub, report-only until S7) · tokens.learn 38 (config only; spec adds in S3, theme in S13) | `snypd bench` runs all D2/D3 speed + agent metrics on the stub; static `serve` stub with `Accept: text/markdown` twin negotiation; `gpt-tokenizer` (o200k_base) as the standard tokeniser; 10k corpus generated on demand and git-ignored (would be 160 MB checked in — overrides docs/05 "checked in" for 10k only) |
 
 ## 6. Risks
 
