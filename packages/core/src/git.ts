@@ -25,7 +25,8 @@ export function principal(env: NodeJS.ProcessEnv = process.env): string {
   return `agent:claude-code/${user}`;
 }
 
-export const draftBranch = (type: string, slug: string) => `snypd/draft-${type}-${slug}`;
+export const DRAFT_PREFIX = "snypd/draft-";
+export const draftBranch = (type: string, slug: string) => `${DRAFT_PREFIX}${type}-${slug}`;
 
 export function git(root: string, ...args: string[]): GitResult {
   const r = spawnSync("git", args, { cwd: root, encoding: "utf8", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } });
@@ -83,6 +84,37 @@ export class Repo {
   }
   /** The branch a draft was cut from — recorded in the branch's config so publish knows where to merge. */
   baseOf(branch: string): string | undefined { const r = this.run("config", "--get", `branch.${branch}.snypdBase`); return r.ok && r.stdout ? r.stdout : undefined; }
+
+  /**
+   * One file as it stands on a branch, without checking it out. `undefined` when the branch lacks it.
+   *
+   * Deliberately not `run()`: that trims, which is right for a ref name and wrong for a file — it eats the
+   * trailing newline every content file ends with, so the bytes hash differently from the same file on disk
+   * and every approval would read as "changed after it was approved".
+   */
+  show(branch: string, path: string): string | undefined {
+    const r = spawnSync("git", ["show", `${branch}:${path}`], { cwd: this.root, encoding: "utf8", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } });
+    return r.status === 0 ? (r.stdout ?? "") : undefined;
+  }
+
+  /**
+   * The first non-draft branch above here: what a draft ultimately publishes onto.
+   *
+   * Not used by `useDraft`, deliberately — see the S17 finding in docs/07 §6. Cutting every draft from this
+   * instead of from HEAD makes drafts independent, which is what publishing needs, but it also means the one
+   * working tree can only ever hold one draft at a time: writing post B makes post A vanish from the content
+   * folder until it is published. Both halves of that trade are wrong, and choosing between them is a change
+   * to docs/02 §7 rather than a bug fix. This is here because the diagnosis needs it and the fix will.
+   */
+  publishBase(): string {
+    let b = this.branch();
+    for (let hops = 0; b.startsWith(DRAFT_PREFIX) && hops < 32; hops++) {
+      const next = this.baseOf(b);
+      if (!next || next === b) break;   // an orphaned draft: better to cut from here than to loop
+      b = next;
+    }
+    return b;
+  }
 
   /**
    * Put HEAD on the draft branch for one item, creating it from the current branch the first time.

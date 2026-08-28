@@ -399,6 +399,17 @@ export async function suggest(opts: { root?: string } = {}): Promise<Report> {
 export { scoreSuggest, formatSuggestScore, suggestMetrics, factsReport, SUGGEST_CORPUS } from "./suggest";
 
 /**
+ * The kill test (docs/07 D1, S17). Lives under `../agent` rather than here because it is the one lane that
+ * is a statement about the *product* rather than about a number: it spawns `snypd serve` and talks JSON-RPC
+ * to it like a client, and scores the site it left behind. Re-exported so `snypd bench agent` and the CI
+ * lane reach it the same way as every other suite.
+ */
+export { agent, runAgent, agentMetrics, transcript, writeTranscript, DRAFT_BUDGET, REFERENCE_CALLS, TOTAL_GATE, type AgentRun } from "../agent/run";
+export { assess, passed, UPGRADES, NEW_POST, THEME, type Check } from "../agent/scenario";
+export { scripted, type Driver, type Phase } from "../agent/scripted";
+export { Session, type Turn } from "../agent/session";
+
+/**
  * Agent-read surface completeness (docs/05): probe the built corpus + the static server for each item of the
  * surface. Public MCP (S19) joins the probe list when it exists; until then the metric covers the build-time
  * surface only, and says so.

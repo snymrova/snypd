@@ -5,6 +5,6 @@ export { describeSource, type Source, type Provenance, type LayerName } from "./
 export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "./yaml";
 export * from "./content";
 export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
-export { Repo, git, initRepo, isRepoRoot, principal, draftBranch, type GitResult, type CommitResult } from "./git";
+export { Repo, git, initRepo, isRepoRoot, principal, draftBranch, DRAFT_PREFIX, type GitResult, type CommitResult } from "./git";
 export { setConfig, setRedirect, redirects, normalizeRoute, themeTokens, installedThemes, initSite, renderThemeSummary, CONFIG_FILE, type ConfigWrite, type TokenInfo, type InitResult } from "./site";
-export { createContent, updateContent, setStatus, trashContent, restoreContent, target, typeDef, writePolicy, transitions, splitFrontmatter, slugify as slugifyTitle, approve, approvalOf, clearApproval, approvalKey, approvals, contentHash, publishCheck, reviewPath, WriteError, TRASH_DIR, type WriteResult, type WriteTarget, type CreateInput, type UpdateInput, type StatusInput, type Approval, type ApprovalStore } from "./write";
+export { createContent, updateContent, setStatus, trashContent, restoreContent, target, typeDef, writePolicy, transitions, splitFrontmatter, slugify as slugifyTitle, draftSource, approve, approvalOf, clearApproval, approvalKey, approvals, contentHash, publishCheck, reviewPath, WriteError, TRASH_DIR, type WriteResult, type WriteTarget, type CreateInput, type UpdateInput, type StatusInput, type Approval, type ApprovalStore } from "./write";

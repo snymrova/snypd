@@ -5,8 +5,9 @@
  * `themeHash()` is the "theme module graph" part of every route key: any byte of the theme changes → every
  * route re-renders.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
 import { resolveThemeChain, sha1, INDEX_DIR, type Block, type Config, type LoadedConfig, type ThemeLink } from "@snypd/core";
@@ -122,6 +123,28 @@ const loaded = new Map<string, Theme & { stamp: string }>();
 const THEME_EXTERNAL = ["@snypd/*"];
 
 /**
+ * Point a bundle's `@snypd/*` imports at the copy *this process* is running.
+ *
+ * `external` keeps the specifier bare, and a bare specifier resolves by walking up from the file that
+ * wrote it — which is the site's `.snypd/`, not the snypd installation. Inside this monorepo that walk
+ * happens to reach `node_modules/@snypd`; in any site a user actually has, it reaches nothing, and the
+ * preview server fails with `Cannot find package '@snypd/render'`. The bundle was correct and unloadable.
+ *
+ * So the specifiers are rewritten to what `import.meta.resolve` gives *here*, which is the definition of
+ * "the running process's copy" the comment above has always claimed. Same path in, same module out of
+ * Bun's cache, so the `Html` identity that paragraph is about is preserved by construction rather than by
+ * the site's position on disk. It also survives `bun build --compile` (S18): inside a binary the resolved
+ * path is the embedded module, which is still the right answer and still the only one.
+ */
+function pinExternals(code: string): string {
+  return code.replace(/(\bfrom\s*|\bimport\s*\(\s*)(["'])(@snypd\/[^"']+)\2/g, (m, kw: string, _q, spec: string) => {
+    let resolved: string;
+    try { resolved = import.meta.resolve(spec); } catch { return m; }   // unresolvable: leave it, fail loudly at import
+    return `${kw}${JSON.stringify(resolved.startsWith("file://") ? fileURLToPath(resolved) : resolved)}`;
+  });
+}
+
+/**
  * Rebuild the theme's entry files into one-file bundles so an in-process reload actually reloads (S11 debt,
  * scheduled for S13). Busting the import URL re-imports the entry, but a file the entry imports *statically*
  * — `./shell`, `./entries` — is still served from Bun's module cache, so a theme edit could re-render every
@@ -139,7 +162,9 @@ async function bundleTheme(files: string[], outRoot: string): Promise<Map<string
     const dir = join(outRoot, sha1(f).slice(0, 12));
     const r = await Bun.build({ entrypoints: [f], outdir: dir, target: "bun", external: THEME_EXTERNAL, naming: "[name].[ext]", throw: false });
     if (!r.success) throw new Error(`theme bundle failed for ${f}:\n${r.logs.map(String).join("\n")}`);
-    out.set(f, r.outputs[0]!.path);
+    const path = r.outputs[0]!.path;
+    writeFileSync(path, pinExternals(await r.outputs[0]!.text()));
+    out.set(f, path);
   }));
   return out;
 }

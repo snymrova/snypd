@@ -17,6 +17,7 @@
     ".": "./src/index.ts",
     "./tools": "./src/tools.ts",
     "./catalog": "./src/catalog.ts",
+    "./protocol": "./src/protocol.ts",
     "./prompts": "./src/prompts.ts",
     "./server": "./src/server.ts"
   }

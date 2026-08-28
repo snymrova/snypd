@@ -14,6 +14,7 @@ import { parseDocument, stringify as yamlStringify, isMap, type Document } from 
 import { loadConfig, type LoadedConfig } from "./config";
 import { lintMarkdown, type LintResult } from "./content";
 import { readFrontmatter, sha1 } from "./store";
+import { Repo, draftBranch } from "./git";
 import type { Config, TypeDef } from "./schema";
 
 export const TRASH_DIR = "content/.trash";
@@ -240,14 +241,38 @@ export function approvalOf(store: ApprovalStore, type: string, slug: string): Ap
 export function clearApproval(store: ApprovalStore, type: string, slug: string) { store.setMeta(approvalKey(type, slug), ""); }
 
 /** Why a publish may or may not go ahead right now. The tool and the review page both ask this. */
+/**
+ * The bytes an item's draft actually consists of, wherever HEAD happens to be pointing.
+ *
+ * There is one working tree and there can be many drafts in flight, so "the file on disk" is only the
+ * right answer for whichever item was written last. Every other in-flight draft lives on its own branch
+ * and is *absent* from the tree — so a review page, an approval hash and a publish check that all read
+ * `t.file` are, between them, describing three different versions of the site the moment a second post
+ * is being edited. Resolving from the branch makes those three agree, and makes an approval survive
+ * somebody else's publish (docs/07 S17: this is the second half of the same defect `publishBase` fixes).
+ *
+ * Falls back to the tree when the site is not git-backed, or when the item has no draft branch because
+ * it is already published — in both cases the tree *is* the item.
+ */
+export function draftSource(root: string, cfg: LoadedConfig, type: string, slug: string): string | undefined {
+  const t = target(root, cfg, type, slug);
+  const repo = Repo.open(root);
+  const branch = draftBranch(type, slug);
+  if (repo && repo.exists(branch)) {
+    const onBranch = repo.show(branch, t.path);
+    if (onBranch !== undefined) return onBranch;
+  }
+  return existsSync(t.file) ? readFileSync(t.file, "utf8") : undefined;
+}
+
 export function publishCheck(root: string, cfg: LoadedConfig, store: ApprovalStore, type: string, slug: string): { ok: boolean; policy: string; reason?: string; hint?: string; approval?: Approval } {
   const policy = writePolicy(cfg, type);
   if (policy === "false") return { ok: false, policy, reason: `type "${type}" is not writable over MCP` };
-  const t = target(root, cfg, type, slug);
-  if (!existsSync(t.file)) return { ok: false, policy, reason: `no ${type} with slug "${slug}"` };
+  const source = draftSource(root, cfg, type, slug);
+  if (source === undefined) return { ok: false, policy, reason: `no ${type} with slug "${slug}"` };
   if (policy === "publish") return { ok: true, policy };
   const approval = approvalOf(store, type, slug);
-  const hash = contentHash(readFileSync(t.file, "utf8"));
+  const hash = contentHash(source);
   if (!approval) return { ok: false, policy, reason: `publishing ${type}/${slug} needs a human`, hint: `Open ${reviewPath(type, slug)} on \`snypd serve --preview\` and approve it, then call content.publish again.` };
   if (approval.hash !== hash) return { ok: false, policy, reason: `${type}/${slug} changed after it was approved`, hint: `The approval covers the version ${approval.by} read at ${approval.at}. Re-open ${reviewPath(type, slug)} and approve the current draft.`, approval };
   return { ok: true, policy, approval };

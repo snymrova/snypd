@@ -11,7 +11,7 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, splitFrontmatter, Repo, draftBranch, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, draftBranch, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page } from "./theme";
 import { Html, escape } from "./jsx-runtime";
@@ -74,8 +74,10 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
 
   const reviewPage = (type: string, slug: string, note?: string): Response => {
     const t = target(root, cfg, type, slug);
-    if (!existsSync(t.file)) return new Response("not found", { status: 404 });
-    const source = readFileSync(t.file, "utf8");
+    // The item as it stands on *its* draft branch — a person must read the version they are signing, and
+    // the working tree holds only whichever draft was written last (write.ts `draftSource`).
+    const source = draftSource(root, cfg, type, slug);
+    if (source === undefined) return new Response("not found", { status: 404 });
     const { yaml } = splitFrontmatter(source);
     const hash = contentHash(source);
     const check = publishCheck(root, cfg, store, type, slug);
@@ -117,9 +119,11 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       if (approveM) {
         if (req.method !== "POST") return new Response("method not allowed", { status: 405, headers: { allow: "POST" } });
         const [, type, slug] = approveM;
-        const t = target(root, cfg, type!, slug!);
-        if (!existsSync(t.file)) return new Response("not found", { status: 404 });
-        approve(store, { type: type!, slug: slug!, hash: contentHash(readFileSync(t.file, "utf8")), by: reviewerOf(req), at: new Date().toISOString() });
+        const approving = draftSource(root, cfg, type!, slug!);
+        if (approving === undefined) return new Response("not found", { status: 404 });
+        // Hashed from the same bytes the review page rendered, so an approval cannot be recorded against
+        // a version nobody read just because another item's draft is the one checked out.
+        approve(store, { type: type!, slug: slug!, hash: contentHash(approving), by: reviewerOf(req), at: new Date().toISOString() });
         return new Response(null, { status: 303, headers: { location: `/_snypd/review/${type}/${slug}?approved=1` } });
       }
       const reviewM = REVIEW.exec(path);

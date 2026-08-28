@@ -15,5 +15,10 @@ jobs:
       - run: bun test
       - run: bun run snypd bench --ci
         continue-on-error: ${{ matrix.bun != '1.4.0' }}   # fallback lane reports, primary lane enforces
+      # D1's evidence. `bun test` above already gates the kill test at its known state (agent.test.ts);
+      # this runs it for the transcript, and exits non-zero while `agent.goal` is short of 1 — which it is,
+      # on purpose, until the write model is fixed (docs/07 §6). Flip this to enforcing in the same PR.
+      - run: bun run snypd bench agent
+        continue-on-error: true
       - uses: actions/upload-artifact@v4
         with: { name: bench-${{ matrix.bun }}, path: bench/ }

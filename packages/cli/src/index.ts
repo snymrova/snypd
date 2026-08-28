@@ -43,6 +43,14 @@ switch (cmd) {
       if (over.length) { console.error(`\n${over.length} breach(es)`); process.exit(1); }
       break;
     }
+    if (args[0] === "agent") {   // S17: the kill test — the one lane that scores the product, not a number
+      const { report, run } = await bench.agent({ keep: flags.has("--keep") });
+      console.log(bench.toMarkdown(report));
+      console.log(`\n${run.checks.map((c) => `${c.ok ? "✅" : "❌"} ${c.what} — ${c.detail}`).join("\n")}`);
+      const over = bench.breaches(report);
+      if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
+      break;
+    }
     if (args[0] === "visual") {   // D3 only: every visual primitive at its worst shape, no build (S10)
       const r = await bench.visual({ quick: flags.has("--quick") });
       console.log(bench.toMarkdown(r));
@@ -114,6 +122,6 @@ switch (cmd) {
     break;
   }
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd init [root] --name=… --url=… | snypd serve [root] --preview|--static [--port=N] | snypd bench [page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd init [root] --name=… --url=… | snypd serve [root] --preview|--static [--port=N] | snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 export {};

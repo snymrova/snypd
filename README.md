@@ -9,6 +9,7 @@ bun install
 bun run snypd init my-site --name="My Site" --url=https://example.com
 bun run snypd serve my-site        # the MCP server on stdio — the only interface
 bun run snypd bench                # speed suite → bench/latest.md
+bun run snypd bench agent          # the kill test → bench/agent.md + a transcript
 bun run snypd build corpora/100
 bun test
 ```

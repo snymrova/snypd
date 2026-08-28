@@ -1,0 +1,14 @@
+# The kill test's site (docs/06 "the v0.1 test", docs/07 D1).
+#
+# Three posts of plain prose — the markdown folder an agent is asked to beat. No directives, no theme
+# beyond `base`, no tokens set: everything the test asserts at the end has to be *put* there by an agent
+# through the MCP, so anything pre-supplied here would be marking its own homework.
+#
+# `theme.use: base` on purpose. Half the test is the swap to `editorial` and back.
+snypd: 1
+site:
+  name: Kill test
+  url: https://kill.snypd.rocks
+  description: Three plain posts, upgraded, restyled and published without opening an editor.
+theme:
+  use: base
