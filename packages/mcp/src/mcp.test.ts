@@ -102,7 +102,7 @@ describe("content.* tools", () => {
     ], site);
 
     expect(structured(created)).toMatchObject({ ok: true, type: "post", slug: "why-mcp-only", route: "/posts/why-mcp-only", status: "draft" });
-    expect(structured(created).git).toMatchObject({ enabled: true, committed: true, branch: "snypd/draft-post-why-mcp-only", base: "main" });
+    expect(structured(created).git).toMatchObject({ enabled: true, committed: true, branch: "snypd/drafts", base: "main" });
     expect(created.result.content[0].text).toContain("committed");
 
     expect(dupe.result.isError).toBe(true);                                   // a tool error, not a protocol error
@@ -124,9 +124,11 @@ describe("content.* tools", () => {
 
     const [, published, again] = await session([req(1, "initialize"), call(2, "content.publish", { type: "post", slug: "why-mcp-only" }), call(3, "content.publish", { type: "post", slug: "why-mcp-only" })], site);
     expect(structured(published)).toMatchObject({ ok: true, status: "published" });
-    expect(structured(published).git.merged).toBe(true);
+    expect(structured(published).git).toMatchObject({ landed: true, base: "main" });
     expect(readFileSync(t.file, "utf8")).toContain("status: published");
-    expect(c.git(site, "rev-parse", "--abbrev-ref", "HEAD").stdout).toBe("main");
+    // S17b: publishing lands a path on `main` and leaves the tree on the drafts branch, where the next
+    // write goes and where every other draft still is. A checkout here is what used to make them vanish.
+    expect(c.git(site, "rev-parse", "--abbrev-ref", "HEAD").stdout).toBe("snypd/drafts");
     expect(c.git(site, "ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("content/posts/why-mcp-only.md");
     expect(again.result.isError).toBe(true);                                   // the approval was spent
   });
@@ -154,7 +156,7 @@ describe("content.* tools", () => {
   });
 
   /** S15: the upgrade loop — read prose, get the primitives back, and write the accepted ones in one call. */
-  test("suggest_blocks reads a post, explains itself, and applies to the draft branch", async () => {
+  test("suggest_blocks reads a post, explains itself, and applies on the drafts branch", async () => {
     const prose = "Here is what we measured.\n\n| Format | Tokens |\n| --- | --- |\n| HTML | 6120 |\n| Twin | 504 |\n| Feed | 61 |\n\n> Warning: measured on one box, not a cloud runner.\n";
     const [, , listed, appliedNoFill, applied, inlineOnly, refused] = await session([
       req(1, "initialize"),
@@ -179,10 +181,10 @@ describe("content.* tools", () => {
     expect(s4.skipped[0].why).toContain("source");
     expect(readFileSync(`${site}/content/posts/measured.md`, "utf8")).not.toContain("TODO");
 
-    // fill it, and the chart lands too — on the draft branch, with the lint it caused
+    // fill it, and the chart lands too — on the drafts branch, with the lint it caused
     const s5 = structured(applied);
     expect(s5.applied.map((a: any) => a.primitive)).toEqual(["chart"]);
-    expect(s5.git).toMatchObject({ committed: true, branch: "snypd/draft-post-measured" });
+    expect(s5.git).toMatchObject({ committed: true, branch: "snypd/drafts" });
     expect(s5.lint.errors).toBe(0);
     const file = readFileSync(`${site}/content/posts/measured.md`, "utf8");
     expect(file).toContain(':::chart{type="bar" source="https://snypd.rocks/bench"');

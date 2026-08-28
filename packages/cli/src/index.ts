@@ -105,7 +105,7 @@ switch (cmd) {
     process.exit(s.errors ? 1 : 0);
   }
   case "init": {   // S16: the same `initSite` the `site` tool calls, for someone who reached for a terminal first
-    const { initSite, isRepoRoot } = await import("@snypd/core");
+    const { initSite, Repo } = await import("@snypd/core");
     const flag = (n: string) => [...flags].find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
     const root = args[0] ?? ".";
     const name = flag("name"), url = flag("url");
@@ -113,7 +113,13 @@ switch (cmd) {
     try {
       const r = initSite(root, { name, url, description: flag("description"), theme: flag("theme") });
       console.log(`initialised ${r.created.join(", ")}`);
-      console.log(isRepoRoot(root) ? "next: snypd serve  (then write through the MCP — that is the only interface)" : "next: git init here, then snypd serve");
+      // Commit the scaffold on the branch the site deploys from. Leaving it uncommitted would make the
+      // agent's first write refuse — `useDrafts` will not carry work it did not do onto the drafts branch
+      // — and would leave `main` without a `snypd.yaml` for the host to build after the first publish.
+      const repo = Repo.open(root);
+      const committed = repo?.commit(r.paths, `site: init ${name}`);
+      if (committed?.committed) console.log(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
+      console.log(repo ? "next: snypd serve  (then write through the MCP — that is the only interface)" : "next: git init here, then snypd serve");
     } catch (e) {
       const err = e as Error & { hint?: string };
       console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);

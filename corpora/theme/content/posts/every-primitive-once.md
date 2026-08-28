@@ -52,9 +52,9 @@ edges:
   - { from: build, to: twin }
 :::
 
-:::flow{caption="Publishing is a merge; the agent never touches main."}
+:::flow{caption="Publishing lands one item on main; the agent never checks main out."}
 steps:
-  - Draft on branch snypd/draft-<slug>
+  - Draft on snypd/drafts
   - Run lint
   - ask: Lint clean?
     yes: Open preview
@@ -62,7 +62,7 @@ steps:
   - id: fix
     do: Fix the reported rule and re-lint
   - Human approves
-  - Merge to main
+  - Land that one item on main
 :::
 
 ## Blocks that carry instructions

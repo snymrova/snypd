@@ -85,7 +85,7 @@ export class SiteIndex {
     const dir = join(path, "..");
     mkdirSync(dir, { recursive: true });
     // The index is disposable (docs/07 decision 13) and must never reach a commit — nor make the tree
-    // look dirty, which would stop a draft branch switch (git.ts). A self-ignoring directory needs no
+    // look dirty, which would stop the one drafts-branch switch (git.ts). A self-ignoring directory needs no
     // repo-level .gitignore and no cooperation from the site's own.
     if (!existsSync(join(dir, ".gitignore"))) writeFileSync(join(dir, ".gitignore"), "*\n");
     const db = await openDatabase(path);

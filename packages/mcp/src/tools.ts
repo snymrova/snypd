@@ -33,11 +33,11 @@ const SLUG = str("The item's slug — its filename without `.md`");
 
 export const TOOLS: Tool[] = [
   { name: "content.create",
-    description: "Write a new content file and commit it to its own draft branch. Frontmatter is the type's schema (snypd://types/{type}); the body is markdown plus the primitive directives in snypd://spec/primitives — a post that is all prose is a post that wastes the vocabulary. Status is always the site's initial status: this tool cannot publish. Returns the route, the branch and the lint the new file produces, so the fixes come back in the same turn as the writing.",
+    description: "Write a new content file and commit it to the site's drafts branch. Frontmatter is the type's schema (snypd://types/{type}); the body is markdown plus the primitive directives in snypd://spec/primitives — a post that is all prose is a post that wastes the vocabulary. Status is always the site's initial status: this tool cannot publish. Returns the route, the branch and the lint the new file produces, so the fixes come back in the same turn as the writing.",
     inputSchema: S({ type: TYPE, slug: str("Slug to write at; defaults to the title, slugified"), frontmatter: { type: "object", description: "Frontmatter fields for the type. `status` is ignored — a new file is always a draft" }, body: str("Markdown body, without the frontmatter block") }, ["type"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false } },
   { name: "content.update",
-    description: "Patch frontmatter and/or replace the body of an existing item, then commit it to its draft branch. `patch` names only the keys that change (`null` deletes one) and leaves every other key, comment and quote in the file untouched; `body` replaces the markdown wholesale. Use content.set_status to move a status — this tool refuses it.",
+    description: "Patch frontmatter and/or replace the body of an existing item, then commit it to the drafts branch. `patch` names only the keys that change (`null` deletes one) and leaves every other key, comment and quote in the file untouched; `body` replaces the markdown wholesale. Use content.set_status to move a status — this tool refuses it.",
     inputSchema: S({ type: TYPE, slug: SLUG, patch: { type: "object", description: "Frontmatter keys to set; a key set to null is deleted" }, body: str("Replacement markdown body") }, ["type", "slug"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.query",
@@ -53,7 +53,7 @@ export const TOOLS: Tool[] = [
     inputSchema: S({ type: TYPE, slug: SLUG, status: str("Target status") }, ["type", "slug", "status"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.publish",
-    description: "Publish a draft: set it published, then merge its draft branch back into the branch it was cut from. When the type's `mcp.write` policy is `draft` (the default) an agent cannot do this alone — a human approves the exact version on /_snypd/review/{type}/{slug} under `snypd serve --preview`, and editing after approval invalidates it. The refusal tells you which of the two it is.",
+    description: "Publish a draft: set it published, then land that one item on the branch the site deploys from — every other draft stays a draft. When the type's `mcp.write` policy is `draft` (the default) an agent cannot do this alone — a human approves the exact version on /_snypd/review/{type}/{slug} under `snypd serve --preview`, and editing after approval invalidates it. The refusal tells you which of the two it is.",
     inputSchema: S({ type: TYPE, slug: SLUG }, ["type", "slug"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.suggest_blocks",
@@ -144,12 +144,12 @@ export function handlers(root: string, notify?: (method: string, params?: Record
     return cfg;
   };
 
-  /** Put the write on its draft branch and commit exactly the paths it touched (docs/02 §7). */
-  const commitWrite = async (r: { type: string; slug: string; paths: string[] }, subject: string) => {
+  /** Put the write on the site's drafts branch and commit exactly the paths it touched (docs/02 §6). */
+  const commitWrite = async (r: { paths: string[] }, subject: string) => {
     const c = await loadCore();
     const repo = c.Repo.open(root);
     if (!repo) return { enabled: false as const };
-    const draft = repo.useDraft(r.type, r.slug, r.paths);
+    const draft = repo.useDrafts(r.paths);
     const commit = repo.commit(r.paths, subject);
     return { enabled: true as const, branch: draft.branch, base: draft.base, committed: commit.committed, sha: commit.sha, reason: commit.reason };
   };
@@ -208,7 +208,18 @@ export function handlers(root: string, notify?: (method: string, params?: Record
           case "content.trash": {
             const cfg = await cfgOf();
             const r = c.trashContent(root, { type: need(args, "type"), slug: need(args, "slug"), cfg });
-            return await wrote(r, `content: trash ${r.type}/${r.slug}`);
+            const g = await commitWrite(r, `content: trash ${r.type}/${r.slug}`);
+            // Trashing an item that is *on the site* has to take it off the site. The approval gate exists
+            // so an agent cannot publish words a human has not read; it is not a reason to leave a post the
+            // operator just deleted serving to readers until somebody publishes the deletion. The removal
+            // lands exactly the way a publish does — one path, no checkout — and `git revert` undoes it.
+            const repo = c.Repo.open(root);
+            const base = repo?.publishBase();
+            const live = !!(repo && base && repo.show(base, r.path) !== undefined);
+            const landed = live ? repo!.land(r.paths, `content: unpublish ${r.type}/${r.slug}`) : undefined;
+            const lines = [`trashed ${r.type}/${r.slug} → ${c.TRASH_DIR}/${r.type}/${r.slug}.md`, gitLine(g)];
+            if (landed) lines.push(landed.ok ? `taken off ${landed.base} (${landed.changed ? landed.sha!.slice(0, 8) : "already gone"})` : `still on ${landed.base}: ${landed.reason}`);
+            return text(lines.join("\n"), { ok: true, type: r.type, slug: r.slug, route: r.route, path: r.path, status: r.status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base } });
           }
           case "content.restore": {
             const cfg = await cfgOf();
@@ -231,14 +242,15 @@ export function handlers(root: string, notify?: (method: string, params?: Record
               status = r.status;
               g = await commitWrite(r, `content: publish ${type}/${slug}`);
             }
+            // The publish itself: one item's path, from the drafts branch onto the branch it was cut
+            // from, without moving the working tree (git.ts `land`). Every other draft stays where it is.
             const repo = c.Repo.open(root);
-            const branch = c.draftBranch(type, slug);
-            const merged = repo?.exists(branch) ? repo.merge(branch, undefined, `content: publish ${type}/${slug}`) : undefined;
-            if (merged && !merged.ok) return fail(`published ${type}/${slug}, but merging ${branch} failed: ${merged.reason}`, "Resolve it in git and merge the draft branch by hand — the file itself is already published, so this is the branch's problem, not the post's.");
+            const landed = repo?.land([t.path], `content: publish ${type}/${slug}`);
+            if (landed && !landed.ok) return fail(`published ${type}/${slug}, but landing it on ${landed.base ?? "the base branch"} failed: ${landed.reason}`, "The file itself is published — this is git's problem, not the post's. `git log snypd/drafts` shows the commit that has not landed.");
             c.clearApproval(store, type, slug);
-            const where = merged?.ok ? `merged ${branch} into ${merged.base}` : repo ? "no draft branch to merge" : "not a git repo";
+            const where = !landed ? "not a git repo" : landed.changed ? `landed on ${landed.base} as ${landed.sha!.slice(0, 8)}` : `${landed.base} already has this version`;
             return text([`published ${type}/${slug} → ${t.route}`, where, `approved by ${check.approval?.by ?? `policy ${check.policy}`}`].join("\n"),
-              { ok: true, type, slug, route: t.route, status, git: { ...g, merged: merged?.ok ?? false, base: merged?.base }, approval: check.approval });
+              { ok: true, type, slug, route: t.route, status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base, landedSha: landed?.sha }, approval: check.approval });
           }
           case "content.suggest_blocks": {
             const cfg = await cfgOf();

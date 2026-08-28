@@ -1,16 +1,16 @@
 /**
- * The kill test, and the three defects it found (docs/07 S17).
+ * The kill test (docs/07 D1), and the write model it forced (S17b).
  *
  * `kill test` itself is one slow test — it spawns a server, builds a site twice and runs a browser-free
- * preview — so the defects it exposed get their own fast tests below. Each of those is written against
- * the *mechanism*, not against the scenario: they would have failed before the fix and they fail again if
- * the fix is reverted, without needing the whole scenario to run.
+ * preview — so the invariants it depends on get their own fast tests below. Each of those is written
+ * against the *mechanism*, not against the scenario: they fail if the write model regresses, without
+ * needing the whole scenario to run.
  */
 import { test, expect, describe } from "bun:test";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initRepo, loadConfig, createContent, draftSource, Repo, draftBranch } from "@snypd/core";
+import { initRepo, loadConfig, createContent, draftSource, Repo, DRAFTS_BRANCH } from "@snypd/core";
 import { runAgent, DRAFT_BUDGET, TOTAL_GATE } from "./run";
 import { passed } from "./scenario";
 
@@ -21,79 +21,74 @@ const stage = () => {
   return root;
 };
 
-/**
- * D1 is **red**, and this test says so precisely rather than being skipped.
- *
- * Everything the surface does one item at a time works: the upgrades apply, the post writes, the draft is
- * lint-clean in two calls. What fails is the second post onwards — publishing the first item checks out
- * `main`, and every other in-flight draft leaves the working tree with it. The diagnosis and the shape of
- * the fix are in docs/07 §6 "the write model"; it is a change to docs/02 §7, not a bug fix, so it is not
- * being made here.
- *
- * The failing set is asserted exactly. A fix makes this test fail — which is the point: it should not be
- * possible to change the write model and leave the kill test quietly saying the same thing.
- */
-const KNOWN_RED = [
-  "upgrade.publishing-a-draft", "upgrade.why-only-mcp",
-  "new.exists", "new.chart", "new.flow",
-  "theme.swapped", "theme.tokens", "published",
-];
-
 describe("kill test", () => {
-  test("the parts that work, work — and the write model is why the rest does not", async () => {
+  /**
+   * D1, whole. Every check in `scenario.ts` is an assertion about the site the run left behind, so this
+   * passing means: three plain posts were upgraded into the primitives they were latent in, a fourth was
+   * written with a chart and a flow, the theme was swapped, two tokens were retuned, all four items were
+   * approved by a human and published, and the result lints and builds.
+   *
+   * It was 3/11 in S17. The eight that failed all failed for one reason — a branch per item meant one
+   * draft in the tree at a time, and publishing one merged the others' unapproved commits (docs/07 §6).
+   */
+  test("D1: the kill test passes, inside its call budget", async () => {
     const r = await runAgent();
 
-    // D1's sentence, taken literally: one draft, from nothing, lint-clean. This half passes.
+    const failed = r.checks.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`);
+    expect(failed).toEqual([]);
+    expect(passed(r.checks)).toBe(true);
+
+    // D1's sentence, taken literally: one draft, from nothing, lint-clean, inside the call budget.
     expect(r.draftCalls).toBeLessThanOrEqual(DRAFT_BUDGET);
     expect(r.lint.errors).toBe(0);
     expect(r.calls).toBeLessThanOrEqual(TOTAL_GATE);
-
-    // The first post upgrades, publishes and builds — the surface itself is sound.
-    const byId = new Map(r.checks.map((c) => [c.id, c]));
-    expect(byId.get("upgrade.cold-start")!.ok).toBe(true);
-    expect(byId.get("lint.clean")!.ok).toBe(true);
-    expect(byId.get("built")!.ok).toBe(true);
-
-    expect(r.checks.filter((c) => !c.ok).map((c) => c.id).sort()).toEqual([...KNOWN_RED].sort());
-    expect(passed(r.checks)).toBe(false);
   }, 180_000);
 });
 
-describe("the defects the kill test found", () => {
-  test("drafts chain onto each other — the S17 finding, pinned so a fix has to notice it", () => {
+describe("the write model the kill test forced (S17b)", () => {
+  test("two drafts are in the tree at once, and publishing one leaves the other there", () => {
     const root = stage();
     try {
       const repo = Repo.open(root)!;
       const cfg = loadConfig(root);
       for (const slug of ["alpha", "beta"]) {
-        const r = createContent(root, { type: "post", slug, frontmatter: { title: slug, date: "2026-04-01" }, body: "Words.", cfg });
-        repo.useDraft("post", slug, r.paths);
+        const r = createContent(root, { type: "post", slug, frontmatter: { title: slug, date: "2026-04-01" }, body: `The ${slug} body.`, cfg });
+        repo.useDrafts(r.paths);
         repo.commit(r.paths, `content: create post/${slug}`);
       }
-      // This is the defect, not the design (docs/07 §6 "the write model"): beta is cut from alpha, so
-      // publishing beta would carry alpha's unapproved commit to main, and publishing alpha first deletes
-      // beta's base. `publishBase()` already names the branch both of them should have used.
-      expect(repo.baseOf(draftBranch("post", "alpha"))).toBe("main");
-      expect(repo.baseOf(draftBranch("post", "beta"))).toBe(draftBranch("post", "alpha"));
-      expect(repo.publishBase()).toBe("main");
+      // Both readable, at the same time, with no branch switching — the S17 defect, inverted.
+      expect(draftSource(root, cfg, "post", "alpha")).toContain("The alpha body.");
+      expect(draftSource(root, cfg, "post", "beta")).toContain("The beta body.");
+      expect(repo.branch()).toBe(DRAFTS_BRANCH);
+
+      const landed = repo.land(["content/posts/alpha.md"], "content: publish post/alpha");
+      expect(landed).toMatchObject({ ok: true, changed: true, base: "main" });
+      // The tree did not move, beta is still a draft in it, and beta's words are not on main.
+      expect(repo.branch()).toBe(DRAFTS_BRANCH);
+      expect(draftSource(root, cfg, "post", "beta")).toContain("The beta body.");
+      expect(repo.show("main", "content/posts/beta.md")).toBeUndefined();
+      expect(repo.show("main", "content/posts/alpha.md")).toContain("The alpha body.");
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
-  test("an item's draft is readable while another item's branch is checked out", () => {
+  test("an unapproved draft is not in the published branch's history either", () => {
     const root = stage();
     try {
       const repo = Repo.open(root)!;
       const cfg = loadConfig(root);
-      const a = createContent(root, { type: "post", slug: "alpha", frontmatter: { title: "Alpha", date: "2026-04-01" }, body: "The alpha body.", cfg });
-      repo.useDraft("post", "alpha", a.paths);
-      repo.commit(a.paths, "content: create post/alpha");
-      const b = createContent(root, { type: "post", slug: "beta", frontmatter: { title: "Beta", date: "2026-04-01" }, body: "The beta body.", cfg });
-      repo.useDraft("post", "beta", b.paths);
-      repo.commit(b.paths, "content: create post/beta");
-      // The tree is on beta's branch and holds no alpha at all; the draft is still what alpha's branch says.
-      expect(repo.branch()).toBe(draftBranch("post", "beta"));
-      expect(draftSource(root, cfg, "post", "alpha")).toContain("The alpha body.");
-      expect(draftSource(root, cfg, "post", "beta")).toContain("The beta body.");
+      const secret = createContent(root, { type: "post", slug: "unapproved", frontmatter: { title: "Unapproved", date: "2026-04-01" }, body: "Words nobody signed off.", cfg });
+      repo.useDrafts(secret.paths);
+      repo.commit(secret.paths, "content: create post/unapproved");
+      const ok = createContent(root, { type: "post", slug: "approved", frontmatter: { title: "Approved", date: "2026-04-01" }, body: "Words a human read.", cfg });
+      repo.useDrafts(ok.paths);
+      repo.commit(ok.paths, "content: create post/approved");
+
+      repo.land(["content/posts/approved.md"], "content: publish post/approved");
+      // A merge would have made the unapproved commit an ancestor of main. `land` commits a tree, with
+      // the base as its only parent, so the words are in neither the tree nor the history.
+      expect(repo.run("log", "main", "--format=%s").stdout).not.toContain("post/unapproved");
+      expect(repo.run("rev-list", "main", "--", "content/posts/unapproved.md").stdout).toBe("");
+      expect(repo.run("merge-base", "--is-ancestor", "main", DRAFTS_BRANCH).ok).toBe(true);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 

@@ -183,7 +183,12 @@ theme:
   const created: string[] = [];
   writeFileSync(file, yaml);
   created.push(CONFIG_FILE);
-  for (const d of ["content/post", "content/page", "content/media"]) {
+  // The dirs the *config* says content lives in, not a hardcoded guess: the spec's `post` type is
+  // `content/posts`, so a scaffold that wrote `content/post/` left every new site with two decoy folders
+  // and made the real one appear only on the first write.
+  const scaffold = loadConfig(root);
+  const dirs = scaffold.ok ? [...new Set(Object.values(scaffold.config.types).map((t) => t.dir))] : ["content/posts", "content/pages"];
+  for (const d of [...dirs, "content/media"]) {
     const dir = join(root, d);
     if (existsSync(dir)) continue;
     mkdirSync(dir, { recursive: true });

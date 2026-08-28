@@ -14,7 +14,7 @@ import { parseDocument, stringify as yamlStringify, isMap, type Document } from 
 import { loadConfig, type LoadedConfig } from "./config";
 import { lintMarkdown, type LintResult } from "./content";
 import { readFrontmatter, sha1 } from "./store";
-import { Repo, draftBranch } from "./git";
+import { Repo, DRAFTS_BRANCH } from "./git";
 import type { Config, TypeDef } from "./schema";
 
 export const TRASH_DIR = "content/.trash";
@@ -242,27 +242,23 @@ export function clearApproval(store: ApprovalStore, type: string, slug: string) 
 
 /** Why a publish may or may not go ahead right now. The tool and the review page both ask this. */
 /**
- * The bytes an item's draft actually consists of, wherever HEAD happens to be pointing.
+ * The bytes an item's draft actually consists of.
  *
- * There is one working tree and there can be many drafts in flight, so "the file on disk" is only the
- * right answer for whichever item was written last. Every other in-flight draft lives on its own branch
- * and is *absent* from the tree — so a review page, an approval hash and a publish check that all read
- * `t.file` are, between them, describing three different versions of the site the moment a second post
- * is being edited. Resolving from the branch makes those three agree, and makes an approval survive
- * somebody else's publish (docs/07 S17: this is the second half of the same defect `publishBase` fixes).
+ * Since S17b that is simply the file in the working tree, and this function exists to say so once, in the
+ * place three callers used to disagree. Under a branch per item (S17) it could not be: the tree held only
+ * whichever draft was written last, so a review page, an approval hash and a publish check that all read
+ * `t.file` were describing three different versions of the site the moment a second post was being edited.
+ * One drafts branch, always checked out, makes the tree the answer for every item at once — and keeps it
+ * the answer while somebody else's item publishes, because a publish no longer moves the tree.
  *
- * Falls back to the tree when the site is not git-backed, or when the item has no draft branch because
- * it is already published — in both cases the tree *is* the item.
+ * The drafts branch is consulted only as a fallback: a tree that has been checked out elsewhere by hand
+ * still has drafts recorded on `snypd/drafts`, and reading them beats reporting the item as missing.
  */
 export function draftSource(root: string, cfg: LoadedConfig, type: string, slug: string): string | undefined {
   const t = target(root, cfg, type, slug);
+  if (existsSync(t.file)) return readFileSync(t.file, "utf8");
   const repo = Repo.open(root);
-  const branch = draftBranch(type, slug);
-  if (repo && repo.exists(branch)) {
-    const onBranch = repo.show(branch, t.path);
-    if (onBranch !== undefined) return onBranch;
-  }
-  return existsSync(t.file) ? readFileSync(t.file, "utf8") : undefined;
+  return repo?.exists(DRAFTS_BRANCH) ? repo.show(DRAFTS_BRANCH, t.path) : undefined;
 }
 
 export function publishCheck(root: string, cfg: LoadedConfig, store: ApprovalStore, type: string, slug: string): { ok: boolean; policy: string; reason?: string; hint?: string; approval?: Approval } {

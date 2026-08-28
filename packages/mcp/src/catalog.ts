@@ -156,13 +156,29 @@ export async function call(root: string, name: string, args: Record<string, unkn
     if (!cfg.ok) throw new Error(`snypd.yaml is invalid: ${c.formatDiagnostics(cfg.diagnostics)}`);
     return cfg;
   };
-  /** Commit a site-level write on the branch that is checked out — these are not per-item drafts. */
+  /**
+   * Commit a site-level write on the drafts branch and land it on the branch the site deploys from.
+   *
+   * Configuration is not content, and the approval gate is about content: it exists so an agent cannot
+   * publish *words* a human has not read. A theme swap or a retuned token is the operator's own
+   * instruction, given through the harness — and a theme that changes everywhere except on the site is
+   * the kind of quiet lie the review page exists to prevent. So these land immediately, and say so.
+   *
+   * Before S17b this committed "on the branch that is checked out", which was whichever post happened to
+   * have been written last: a theme swap could end up parked on `snypd/draft-post-about` and reach `main`
+   * only when that post published. One drafts branch removes the ambiguity; landing removes the surprise.
+   */
   const commit = async (paths: string[], subject: string) => {
     if (!paths.length) return "nothing to commit";
     const repo = c.Repo.open(root);
     if (!repo) return "not a git repo: written, not committed";
+    repo.useDrafts(paths);
     const r = repo.commit(paths, subject);
-    return r.committed ? `committed ${r.sha!.slice(0, 8)}` : `no commit: ${r.reason}`;
+    if (!r.committed) return `no commit: ${r.reason}`;
+    const landed = repo.land(paths, subject);
+    return landed.ok
+      ? `committed ${r.sha!.slice(0, 8)}${landed.changed ? ` → ${landed.base} ${landed.sha!.slice(0, 8)}` : ""}`
+      : `committed ${r.sha!.slice(0, 8)} on ${repo.branch()}, not landed on ${landed.base}: ${landed.reason}`;
   };
 
   try {

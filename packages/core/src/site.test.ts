@@ -4,7 +4,7 @@
  * and a token left behind by a theme switch is still visible.
  */
 import { describe, expect, test, beforeEach } from "bun:test";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite } from "./index";
 
 const root = "corpora/_test/site-writes";
@@ -62,7 +62,10 @@ describe("initSite", () => {
 
   test("writes the smallest config that loads, plus the directories content lives in", () => {
     const r = initSite(fresh, { name: "New", url: "https://new.example/", description: "One line." });
-    expect(r.created).toEqual(["snypd.yaml", "content/post/", "content/page/", "content/media/", ".gitignore"]);
+    // The dirs the config names, not a guess: `post` lives in `content/posts`, so scaffolding
+    // `content/post/` left every new site with a decoy folder beside the real one (S17b).
+    expect(r.created).toEqual(["snypd.yaml", "content/posts/", "content/pages/", "content/authors/", "content/media/", ".gitignore"]);
+    for (const t of Object.values(loadConfig(fresh).config.types)) expect(existsSync(`${fresh}/${t.dir}`)).toBe(true);
     const cfg = loadConfig(fresh);
     expect(cfg.ok).toBe(true);
     expect(cfg.config.site.name).toBe("New");

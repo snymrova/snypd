@@ -29,7 +29,7 @@ cheap, and charging reads at the same rate would erase what that bought.
 
 The run happens in a throwaway copy of `corpora/kill` made into its own git repository — a site is
 git-backed only when it *is* the top level (`git.ts`), so a corpus left in place would exercise none of the
-draft-branch path. The human who approves each item is an HTTP POST to the review page the agent's own
+drafts-branch path. The human who approves each item is an HTTP POST to the review page the agent's own
 `content.render_preview` started: that is exactly the interaction, and it is outside the call budget
 because approving is not something an agent can spend calls on.
 

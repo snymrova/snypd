@@ -68,7 +68,7 @@ Declared, typed, shared across types. Terms are files (`content/taxonomies/categ
 
 ## 6. Revisions
 
-git. Surfaced as `history.list/diff/restore`. Agent edits autosave to a branch `snypd/draft-<slug>`; publish = merge. An agent mid-edit never dirties `main`.
+git. Surfaced as `history.list/diff/restore`. Agent edits autosave to **one drafts branch, `snypd/drafts`**, which stays checked out: every draft in flight is a file in the content folder, so writing a second item cannot hide the first. **Publish lands that item's paths on `main`** — base tree + those paths, committed with the base as its only parent, built in a temporary index rather than by a checkout and a merge. Nothing unapproved reaches `main`'s tree *or* its history, and the working tree never moves (S17b; a branch per item was tried first and could not hold two drafts at once).
 
 ## 7. Media
 

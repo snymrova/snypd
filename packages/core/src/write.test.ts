@@ -2,7 +2,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { loadConfig } from "./index";
 import { createContent, updateContent, setStatus, trashContent, restoreContent, splitFrontmatter, target, publishCheck, approve, approvals, contentHash } from "./write";
-import { Repo, git, initRepo, isRepoRoot, principal, draftBranch } from "./git";
+import { Repo, git, initRepo, isRepoRoot, principal, DRAFTS_BRANCH } from "./git";
 
 const root = "corpora/_test/write";
 const fresh = () => {
@@ -134,16 +134,14 @@ describe("git (S11)", () => {
     expect(principal({ USER: "sunny" } as never)).toBe("agent:claude-code/sunny");
   });
 
-  test("a write commits to a per-item draft branch with the principal trailer, leaving main clean", () => {
+  test("a write commits to the site's one drafts branch with the principal trailer, leaving main clean", () => {
     setup();
     const r = Repo.open(repo)!;
     expect(r.branch()).toBe("main");
     const cfg = loadConfig(repo);
     const c = createContent(repo, { type: "post", slug: "first", frontmatter: { title: "First" }, body: "Words.", cfg });
-    const d = r.useDraft("post", "first", c.paths);
-    expect(d.branch).toBe(draftBranch("post", "first"));
-    expect(d.base).toBe("main");
-    expect(d.created).toBe(true);
+    const d = r.useDrafts(c.paths);
+    expect(d).toMatchObject({ branch: DRAFTS_BRANCH, base: "main", created: true });
     const commit = r.commit(c.paths, "content: create post/first", "agent:claude-code/t");
     expect(commit.committed).toBe(true);
     expect(r.run("log", "-1", "--format=%B").stdout).toContain("Snypd-Principal: agent:claude-code/t");
@@ -153,29 +151,70 @@ describe("git (S11)", () => {
     expect(r.history("content/posts/first.md")[0]).toMatchObject({ subject: "content: create post/first", principal: "agent:claude-code/t" });
   });
 
-  test("a second write reuses the branch; publish merges it into the recorded base and deletes it", () => {
+  test("a second write reuses the branch; land moves the base without moving the tree", () => {
     setup();
     const r = Repo.open(repo)!;
     const cfg = loadConfig(repo);
     const c = createContent(repo, { type: "post", slug: "second", frontmatter: { title: "Second" }, cfg });
-    r.useDraft("post", "second", c.paths); r.commit(c.paths, "content: create post/second");
+    r.useDrafts(c.paths); r.commit(c.paths, "content: create post/second");
     const u = updateContent(repo, { type: "post", slug: "second", body: "More.", cfg });
-    expect(r.useDraft("post", "second", u.paths)).toMatchObject({ created: false, base: "main" });
+    expect(r.useDrafts(u.paths)).toMatchObject({ created: false, base: "main" });
     r.commit(u.paths, "content: update post/second");
-    const m = r.merge(draftBranch("post", "second"));
-    expect(m.ok).toBe(true);
-    expect(r.branch()).toBe("main");
-    expect(r.exists(draftBranch("post", "second"))).toBe(false);
+
+    const landed = r.land(["content/posts/second.md"], "content: publish post/second");
+    expect(landed).toMatchObject({ ok: true, changed: true, base: "main" });
+    expect(r.branch()).toBe(DRAFTS_BRANCH);                                       // the tree did not move
+    expect(r.exists(DRAFTS_BRANCH)).toBe(true);                                   // and the branch is not deleted
     expect(r.run("ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("content/posts/second.md");
-    expect(r.run("log", "-1", "--format=%B").stdout).toContain("Snypd-Principal:");
+    expect(r.show("main", "content/posts/second.md")).toContain("More.");
+    expect(r.run("log", "-1", "main", "--format=%B").stdout).toContain("Snypd-Principal:");
+    // Landing the same version again is a no-op, not a second commit: publish is re-runnable.
+    const head = r.run("rev-parse", "main").stdout;
+    expect(r.land(["content/posts/second.md"], "content: publish post/second")).toMatchObject({ ok: true, changed: false });
+    expect(r.run("rev-parse", "main").stdout).toBe(head);
   });
 
-  test("useDraft refuses to carry someone else's uncommitted work onto a draft branch", () => {
+  test("landing one item leaves every other draft off the base — the S17 defect, pinned", () => {
+    setup();
+    const r = Repo.open(repo)!;
+    const cfg = loadConfig(repo);
+    for (const slug of ["alpha", "beta"]) {
+      const c = createContent(repo, { type: "post", slug, frontmatter: { title: slug }, body: `The ${slug} body.`, cfg });
+      r.useDrafts(c.paths);
+      r.commit(c.paths, `content: create post/${slug}`);
+    }
+    // Both drafts are files on disk at the same time. Under a branch per item, writing beta checked out
+    // beta's branch and alpha vanished from the content folder until it published.
+    expect(existsSync(`${repo}/content/posts/alpha.md`)).toBe(true);
+    expect(existsSync(`${repo}/content/posts/beta.md`)).toBe(true);
+
+    r.land(["content/posts/alpha.md"], "content: publish post/alpha");
+    // Publishing alpha carries alpha and nothing else: beta is neither in main's tree nor in its history.
+    expect(r.run("ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("content/posts/alpha.md");
+    expect(r.run("log", "main", "--format=%s").stdout).not.toContain("post/beta");
+    expect(existsSync(`${repo}/content/posts/beta.md`)).toBe(true);               // and it is still there to work on
+    // main is an ancestor of the drafts branch, so the two never diverge.
+    expect(r.run("merge-base", "--is-ancestor", "main", DRAFTS_BRANCH).ok).toBe(true);
+  });
+
+  test("land refuses a path with uncommitted changes — an approval covers bytes, not a filename", () => {
+    setup();
+    const r = Repo.open(repo)!;
+    const cfg = loadConfig(repo);
+    const c = createContent(repo, { type: "post", slug: "fourth", frontmatter: { title: "Fourth" }, body: "Words.", cfg });
+    r.useDrafts(c.paths); r.commit(c.paths, "content: create post/fourth");
+    writeFileSync(`${repo}/content/posts/fourth.md`, "---\ntitle: Fourth\nstatus: draft\n---\n\nDifferent words.\n");
+    const landed = r.land(["content/posts/fourth.md"], "content: publish post/fourth");
+    expect(landed.ok).toBe(false);
+    expect(landed.reason).toMatch(/uncommitted/);
+  });
+
+  test("useDrafts refuses to carry someone else's uncommitted work onto the drafts branch", () => {
     setup();
     const r = Repo.open(repo)!;
     writeFileSync(`${repo}/snypd.yaml`, "snypd: 1\nsite: { name: edited, url: https://t.example }\n");
     const c = createContent(repo, { type: "post", slug: "third", frontmatter: { title: "Third" }, cfg: loadConfig(repo) });
-    expect(() => r.useDraft("post", "third", c.paths)).toThrow(/uncommitted change/);
+    expect(() => r.useDrafts(c.paths)).toThrow(/uncommitted change/);
     expect(r.branch()).toBe("main");
   });
 

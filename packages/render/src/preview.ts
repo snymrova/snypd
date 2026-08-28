@@ -11,7 +11,7 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, draftBranch, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page } from "./theme";
 import { Html, escape } from "./jsx-runtime";
@@ -74,8 +74,8 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
 
   const reviewPage = (type: string, slug: string, note?: string): Response => {
     const t = target(root, cfg, type, slug);
-    // The item as it stands on *its* draft branch — a person must read the version they are signing, and
-    // the working tree holds only whichever draft was written last (write.ts `draftSource`).
+    // The item as it stands on the drafts branch, which since S17b is the working tree — a person must
+    // read the version they are signing, and every draft in flight is in it (write.ts `draftSource`).
     const source = draftSource(root, cfg, type, slug);
     if (source === undefined) return new Response("not found", { status: 404 });
     const { yaml } = splitFrontmatter(source);
@@ -83,10 +83,12 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     const check = publishCheck(root, cfg, store, type, slug);
     const current = approvalOf(store, type, slug);
     const repo = Repo.open(root);
-    const branch = draftBranch(type, slug);
-    const onBranch = repo?.exists(branch) ? branch : undefined;
-    const base = onBranch ? repo!.baseOf(onBranch) ?? "" : "";
-    const diff = onBranch && base ? repo!.run("diff", `${base}...${onBranch}`, "--", t.path).stdout : repo ? repo.run("diff", "HEAD", "--", t.path).stdout : "";
+    const branch = repo?.branch();
+    const base = repo?.publishBase();
+    // What publishing this item would change on the branch the site deploys from — committed drafts and
+    // anything still uncommitted, in one diff. Comparing two branches would hide the latter, and since
+    // S17b every draft lives in this tree, so the tree is what the reviewer is being asked to sign.
+    const diff = repo && base && base !== branch ? repo.run("diff", base, "--", t.path).stdout : repo ? repo.run("diff", "HEAD", "--", t.path).stdout : "";
     const row = (k: string, v: string) => `<tr><th style="text-align:left;padding:.15rem 1rem .15rem 0;font-weight:600">${escape(k)}</th><td>${v}</td></tr>`;
     const status = check.ok ? `<strong>ready to publish</strong>${current ? ` — approved by ${escape(current.by)} at ${escape(current.at)}` : ` — this type's policy is <code>${escape(check.policy)}</code>, no approval needed`}`
       : `<strong>${escape(check.reason ?? "not publishable")}</strong>${check.hint ? `<br><small>${escape(check.hint)}</small>` : ""}`;
@@ -96,7 +98,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       row("item", `<a href="${escape(t.route)}">${escape(t.route)}</a>`),
       row("file", `<code>${escape(t.path)}</code>`),
       row("version", `<code>${escape(hash.slice(0, 12))}</code>`),
-      onBranch ? row("branch", `<code>${escape(onBranch)}</code> → <code>${escape(base)}</code>`) : "",
+      branch && base && branch !== base ? row("branch", `<code>${escape(branch)}</code> → <code>${escape(base)}</code>`) : "",
       row("state", status),
       `</table>`,
       `<h2>Frontmatter</h2><pre><code>${escape(yaml)}</code></pre>`,
