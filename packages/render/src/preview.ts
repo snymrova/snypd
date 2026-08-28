@@ -15,13 +15,30 @@ import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, target, approve, approval
 import { build, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page } from "./theme";
 import { Html, escape } from "./jsx-runtime";
+import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts } from "./desk";
 import { resolveTokens, tokensCss } from "./tokens";
 
-export interface PreviewOptions { port?: number; out?: string; hostname?: string; watch?: boolean }
+export interface PreviewOptions {
+  port?: number; out?: string; hostname?: string; watch?: boolean;
+  /**
+   * Where the Desk's status card gets "is a harness connected" from (S18b). A function rather than a
+   * value because the answer changes under the page: `@snypd/mcp` passes its `activitySnapshot`, and a
+   * standalone `snypd serve --preview` passes nothing, which is itself the honest answer — a preview
+   * nobody started from a tool call has no harness attached to it.
+   */
+  activity?: () => DeskActivity | undefined;
+  /**
+   * Seconds between the Desk's self-refreshes; 0 turns it off. The bench lane passes 0 — a meta refresh
+   * firing mid-measurement would reload the page out from under axe-core and turn the a11y count into a
+   * race. Nothing else sets it, so a person always gets the live card.
+   */
+  deskRefresh?: number;
+}
 export interface PreviewServer { url: string; port: number; stop: () => void; rebuild: () => Promise<BuildResult>; out: string; dirty: () => boolean }
 
 const REVIEW = /^\/_snypd\/review\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
 const APPROVE = /^\/_snypd\/approve\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
+const DESK = /^\/_snypd\/?$/;
 
 const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".json": "application/json", ".xml": "application/xml", ".txt": "text/plain; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml" };
 const mimeOf = (f: string) => MIME[f.slice(f.lastIndexOf("."))] ?? "application/octet-stream";
@@ -36,6 +53,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   const store: ApprovalStore = approvals(root);   // shared with the MCP server; the preview index is not (see write.ts)
   let theme!: Theme;
   let dirty = false, building: Promise<BuildResult> | undefined;
+  let lastBuild: { routes: number; ms: number; at: number } | undefined;   // S18b: the Desk's "did it work?"
 
   const rebuild = async (): Promise<BuildResult> => {
     if (building) return building;
@@ -46,7 +64,11 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     // its statically-imported `./shell` still coming from Bun's module cache and rendering the old page.
     theme = await loadTheme(cfg, { bundle: true });
     building = build(root, { out, cfg, index, drafts: true, cache: new MdastCache(index.mdastStore()) });
-    try { return await building; } finally { building = undefined; }
+    try {
+      const r = await building;
+      lastBuild = { routes: r.routes, ms: r.ms, at: Date.now() };
+      return r;
+    } finally { building = undefined; }
   };
   const fresh = async () => { if (dirty) await rebuild(); };
   await rebuild();
@@ -94,6 +116,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       : `<strong>${escape(check.reason ?? "not publishable")}</strong>${check.hint ? `<br><small>${escape(check.hint)}</small>` : ""}`;
     const body = new Html([
       note ? `<p role="status"><strong>${escape(note)}</strong></p>` : "",
+      `<p><a href="/_snypd">\u2190 Snypd Desk</a></p>`,
       `<table>`,
       row("item", `<a href="${escape(t.route)}">${escape(t.route)}</a>`),
       row("file", `<code>${escape(t.path)}</code>`),
@@ -101,12 +124,57 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       branch && base && branch !== base ? row("branch", `<code>${escape(branch)}</code> → <code>${escape(base)}</code>`) : "",
       row("state", status),
       `</table>`,
-      `<h2>Frontmatter</h2><pre><code>${escape(yaml)}</code></pre>`,
-      diff ? `<h2>Diff</h2><pre><code>${escape(diff)}</code></pre>` : `<h2>Diff</h2><p>No uncommitted or branched changes — this is what is already committed.</p>`,
+      // `tabindex="0"` for the same reason the viz wrapper carries it (S14, decision 32): a `pre` that
+      // scrolls is a scrollable region, and a scrollable region a keyboard cannot reach is an axe
+      // `scrollable-region-focusable` violation — which is exactly how S18b's Desk lane found this one,
+      // the review page having shipped since S11 without any browser suite ever looking at it.
+      `<h2>Frontmatter</h2><pre tabindex="0"><code>${escape(yaml)}</code></pre>`,
+      diff ? `<h2>Diff</h2><pre tabindex="0"><code>${escape(diff)}</code></pre>` : `<h2>Diff</h2><p>No uncommitted or branched changes — this is what is already committed.</p>`,
       check.ok && current ? "" : `<form method="post" action="/_snypd/approve/${escape(type)}/${escape(slug)}"><button type="submit">Approve this version</button></form>`,
       `<p><small>Approving covers version <code>${escape(hash.slice(0, 12))}</code> only. Edit after approving and the approval no longer applies — deliberately: an agent must not be able to swap the words a human read.</small></p>`,
     ].join("\n"));
     return new Response(shell(`Review: ${t.type}/${t.slug}`, body, reviewPath(type, slug)).html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+  };
+
+  // ── the Desk ───────────────────────────────────────────────────────────────
+  /**
+   * Everything the Desk shows, gathered without touching git (S18b, decision 45).
+   *
+   * The item list is the SQLite index; each item's state is `publishCheck`, which for a file that is in
+   * the working tree — and since S17b every draft is — reads that file and `approvals.json` and stops.
+   * `Repo` is reached only when a file is *missing*, which on this path it is not. That is what keeps
+   * the Desk inside `preview.ttfb ≤ 50 ms`, and `desk.test` renders one in a directory that is not a
+   * repo at all, so the day somebody adds a `git status` here the suite says so.
+   *
+   * `approvals.json` is re-read once per draft rather than cached. It is a sub-kilobyte file and the
+   * draft count is small, but the real reason is correctness: a standalone `snypd serve --preview` and
+   * an MCP server are two processes over one store, and a cache that made this page fast would make it
+   * wrong the first time the other process approved something.
+   */
+  const deskFacts = (): DeskFacts => {
+    const statuses = cfg.config.statuses as Record<string, { public?: boolean }> | undefined;
+    const inFlight = index.files().filter((f) => f.status !== "trashed" && statuses?.[f.status]?.public !== true);
+    const drafts: DeskDraft[] = inFlight
+      .sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0))
+      .map((f) => {
+        const check = publishCheck(root, cfg, store, f.type, f.slug);
+        const state = check.ok
+          ? check.approval ? `ready to publish — approved by ${check.approval.by}` : "ready to publish"
+          : (check.reason ?? "not publishable");
+        return { type: f.type, slug: f.slug, title: f.title, status: f.status, route: f.route, reviewUrl: reviewPath(f.type, f.slug), ready: check.ok, state, updated: f.mtime };
+      });
+    const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
+    const css = tokensCss(tokens) + (theme.css ?? "");
+    return {
+      site: { name: cfg.config.site.name, url: cfg.config.site.url },
+      theme: { name: theme.name, chain: theme.chain.map((l) => l.name), coverage: theme.coverage },
+      drafts,
+      activity: opts.activity?.(),
+      build: lastBuild,
+      previewUrl: `http://${server.hostname ?? "localhost"}:${server.port}`,
+      css: css ? "/assets/theme.css" : undefined,
+      refresh: opts.deskRefresh,
+    };
   };
 
   const server = Bun.serve({
@@ -128,6 +196,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
         approve(store, { type: type!, slug: slug!, hash: contentHash(approving), by: reviewerOf(req), at: new Date().toISOString() });
         return new Response(null, { status: 303, headers: { location: `/_snypd/review/${type}/${slug}?approved=1` } });
       }
+      if (DESK.test(path)) { await fresh(); return new Response(deskPage(deskFacts()).html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }); }
       const reviewM = REVIEW.exec(path);
       if (reviewM) { await fresh(); return reviewPage(reviewM[1]!, reviewM[2]!, url.searchParams.has("approved") ? "Approved. The agent can call content.publish now." : undefined); }
 

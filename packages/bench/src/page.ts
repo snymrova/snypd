@@ -137,11 +137,17 @@ async function measure(page: Page, url: string, route: string, view: (typeof VIE
  * Chrome is a machine dependency, not a package one: without it the suite returns a single report-only
  * metric saying so rather than failing a build that has nothing wrong with it.
  */
-export async function pageSuite(opts: { root: string; dist?: string; routes?: string[]; label?: string } = { root: "." }): Promise<{ metrics: Metric[]; pages: PageResult[]; browser?: string }> {
+export async function pageSuite(opts: { root: string; dist?: string; routes?: string[]; label?: string; url?: string; prefix?: string } = { root: "." }): Promise<{ metrics: Metric[]; pages: PageResult[]; browser?: string }> {
   const dist = opts.dist ?? join(opts.root, "dist");
-  if (!findChrome()) return { metrics: [{ name: "page.a11y.violations", value: -1, unit: "violations", note: "no Chrome on this machine — install one or set SNYPD_CHROME; `snypd bench page` is the only suite that needs it" }], pages: [] };
+  // S18b: the Desk is a *live* route, not a file in `dist`, so the suite has to be able to measure a
+  // server somebody else started. The metrics get their own namespace with it (`desk.*`), because
+  // folding a second lane into `page.*` would silently redefine a worst-of that has been comparable
+  // since S13 — a gate that changes meaning without changing name is the failure decision 48 is about.
+  const prefix = opts.prefix ?? "page";
+  if (!findChrome()) return { metrics: [{ name: `${prefix}.a11y.violations`, value: -1, unit: "violations", note: "no Chrome on this machine — install one or set SNYPD_CHROME; `snypd bench page` is the only suite that needs it" }], pages: [] };
   const routes = opts.routes?.length ? opts.routes : pickRoutes(dist);
-  const s = serve(opts.root, { dist });
+  if (!routes.length) throw new Error("pageSuite: nothing to measure — pass `routes` when passing `url`");
+  const s = opts.url ? { url: opts.url, stop: () => {} } : serve(opts.root, { dist });
   const browser = await launch();
   const pages: PageResult[] = [];
   try {
@@ -173,18 +179,18 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
     browser: browser.version,
     pages,
     metrics: [
-      { name: "page.js.kb", value: KB(js.bytes.js + js.inlineJsBytes), unit: "KB", budget: 0,
+      { name: `${prefix}.js.kb`, value: KB(js.bytes.js + js.inlineJsBytes), unit: "KB", budget: 0,
         note: `${seen}; worst ${at(js)} (${js.bytes.js} B loaded + ${js.inlineJsBytes} B inline/handlers). JSON-LD excluded: it is data` },
-      { name: "page.a11y.violations", value: allViolations.length, unit: "violations", budget: 0,
+      { name: `${prefix}.a11y.violations`, value: allViolations.length, unit: "violations", budget: 0,
         note: allViolations.length ? allViolations.map((v) => `${v.route} @ ${v.width} ${v.id} (${v.impact}, ${v.nodes} nodes)`).join(" · ") : `axe-core, 0 across ${pages.length} route/viewport pairs` },
-      { name: "page.bytes.kb", value: KB(heavy.bytes.total), unit: "KB",
+      { name: `${prefix}.bytes.kb`, value: KB(heavy.bytes.total), unit: "KB",
         note: `worst ${at(heavy)}: ${KB(heavy.bytes.html)} KB html + ${KB(heavy.bytes.css)} KB css + ${KB(heavy.bytes.image)} KB img, ${heavy.requests} requests — uncompressed, which no host serves; report-only` },
-      { name: "page.lcp", value: +lcp.vitals.lcp.toFixed(1), unit: "ms",
+      { name: `${prefix}.lcp`, value: +lcp.vitals.lcp.toFixed(1), unit: "ms",
         note: `worst ${at(lcp)}; localhost, unthrottled — the shape of the page, not a field number; report-only` },
       // Gated from S14: layout shift is the one vital a localhost run measures honestly, because it is
       // caused by the markup and the stylesheet rather than by the network. The budget is half the
       // web-vitals "good" line; the theme measures 0, because every image is sized and no webfont swaps.
-      { name: "page.cls", value: +cls.vitals.cls.toFixed(4), unit: "", budget: 0.05,
+      { name: `${prefix}.cls`, value: +cls.vitals.cls.toFixed(4), unit: "", budget: 0.05,
         note: `worst ${at(cls)}; caused by the theme, not the network — the one vital localhost measures honestly` },
     ],
   };

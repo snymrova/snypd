@@ -5,6 +5,7 @@ import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig, initRepo } from "@snypd/core";
 import { preview } from "./preview";
+import { deskPage } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
 
@@ -333,6 +334,142 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.coverage.some((c) => c.status === "missing")).toBe(false);
     expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
     expect(t.css).toContain("color-scheme: light dark");
+  });
+});
+
+/**
+ * S18b: the Desk. Two things are being pinned here beyond "it renders".
+ *
+ * **It must not need git.** `deskFacts` reads the index and the working tree, and the budget it inherits
+ * (`preview.ttfb ≤ 50 ms`, D2) is only survivable while that stays true — so one fixture below is not a
+ * repo at all. A `git status` added to this path fails that test rather than quietly costing 30 ms.
+ *
+ * **It must not grow an authoring affordance** (decision 44). The Desk carries no `<form>` and no
+ * `<script>` at all: approval stays on the review page, where the reviewer has read the diff they are
+ * signing. Both are asserted, because "we decided not to" is not a constraint until something checks.
+ */
+describe("Desk (S18b)", () => {
+  const site = "corpora/_test/desk";
+  const bare = "corpora/_test/desk-nogit";
+  let server: Awaited<ReturnType<typeof preview>>;
+  let bareServer: Awaited<ReturnType<typeof preview>>;
+  const now = Date.UTC(2026, 7, 28, 12, 0, 0);
+
+  beforeAll(async () => {
+    const c = await import("@snypd/core");
+    for (const dir of [site, bare]) {
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(`${dir}/content/posts`, { recursive: true });
+      writeFileSync(`${dir}/snypd.yaml`, "snypd: 1\nsite: { name: Desk test, url: https://desk.example }\n");
+    }
+    const { git } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
+
+    const cfg = c.loadConfig(site);
+    c.createContent(site, { type: "post", slug: "shipped", frontmatter: { title: "Shipped", date: "2026-08-01" }, body: "Public words.", cfg });
+    c.setStatus(site, { type: "post", slug: "shipped", status: "published", cfg });
+    c.createContent(site, { type: "post", slug: "in-progress", frontmatter: { title: "In progress", date: "2026-08-02" }, body: "Draft words.", cfg });
+    server = await preview(site, { port: 0, watch: false, activity: () => ({ calls: 7, lastMethod: "tools/call", lastAt: Date.now() - 2000, since: Date.now() - 60000, client: "claude-code" }) });
+
+    // No `initRepo` here on purpose — this is the fixture that proves the Desk never reaches for git.
+    const bareCfg = c.loadConfig(bare);
+    c.createContent(bare, { type: "post", slug: "orphan", frontmatter: { title: "Orphan", date: "2026-08-03" }, body: "No repo here.", cfg: bareCfg });
+    bareServer = await preview(bare, { port: 0, watch: false });
+  });
+  afterAll(() => { server?.stop(); bareServer?.stop(); });
+
+  test("lists what is in flight and leaves out what is already public", async () => {
+    const res = await fetch(`${server.url}/_snypd`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const page = await res.text();
+    expect(page).toContain("Snypd Desk");
+    expect(page).toContain("In flight (1)");
+    expect(page).toContain("In progress");
+    expect(page).toContain("/_snypd/review/post/in-progress");
+    expect(page).not.toContain("Shipped");            // published is not in flight
+    expect(page).toContain("needs a human");          // the draft policy, in a person's words
+  });
+
+  test("a trailing slash is the same page", async () => {
+    expect((await fetch(`${server.url}/_snypd/`)).status).toBe(200);
+  });
+
+  test("the status card reports the harness that is actually talking to us", async () => {
+    const page = await (await fetch(`${server.url}/_snypd`)).text();
+    expect(page).toContain("connected");
+    expect(page).toContain("claude-code");
+    expect(page).toContain("tools/call");
+    // A preview nobody started from a tool call says so, and names the step that fixes it (S18a).
+    const alone = await (await fetch(`${bareServer.url}/_snypd`)).text();
+    expect(alone).toContain("nothing has called this server yet");
+    expect(alone).toContain(".mcp.json");
+  });
+
+  test("renders in a directory that is not a git repo — the Desk never shells out to git", async () => {
+    const res = await fetch(`${bareServer.url}/_snypd`);
+    expect(res.status).toBe(200);
+    const page = await res.text();
+    expect(page).toContain("In flight (1)");
+    expect(page).toContain("Orphan");
+  });
+
+  test("carries no script and no form: approval lives on the review page (decision 44)", async () => {
+    for (const url of [`${server.url}/_snypd`, `${bareServer.url}/_snypd`]) {
+      const page = await (await fetch(url)).text();
+      expect(page).not.toContain("<script");
+      expect(page).not.toContain("<form");
+      expect(page).not.toContain("onclick");
+      // The affordance, not the word: the footer *says* "New post" in the sentence refusing one.
+      expect(page).not.toContain("<button");
+      expect(page).not.toContain("<input");
+      expect(page).not.toContain("<textarea");
+    }
+  });
+
+  test("an approved draft reads as ready, and stops reading that way when it changes", async () => {
+    const c = await import("@snypd/core");
+    const cfg = c.loadConfig(site);
+    const store = c.approvals(site);
+    const source = c.draftSource(site, cfg, "post", "in-progress")!;
+    c.approve(store, { type: "post", slug: "in-progress", hash: c.contentHash(source), by: "a human", at: new Date().toISOString() });
+    expect(await (await fetch(`${server.url}/_snypd`)).text()).toContain("ready to publish");
+
+    c.updateContent(site, { type: "post", slug: "in-progress", body: "Different words entirely.", cfg });
+    await server.rebuild();
+    const after = await (await fetch(`${server.url}/_snypd`)).text();
+    expect(after).toContain("changed after it was approved");
+    expect(after).not.toContain("ready to publish");
+  });
+
+  test("the review page offers a way back, and its scroll regions are keyboard-reachable", async () => {
+    const page = await (await fetch(`${server.url}/_snypd/review/post/in-progress`)).text();
+    expect(page).toContain('href="/_snypd"');
+    // Found by the Desk's own bench lane (S18b): a `pre` that scrolls and cannot be tabbed to is an axe
+    // `scrollable-region-focusable` violation. The review page had shipped that way since S11, because
+    // until this session no browser suite had ever loaded it.
+    expect(page).toContain('<pre tabindex="0">');
+    expect(page).not.toContain("<pre>");
+  });
+
+  test("deskPage is pure and its clock is a parameter", () => {
+    const facts = {
+      site: { name: "S", url: "https://s.example" },
+      theme: { name: "base", chain: ["base"], coverage: [] },
+      drafts: [],
+      previewUrl: "http://localhost:1",
+      activity: { calls: 3, lastMethod: "resources/read", lastAt: now - 90_000, since: now - 3_600_000 },
+    };
+    const html = deskPage(facts, now).html;
+    expect(html).toContain("2 min ago");        // lastAt, rendered against the injected clock
+    expect(html).toContain("1 h ago");          // since
+    expect(html).toContain('http-equiv="refresh"');
+    expect(html).toContain('content="noindex, nofollow"');   // an operator page is never indexed
+    expect(html).toContain("Nothing in flight");
+    // `refresh: 0` is how the bench measures a still page — a meta refresh mid-run would reload Chrome
+    // out from under axe-core and make the a11y number a race.
+    expect(deskPage({ ...facts, refresh: 0 }, now).html).not.toContain("http-equiv");
   });
 });
 

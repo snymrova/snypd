@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeAll } from "bun:test";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "./server";
-import { PROTOCOL_VERSIONS } from "./protocol";
+import { PROTOCOL_VERSIONS, activitySnapshot } from "./protocol";
 
 /** Drive the real stdio process end to end, the way a harness would. */
 async function session(msgs: (object | string)[], root = "corpora/100") {
@@ -73,6 +73,25 @@ describe("in-process", () => {
     const missing = await s.handle({ jsonrpc: "2.0", id: 2, method: "resources/read", params: {} });
     expect((missing as any).error.code).toBe(-32602);
     expect(await s.handle({ jsonrpc: "2.0", method: "resources/read", params: {} })).toBeUndefined(); // notification → no reply even on error
+  });
+
+  /**
+   * S18b: what the Desk's status card reads. The record lives in `protocol.ts` because that is the one
+   * funnel every message crosses and it is already on the cold-start path — decision 45 says the Desk
+   * may never touch `initialize`, and adding no module is how that is obeyed rather than promised.
+   */
+  test("activity records contact, including calls this server refuses", async () => {
+    const before = activitySnapshot().calls;
+    const s = createServer("corpora/100");
+    await s.handle({ jsonrpc: "2.0", id: 1, method: "initialize", params: { clientInfo: { name: "a-harness" } } });
+    expect(activitySnapshot().client).toBe("a-harness");
+
+    await s.handle({ jsonrpc: "2.0", id: 2, method: "no/such/method" });
+    const a = activitySnapshot();
+    // A method we reject is still a harness talking to us: the card reports contact, not success.
+    expect(a.lastMethod).toBe("no/such/method");
+    expect(a.calls).toBe(before + 2);
+    expect(a.since).toBeLessThanOrEqual(a.lastAt!);
   });
 });
 

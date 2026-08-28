@@ -19,7 +19,7 @@
  * `notifications/tools/list_changed` rather than to a broken server.
  */
 import { existsSync, readFileSync } from "node:fs";
-import type { Handlers, Tool, ToolResult } from "./protocol";
+import { activitySnapshot, type Handlers, type Tool, type ToolResult } from "./protocol";
 
 type Core = typeof import("@snypd/core");
 let core: Core | undefined;
@@ -113,7 +113,9 @@ const lintLine = (r: { errors: number; warnings: number }) => `lint: ${r.errors}
  */
 let previewing: Promise<{ url: string; stop: () => void }> | undefined;
 async function previewServer(root: string, port?: number) {
-  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port }));
+  // `activitySnapshot` is what turns the Desk's status card green (S18b): the preview is started by a
+  // tool call, so by the time anyone can load the page a harness has demonstrably called us.
+  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot }));
   return previewing;
 }
 /**

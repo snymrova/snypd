@@ -409,12 +409,36 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   ACTIVE = budgetsFor(root);
   await build(root);
   const { metrics, browser } = await pageSuite({ root, label: "editorial" });
+  metrics.push(...(await deskLane(root)));
   const report: Report = { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/page.json", JSON.stringify({ ...report, browser }, null, 2));
   writeFileSync("bench/page.md", toMarkdown(report));
   return report;
 }
+
+/**
+ * The Desk under the same browser the public routes get (S18b, decisions 44–45).
+ *
+ * `/_snypd` is a live preview route rather than a file in `dist`, so this lane starts the preview
+ * server and hands `pageSuite` its URL. The metrics are namespaced `desk.*` rather than folded into
+ * `page.*`: the editorial lane's worst-of has been comparable session to session since S13, and
+ * quietly widening what it covers would be exactly the kind of gate that changes meaning without
+ * changing name (decision 48).
+ *
+ * The card is measured with a draft in flight, because an empty Desk is not the page anybody sees, and
+ * with a stubbed harness so the connected branch — the one with the most markup in it — is the one
+ * axe-core reads. `deskRefresh: 0` stops the meta refresh reloading Chrome mid-measurement.
+ */
+async function deskLane(root: string): Promise<Metric[]> {
+  const now = Date.now();
+  const s = await preview(root, { port: 0, watch: false, deskRefresh: 0, activity: () => ({ calls: 12, lastMethod: "tools/call", lastAt: now - 2000, since: now - 300000, client: "bench" }) });
+  try {
+    return (await pageSuite({ root, url: s.url, routes: ["/_snypd", `/_snypd/review/post/${DESK_DRAFT}`], label: "desk", prefix: "desk" })).metrics;
+  } finally { s.stop(); }
+}
+/** Generated into the fixture by `generateTheme`, not created here — the bench does not edit a corpus. */
+const DESK_DRAFT = "a-draft-in-flight";
 
 /**
  * `snypd bench visual` (docs/07 S10, gate D3): the per-primitive suite on its own — every visual primitive
@@ -553,6 +577,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
     const fixture = themeFixture();
     await build(fixture);
     metrics.push(...(await pageSuite({ root: fixture, label: "editorial" })).metrics);
+    metrics.push(...(await deskLane(fixture)));   // S18b: the Desk under the same browser as the public routes
   }
   const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });

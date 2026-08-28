@@ -195,6 +195,16 @@ export function generateTheme(root = "corpora/theme") {
   // (docs/01), and the row above contains two of them, so the component is exercised where it is meant to live.
   writeFileSync(join(root, "content/posts/every-primitive-once.md"), post);
 
+  // A third post, left in `draft`: the Desk is measured with something on it (S18b), and an empty
+  // "In flight" card is not the page anybody sees. It stays out of `dist` by being a draft, so the
+  // editorial lane's route list is unchanged — drafts exist only in the preview.
+  writeFileSync(join(root, "content/posts/a-draft-in-flight.md"),
+    "---\ntitle: A draft in flight\ndate: 2026-08-28\nstatus: draft\n"
+    + "description: An unpublished post, so the Desk has an item to list and a review page to render.\n"
+    + "author: sunny\ncategory: engineering\ntags: [markdown]\n---\n\n"
+    + "A draft is the only state in which a post is visible to the preview and invisible to the build, which\n"
+    + "is the whole of what `snypd serve --preview` is for.\n");
+
   // A second post: an index, a term page and an author page with one row each show nothing about how a
   // list was designed, and a tag used once is a lint warning (`tag-once`) for exactly that reason.
   writeFileSync(join(root, "content/posts/prose-only.md"),

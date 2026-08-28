@@ -49,14 +49,42 @@ export function initializeResult(params: Record<string, unknown> | undefined): I
   return { protocolVersion, capabilities: { resources: {}, tools: { listChanged: true }, prompts: {} }, serverInfo: SERVER, instructions: "Read snypd://config, then snypd://spec (and snypd://spec/primitives) before writing content. Writes go to a draft branch; publishing a draft-policy type needs a human to approve it on `snypd serve --preview`." };
 }
 
+/**
+ * What the Desk means by "a harness is connected" (S18b, decisions 44–45).
+ *
+ * The transport is the only code that sees every message, and it is already on the cold-start path, so
+ * recording here costs one object mutation and adds no module. That is the point rather than a
+ * convenience: decision 45 says the Desk may never touch `initialize`, and the cheapest way to obey it
+ * is to give it nothing new to touch — `server.ts` imports exactly what it imported before.
+ *
+ * Deliberately not a session store and not an identity. The Desk asks three questions — has anything
+ * ever spoken to this server, what did it last ask for, how long ago — and three fields answer all
+ * three. It is process-local and dies with the server, which is correct: "connected" is a claim about
+ * now, and a `connected` flag that outlived its process would be the one thing worse than no flag.
+ */
+export interface Activity { calls: number; lastMethod?: string; lastAt?: number; since?: number; client?: string }
+const activity: Activity = { calls: 0 };
+/** A copy: a page rendering this cannot observe a field change halfway down. */
+export const activitySnapshot = (): Activity => ({ ...activity });
+
 /** One message in → zero or one response out. Notifications (no id) never produce output. */
 export async function dispatch(msg: Request, h: Handlers): Promise<Response | undefined> {
   const isNotification = msg.id === undefined;
   const ok = (result: unknown): Response | undefined => (isNotification ? undefined : { jsonrpc: "2.0", id: msg.id!, result });
   try {
     if (msg.jsonrpc !== "2.0" || typeof msg.method !== "string") throw new RpcError(E.INVALID_REQUEST, "Invalid Request");
+    // Counted before the switch, so a method we go on to reject still counts as contact: the Desk
+    // reports that a harness is talking to us, not that it is talking to us successfully, and a client
+    // sending something this server refuses is very much connected.
+    activity.calls++; activity.lastMethod = msg.method; activity.lastAt = Date.now(); activity.since ??= activity.lastAt;
     switch (msg.method) {
-      case "initialize": return ok(initializeResult(msg.params));
+      case "initialize": {
+        // The client names itself once, here, and the Desk shows it so a person can tell *which*
+        // harness reached them — two editors pointed at one repo is the ordinary case, not the odd one.
+        const info = msg.params?.clientInfo as { name?: string } | undefined;
+        if (typeof info?.name === "string") activity.client = info.name;
+        return ok(initializeResult(msg.params));
+      }
       case "ping": return ok({});
       case "resources/list": return ok({ resources: await h.listResources() });
       case "resources/templates/list": return ok({ resourceTemplates: (await h.listTemplates?.()) ?? [] });
