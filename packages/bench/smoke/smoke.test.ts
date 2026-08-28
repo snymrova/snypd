@@ -113,32 +113,40 @@ describe("the compiled binary, in a directory it has never seen", () => {
   }, 30_000);
 
   /**
-   * Reported, not gated — the fix is S18c, and a red CI here would block work that is not the cause.
+   * The gate lives in `snypd bench` (`mcp.coldStart.binary`, S18c), where a median of seven interleaved
+   * rounds can be compared against the source lane. What this file asserts instead is the *structural*
+   * property that made the number wrong, because that one is not sensitive to how loaded the box is:
    *
-   * `mcp.coldStart` (D2, ≤ 50 ms) spawns `bun packages/mcp/src/server.ts` and measures ~34 ms. The
-   * binary answers the same `initialize` in ~150 ms, and it did so at HEAD too: the budget has never
-   * been measured on the artefact users install. The cause is not this session's assets — an entry that
-   * imports nothing but `@snypd/mcp` compiles to the same 88 MB and the same ~150 ms, while a
-   * hello-world binary starts in 6.5 ms. `--compile` evaluates the bundled graph at startup, so the
-   * lazy `import()` chain that decision 11 and §3.4 buy the 50 ms with is worth nothing here.
+   *   printing the usage line must cost less than starting a server.
+   *
+   * A command that does no work costing more than one that opens a transport is the exact signature of a
+   * flat bundle — before `--splitting`, `snypd` with no arguments took 277 ms and `initialize` took 224 ms,
+   * because both paid for parsing all 5.5 MB before `main()` ran. With chunks the two separate again
+   * (≈ 20 ms and ≈ 60 ms on the same loaded box). A wall-clock budget here would be flaky on a shared
+   * runner; this comparison is two measurements on one box, seconds apart, and it fails the moment the
+   * compile recipe loses `--splitting`.
    */
-  test("reports what `initialize` costs from the binary, which is the number D2 is about", async () => {
-    const times: number[] = [];
+  test("a command that does nothing costs less than one that starts a server", async () => {
+    const sample = async (fn: () => Promise<void> | void) => { const t0 = performance.now(); await fn(); return performance.now() - t0; };
+    const usage: number[] = [], serve: number[] = [];
     for (let i = 0; i < 5; i++) {
-      const t0 = performance.now();
-      const p = Bun.spawn([BIN, "serve", dir], { cwd: dir, stdin: "pipe", stdout: "pipe", stderr: "ignore" });
-      p.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke", version: "0" } } }) + "\n");
-      await p.stdin.flush();
-      const reader = p.stdout.getReader();
-      let buf = "";
-      while (!buf.includes("\n")) { const { value, done } = await reader.read(); if (done) break; buf += new TextDecoder().decode(value); }
-      times.push(performance.now() - t0);
-      p.kill();
-      expect(buf).toContain('"result"');
+      usage.push(await sample(() => { Bun.spawnSync([BIN], { cwd: dir, stdout: "pipe", stderr: "pipe" }); }));
+      serve.push(await sample(async () => {
+        const p = Bun.spawn([BIN, "serve", dir], { cwd: dir, stdin: "pipe", stdout: "pipe", stderr: "ignore" });
+        p.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke", version: "0" } } }) + "\n");
+        await p.stdin.flush();
+        const reader = p.stdout.getReader();
+        let buf = "";
+        while (!buf.includes("\n")) { const { value, done } = await reader.read(); if (done) break; buf += new TextDecoder().decode(value); }
+        p.kill();
+        expect(buf).toContain('"result"');
+      }));
     }
-    times.sort((a, b) => a - b);
-    console.log(`  mcp.coldStart.binary ${times[2]!.toFixed(1)} ms (budget 50 ms, D2 — not gated here, see S18c)`);
-    expect(times[2]).toBeLessThan(2_000);   // a floor, not the budget: this catches a hang, not slowness
+    const med = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+    const [u, s] = [med(usage), med(serve)];
+    console.log(`  binary: usage ${u.toFixed(1)} ms · initialize ${s.toFixed(1)} ms (gated as mcp.coldStart.binary in \`snypd bench\`)`);
+    expect(u).toBeLessThan(s);          // loses --splitting → usage overtakes initialize, as it did before S18c
+    expect(s).toBeLessThan(2_000);      // a floor, not the budget: this catches a hang, not slowness
   }, 60_000);
 
   test("failure is a non-zero exit, not a stack trace and a 0", () => {

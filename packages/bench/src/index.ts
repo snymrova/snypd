@@ -5,11 +5,13 @@
  * `.snypd` index; incremental = one post's body edited (a real route re-render), noop = touch only.
  * Budgets: spec defaults ← snypd.yaml › bench.budgets of the corpus root (via @snypd/core); CI enforces 80 %.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { build } from "@snypd/render";
 import { preview } from "@snypd/render/preview";
 import { serve } from "@snypd/runtime";
+import { compile } from "./compile";
 import { generate, generateTheme } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
@@ -28,7 +30,7 @@ export const BUDGETS = {
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
-export const VERSION = "0.1.0-s16";
+export const VERSION = "0.1.0-s18c";
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
@@ -119,19 +121,65 @@ export async function runIncremental(n: number, runs: number): Promise<Metric[]>
   ];
 }
 
-export async function runMcpColdStart(runs: number): Promise<Metric> {
-  const ms = await medianOf(runs, async () => {
-    const t0 = performance.now();
-    const proc = Bun.spawn([process.execPath, "packages/mcp/src/server.ts"], { stdin: "pipe", stdout: "pipe", stderr: "ignore" });
-    proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "bench", version: "0" } } }) + "\n");
-    proc.stdin.flush();
-    const reader = proc.stdout.getReader();
-    await reader.read();
-    const t = performance.now() - t0;
-    proc.kill();
-    return t;
-  });
-  return { name: "mcp.coldStart", value: +ms.toFixed(1), unit: "ms", budget: ACTIVE.mcpColdStart };
+/**
+ * Spawn → the first byte of the `initialize` response. One sample.
+ *
+ * The read runs to a newline rather than taking the first chunk: a framed JSON-RPC reply is one line, and
+ * a lane that stops early would be measuring the pipe rather than the server.
+ */
+async function initializeOnce(cmd: string[]): Promise<number> {
+  const t0 = performance.now();
+  const proc = Bun.spawn(cmd, { stdin: "pipe", stdout: "pipe", stderr: "ignore" });
+  proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "bench", version: "0" } } }) + "\n");
+  proc.stdin.flush();
+  const reader = proc.stdout.getReader();
+  let buf = "";
+  while (!buf.includes("\n")) { const { value, done } = await reader.read(); if (done) break; buf += new TextDecoder().decode(value); }
+  const t = performance.now() - t0;
+  proc.kill();
+  await proc.exited;   // the next sample must not start in the wake of this one still tearing down
+  if (!buf.includes('"result"')) throw new Error(`initialize did not answer: ${cmd.join(" ")}\n${buf.slice(0, 300)}`);
+  return t;
+}
+
+/**
+ * D2's cold start, on both lanes, **interleaved** (S18c).
+ *
+ * `mcp.coldStart.binary` carries the budget and `mcp.coldStart` reports, which is decision 48 applied to
+ * the metric that motivated it: until S18c the 50 ms was measured on `bun packages/mcp/src/server.ts` —
+ * a command no user runs — and the artefact answering the same request took 224 ms. The source lane stays
+ * because it is the inner loop, and because the *gap* between the two is the thing that regresses silently.
+ *
+ * One round samples both, so the two numbers are comparable to each other even on a box under load — which
+ * this one is, routinely, and which is why a session's absolute numbers are worth less than its deltas.
+ * The compile is setup, not measurement: it happens once, before either lane is timed.
+ */
+export async function runColdStarts(runs: number): Promise<Metric[]> {
+  // Deliberately more samples than the other lanes take. One sample is a ~60 ms spawn, so twenty-one rounds
+  // cost about four seconds against a full run that spends a hundred on the 10k build — and the median of
+  // three, which `--quick` would otherwise give this, moved by 2× between consecutive runs on a loaded box.
+  const rounds = Math.max(15, runs * 3);
+  const bin = join(mkdtempSync(join(tmpdir(), "snypd-bench-bin-")), "snypd");
+  await compile(bin);
+  const root = corpus(100);
+  const src: number[] = [], art: number[] = [];
+  try {
+    // The order alternates. A lane that always spawns second always starts behind the other one's teardown,
+    // and on a four-core box under load that bias is worth more than the difference being measured — the first
+    // S18c bench run put the binary 29 % *above* the source lane, where a controlled interleave had them equal.
+    for (let i = 0; i < rounds; i++) {
+      const source = () => initializeOnce([process.execPath, "packages/mcp/src/server.ts"]);
+      const artefact = () => initializeOnce([bin, "serve", root]);
+      if (i % 2 === 0) { src.push(await source()); art.push(await artefact()); }
+      else { art.push(await artefact()); src.push(await source()); }
+    }
+  } finally { rmSync(dirname(bin), { recursive: true, force: true }); }
+  return [
+    { name: "mcp.coldStart.binary", value: +median(art).toFixed(1), unit: "ms", budget: ACTIVE.mcpColdStart,
+      note: `the artefact a release ships (\`bun build --compile --splitting\`), spawn → \`initialize\`; D2's lane since S18c · median of ${rounds} interleaved rounds` },
+    { name: "mcp.coldStart", value: +median(src).toFixed(1), unit: "ms",
+      note: "report-only since S18c: `bun packages/mcp/src/server.ts`, the dev loop, not the thing anyone installs — interleaved with the binary lane, so the delta between the two rows is real even when the box is loaded" },
+  ];
 }
 
 /**
@@ -483,11 +531,11 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   const sizes = opts.quick ? [100] : [100, 1000, 10000];
   const metrics: Metric[] = [];
   ACTIVE = budgetsFor(corpus(100));
-  const cold = await runMcpColdStart(runs);   // first: measured from a quiet process, before the builds thrash the page cache (S4)
+  const cold = await runColdStarts(runs);   // first: measured from a quiet process, before the builds thrash the page cache (S4)
   for (const n of sizes) metrics.push(await runBuild(n, runs));
   metrics.push(...await runIncremental(100, runs));
   for (const n of sizes.filter((n) => n <= 1000)) metrics.push(...await runLint(n, runs));
-  metrics.push(cold);
+  metrics.push(...cold);
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
   metrics.push(await runPreviewTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...runTokensPerPage(100));
