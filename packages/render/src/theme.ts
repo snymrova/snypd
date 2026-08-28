@@ -13,7 +13,7 @@ import { resolveThemeChain, sha1, INDEX_DIR, type Block, type Config, type Loade
 import { Html, raw } from "./jsx-runtime";
 
 export interface SiteCtx {
-  site: { name: string; url: string; description?: string };
+  site: { name: string; url: string; description?: string; icon?: string };
   /** Resolved design tokens (theme.yaml defaults ← snypd.yaml overrides), also emitted as CSS vars (tokens.ts). */
   tokens: Record<string, string>;
   theme: { name: string };
@@ -33,7 +33,13 @@ export interface Entry {
   frontmatter: Record<string, unknown>;
 }
 export interface TermLink { taxonomy: string; term: string; title: string; route: string; description?: string }
-export interface Page extends Entry { body: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: Entry }
+/**
+ * `cover` is the rendered `::cover` block when the body opens with one, and `body` is then everything
+ * after it (S14). The spec calls `cover` "the post header … omit it and the theme renders a cover from
+ * frontmatter", so it is the layout's title block and not body flow: handing it to the layout separately
+ * is what lets a layout use one or the other, instead of drawing its own header above the author's.
+ */
+export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: Entry }
 export interface PrimitiveProps {
   name: string;
   /** Coerced props from the spec (tree.ts). */

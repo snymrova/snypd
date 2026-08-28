@@ -1,5 +1,5 @@
 import type { PrimitiveProps, Html } from "@snypd/render";
-import { raw } from "@snypd/render";
+import { raw, inline } from "@snypd/render";
 import { renderDiagram } from "@snypd/viz";
 /**
  * S9: the SVG from `@snypd/viz` — layers from the spec, colour from `--color-viz-*`, no client JS.
@@ -16,10 +16,10 @@ export default function Diagram({ props, data }: PrimitiveProps): Html {
   const direction = props.direction as string | undefined;
   const caption = props.caption as string | undefined;
   const diagram = renderDiagram({ data, direction, caption, title: props.title as string | undefined });
-  const figcaption = <figcaption>{caption}</figcaption>;
+  const figcaption = <figcaption>{inline(caption)}</figcaption>;
   const figure = (inner: Html | null) => <figure class="snypd-diagram" data-direction={direction}>{inner}{figcaption}</figure>;
 
-  if (diagram) return figure(raw(diagram.svg));
+  if (diagram) return figure(<div class="snypd-scroll" tabindex="0">{raw(diagram.svg)}</div>);
 
   const d = (data ?? {}) as { nodes?: Node[]; edges?: Edge[] };
   const label = new Map((d.nodes ?? []).map((n) => [n.id, n.label ?? n.id]));

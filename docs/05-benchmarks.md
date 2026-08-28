@@ -5,9 +5,9 @@
 ## Speed
 | Metric | How | Default budget |
 |---|---|---|
-| LCP, CLS, INP, TBT, Lighthouse perf — every URL | v0.2: Unlighthouse CI (parallel Lighthouse over the crawl). **v0.1 (S13): `snypd bench page`** drives headless Chrome over the DevTools protocol against the built theme fixture — six routes, one per url shape — and reports `page.lcp`, `page.cls` and `page.bytes.kb`. LCP off an unthrottled localhost is the shape of the page, not a field number, and is report-only; CLS is theme-caused and *is* comparable, and is what the S14 pass is judged on. A composite Lighthouse score comes from `bunx lighthouse` when one is to be published — not from a dependency (docs/07 decision 26) | LCP ≤ 1.2 s · CLS ≤ 0.05 · perf ≥ 98 |
+| LCP, CLS, INP, TBT, Lighthouse perf — every URL | v0.2: Unlighthouse CI (parallel Lighthouse over the crawl). **v0.1 (S13): `snypd bench page`** drives headless Chrome over the DevTools protocol against the built theme fixture — six routes, one per url shape, each measured **at 1280 and 390 px** (S14) with the worst of the two reported — and reports `page.lcp`, `page.cls` and `page.bytes.kb`. LCP off an unthrottled localhost is the shape of the page, not a field number, and is report-only; CLS is theme-caused and *is* comparable, so it is **gated from S14** at the ≤ 0.05 below. The second viewport is not decoration: a chart drawn at 640 px is flawless at 1280 and renders its 12 px labels at 6 px on a phone, which is what shipped for a session while the suite only looked at one width. A composite Lighthouse score comes from `bunx lighthouse` when one is to be published — not from a dependency (docs/07 decision 26) | LCP ≤ 1.2 s · CLS ≤ 0.05 · perf ≥ 98 |
 | Client JS per page | **`page.js.kb`** (S13): script bytes over the wire plus inline `<script>` and `on*` handlers, measured in the browser. `application/ld+json` is data and is excluded | **0 KB, gated** on content pages; ≤ 15 KB with client primitives (v0.2) |
-| CSS per page | emit stats; `page.bytes.kb` reports it per route beside the HTML and the images | ≤ 30 KB |
+| CSS per page | emit stats; `page.bytes.kb` reports it per route beside the HTML and the images, **uncompressed** — no host serves it that way, so read it as a ceiling. The emitted sheet is minified (S14): `editorial` is 12.6 KB of readable source and 10.2 KB on disk, 3.9 → 2.7 KB gzipped. Not inlined into the HTML: that would triple the token cost of every page to save one cacheable request (docs/07 decision 31) | ≤ 30 KB |
 | Build, cold / incremental | `snypd bench build` on 100 / 1k / 10k | ≤ 2 s / 100 cold; ≤ 300 ms incremental single-post |
 | Markdown engines | remark vs `Bun.markdown` on 10k | report only |
 | TTFB, preview/SSR | curl loop against `snypd serve --preview` | ≤ 50 ms local |
@@ -18,7 +18,7 @@
 ## Beauty (the parts that are measurable)
 | Metric | How | Budget |
 |---|---|---|
-| Accessibility | **`page.a11y.violations`** (S13): axe-core — which *is* Lighthouse's accessibility category — run in the page on every url shape of the theme fixture, which is the only site in the repo that renders all 13 primitives and all 5 layouts | **0 violations, gated** (Lighthouse a11y 100) |
+| Accessibility | **`page.a11y.violations`** (S13): axe-core — which *is* Lighthouse's accessibility category — run in the page on every url shape of the theme fixture at both viewports, which is the only site in the repo that renders all 13 primitives and all 5 layouts | **0 violations, gated** (Lighthouse a11y 100) |
 | Typographic invariants | `theme.check`: line length 45–80ch, modular type scale, rhythm on token grid, contrast | pass |
 | Visual regression | `Bun.WebView` locally / Playwright in CI: primitive × theme × 3 viewports, pixel diff | 0 unexpected diffs |
 | Primitive coverage | `theme.coverage` | 100 % or explicit fallback |

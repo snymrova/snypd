@@ -100,6 +100,13 @@ test("the theme fixture is every primitive and every layout, from the spec's own
     // `stat` lives inside `stat-row`, which is where the spec says it belongs; every other block is its own.
     expect(post.includes(`:::${p}`) || post.includes(`::${p}{`)).toBe(true);
   }
+  // S14: the two cover paths, one post each. Both are real rendering paths and a fixture that exercised
+  // only one of them is how the layout's header shipped stacked on top of the author's for a session.
+  expect(post).toMatch(/^---\n[\s\S]*?\n---\n\n::cover\{/);          // written: first in the body, as the spec says
+  expect(post).not.toContain("\ncover: {");                             // and not also declared in frontmatter
+  const prose = readFileSync(join(root, "content/posts/prose-only.md"), "utf8");
+  expect(prose).toContain("\ncover: { image: /media/cover.png");         // declared: the layout builds it
+  expect(prose).not.toContain("::cover{");
   expect(existsSync(join(root, "content/media/cover.png"))).toBe(true);
   expect(imageSize(new Uint8Array(readFileSync(join(root, "content/media/cover.png"))))).toEqual({ width: 1200, height: 630 });
   rmSync(root, { recursive: true, force: true });

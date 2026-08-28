@@ -1,5 +1,5 @@
 import type { PrimitiveProps, Html } from "@snypd/render";
-import { raw } from "@snypd/render";
+import { raw, inline } from "@snypd/render";
 import { renderFlow } from "@snypd/viz";
 /**
  * S10: the SVG from `@snypd/viz` — the sugar desugars to a graph and goes through the `diagram` painter,
@@ -41,8 +41,8 @@ export default function Flow({ props, data }: PrimitiveProps): Html {
   const d = (data ?? {}) as { steps?: Step[] };
   return (
     <figure class="snypd-flow" data-direction={direction}>
-      {flow ? raw(flow.svg) : (d.steps ?? []).length ? <Steps steps={d.steps ?? []} /> : null}
-      <figcaption>{caption}</figcaption>
+      {flow ? <div class="snypd-scroll" tabindex="0">{raw(flow.svg)}</div> : (d.steps ?? []).length ? <Steps steps={d.steps ?? []} /> : null}
+      <figcaption>{inline(caption)}</figcaption>
     </figure>
   );
 }

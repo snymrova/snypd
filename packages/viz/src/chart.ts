@@ -265,8 +265,12 @@ export function renderChart(input: ChartInput): ChartResult | null {
   else { const d = donut(rows, W, input.unit); body = d.body; height = d.height; warnings.push(...d.warnings); }
 
   const name = input.title ?? input.caption ?? `${type} chart`;
+  // `max-width` is a var, not a literal: 100 % is the right default for a theme with no stylesheet at all
+  // (`base`), where an unclamped 640 px chart would scroll the whole phone sideways. A theme that would
+  // rather scroll the chart than shrink its type past legibility sets `--viz-max-width: none` on the
+  // wrapper it scrolls — the geometry stays the spec's, which is the point of drawing it at a fixed size.
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${Math.round(height)}" width="${W}" height="${Math.round(height)}"` +
-    ` class="snypd-chart-svg" data-chart="${type}" role="img" style="max-width:100%;height:auto">` +
+    ` class="snypd-chart-svg" data-chart="${type}" role="img" style="max-width:var(--viz-max-width,100%);height:auto">` +
     `<title>${escape(name)}</title><desc>${escape(describe(type, rows, input.unit))}</desc>${body}</svg>`;
   return { svg, warnings, rows, series, type };
 }

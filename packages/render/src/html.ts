@@ -5,7 +5,7 @@
  * the vocabulary is enforced by lint, not by the renderer.
  */
 import type { Root, Node, Parent, Literal, Heading, Code, Link, Image, List, ListItem, Table, TableCell, Definition, FootnoteDefinition, FootnoteReference, LinkReference, ImageReference } from "mdast";
-import type { Block } from "@snypd/core";
+import { parseMarkdown, type Block } from "@snypd/core";
 import { Html, escape, escapeText, raw } from "./jsx-runtime";
 
 export interface HtmlOptions {
@@ -15,6 +15,8 @@ export interface HtmlOptions {
   blocks?: Map<Node, Block>;
   /** Heading ids (`<h2 id="…">`) for the toc and deep links. Default on. */
   headingIds?: boolean;
+  /** Render top-level paragraphs without their `<p>` — a phrase going into a caption, not a document. */
+  inline?: boolean;
 }
 
 export const slugify = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "section";
@@ -46,7 +48,7 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
     switch (n.type) {
       case "root": return kids(n as Parent);
       case "yaml": case "toml": case "definition": case "footnoteDefinition": return "";
-      case "paragraph": return tight ? kids(n as Parent) : `<p>${kids(n as Parent)}</p>\n`;
+      case "paragraph": return tight || opts.inline ? kids(n as Parent) : `<p>${kids(n as Parent)}</p>\n`;
       case "heading": { const h = n as Heading; const id = opts.headingIds === false ? "" : ` id="${headingId(h)}"`; return `<h${h.depth}${id}>${kids(h)}</h${h.depth}>\n`; }
       case "text": return escapeText((n as Literal).value);
       case "emphasis": return `<em>${kids(n as Parent)}</em>`;
@@ -89,4 +91,41 @@ export function excerpt(root: Root, n = 160): string {
   const p = root.children.find((c) => c.type === "paragraph");
   const t = p ? textOf(p).trim() : "";
   return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, "") + "…" : t;
+}
+
+/**
+ * A `type: markdown` prop, rendered (S14). Five props in the spec are declared markdown — `caption` on
+ * `figure`, `chart`, `diagram` and `flow`, and `body` on `cta` — and until now every one of them reached
+ * the page as literal text: the fixture shipped a figcaption reading "The `.md` twin is the source file."
+ * with the backticks in it. The declared type is the contract, so the renderer honours it.
+ *
+ * Inline, not block: the value goes inside a `<figcaption>` or a `<p>`, where a `<p>` of its own would be
+ * invalid and a heading or a list is not what anyone means by a caption. Only the *display* copy goes
+ * through here — `@snypd/viz` still gets the plain string for the SVG's accessible name, where markup
+ * would be read out loud.
+ *
+ * Cached by source: captions repeat across a corpus, and a parse costs more than the string it holds.
+ * The cache is bounded — a 10k-post build with a distinct caption per post must not grow one for ever.
+ */
+const inlineCache = new Map<string, Html>();
+const INLINE_CACHE_MAX = 2_048;
+
+/**
+ * Characters that can mean something to markdown, and the openers that can only mean something at the
+ * start. A string with none of them parses to exactly `escapeText` of itself — the same function the
+ * parser's own text nodes go through — so the parse is skipped. This is not a micro-optimisation: a
+ * parse costs ~0.5 ms against ~0 for this test, and a 100-post build carries a few hundred captions.
+ */
+const ACTIVE = /[`*_[\]<>&\\~!\n]/;
+const BLOCK_OPENER = /^\s*(?:[-+#>]|\d+[.)])\s/;
+
+export function inline(source: string | undefined | null): Html {
+  if (!source) return new Html("");
+  if (!ACTIVE.test(source) && !BLOCK_OPENER.test(source)) return new Html(escapeText(source.trim()));
+  const hit = inlineCache.get(source);
+  if (hit) return hit;
+  const html = toHtml(parseMarkdown(source).tree, { headingIds: false, inline: true });
+  if (inlineCache.size >= INLINE_CACHE_MAX) inlineCache.clear();
+  inlineCache.set(source, html);
+  return html;
 }

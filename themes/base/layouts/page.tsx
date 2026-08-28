@@ -7,7 +7,7 @@ export default function Page({ ctx, page, route, title, description, jsonLd }: L
     <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd}>
       <main>
         <article class="snypd-page">
-          <h1>{p.title}</h1>
+          {p.cover ?? <h1>{p.title}</h1>}
           {p.body}
         </article>
       </main>

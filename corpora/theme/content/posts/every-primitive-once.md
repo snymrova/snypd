@@ -6,8 +6,9 @@ description: One post that uses all thirteen primitives, so a theme can be revie
 author: sunny
 category: engineering
 tags: [markdown, agents]
-cover: { image: /media/cover.png, alt: A flat block of colour standing in for a cover photograph, eyebrow: Engineering }
 ---
+
+::cover{eyebrow="Engineering" subtitle="What a markdown twin actually saves" image="/media/cover.png" alt="Token counts side by side"}
 
 :::tldr
 Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do nothing.
@@ -18,8 +19,6 @@ Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do not
 Thirteen primitives and five layouts is the whole vocabulary. A theme is finished when every one of
 them has been looked at, in both colour schemes, at a phone width and a desktop one — so they are all
 here, in one route, exactly as the spec writes them.
-
-::cover{eyebrow="Engineering" subtitle="What a markdown twin actually saves" image="/media/cover.png" alt="Token counts side by side"}
 
 :::callout{kind="warning" title="The caveat"}
 `llms.txt` is the most-recommended and least-evidenced item on the list.

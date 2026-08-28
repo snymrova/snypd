@@ -23,6 +23,8 @@ import type { Metric } from "./index";
 /** What one route weighed and how it behaved. Bytes are over the wire (`encodedDataLength`). */
 export interface PageResult {
   route: string;
+  /** Viewport width in CSS px — every route is measured at both, and the worst of the two is reported. */
+  width: number;
   bytes: { html: number; css: number; js: number; image: number; font: number; other: number; total: number };
   requests: number;
   inlineJsBytes: number;
@@ -31,6 +33,16 @@ export interface PageResult {
 }
 
 const KB = (n: number) => +(n / 1024).toFixed(2);
+
+/**
+ * Desktop and phone, because a theme can be flawless at one and unreadable at the other — and S13's suite
+ * only ever looked at 1280, which is how a chart drawn at 640 px shipped for a session rendering its 12 px
+ * labels at 6 px on a phone (S14). 390 is an iPhone 15/16 in CSS px; 1280 is the browser's own window.
+ */
+const VIEWPORTS = [
+  { width: 1280, height: 900, mobile: false },
+  { width: 390, height: 844, mobile: true },
+] as const;
 
 /**
  * Routes to measure, one per URL shape: `/`, then the first route under each distinct first path segment
@@ -67,7 +79,7 @@ function axeSource(): string {
   return readFileSync(p, "utf8");
 }
 
-async function measure(page: Page, url: string, route: string): Promise<PageResult> {
+async function measure(page: Page, url: string, route: string, view: (typeof VIEWPORTS)[number]): Promise<PageResult> {
   const types = new Map<string, string>();
   const bytes = { html: 0, css: 0, js: 0, image: 0, font: 0, other: 0, total: 0 };
   let requests = 0;
@@ -88,6 +100,7 @@ async function measure(page: Page, url: string, route: string): Promise<PageResu
     else bytes.other += n;
   });
 
+  await page.send("Emulation.setDeviceMetricsOverride", { width: view.width, height: view.height, deviceScaleFactor: 1, mobile: view.mobile });
   await page.send("Network.enable");
   await page.send("Page.enable");
   await page.send("Runtime.enable");
@@ -116,7 +129,7 @@ async function measure(page: Page, url: string, route: string): Promise<PageResu
     expression: `axe.run(document, { resultTypes: ['violations'] }).then(r => r.violations.map(v => ({ id: v.id, impact: v.impact || 'minor', nodes: v.nodes.length, help: v.help })))`,
   })).result.value;
 
-  return { route, bytes, requests, inlineJsBytes, vitals, violations };
+  return { route, width: view.width, bytes, requests, inlineJsBytes, vitals, violations };
 }
 
 /**
@@ -136,10 +149,12 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
     // against ~90 ms for every navigation after it. One throwaway page, discarded, the same discipline
     // `medianOf` uses everywhere else in this harness.
     const warm = await browser.page();
-    try { await measure(warm, `${s.url}${routes[0]}`, routes[0]!); } finally { await warm.close(); }
+    try { await measure(warm, `${s.url}${routes[0]}`, routes[0]!, VIEWPORTS[0]); } finally { await warm.close(); }
     for (const route of routes) {
-      const page = await browser.page();
-      try { pages.push(await measure(page, `${s.url}${route}`, route)); } finally { await page.close(); }
+      for (const view of VIEWPORTS) {
+        const page = await browser.page();
+        try { pages.push(await measure(page, `${s.url}${route}`, route, view)); } finally { await page.close(); }
+      }
     }
   } finally { browser.close(); s.stop(); }
 
@@ -149,24 +164,28 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
   const heavy = worstBy((p) => p.bytes.total);
   const lcp = worstBy((p) => p.vitals.lcp);
   const cls = worstBy((p) => p.vitals.cls);
-  const allViolations = pages.flatMap((p) => p.violations.map((v) => ({ ...v, route: p.route })));
+  const allViolations = pages.flatMap((p) => p.violations.map((v) => ({ ...v, route: p.route, width: p.width })));
   const where = opts.label ? `${opts.label}: ` : "";
-  const seen = `${where}${pages.length} routes — ${pages.map((p) => p.route).join(", ")}`;
+  const at = (p: PageResult) => `${p.route} @ ${p.width}`;
+  const seen = `${where}${routes.length} routes × ${VIEWPORTS.map((v) => v.width).join("/")} px — ${routes.join(", ")}`;
 
   return {
     browser: browser.version,
     pages,
     metrics: [
       { name: "page.js.kb", value: KB(js.bytes.js + js.inlineJsBytes), unit: "KB", budget: 0,
-        note: `${seen}; worst ${js.route} (${js.bytes.js} B loaded + ${js.inlineJsBytes} B inline/handlers). JSON-LD excluded: it is data` },
+        note: `${seen}; worst ${at(js)} (${js.bytes.js} B loaded + ${js.inlineJsBytes} B inline/handlers). JSON-LD excluded: it is data` },
       { name: "page.a11y.violations", value: allViolations.length, unit: "violations", budget: 0,
-        note: allViolations.length ? allViolations.map((v) => `${v.route} ${v.id} (${v.impact}, ${v.nodes} nodes)`).join(" · ") : `axe-core, 0 on ${pages.length} routes (worst ${a11y.route})` },
+        note: allViolations.length ? allViolations.map((v) => `${v.route} @ ${v.width} ${v.id} (${v.impact}, ${v.nodes} nodes)`).join(" · ") : `axe-core, 0 across ${pages.length} route/viewport pairs` },
       { name: "page.bytes.kb", value: KB(heavy.bytes.total), unit: "KB",
-        note: `worst route ${heavy.route}: ${KB(heavy.bytes.html)} KB html + ${KB(heavy.bytes.css)} KB css + ${KB(heavy.bytes.image)} KB img, ${heavy.requests} requests; report-only` },
+        note: `worst ${at(heavy)}: ${KB(heavy.bytes.html)} KB html + ${KB(heavy.bytes.css)} KB css + ${KB(heavy.bytes.image)} KB img, ${heavy.requests} requests — uncompressed, which no host serves; report-only` },
       { name: "page.lcp", value: +lcp.vitals.lcp.toFixed(1), unit: "ms",
-        note: `worst route ${lcp.route}; localhost, unthrottled — the shape of the page, not a field number; report-only` },
-      { name: "page.cls", value: +cls.vitals.cls.toFixed(4), unit: "",
-        note: `worst route ${cls.route}; layout shift is theme-caused and *is* comparable off localhost; report-only until the editorial pass lands (S14)` },
+        note: `worst ${at(lcp)}; localhost, unthrottled — the shape of the page, not a field number; report-only` },
+      // Gated from S14: layout shift is the one vital a localhost run measures honestly, because it is
+      // caused by the markup and the stylesheet rather than by the network. The budget is half the
+      // web-vitals "good" line; the theme measures 0, because every image is sized and no webfont swaps.
+      { name: "page.cls", value: +cls.vitals.cls.toFixed(4), unit: "", budget: 0.05,
+        note: `worst ${at(cls)}; caused by the theme, not the network — the one vital localhost measures honestly` },
     ],
   };
 }

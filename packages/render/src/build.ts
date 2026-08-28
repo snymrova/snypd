@@ -16,7 +16,7 @@ import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, type Theme, type SiteCtx, type Entry, type TermLink, type PrimitiveProps } from "./theme";
 import { Html } from "./jsx-runtime";
-import { resolveTokens, tokensCss } from "./tokens";
+import { resolveTokens, tokensCss, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, type SurfaceEntry, type SurfaceSite } from "./emit";
 
@@ -56,8 +56,10 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t3 = performance.now();
   const cache = opts.cache ?? new MdastCache(index.mdastStore());
   const c = cfg.config;
-  const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description };
+  const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description, icon: c.site.icon as string | undefined };
   const tokens = resolveTokens(c.theme.tokens as Parameters<typeof resolveTokens>[0]);
+  // The *source* sheet: what the artefact is keyed on, and what `minifyCss` runs over — but only inside
+  // the artefact's thunk, so a no-op build does not pay ~3 ms to re-minify a sheet it is not writing.
   const css = tokensCss(tokens) + (theme.css ?? "");
   // media: `content/media/**` → `dist/media/**`, byte for byte (docs/02 "content/media/"). This is the
   // minimum that makes `figure` — a spec primitive with a required `src` — usable end to end; the manifest,
@@ -122,7 +124,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       markdown: `${url(e.route)}index.md`, json: `${site.url}/api/${e.type}/${e.slug}.json` };
   };
 
-  const renderBody = (source: string, page: Entry): { body: Html; root: Root; blocks: Block[] } => {
+  const renderBody = (source: string, page: Entry): { body: Html; cover?: Html; root: Root; blocks: Block[] } => {
     const { doc, tree } = cache.get(source);
     const blocks = new Map<Node, Block>(tree.all.map((b) => [b.node, b]));
     const renderBlock = (b: Block): Html => onBlock(b, () => toHtml({ type: "root", children: (b.node as { children?: Node[] }).children ?? [] } as Root, { blocks, onBlock, headingIds: false }));
@@ -132,7 +134,20 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx, page };
       return comp(p);
     };
-    return { body: toHtml(doc.tree, { blocks, onBlock }), root: doc.tree, blocks: tree.all };
+    // A leading `cover` is the page's header, not its first paragraph (spec: "at most one, first in the
+    // body"), so it is rendered on its own and lifted out of the body. Without this a post that declares
+    // one gets two title blocks: the layout's, built from frontmatter, and then the author's. Only a
+    // *leading* cover is lifted — one further down is the author's mistake, and lint says so, but moving
+    // it to the top of the page would silently rewrite what they wrote.
+    // "First in the body" is the first node of the document, not the first *directive* in it: `tree.blocks`
+    // skips the prose, so a post that opens with a paragraph and puts its cover three screens down would
+    // otherwise have it hoisted into the header — silently moving what the author wrote.
+    const first = doc.tree.children.find((n) => n.type !== "yaml");   // only yaml frontmatter is enabled (parse.ts)
+    const lead = first ? blocks.get(first) : undefined;
+    const coverBlock = lead?.name === "cover" ? lead : undefined;
+    const cover = coverBlock ? renderBlock(coverBlock) : undefined;
+    const root = coverBlock ? { ...doc.tree, children: doc.tree.children.filter((n) => n !== coverBlock.node) } as Root : doc.tree;
+    return { body: toHtml(root, { blocks, onBlock }), cover, root: doc.tree, blocks: tree.all };
   };
 
   const plan: Planned[] = [];
@@ -154,18 +169,25 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
       const source = readFileSync(join(root, f.path), "utf8");
       const entry = entryOf(f);
-      const { body, root: mdast, blocks } = renderBody(source, entry);
+      const { body, cover, root: mdast, blocks } = renderBody(source, entry);
       const derived = blockSchemas(blocks);
       const description = entry.description ?? excerpt(mdast);
       const schemas = [pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas];
-      const page = { ...entry, description, body, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author };
+      const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author };
       const entries = layout === "author" ? published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf) : [];
       const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });
   }
-  // index: every published item of a type with a layout, except pages; newest first
-  const listed = published.filter((f) => layoutOf(f) && f.type !== "page");
+  /**
+   * The index and the feed list a type when it *has* a `date` field — a question the spec answers, not a
+   * list of type names (S14). Both are newest-first and the feed needs a `pubDate`, so a type with no date
+   * belongs in neither: `page` never had one, and once the theme fixture gave `author` a layout, an author
+   * turned up in the site index and shipped in the RSS feed as a dateless item. `type !== "page"` was one
+   * exception standing in for the rule, and it only covered the type someone had already noticed.
+   */
+  const dated = (t: string) => Boolean(c.types[t]?.fields?.date);
+  const listed = published.filter((f) => layoutOf(f) && dated(f.type));
   if (theme.layouts.index && !contentRoutes.has("/")) {
     const entries = listed.map(entryOf);
     lastmod.set("/", entries[0]?.updated ?? entries[0]?.date);
@@ -202,7 +224,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   artefact("api/site.json", () => apiSite(siteSurface));
   for (const t of siteSurface.types) artefact(`api/${t.name}.json`, () => apiType(siteSurface, t));
   for (const t of siteSurface.taxonomies) artefact(`api/${t.name}.json`, () => apiTaxonomy(siteSurface, t));
-  if (css) artefact("assets/theme.css", () => css, sha1(css));
+  if (css) artefact("assets/theme.css", () => minifyCss(css), sha1(css));
 
   for (const m of mediaFiles) {
     const output = join("media", m.rel);

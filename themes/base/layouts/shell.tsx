@@ -18,6 +18,8 @@ export default function Shell({ ctx, title, description, markdownUrl, route, jso
           {markdownUrl ? <link rel="alternate" type="text/markdown" href={markdownUrl} /> : null}
           <link rel="alternate" type="application/rss+xml" title={ctx.site.name} href={ctx.assets.feed} />
           {ctx.assets.css ? <link rel="stylesheet" href={ctx.assets.css} /> : null}
+          {/* Without this every page logs a 404: browsers ask for /favicon.ico whether or not one exists. */}
+          {ctx.site.icon ? <link rel="icon" href={ctx.site.icon} /> : null}
           <meta name="generator" content="snypd" />
           {jsonLd ? raw(`<script type="application/ld+json">${jsonLd.replace(/<\//g, "<\\/")}</script>\n`) : null}
         </head>

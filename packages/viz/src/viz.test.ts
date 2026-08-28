@@ -79,7 +79,7 @@ describe("renderChart", () => {
       expect(r.svg).toContain("<title>Tokens per page</title>");
       expect(r.svg).toContain(`<desc>${type} chart. r0 6,120 tokens,`);
       expect(r.svg).toContain(`data-chart="${type}"`);
-      expect(r.svg).toContain('style="max-width:100%;height:auto"');   // responsive with zero CSS
+      expect(r.svg).toContain('style="max-width:var(--viz-max-width,100%);height:auto"');   // responsive with zero CSS, overridable with one var
       expect(kb(r.svg)).toBeLessThan(SVG_KB);
     }
   });

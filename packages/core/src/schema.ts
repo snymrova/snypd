@@ -48,6 +48,9 @@ export const ConfigSchema = z.object({
     name: z.string().min(1),
     url: z.url(),
     description: z.string().optional(),
+    /** Site-relative url of the favicon, usually a file under `content/media/`. Without one a browser asks
+     *  for `/favicon.ico` unprompted and every page logs a 404 (S14). */
+    icon: z.string().optional(),
     locales: z.array(z.string()).min(1).default(["en"]),
     defaultLocale: z.string().default("en"),
   }).passthrough(),

@@ -341,7 +341,7 @@ export function drawGraph(nodes: DiagramNode[], edges: DiagramEdge[], opts: Draw
   body += el("g", { "font-size": FS.node, fill: LABEL, "text-anchor": "middle" }, labels);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"` +
-    ` class="${opts.className}" data-direction="${direction}" role="img" style="max-width:100%;height:auto">` +
+    ` class="${opts.className}" data-direction="${direction}" role="img" style="max-width:var(--viz-max-width,100%);height:auto">` +
     `<title>${escape(opts.name)}</title><desc>${escape(opts.desc)}</desc>${body}</svg>`;
   return { svg, ranks };
 }

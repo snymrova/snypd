@@ -138,6 +138,7 @@ export function generateTheme(root = "corpora/theme") {
 
   writeFileSync(join(root, "content/media/cover.png"), png(1200, 630, [0x8a, 0x33, 0x24]));
   writeFileSync(join(root, "content/media/twin.png"), png(960, 540, [0x2f, 0x5d, 0x62]));
+  writeFileSync(join(root, "content/media/icon.png"), png(32, 32, [0x8a, 0x33, 0x24]));
 
   const post = [
     "---",
@@ -148,8 +149,12 @@ export function generateTheme(root = "corpora/theme") {
     "author: sunny",
     "category: engineering",
     "tags: [markdown, agents]",
-    "cover: { image: /media/cover.png, alt: A flat block of colour standing in for a cover photograph, eyebrow: Engineering }",
     "---",
+    "",
+    // `cover` opens the body because that is the only place the spec allows one ("at most one, first in
+    // the body") — and since S14 the renderer lifts a leading cover out and hands it to the layout as the
+    // page's header. Written anywhere else it is a second title block halfway down the page.
+    example("cover"),
     "",
     example("tldr"),
     "",
@@ -158,8 +163,6 @@ export function generateTheme(root = "corpora/theme") {
     "Thirteen primitives and five layouts is the whole vocabulary. A theme is finished when every one of",
     "them has been looked at, in both colour schemes, at a phone width and a desktop one — so they are all",
     "here, in one route, exactly as the spec writes them.",
-    "",
-    example("cover"),
     "",
     example("callout"),
     "",
@@ -197,7 +200,11 @@ export function generateTheme(root = "corpora/theme") {
   writeFileSync(join(root, "content/posts/prose-only.md"),
     "---\ntitle: A post with nothing in it but prose\ndate: 2026-08-27\nstatus: published\n"
     + "description: The other half of a theme review — what a post looks like when it uses no blocks at all.\n"
-    + "author: sunny\ncategory: engineering\ntags: [markdown, agents]\n---\n\n"
+    + "author: sunny\ncategory: engineering\ntags: [markdown, agents]\n"
+    // The two cover paths, one post each: this one is the cover a layout builds from frontmatter,
+    // `every-primitive-once` is the `::cover` an author writes. A fixture that only had one of them
+    // would have let the layout draw its header above the author's for a whole session (S14).
+    + "cover: { image: /media/cover.png, alt: A flat block of colour standing in for a cover photograph, eyebrow: Notes }\n---\n\n"
     + "Most posts are not a tour of the vocabulary. They are headings, paragraphs, a list, a link and a code\n"
     + "span, and a theme that only looks right when a post is full of blocks is a theme that looks wrong most\n"
     + "of the time.\n\n"
@@ -228,7 +235,8 @@ export function generateTheme(root = "corpora/theme") {
 
   // `author` ships with `layout: null` (spec defaults), so a site that wants author pages asks for them.
   writeFileSync(join(root, "snypd.yaml"),
-    "snypd: 1\nsite:\n  name: Theme fixture\n  url: https://fixture.snypd.rocks\n  description: Every primitive and every layout, once.\ntheme:\n  use: editorial\ntypes:\n  author:\n    layout: author\n");
+    "snypd: 1\nsite:\n  name: Theme fixture\n  url: https://fixture.snypd.rocks\n  description: Every primitive and every layout, once.\n"
+    + "  icon: /media/icon.png\ntheme:\n  use: editorial\ntypes:\n  author:\n    layout: author\n");
   return root;
 }
 

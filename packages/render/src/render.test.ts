@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
-import { build, toHtml, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
+import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig, initRepo } from "@snypd/core";
 import { preview } from "./preview";
 import { imageSize, svgSize } from "./media";
@@ -123,17 +123,28 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(a.startsWith("<!doctype html>\n<html lang=\"en\">")).toBe(true);
     expect(a).toContain('<link rel="alternate" type="text/markdown" href="/posts/a/index.md">');
     expect(a).toContain('<link rel="canonical" href="https://t.example/posts/a/">');
+    // S14: no `site.icon` declared, so no link — and with one, the 404 every browser asks for goes away.
+    expect(a).not.toContain('rel="icon"');
     expect(a).toContain('<meta name="description" content="Body of Post A.">');   // excerpt: first paragraph, not the tldr
     expect(a).toContain('<section class="snypd-tldr"');
     expect(a).toContain('<div class="snypd-stat-row" data-count="2"><div class="snypd-stat">');
     expect(a).toContain('<a href="/tag/mcp/" rel="tag">Model Context Protocol</a>');
-    expect(a).toContain('by <a href="/authors/sunny/">Sunny</a>');
+    expect(a).toContain('by <a href="/authors/sunny/" rel="author">Sunny</a>');
+    // S14: one cover, and the tag row and the twin link are one footer instead of two loose lines.
+    expect(a).toContain('<header class="snypd-cover"><h1>Post A</h1></header><p class="snypd-byline">');
+    expect(a).toContain('<footer class="snypd-post-footer"><ul class="snypd-terms">');
+    expect(a).toContain('<p class="snypd-twin"><a href="/posts/a/index.md" type="text/markdown">Markdown twin</a></p></footer>');
     expect(read("posts/a", "index.md")).toBe(readFileSync(join(root, "content/posts/a.md"), "utf8"));
     expect(read("")).toMatch(/Post A[\s\S]*Post B/);   // a is newer
     expect(read("")).not.toContain("About");
     expect(read("tag/mcp")).toContain("<p>The protocol.</p>");
     expect(read("authors/sunny")).toContain('<a href="/posts/a/">Post A</a>');
     expect(read("about")).toContain("<h1>About</h1>");
+    // S14: the index and the feed list types that have a `date` field. The author has a layout and a page
+    // of its own, and belongs in neither — an item with no date has nothing to be newest-first about.
+    expect(read("")).not.toContain("Sunny");
+    expect(readFileSync(join(dist, "feed.xml"), "utf8")).not.toContain("<title>Sunny</title>");
+    expect(read("authors/sunny")).toContain("<h1>Sunny</h1>");
   });
   test("a body edit re-renders exactly that route", async () => {
     writeFileSync(join(root, "content/posts/b.md"), post("b", "Post B", { body: "Changed body." }));
@@ -185,7 +196,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T2, url: https://t.example, description: A test site }\ntheme: { use: base, tokens: { color.accent: \"#f00\" } }\ntypes: { author: { layout: author } }\n");
     const r = await build(root);
     expect(r.artefacts).toBe(11);
-    expect(read("assets", "theme.css")).toBe(":root {\n  --color-accent: #f00;\n  --content-width: 64ch;\n}\na { color: var(--color-accent) }\n");
+    expect(read("assets", "theme.css")).toBe(":root{--color-accent: #f00;--content-width: 64ch}a{color: var(--color-accent)}");   // S14: minified on the way out
     expect(read("about")).toContain('<link rel="stylesheet" href="/assets/theme.css">');
     expect(read("", "llms.txt")).toContain("# T2\n\n> A test site\n");
     expect(JSON.parse(read("api", "site.json")).description).toBe("A test site");
@@ -213,7 +224,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(root, "content/posts/v.md"), `---\ntitle: Viz\ndate: 2026-01-01\nstatus: published\n---\n\n:::chart{type="bar" source="https://x.y" caption="Cap" unit="ms"}\n- { label: a, value: 1 }\n- { label: b, value: 2 }\n:::\n\n:::diagram{caption="D"}\nnodes:\n  - { id: p, label: Parse }\n  - { id: r }\nedges:\n  - { from: p, to: r, label: then }\n:::\n\n:::flow{caption="F"}\nsteps:\n  - One\n  - { ask: Ok?, yes: Done, no: [Retry, { then: one }] }\n:::\n`);
     await build(root);
     const v = read("posts/v");
-    expect(v).toContain('<figure class="snypd-chart" data-type="bar"><svg xmlns="http://www.w3.org/2000/svg"');
+    expect(v).toContain('<figure class="snypd-chart" data-type="bar"><div class="snypd-scroll" tabindex="0"><svg xmlns="http://www.w3.org/2000/svg"');
     expect(v).toContain('data-chart="bar" role="img"');
     expect(v).toContain("<title>Cap</title><desc>bar chart. a 1 ms, b 2 ms.</desc>");
     expect(v).toContain('<figcaption>Cap (<a href="https://x.y" rel="external">source</a>)</figcaption>');
@@ -226,7 +237,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(w).toContain('<figure class="snypd-chart" data-type="bar"><table><thead><tr><th>label</th><th>value (ms)</th></tr></thead><tbody><tr><td>a</td><td>—</td></tr></tbody></table>');
     expect(w).toContain('<figure class="snypd-chart" data-type="bar"><figcaption>Later');   // src= is not read in v0.1: caption only, never an empty table
     // S9: the diagram is laid out and drawn; a body with no nodes still falls back to the spec's edge list
-    expect(v).toContain('<figure class="snypd-diagram" data-direction="lr"><svg xmlns="http://www.w3.org/2000/svg"');
+    expect(v).toContain('<figure class="snypd-diagram" data-direction="lr"><div class="snypd-scroll" tabindex="0"><svg xmlns="http://www.w3.org/2000/svg"');
     expect(v).toContain("<desc>Diagram, 2 nodes, 1 connection. Parse to r (then).</desc>");
     expect(v).toContain('var(--color-viz-node, rgba(128,128,128,.09))');
     expect(v).not.toContain('class="snypd-diagram-edges"');
@@ -235,7 +246,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(read("posts/x")).toContain('<ol class="snypd-diagram-edges"><li>a -&gt; b</li></ol>');
     // S10: the flow desugars to a graph and goes through the same painter — a decision is a diamond, its
     // branches are labelled edges, and the sugar's `then:` is an edge back to the step it names.
-    expect(v).toContain('<figure class="snypd-flow" data-direction="tb"><svg xmlns="http://www.w3.org/2000/svg"');
+    expect(v).toContain('<figure class="snypd-flow" data-direction="tb"><div class="snypd-scroll" tabindex="0"><svg xmlns="http://www.w3.org/2000/svg"');
     expect(v).toContain('class="snypd-flow-svg" data-direction="tb"');
     expect(v).toContain("<desc>Flowchart, 3 steps and 1 decision. One, then Ok?. Ok? — yes: Done; no: Retry.</desc>");
     expect(v).toMatch(/<path d="M83 97\.5L137 125L83 152\.5L29 125Z"\/>/);   // the decision, as a rhombus
@@ -428,6 +439,14 @@ describe("media (S13): copied verbatim, sized from its header, reserved in the m
     expect(existsSync(join(dist, "media/nested/logo.svg"))).toBe(true);
   });
 
+  test("site.icon becomes the favicon link, which is the only thing between a page and Lighthouse 100 (S14)", async () => {
+    const cfg = readFileSync(join(root, "snypd.yaml"), "utf8");
+    writeFileSync(join(root, "snypd.yaml"), cfg.replace("site: {", "site: { icon: /media/shot.png,"));
+    await build(root);
+    expect(readFileSync(join(dist, "posts/p/index.html"), "utf8")).toContain('<link rel="icon" href="/media/shot.png">');
+    writeFileSync(join(root, "snypd.yaml"), cfg);
+    await build(root);
+  });
   test("figure reserves the box for a local image and guesses nothing for a remote one", () => {
     const html = readFileSync(join(dist, "posts/p/index.html"), "utf8");
     expect(html).toContain('<img src="/media/shot.png" alt="A shot" loading="lazy" decoding="async" width="64" height="48">');
@@ -465,5 +484,80 @@ describe("theme reload (S13): the preview bundles, so an edit to an inner file i
       await s.rebuild();
       expect(await (await fetch(`${s.url}/posts/p/`)).text()).toContain("RELOADED");
     } finally { s.stop(); }
+  });
+});
+
+describe("markdown props and the stylesheet on the wire (S14)", () => {
+  test("inline(): a `type: markdown` prop renders as markdown, without a <p> around it", () => {
+    expect(inline("The `.md` twin is the source file.").html).toBe("The <code>.md</code> twin is the source file.");
+    expect(inline("a [link](/x) and *emphasis*").html).toBe('a <a href="/x">link</a> and <em>emphasis</em>');
+    expect(inline(undefined).html).toBe("");
+    expect(inline("").html).toBe("");
+  });
+  test("inline(): the no-markdown fast path is byte-identical to the parse it skips", () => {
+    // The whole point of the fast path is that it cannot be told apart from the slow one — a caption that
+    // takes it must render exactly as if it had been parsed, or the optimisation is a rendering bug.
+    const slow = (x: string) => toHtml(parseMarkdown(x).tree, { headingIds: false, inline: true }).html;
+    for (const c of [
+      "Plain prose caption.", "  padded  ", "Cost: $4.20 (about 3% of the run)", "Tom & Jerry", "See &copy; 2026",
+      "Great!", "a *bold* claim", "- a list", "1. numbered", "# heading", "> quoted", "under_score_s",
+      "~~struck~~", "an ![img](x.png)", "5 < 6 > 4", "back\\slash", "line\nbreak",
+    ]) expect([c, inline(c).html]).toEqual([c, slow(c)]);
+  });
+  test("minifyCss: comments and whitespace go, meaning does not", () => {
+    expect(minifyCss("/* c */\na {\n  color: red;\n}\n")).toBe("a{color: red}");
+    expect(minifyCss('.x::before { content: "/* not a comment */" }')).toBe('.x::before{content: "/* not a comment */"}');
+    expect(minifyCss("a { width: calc(100% - 2px) }")).toBe("a{width: calc(100% - 2px)}");   // calc needs its spaces
+    expect(minifyCss("p :first-child { color: red }")).toBe("p :first-child{color: red}");   // NOT p:first-child
+    expect(minifyCss("@media (min-width: 40rem) { a { color: red } }")).toBe("@media (min-width: 40rem){a{color: red}}");
+    expect(minifyCss('a { background: url("x y.png") }')).toBe('a{background: url("x y.png")}');
+  });
+});
+
+describe("the cover is the header, not the first paragraph (S14)", () => {
+  const root = "corpora/_test/cover";
+  const dist = join(root, "dist");
+  const read = (r: string) => readFileSync(join(dist, r, "index.html"), "utf8");
+  beforeAll(async () => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/media"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: C, url: https://c.example }\ntheme: { use: base }\n");
+    writeFileSync(join(root, "content/media/c.png"), png(1200, 630, [1, 2, 3]));
+    // one post writes its own cover, one leaves it to frontmatter, one writes it in the wrong place
+    writeFileSync(join(root, "content/posts/own.md"),
+      "---\ntitle: Own\ndate: 2026-01-01\nstatus: published\n---\n\n"
+      + '::cover{eyebrow="Eng" subtitle="A `code` subtitle" image="/media/c.png" alt="Cover"}\n\nBody.\n');
+    writeFileSync(join(root, "content/posts/fm.md"),
+      "---\ntitle: Fm\ndate: 2026-01-02\nstatus: published\ncover: { image: /media/c.png, alt: Cover, eyebrow: Notes }\n---\n\nBody.\n");
+    writeFileSync(join(root, "content/posts/late.md"),
+      "---\ntitle: Late\ndate: 2026-01-03\nstatus: published\n---\n\nBody first.\n\n::cover{eyebrow=\"Eng\"}\n");
+    await build(root);
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("a leading ::cover becomes the page header and the layout draws none of its own", () => {
+    const h = read("posts/own");
+    expect(h).toContain('<header class="snypd-cover"><p class="snypd-eyebrow">Eng</p><h1>Own</h1>'
+      + '<p class="snypd-subtitle">A <code>code</code> subtitle</p>'
+      + '<img src="/media/c.png" alt="Cover" decoding="async" fetchpriority="high" width="1200" height="630"></header>');
+    expect(h.match(/<h1>/g)!.length).toBe(1);                     // exactly one, wherever it came from
+    expect(h.match(/class="snypd-cover"/g)!.length).toBe(1);      // and exactly one cover: this was the S13 defect
+    expect(h).toContain('</header><p class="snypd-byline">');     // the byline survives the author's cover
+  });
+  test("without one, the layout builds the cover from frontmatter — same markup, same single h1", () => {
+    const h = read("posts/fm");
+    expect(h).toContain('<header class="snypd-cover"><p class="snypd-eyebrow">Notes</p><h1>Fm</h1>'
+      + '<img src="/media/c.png" alt="Cover" decoding="async" fetchpriority="high" width="1200" height="630"></header>');
+    expect(h.match(/class="snypd-cover"/g)!.length).toBe(1);
+  });
+  test("a cover further down the body is left where the author put it, not silently promoted", () => {
+    // The spec says "at most one, first in the body" and lint says so too; the renderer does not rewrite
+    // the page to make it true. So this post keeps the layout's header *and* renders the block in place.
+    const h = read("posts/late");
+    expect(h).toContain("<header class=\"snypd-cover\"><h1>Late</h1></header>");
+    expect(h).toContain("<p>Body first.</p>");
+    expect(h.match(/class="snypd-cover"/g)!.length).toBe(2);
+    expect(h.match(/<h1>/g)!.length).toBe(2);
   });
 });

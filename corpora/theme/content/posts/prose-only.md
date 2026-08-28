@@ -6,6 +6,7 @@ description: The other half of a theme review — what a post looks like when it
 author: sunny
 category: engineering
 tags: [markdown, agents]
+cover: { image: /media/cover.png, alt: A flat block of colour standing in for a cover photograph, eyebrow: Notes }
 ---
 
 Most posts are not a tour of the vocabulary. They are headings, paragraphs, a list, a link and a code

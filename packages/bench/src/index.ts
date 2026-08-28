@@ -27,7 +27,7 @@ export const BUDGETS = {
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
-export const VERSION = "0.1.0-s13";
+export const VERSION = "0.1.0-s14";
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config

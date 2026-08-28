@@ -3,6 +3,7 @@ site:
   name: Theme fixture
   url: https://fixture.snypd.rocks
   description: Every primitive and every layout, once.
+  icon: /media/icon.png
 theme:
   use: editorial
 types:
