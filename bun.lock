@@ -20,6 +20,7 @@
         "@snypd/spec": "workspace:*",
         "@snypd/viz": "workspace:*",
         "gpt-tokenizer": "^4.0.0",
+        "yaml": "^2.9.0",
       },
       "devDependencies": {
         "axe-core": "^4.13.0",
@@ -63,6 +64,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@snypd/core": "workspace:*",
+        "@snypd/render": "workspace:*",
         "@snypd/spec": "workspace:*",
       },
       "devDependencies": {

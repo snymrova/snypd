@@ -1,0 +1,16 @@
+shape: table
+base: 0.30
+require:
+  rows: [2, 12]
+  numericColumns: [1, 2]
+  labelColumn: true
+signals:
+  - { fact: numericColumns, equals: 1, weight: 0.25, because: One number per row is one comparison, which is exactly what a chart is for }
+  - { fact: headerText, matches: '(?:^|[\s(/])(ms|s|kb|mb|gb|%|pct|tokens|count|score|price|cost|revenue|users|requests|per|rate|avg|median)\b', weight: 0.22, because: A column header naming a unit is a measurement, not a category }
+  - { fact: rows, atMost: 8, weight: 0.10, because: Few enough bars to read without a legend }
+  - { fact: rows, atLeast: 3, weight: 0.08, because: Three or more points make a shape a reader can see at a glance }
+  - { fact: monotonic, isTrue: true, weight: 0.10, because: The numbers move in one direction, which is a trend a line shows better than a table }
+  - { fact: hasLinks, isTrue: true, weight: -0.45, because: A column of links is a reference table — the links would be lost in an SVG }
+  - { fact: maxLabelWords, atLeast: 6, weight: -0.30, because: Labels this long do not fit an axis; the table is already the readable form }
+  - { fact: columns, atLeast: 4, weight: -0.25, because: Four or more columns is a table of records, not one comparison }
+min: 0.58

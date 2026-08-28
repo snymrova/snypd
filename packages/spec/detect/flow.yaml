@@ -1,0 +1,12 @@
+shape: ordered-list
+base: 0.25
+require:
+  items: [3, 20]
+  conditionals: [1, 99]
+signals:
+  - { fact: conditionals, atLeast: 2, weight: 0.25, because: Two or more steps turn on a condition, and a numbered list can only show one path }
+  - { fact: branchWords, matches: '\b(if|unless|otherwise|either|whether)\b', weight: 0.20, because: The prose asks a question the reader has to answer before the next step }
+  - { fact: backReferences, atLeast: 1, weight: 0.20, because: A step sends the reader back to an earlier one, which is a loop a list cannot draw }
+  - { fact: imperatives, atLeast: 2, weight: 0.10, because: The items are things the reader does, not things that exist }
+  - { fact: hasNested, isTrue: true, weight: 0.08, because: The nested items are already the branches, one indent deep }
+min: 0.60

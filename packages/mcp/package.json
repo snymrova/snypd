@@ -6,7 +6,8 @@
   "license": "MIT",
   "dependencies": {
     "@snypd/core": "workspace:*",
-    "@snypd/spec": "workspace:*"
+    "@snypd/spec": "workspace:*",
+    "@snypd/render": "workspace:*"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0"

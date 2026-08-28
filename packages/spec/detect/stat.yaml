@@ -1,0 +1,5 @@
+shape: none
+because: >
+  A bare number in prose is not a stat — a stat needs a checkable source URL, and prose almost never
+  has one next to the number. Detecting `stat` on its own would suggest a block that fails lint rule 3
+  by construction. It is suggested only as a child of `stat-row`, where the list items carry their links.

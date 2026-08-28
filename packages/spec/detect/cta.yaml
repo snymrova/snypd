@@ -1,0 +1,10 @@
+shape: paragraph
+base: 0.20
+require:
+  last: true
+  linkOnly: true
+signals:
+  - { fact: prefix, matches: '^(get|try|start|read|download|install|sign up|subscribe|book|see|join|run)\b', weight: 0.35, because: The last line of the post asks the reader to do one thing, which is what a cta is }
+  - { fact: words, atMost: 12, weight: 0.15, because: Short enough to be a button label and a line of body }
+  - { fact: linkIsExternal, isTrue: true, weight: 0.10, because: The next thing is off this page, which is where a call to action points }
+min: 0.66

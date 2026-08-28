@@ -1,0 +1,50 @@
+# Ground truth for `snypd bench suggest` (docs/07 S15, gate ≥ 0.80 precision).
+#
+# Authored by hand from the prose, not from the tool's output: a label says what a careful editor would
+# upgrade, and the tool is scored against that. Seven of the twenty posts are labelled `[]` on purpose —
+# a shape that looks like a primitive and is not. Precision measured only on posts that *have* an answer
+# is not precision, it is a demo.
+#
+# `at` is a substring that must appear in the source the suggestion replaces. Anchoring on text rather
+# than line numbers means editing a post's opening paragraph does not silently relabel it.
+
+# ── posts with an upgrade ─────────────────────────────────────────────────────
+twin-tokens.md:
+  - { primitive: tldr,      at: "TL;DR" }
+  - { primitive: chart,     at: "Readability extract" }
+deploy-runbook.md:
+  - { primitive: flow,      at: "If the suite is red" }
+install-steps.md:
+  - { primitive: steps,     at: "**Build**" }
+faq-llms.md:
+  - { primitive: faq,       at: "Does llms.txt help ranking?" }
+warning-note.md:
+  - { primitive: callout,   at: "Warning:" }
+quote-attributed.md:
+  - { primitive: pullquote, at: "no ranking benefit" }
+image-caption.md:
+  - { primitive: figure,    at: "/media/twin.png" }
+cover-image.md:
+  - { primitive: cover,     at: "/media/build-year.png" }
+cta-end.md:
+  - { primitive: cta,       at: "Run the benchmark yourself" }
+stats-list.md:
+  - { primitive: "stat-row", at: "92 % fewer tokens" }
+mixed-signals.md:
+  - { primitive: chart,     at: "Parse" }
+  - { primitive: steps,     at: "Delete the `dist` directory" }
+trend-years.md:
+  - { primitive: chart,     at: "2016" }
+benchmark-post.md:
+  - { primitive: chart,     at: "Rendered HTML" }
+  - { primitive: pullquote, at: "target, not a measurement" }
+  - { primitive: cta,       at: "Read the full bench page" }
+
+# ── near-misses: the shape is there, the meaning is not ───────────────────────
+release-notes.md: []      # a reference table: three columns, a column of links, no measurement
+reading-list.md: []       # an ordered list of things to read, not a procedure to perform
+long-excerpt.md: []       # five sentences — an excerpt to keep whole, not a line to set large
+spec-table.md: []         # five columns of records; one comparison is not in there
+section-questions.md: []  # sections that happen to be titled as questions; the answers are essays
+plain-essay.md: []        # prose, correctly left alone
+code-heavy.md: []         # prose and a code block, correctly left alone

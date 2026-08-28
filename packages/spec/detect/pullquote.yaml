@@ -1,0 +1,12 @@
+shape: blockquote
+base: 0.18
+require:
+  prefix: false
+  words: [4, 40]
+signals:
+  - { fact: hasAttribution, isTrue: true, weight: 0.35, because: The quote names who said it, which is the line a pullquote sets large with its cite }
+  - { fact: sentences, equals: 1, weight: 0.20, because: One sentence is what a pullquote can hold }
+  - { fact: echoesBody, isTrue: true, weight: 0.18, because: The sentence already appears in the post, so setting it large repeats nothing }
+  - { fact: hasCode, isTrue: true, weight: -0.35, because: A quoted command is a code block, not a sentence worth reading twice }
+  - { fact: sentences, atLeast: 3, weight: -0.30, because: Three sentences is an excerpt; a pullquote is one line }
+min: 0.60

@@ -17,7 +17,13 @@ export function createServer(root = process.env.SNYPD_ROOT ?? process.cwd()) {
     listTools: async () => (await tools()).listTools!(),
     callTool: async (name, args) => (await tools()).callTool!(name, args),
   };
-  return { handle: (msg: Request) => dispatch(msg, lazy), listen: () => serveStdio(lazy) };
+  /** Only tools hold resources, and only if one was actually called — never import tools.ts to close it. */
+  const close = async () => { if (t) await (await import("./tools")).dispose(); };
+  return {
+    handle: (msg: Request) => dispatch(msg, lazy),
+    close,
+    listen: async () => { await serveStdio(lazy); await close(); },
+  };
 }
 
-if (import.meta.main) createServer().listen();
+if (import.meta.main) void createServer().listen();

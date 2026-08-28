@@ -1,0 +1,6 @@
+shape: none
+because: >
+  A diagram is a graph, and prose does not contain one. Recovering `nodes:` and `edges:` from sentences
+  means inventing the relationships, and a wrong diagram is worse than no diagram — it reads as fact.
+  `flow` is detectable because an ordered list *is* the sequence; a diagram has no such source shape.
+  Writing one is the agent's job, from `snypd://spec/primitives/diagram`.

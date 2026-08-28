@@ -15,6 +15,7 @@ import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
 import { loadConfig, lintSite, MdastCache, SiteIndex, INDEX_DIR } from "@snypd/core";
 import { pageSuite } from "./page";
+import { suggestMetrics, scoreSuggest, formatSuggestScore, SUGGEST_CORPUS } from "./suggest";
 import { renderChart, renderDiagram, renderFlow, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
 
 export const BUDGETS = {
@@ -27,7 +28,7 @@ export const BUDGETS = {
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
-export const VERSION = "0.1.0-s14";
+export const VERSION = "0.1.0-s15";
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
@@ -382,6 +383,22 @@ export async function visual(opts: { quick?: boolean } = {}): Promise<Report> {
 }
 
 /**
+ * `snypd bench suggest` (docs/07 S15, Phase-3 exit): `suggest_blocks` against the twenty hand-labelled
+ * posts in `corpora/suggest`. No build and no browser — it is the detector table under measurement, so
+ * a detector YAML can be tuned and scored in a second.
+ */
+export async function suggest(opts: { root?: string } = {}): Promise<Report> {
+  const root = opts.root ?? SUGGEST_CORPUS;
+  ACTIVE = budgetsFor(corpus(100));
+  const report: Report = { version: VERSION, suite: "suggest", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics: suggestMetrics(root) };
+  mkdirSync("bench", { recursive: true });
+  writeFileSync("bench/suggest.json", JSON.stringify({ ...report, detail: scoreSuggest(root) }, null, 2));
+  writeFileSync("bench/suggest.md", `${toMarkdown(report)}\n\n\`\`\`\n${formatSuggestScore(scoreSuggest(root))}\n\`\`\`\n`);
+  return report;
+}
+export { scoreSuggest, formatSuggestScore, suggestMetrics, factsReport, SUGGEST_CORPUS } from "./suggest";
+
+/**
  * Agent-read surface completeness (docs/05): probe the built corpus + the static server for each item of the
  * surface. Public MCP (S19) joins the probe list when it exists; until then the metric covers the build-time
  * surface only, and says so.
@@ -460,6 +477,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(await runTokensTools());
   metrics.push(await runSurface(100));
   metrics.push(...runViz(runs));
+  metrics.push(...suggestMetrics());   // S15 gate: precision over the hand-labelled corpus; ~0.4 s, no build
   if (!opts.quick) {   // the browser suite costs ~10 s and a Chrome; --quick is the inner-loop run
     const fixture = themeFixture();
     await build(fixture);

@@ -1,0 +1,7 @@
+snypd: 1
+site:
+  name: suggest fixture
+  url: https://suggest.snypd.rocks
+  description: Twenty hand-labelled posts of plain prose, for measuring suggest_blocks precision.
+theme:
+  use: base

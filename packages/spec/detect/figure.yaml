@@ -1,0 +1,9 @@
+shape: image-paragraph
+base: 0.40
+require:
+  first: false
+signals:
+  - { fact: hasAlt, isTrue: true, weight: 0.25, because: The alt text is already written, so the upgrade loses nothing and gains a caption slot }
+  - { fact: captionFollows, isTrue: true, weight: 0.25, because: The italic line under the image is a caption already — figure is where a caption belongs }
+  - { fact: hasAlt, isFalse: true, weight: -0.10, because: No alt text yet; figure requires it, so the suggestion has to leave a hole the author fills }
+min: 0.58

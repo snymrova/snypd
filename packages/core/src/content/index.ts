@@ -12,6 +12,7 @@ export { parseMarkdown, frontmatterKeyLine, type ParsedDoc } from "./parse";
 export { buildTree, checkProp, countNodes, type Block, type PrimitiveTree, type Diagnostic, type Severity } from "./tree";
 export { lint, formatLint, SLOP, type LintOptions, type LintResult, type TypeShape } from "./lint";
 export { MdastCache, hashSource, type CachedDoc, type MdastStore } from "./cache";
+export { suggestBlocks, applySuggestions, formatSuggestions, candidates, score, toNumber, REWRITERS, NEED, type Suggestion, type SuggestOptions, type ApplyResult, type Need, type Candidate } from "./suggest";
 
 /** Lint one markdown string (parse + tree + rules). */
 export function lintMarkdown(source: string, opts: LintOptions = {}, cache?: MdastCache): LintResult {

@@ -102,12 +102,15 @@ export function serveStdio(h: Handlers, input?: NodeJS.ReadableStream, output: N
       enqueue(() => dispatch(m, h));
     }
   };
+  // Resolves when the input closes *and* the queue has drained: a caller that releases resources on
+  // close (S15 — the preview server) must not race the last reply out of the pipe.
+  const drained = async () => { await queue; };
   if (!input && typeof Bun !== "undefined") {
     const dec = new TextDecoder();
-    return (async () => { for await (const chunk of Bun.stdin.stream()) feed(dec.decode(chunk, { stream: true })); })();
+    return (async () => { for await (const chunk of Bun.stdin.stream()) feed(dec.decode(chunk, { stream: true })); await drained(); })();
   }
   const src = (input ?? process.stdin) as NodeJS.ReadableStream & { setEncoding?(e: string): unknown };
   src.setEncoding?.("utf8");
   src.on("data", (chunk: string | Buffer) => feed(String(chunk)));
-  return new Promise<void>((resolve) => { src.on("end", () => resolve()); });
+  return new Promise<void>((resolve) => { src.on("end", () => void drained().then(resolve)); });
 }

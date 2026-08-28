@@ -1,0 +1,11 @@
+shape: paragraph
+base: 0.25
+require:
+  first: true
+  words: [8, 70]
+signals:
+  - { fact: prefix, matches: '^(tl;?dr|in short|summary|the short version|bottom line)\b', weight: 0.45, because: The paragraph already announces itself as the summary — tldr is that, with schema behind it }
+  - { fact: words, atMost: 55, weight: 0.12, because: Inside the 60-word ceiling the spec sets for a summary }
+  - { fact: sentences, atMost: 3, weight: 0.10, because: One to three sentences is the shape an agent reads first }
+  - { fact: hasLink, isTrue: true, weight: -0.20, because: A first paragraph that links out is an introduction, not a finding }
+min: 0.66

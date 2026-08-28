@@ -1,0 +1,12 @@
+shape: list
+base: 0.20
+require:
+  items: [2, 4]
+  leadingNumbers: [2, 4]
+signals:
+  - { fact: allLeadWithNumber, isTrue: true, weight: 0.30, because: Every item opens with its number, so the list is already the row — stat-row sets them side by side }
+  - { fact: hasUnits, isTrue: true, weight: 0.20, because: The numbers carry units, which makes them measurements rather than counts in a sentence }
+  - { fact: hasLinks, isTrue: true, weight: 0.15, because: Each number already links to where it came from, which is the source stat requires }
+  - { fact: maxItemWords, atMost: 12, weight: 0.10, because: Short enough that the number is the point and the label is the caption }
+  - { fact: hasLinks, isFalse: true, weight: -0.20, because: stat requires a checkable source and there is no link to use, so the suggestion leaves one to fill in }
+min: 0.64

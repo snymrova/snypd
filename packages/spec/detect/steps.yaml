@@ -1,0 +1,12 @@
+shape: ordered-list
+base: 0.30
+require:
+  items: [2, 20]
+  conditionals: [0, 0]
+signals:
+  - { fact: imperatives, atLeast: 3, weight: 0.25, because: Every item opens with a verb, so this is a procedure the reader performs rather than a list of things }
+  - { fact: boldLeadIns, atLeast: 2, weight: 0.15, because: The bold lead-ins are already step names — steps renders them as the HowTo step names }
+  - { fact: hasCode, isTrue: true, weight: 0.12, because: Commands to run in order are a procedure, and HowTo schema makes them quotable }
+  - { fact: items, atMost: 8, weight: 0.08, because: Short enough to tick off in one sitting }
+  - { fact: allNounPhrases, isTrue: true, weight: -0.40, because: These are things, not actions — an ordered list of things stays an ordered list }
+min: 0.62

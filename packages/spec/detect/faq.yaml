@@ -1,0 +1,12 @@
+shape: heading-run
+base: 0.25
+require:
+  headings: [2, 12]
+  questions: [2, 12]
+signals:
+  - { fact: questionRatio, atLeast: 1, weight: 0.35, because: Every heading in the run is a question, which is a FAQ whether or not it is called one }
+  - { fact: headings, atLeast: 3, weight: 0.15, because: Three or more Q-and-A pairs is the shape FAQPage schema exists for }
+  - { fact: avgAnswerWords, atMost: 90, weight: 0.12, because: Each answer is a paragraph, not a section — that is an FAQ entry, not a chapter }
+  - { fact: depth, atLeast: 3, weight: 0.08, because: These sit below the post's own sections, where an FAQ belongs }
+  - { fact: avgAnswerWords, atLeast: 200, weight: -0.35, because: Answers this long are sections that happen to be titled as questions }
+min: 0.62

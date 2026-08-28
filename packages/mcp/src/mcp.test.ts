@@ -61,7 +61,7 @@ describe("stdio", () => {
     expect(out.map((m) => m.id)).toEqual([1, null, 2, 3, 4]);
     expect(out[0].result.protocolVersion).toBe(PROTOCOL_VERSIONS[0]);
     expect(out[1].error.code).toBe(-32700);
-    expect(out[3].result.tools.map((t: any) => t.name)).toEqual(["content.create", "content.update", "content.query", "content.lint", "content.set_status", "content.publish", "content.trash", "content.restore"]);
+    expect(out[3].result.tools.map((t: any) => t.name)).toEqual(["content.create", "content.update", "content.query", "content.lint", "content.set_status", "content.publish", "content.suggest_blocks", "content.render_preview", "content.trash", "content.restore"]);
   });
 });
 
@@ -151,6 +151,62 @@ describe("content.* tools", () => {
     expect(h.git).toBe(true);
     expect(h.commits[0].principal).toStartWith("agent:claude-code/");
     expect(h.commits.map((x: any) => x.subject)).toContain("content: create post/why-mcp-only");
+  });
+
+  /** S15: the upgrade loop — read prose, get the primitives back, and write the accepted ones in one call. */
+  test("suggest_blocks reads a post, explains itself, and applies to the draft branch", async () => {
+    const prose = "Here is what we measured.\n\n| Format | Tokens |\n| --- | --- |\n| HTML | 6120 |\n| Twin | 504 |\n| Feed | 61 |\n\n> Warning: measured on one box, not a cloud runner.\n";
+    const [, , listed, appliedNoFill, applied, inlineOnly, refused] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", slug: "measured", frontmatter: { title: "What we measured" }, body: prose }),
+      call(3, "content.suggest_blocks", { type: "post", slug: "measured" }),
+      call(4, "content.suggest_blocks", { type: "post", slug: "measured", apply: true }),
+      call(5, "content.suggest_blocks", { type: "post", slug: "measured", apply: true, fill: { "1": { source: "https://snypd.rocks/bench" } } }),
+      call(6, "content.suggest_blocks", { markdown: prose }),
+      call(7, "content.suggest_blocks", { markdown: prose, apply: true }),
+    ], site);
+
+    const s3 = structured(listed);
+    expect(s3.count).toBe(2);
+    expect(s3.suggestions.map((x: any) => x.primitive)).toEqual(["chart", "callout"]);
+    expect(s3.suggestions[0].needs[0].prop).toBe("source");                  // the prose carries no URL
+    expect(s3.suggestions[0].because[0]).toBeTruthy();                       // the reason is a sentence, from the detector YAML
+    expect(listed.result.content[0].text).toContain("→  `chart`");
+
+    // apply without meeting the need: the callout lands, the chart is skipped and says why
+    const s4 = structured(appliedNoFill);
+    expect(s4.applied.map((a: any) => a.primitive)).toEqual(["callout"]);
+    expect(s4.skipped[0].why).toContain("source");
+    expect(readFileSync(`${site}/content/posts/measured.md`, "utf8")).not.toContain("TODO");
+
+    // fill it, and the chart lands too — on the draft branch, with the lint it caused
+    const s5 = structured(applied);
+    expect(s5.applied.map((a: any) => a.primitive)).toEqual(["chart"]);
+    expect(s5.git).toMatchObject({ committed: true, branch: "snypd/draft-post-measured" });
+    expect(s5.lint.errors).toBe(0);
+    const file = readFileSync(`${site}/content/posts/measured.md`, "utf8");
+    expect(file).toContain(':::chart{type="bar" source="https://snypd.rocks/bench"');
+    expect(file).toContain("- { label: HTML, value: 6120 }");
+    expect(file).toContain(':::callout{kind="warning"}');
+
+    expect(structured(inlineOnly).count).toBe(2);                            // a bare string scores fine
+    expect(refused.result.isError).toBe(true);                               // …but there is nothing to write it back to
+    expect(refused.result.content[0].text).toContain("stored item");
+  });
+
+  test("render_preview starts the session's preview server and returns the three URLs", async () => {
+    const [, r] = await session([
+      req(1, "initialize"),
+      call(2, "content.render_preview", { type: "post", slug: "measured", port: 0 }),
+    ], site);
+    const p = structured(r);
+    expect(p.ok).toBe(true);
+    expect(p.route).toBe("/posts/measured");
+    expect(p.url).toMatch(/^http:\/\/[^/]+\/posts\/measured$/);
+    expect(p.markdownUrl).toEndWith("/posts/measured/index.md");
+    expect(p.reviewUrl).toEndWith("/_snypd/review/post/measured");
+    const missing = await session([req(1, "initialize"), call(2, "content.render_preview", { type: "post", slug: "nope", port: 0 })], site);
+    expect(missing[1]!.result.isError).toBe(true);
   });
 
   test("a bad status transition and an unknown tool come back as fixable text", async () => {

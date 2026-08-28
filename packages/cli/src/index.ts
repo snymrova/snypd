@@ -31,6 +31,18 @@ switch (cmd) {
       if (over.length && flags.has("--ci")) { console.error(`budget breach: ${over.join(", ")}`); process.exit(1); }
       break;
     }
+    if (args[0] === "suggest") {   // S15: suggest_blocks precision over the hand-labelled corpus
+      if (flags.has("--facts")) {   // the keys a detector YAML may name — how one is written without reading the code
+        console.log(bench.factsReport(args[1], { shape: args.find((a) => a.startsWith("--shape="))?.slice(8) }));
+        break;
+      }
+      const r = await bench.suggest({ root: args[1] });
+      console.log(bench.toMarkdown(r));
+      console.log(`\n${bench.formatSuggestScore(bench.scoreSuggest(args[1]))}`);
+      const over = bench.breaches(r);
+      if (over.length) { console.error(`\n${over.length} breach(es)`); process.exit(1); }
+      break;
+    }
     if (args[0] === "visual") {   // D3 only: every visual primitive at its worst shape, no build (S10)
       const r = await bench.visual({ quick: flags.has("--quick") });
       console.log(bench.toMarkdown(r));
@@ -87,6 +99,6 @@ switch (cmd) {
   case "init":
     console.error(`snypd ${cmd}: not yet implemented (see docs/07 schedule)`); process.exit(2);
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd serve [root] --preview|--static [--port=N] | snypd bench [page|visual|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd serve [root] --preview|--static [--port=N] | snypd bench [page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 export {};

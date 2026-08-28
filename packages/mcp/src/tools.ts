@@ -5,11 +5,14 @@
  * caused, the branch its words are sitting on, and what has to happen before they go live.
  *
  * Two invariants worth keeping while editing:
- *  - imported lazily by server.ts, like resources.ts, so `initialize` still answers at the spawn floor;
+ *  - imported lazily by server.ts, like resources.ts, so `initialize` still answers at the spawn floor.
+ *    `@snypd/render` is a dependency of this package *only* so `render_preview` can resolve it; the
+ *    import is dynamic and inside the handler, so the renderer is parsed when a preview is asked for
+ *    and never on the path `mcp.coldStart` measures. Keep it that way — it is the tightest budget here;
  *  - a failed tool returns `isError` with a hint, never a JSON-RPC error. A protocol error aborts the
  *    agent's turn; a tool error is something it can read and fix.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import type { Handlers, Tool, ToolResult } from "./protocol";
 
 type Core = typeof import("@snypd/core");
@@ -47,6 +50,18 @@ export const TOOLS: Tool[] = [
     description: "Publish a draft: set it published, then merge its draft branch back into the branch it was cut from. When the type's `mcp.write` policy is `draft` (the default) an agent cannot do this alone — a human approves the exact version on /_snypd/review/{type}/{slug} under `snypd serve --preview`, and editing after approval invalidates it. The refusal tells you which of the two it is.",
     inputSchema: S({ type: TYPE, slug: SLUG }, ["type", "slug"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
+  { name: "content.suggest_blocks",
+    description: "Read a post that is plain prose and return the primitives it was already trying to be — the table that is a chart, the numbered list that branches and is therefore a flow, the run of question headings that is an faq. Every suggestion carries its confidence, the reasons in words, the exact markdown that replaces the exact lines, and anything the prose could not supply (a chart has no `source:` in it). Nothing is returned that would fail lint. Pass `apply` to write the accepted ones straight to the draft branch instead of handing them back.",
+    inputSchema: S({ type: TYPE, slug: SLUG, markdown: str("Score this string instead of a stored item; read-only"),
+      apply: { description: "true, or a list of ids, to write those suggestions. Needs type+slug", oneOf: [{ type: "boolean" }, { type: "array", items: { type: "string" } }] },
+      fill: { type: "object", description: "Meet a need so it can apply: {\"2\":{\"source\":\"https://…\"}}" },
+      only: { type: "array", items: { type: "string" }, description: "Only these primitives" },
+      minConfidence: { type: "number", description: "Override every detector's floor, 0–1. Below it shows what was nearly suggested" } }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
+  { name: "content.render_preview",
+    description: "Get a URL for looking at an item as it will actually render, drafts included. Starts the preview server for this session if it is not already up, and returns the page, its markdown twin (which you can read yourself) and the review page a human approves on. The preview is the same incremental build as `snypd build`, not a second renderer, so what you see is what publishes.",
+    inputSchema: S({ type: TYPE, slug: SLUG, port: { type: "number", description: "Port to serve on; default 4321" } }, ["type", "slug"]),
+    annotations: { readOnlyHint: true, idempotentHint: true } },
   { name: "content.trash",
     description: "Move an item to content/.trash and mark it trashed: it leaves the build and every list. Reversible with content.restore until the 30-day sweep. Not a delete — nothing is removed from git history.",
     inputSchema: S({ type: TYPE, slug: SLUG }, ["type", "slug"]),
@@ -75,6 +90,28 @@ const asObject = (v: unknown, key: string): Record<string, unknown> | undefined 
 const diag = (r: { file?: string; diagnostics: { rule: string; n: number; severity: string; line: number; message: string; hint: string }[] }) =>
   r.diagnostics.map((d) => ({ file: r.file, rule: d.rule, n: d.n, severity: d.severity, line: d.line, message: d.message, hint: d.hint }));
 const lintLine = (r: { errors: number; warnings: number }) => `lint: ${r.errors} error${r.errors === 1 ? "" : "s"}, ${r.warnings} warning${r.warnings === 1 ? "" : "s"}`;
+
+/**
+ * One preview server per MCP session, started by the first `render_preview` and living as long as the
+ * agent does. Starting it from a tool call rather than telling a human to run a command is the whole
+ * point: the kill test says "never opening an editor", and a URL nobody can reach fails that. The
+ * import is lazy like every other write-path import, so `initialize` still answers at the spawn floor.
+ */
+let previewing: Promise<{ url: string; stop: () => void }> | undefined;
+async function previewServer(root: string, port?: number) {
+  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port }));
+  return previewing;
+}
+/**
+ * Release everything a tool call started. `Bun.serve` holds the event loop open, so without this a
+ * session that ever asked for a preview would never exit when its stdin closed — a stdio server that
+ * survives the harness closing the pipe is a hung session, not a running one.
+ */
+export async function dispose(): Promise<void> {
+  const p = previewing;
+  previewing = undefined;
+  if (p) { try { (await p).stop(); } catch { /* already gone */ } }
+}
 
 export function handlers(root: string): Pick<Handlers, "listTools" | "callTool"> {
   const cfgOf = async () => {
@@ -159,6 +196,57 @@ export function handlers(root: string): Pick<Handlers, "listTools" | "callTool">
             const where = merged?.ok ? `merged ${branch} into ${merged.base}` : repo ? "no draft branch to merge" : "not a git repo";
             return text([`published ${type}/${slug} → ${t.route}`, where, `approved by ${check.approval?.by ?? `policy ${check.policy}`}`].join("\n"),
               { ok: true, type, slug, route: t.route, status, git: { ...g, merged: merged?.ok ?? false, base: merged?.base }, approval: check.approval });
+          }
+          case "content.suggest_blocks": {
+            const cfg = await cfgOf();
+            const inline = typeof args.markdown === "string" ? args.markdown : undefined;
+            const type = typeof args.type === "string" ? args.type : undefined;
+            const slug = typeof args.slug === "string" ? args.slug : undefined;
+            if (!inline && !(type && slug)) return fail("nothing to read", "Pass `type` and `slug` for a stored item, or `markdown` for a string.");
+            const t = inline ? undefined : c.target(root, cfg, type!, slug!);
+            const source = inline ?? readFileSync(t!.file, "utf8");
+            const def = t ? cfg.config.types[t.type]! : undefined;
+            const list = c.suggestBlocks(source, {
+              ...(def ? { type: { fields: def.fields as never, taxonomies: def.taxonomies }, vocabulary: def.vocabulary } : {}),
+              statuses: Object.keys(cfg.config.statuses),
+              only: Array.isArray(args.only) ? args.only.filter((x): x is string => typeof x === "string") : undefined,
+              minConfidence: typeof args.minConfidence === "number" ? args.minConfidence : undefined,
+            });
+            const wantApply = args.apply === true || Array.isArray(args.apply);
+            if (!wantApply)
+              return text(c.formatSuggestions(list), { ok: true, count: list.length, suggestions: list });
+            if (inline) return fail("`apply` needs a stored item", "Pass `type` and `slug`; there is nothing to write a bare `markdown` string back to.");
+
+            const ids = Array.isArray(args.apply) ? args.apply.filter((x): x is string => typeof x === "string") : undefined;
+            const fill = asObject(args.fill, "fill") as Record<string, Record<string, string>> | undefined;
+            const r = c.applySuggestions(source, list, { ids, fill });
+            if (!r.applied.length)
+              return text([`no suggestions applied of ${list.length} found`, ...r.skipped.map((s) => `  ${s.id}: ${s.why}`)].join("\n"),
+                { ok: true, applied: [], skipped: r.skipped, suggestions: list });
+            const w = c.updateContent(root, { type: type!, slug: slug!, body: c.splitFrontmatter(r.markdown).body, cfg });
+            const g = await commitWrite(w, `content: suggest_blocks ${type}/${slug} (${r.applied.map((a) => a.primitive).join(", ")})`);
+            const lines = [
+              `applied ${r.applied.length} of ${list.length} to ${w.type}/${w.slug} → ${w.route}`,
+              ...r.applied.map((a) => `  ${a.id}. lines ${a.line}–${a.endLine} → \`${a.primitive}\` (${a.confidence})`),
+              ...(r.skipped.length ? ["not applied:", ...r.skipped.map((s) => `  ${s.id}: ${s.why}`)] : []),
+              gitLine(g),
+            ];
+            if (w.lint) lines.push(lintLine(w.lint));
+            return text(lines.join("\n"), { ok: true, applied: r.applied, skipped: r.skipped, route: w.route, git: g,
+              ...(w.lint ? { lint: { errors: w.lint.errors, warnings: w.lint.warnings, diagnostics: diag(w.lint) } } : {}) });
+          }
+          case "content.render_preview": {
+            const cfg = await cfgOf();
+            const type = need(args, "type"), slug = need(args, "slug");
+            const t = c.target(root, cfg, type, slug);
+            if (!existsSync(t.file)) return fail(`no ${type} with slug "${slug}"`, "content.query lists what exists.");
+            const p = await previewServer(root, typeof args.port === "number" ? args.port : undefined);
+            const url = `${p.url}${t.route}`;
+            const md = `${url.replace(/\/$/, "")}/index.md`;
+            const review = `${p.url}${c.reviewPath(type, slug)}`;
+            return text([`${url}`, `markdown twin: ${md}`, `review + approve: ${review}`,
+              "The preview rebuilds on change and includes drafts; it is the same build that publishes."].join("\n"),
+              { ok: true, url, markdownUrl: md, reviewUrl: review, route: t.route, server: p.url });
           }
           case "content.query": {
             const cfg = await cfgOf();

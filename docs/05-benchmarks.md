@@ -32,7 +32,8 @@
 | Tokens to learn the site | size of `config` + `spec/primitives` + `theme` resources | ≤ 6,000 |
 | Time-to-first-post | scripted run from a fresh harness with only the MCP: tool calls and seconds to a lint-clean published draft; 3 models | ≤ 8 tool calls |
 | First-attempt lint pass rate on `write-post` | 20 topics × 3 models | ≥ 80 % |
-| `suggest_blocks` precision | 50 hand-labelled posts | ≥ 0.8 |
+| `suggest_blocks` precision | 50 hand-labelled posts (**20 from S15**, `corpora/suggest`; grows to 50 for the Gate C run in S21 — docs/07 decision 37) | ≥ 0.8 |
+| `suggest_blocks` recall | the same corpus | report-only — a miss costs the author nothing they did not already have, a false positive rewrites their post |
 | MCP latency p50 / p95 per tool | server timing | reads ≤ 50 ms; `render_preview` ≤ 2 s |
 | Agent-read surface completeness | `snypd bench` probes the built corpus and the server: llms.txt, `.md` twin, `Accept: text/markdown`, `link rel=alternate` (markdown + feed), JSON API, feed, sitemap+robots, JSON-LD; public MCP joins in S19 | 100 %, enforced from S7 |
 

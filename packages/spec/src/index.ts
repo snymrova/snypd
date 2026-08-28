@@ -1,6 +1,7 @@
 /**
  * @snypd/spec — the closed vocabulary (docs/01) and the built-in defaults (docs/02):
- * 13 primitive YAMLs, types, taxonomies, statuses, budgets, field types. Exposed as MCP
+ * 13 primitive YAMLs, types, taxonomies, statuses, budgets, field types, and the detector table
+ * `suggest_blocks` scores against (S15, `../detect`). Exposed as MCP
  * resources (docs/03) and exported as JSON Schema. Files are read from `import.meta.dir`
  * so the same code works from a checkout and from a `--compile --asset` binary (/$bunfs).
  */
@@ -15,6 +16,7 @@ const sentence = (s: string) => s.split(/\.\s/)[0]!.replace(/\.$/, "") + ".";
 const ROOT = join(import.meta.dir, "..");
 export const PRIMITIVES_DIR = join(ROOT, "primitives");
 export const DEFAULTS_DIR = join(ROOT, "defaults");
+export const DETECT_DIR = join(ROOT, "detect");
 
 export interface Primitive {
   name: string;
@@ -51,6 +53,70 @@ export function primitives(): Primitive[] { return primitiveNames().map((n) => p
 export function primitiveSource(name: string): string | undefined {
   if (!/^[a-z][a-z0-9-]*$/.test(name)) return undefined;
   try { return readFileSync(join(PRIMITIVES_DIR, `${name}.yaml`), "utf8"); } catch { return undefined; }
+}
+
+// ── Detectors (S15) ───────────────────────────────────────────────────────────
+// How `content.suggest_blocks` recognises a primitive in prose someone already wrote. Deliberately
+// *not* in `primitives/*.yaml` and *not* in `resources()`: an agent reading the vocabulary needs to
+// know how to write a chart, not how snypd spots one, and every token in the primitive YAMLs is paid
+// by every agent on every session (`tokens.learn`, gated at 4,800 — docs/07 decision 35).
+
+/** A shape is a candidate extractor in `@snypd/core/suggest`; `none` means this primitive is never suggested. */
+export type Shape = "table" | "ordered-list" | "list" | "blockquote" | "heading-run" | "image-paragraph" | "paragraph" | "none";
+export const SHAPES: Shape[] = ["table", "ordered-list", "list", "blockquote", "heading-run", "image-paragraph", "paragraph"];
+
+/** One scored signal. Exactly one operator; `because` is the sentence the agent is shown. */
+export interface Signal {
+  fact: string;
+  weight: number;
+  because: string;
+  equals?: number | string;
+  atLeast?: number;
+  atMost?: number;
+  matches?: string;
+  isTrue?: boolean;
+  isFalse?: boolean;
+  oneOf?: (string | number)[];
+}
+export interface Detector {
+  name: string;
+  shape: Shape;
+  /** Confidence when `require` holds and nothing fires. */
+  base: number;
+  /** Hard gates: `[min, max]` for a number fact, `true`/`false` for a boolean. Outside them there is no candidate. */
+  require: Record<string, [number, number] | boolean>;
+  signals: Signal[];
+  /** Floor below which a candidate is never suggested. */
+  min: number;
+  /** Why this primitive has no detector (`shape: none` only). */
+  because?: string;
+}
+
+const DETECT_DEFAULTS = { base: 0.3, require: {}, signals: [], min: 0.6 };
+
+/** Every detector, keyed by primitive name. Primitives with no file get `shape: none`. */
+export function detectors(): Record<string, Detector> {
+  const out: Record<string, Detector> = {};
+  for (const name of primitiveNames()) {
+    const file = join(DETECT_DIR, `${name}.yaml`);
+    let raw: Partial<Detector> = {};
+    // A missing file is a *packaging* fault, not an opt-out — every primitive ships one, and a binary
+    // built without `detect/` would otherwise turn suggest_blocks into a tool that silently finds nothing.
+    try { raw = yaml<Partial<Detector>>(file) ?? {}; }
+    catch { raw = { shape: "none", because: `No detector file at ${file} — the spec's detect/ directory did not ship with this build.` }; }
+    out[name] = { ...DETECT_DEFAULTS, ...raw, name, shape: (raw.shape ?? "none") as Shape } as Detector;
+  }
+  return out;
+}
+export function detector(name: string): Detector | undefined { return detectors()[name]; }
+/** The detectors that actually run, grouped by the shape they read — the loop `suggest_blocks` walks. */
+export function detectorsByShape(): Map<Shape, Detector[]> {
+  const m = new Map<Shape, Detector[]>();
+  for (const d of Object.values(detectors())) {
+    if (d.shape === "none") continue;
+    (m.get(d.shape) ?? m.set(d.shape, []).get(d.shape)!).push(d);
+  }
+  return m;
 }
 
 export interface Defaults {

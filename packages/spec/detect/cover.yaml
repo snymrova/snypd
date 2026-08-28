@@ -1,0 +1,9 @@
+shape: image-paragraph
+base: 0.30
+require:
+  first: true
+signals:
+  - { fact: beforeAnyHeading, isTrue: true, weight: 0.30, because: An image before the first heading is the post's opening image, which is the cover }
+  - { fact: hasAlt, isTrue: true, weight: 0.20, because: The alt text is written, and cover requires it whenever an image is set }
+  - { fact: captionFollows, isTrue: true, weight: -0.25, because: A captioned image is a figure that happens to be first — a cover has a subtitle, not a caption }
+min: 0.62

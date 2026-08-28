@@ -1,0 +1,10 @@
+shape: blockquote
+base: 0.20
+require:
+  prefix: true
+signals:
+  - { fact: prefix, oneOf: [warning, caution, danger, important], weight: 0.40, because: The quote labels itself as something the reader must not skip, which is the one thing a callout is for }
+  - { fact: prefix, oneOf: [note, tip, hint], weight: 0.30, because: An aside the author marked as an aside }
+  - { fact: words, atMost: 60, weight: 0.10, because: Short enough to be the box's whole point }
+  - { fact: words, atLeast: 150, weight: -0.30, because: A boxed paragraph this long is a section, and the box stops meaning anything }
+min: 0.55
