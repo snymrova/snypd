@@ -54,6 +54,20 @@ export function readFrontmatter(source: string): Record<string, unknown> {
   catch { return {}; }
 }
 
+/**
+ * The status a file of this type gets when its frontmatter does not name one.
+ * A type that declares a `status` field has a lifecycle, and an unstated status means the start of it
+ * (`initialStatus`, normally `draft`). A type that declares no such field has no lifecycle at all — the
+ * built-in `author` is one — and giving it `draft` made it permanently invisible: the base theme ships an
+ * `author` layout that could never render, and the only way to publish an author was a frontmatter key
+ * lint calls unknown. Such a type is public, at whichever status the site says public means.
+ */
+export function defaultStatus(cfg: LoadedConfig, type: string): string {
+  const fields = cfg.config.types[type]?.fields as Record<string, unknown> | undefined;
+  if (fields && "status" in fields) return cfg.config.initialStatus;
+  return Object.keys(cfg.config.statuses).find((s) => cfg.config.statuses[s]!.public) ?? cfg.config.initialStatus;
+}
+
 /** Which frontmatter field carries each taxonomy of a type (`category: ref(category)`, `tags: list(ref(tag))`). */
 export function taxonomyFields(type: LoadedConfig["config"]["types"][string]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -105,7 +119,7 @@ export class SiteIndex {
           const fm = readFrontmatter(source);
           const type = cfg.config.types[c.type]!;
           row = { path, type: c.type, slug: c.slug, route: c.route, hash, mtime: st.mtimeMs, size: st.size,
-            status: String(fm.status ?? cfg.config.initialStatus), title: String(fm.title ?? fm.name ?? c.slug),
+            status: String(fm.status ?? defaultStatus(cfg, c.type)), title: String(fm.title ?? fm.name ?? c.slug),
             date: fm.date !== undefined ? String(fm.date instanceof Date ? fm.date.toISOString().slice(0, 10) : fm.date) : undefined,
             updated: fm.updated !== undefined ? String(fm.updated instanceof Date ? fm.updated.toISOString().slice(0, 10) : fm.updated) : undefined, frontmatter: fm };
           this.db.run("DELETE FROM terms WHERE path = ?", path);

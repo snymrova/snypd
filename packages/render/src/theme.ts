@@ -5,11 +5,11 @@
  * `themeHash()` is the "theme module graph" part of every route key: any byte of the theme changes → every
  * route re-renders.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
-import { resolveThemeChain, sha1, type Block, type Config, type LoadedConfig, type ThemeLink } from "@snypd/core";
+import { resolveThemeChain, sha1, INDEX_DIR, type Block, type Config, type LoadedConfig, type ThemeLink } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 
 export interface SiteCtx {
@@ -19,6 +19,12 @@ export interface SiteCtx {
   theme: { name: string };
   /** Site-relative urls of emitted assets: `css` when the theme has tokens or a stylesheet; feeds always. */
   assets: { css?: string; feed: string; llms: string; api: string };
+  /**
+   * Intrinsic size of every file under `content/media/`, keyed by its site-relative url (S13).
+   * A primitive that places an image looks its `src` up here and emits `width`/`height`; a miss means
+   * an unrecognised format or an external url, and the attributes are omitted rather than guessed.
+   */
+  media: Record<string, { width: number; height: number }>;
   config: Config;
 }
 export interface Entry {
@@ -102,7 +108,46 @@ export const genericPrimitive: PrimitiveComponent = ({ name, body }) => raw(`<di
 
 const loaded = new Map<string, Theme & { stamp: string }>();
 
-export async function loadTheme(cfg: LoadedConfig): Promise<Theme> {
+/**
+ * What a bundled theme must *not* carry a second copy of. `Html` is a class, and a layout that returns an
+ * instance of a differently-bundled `Html` is not the `Html` the renderer will accept — so every `@snypd/*`
+ * import, the JSX runtime above all, resolves to the running process's copy.
+ */
+const THEME_EXTERNAL = ["@snypd/*"];
+
+/**
+ * Rebuild the theme's entry files into one-file bundles so an in-process reload actually reloads (S11 debt,
+ * scheduled for S13). Busting the import URL re-imports the entry, but a file the entry imports *statically*
+ * — `./shell`, `./entries` — is still served from Bun's module cache, so a theme edit could re-render every
+ * route with the old component and say nothing. A bundle has no static imports left to cache: `Bun.build`
+ * inlines the theme's own graph and leaves `@snypd/*` external, and the output path carries the theme hash,
+ * so a changed theme is a different module URL all the way down.
+ * Only `snypd serve --preview` asks for this. `snypd build` is one process per run and never needs it.
+ */
+async function bundleTheme(files: string[], outRoot: string): Promise<Map<string, string>> {
+  mkdirSync(outRoot, { recursive: true });
+  const out = new Map<string, string>();
+  await Promise.all(files.map(async (f) => {
+    // One build per entry into its own directory: two themes in a chain can both declare `cover.tsx`, and
+    // a shared outdir would have them overwrite each other under the same `[name]`.
+    const dir = join(outRoot, sha1(f).slice(0, 12));
+    const r = await Bun.build({ entrypoints: [f], outdir: dir, target: "bun", external: THEME_EXTERNAL, naming: "[name].[ext]", throw: false });
+    if (!r.success) throw new Error(`theme bundle failed for ${f}:\n${r.logs.map(String).join("\n")}`);
+    out.set(f, r.outputs[0]!.path);
+  }));
+  return out;
+}
+
+export interface LoadThemeOptions {
+  /**
+   * Bundle the theme's entry files before importing them, so an edit to a file the entries import
+   * statically is picked up without restarting the process. `snypd serve --preview` sets it; a one-shot
+   * `snypd build` does not, and pays nothing.
+   */
+  bundle?: boolean;
+}
+
+export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}): Promise<Theme> {
   const layer = cfg.layers.find((l) => l.name === "theme");
   const name = layer?.from ?? cfg.config.theme.use;
   // The chain is resolved once in loadConfig; re-resolve only for a config that predates it.
@@ -121,7 +166,8 @@ export async function loadTheme(cfg: LoadedConfig): Promise<Theme> {
   // edit is only fully picked up by a fresh process (`snypd build` always is). In-process hot reload of the
   // whole theme graph is part of `snypd serve --preview` (S11) — bundle the theme dir with Bun.build then.
   const bust = `?v=${hash.slice(0, 8)}`;
-  const mod = async (p: string) => (await import(resolve(p) + bust)).default as unknown;   // absolute: import() is relative to this module, not cwd
+  let bundled: Map<string, string> | undefined;
+  const mod = async (p: string) => (await import((bundled?.get(resolve(p)) ?? resolve(p)) + bust)).default as unknown;   // absolute: import() is relative to this module, not cwd
 
   // One parsed theme.yaml per link, child first. Slots are looked up along this list rather than merged,
   // because `./primitives/callout.tsx` means "relative to the theme that wrote that line" (docs/04).
@@ -146,6 +192,17 @@ export async function loadTheme(cfg: LoadedConfig): Promise<Theme> {
   }
   yaml.theme = own.yaml.theme ?? name;
   delete yaml.extends;
+
+  if (opts.bundle) {
+    // Everything the chain could import as an entry. Bundling the whole set once is cheaper than working
+    // out which of them the declarations below will reach, and a theme dir is a handful of files.
+    const entries: string[] = [];
+    for (const d of dirs) walkFiles(d, (f) => { if (f.endsWith(".tsx") || f.endsWith(".ts")) entries.push(resolve(f)); });
+    const outRoot = join(cfg.root, INDEX_DIR, "theme", hash.slice(0, 8));
+    const parent = join(cfg.root, INDEX_DIR, "theme");
+    if (existsSync(parent)) for (const old of readdirSync(parent)) if (old !== hash.slice(0, 8)) rmSync(join(parent, old), { recursive: true, force: true });
+    bundled = await bundleTheme(entries, outRoot);
+  }
 
   const layouts: Record<string, LayoutComponent> = {};
   for (const l of yaml.layouts ?? []) {

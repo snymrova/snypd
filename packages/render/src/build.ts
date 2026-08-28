@@ -9,14 +9,15 @@
  * `robots.txt`, `/api/site.json`, `/api/<type>.json`, `/api/<taxonomy>.json`, `assets/theme.css` — are
  * plan items too, keyed on the entry list (or the theme + tokens), so an unchanged site rewrites nothing.
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
 import { loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, type Theme, type SiteCtx, type Entry, type TermLink, type PrimitiveProps } from "./theme";
 import { Html } from "./jsx-runtime";
 import { resolveTokens, tokensCss } from "./tokens";
+import { readImageSize } from "./media";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
@@ -25,13 +26,18 @@ export interface BuildOptions {
   drafts?: boolean;
 }
 export interface BuildResult {
-  routes: number; artefacts: number; rendered: number; cached: number; removed: number; ms: number;
+  routes: number; artefacts: number; media: number; rendered: number; cached: number; removed: number; ms: number;
   phases: { config: number; theme: number; sync: number; plan: number; render: number };
   theme: { name: string; coverage: Theme["coverage"] };
 }
 
-/** One unit of output: a route (html + twin + json) or a site artefact (one file). `outputs` are dist-relative. */
-interface Planned { route: string; key: string; outputs: string[]; kind: "route" | "artefact"; render: () => Record<string, string> }
+/**
+ * One unit of output: a route (html + twin + json), a site artefact (one file), or a media file copied
+ * verbatim. `outputs` are dist-relative. A copy declares its source instead of its content, so a 2 MB
+ * photograph never becomes a JavaScript string on the way to disk.
+ */
+type Output = string | { copyFrom: string };
+interface Planned { route: string; key: string; outputs: string[]; kind: "route" | "artefact" | "media"; render: () => Record<string, Output> }
 
 /** Bump when the set or shape of files a route produces changes; a stale index is then reset, not pruned. */
 const OUTPUT_FORMAT = "s7";
@@ -53,9 +59,30 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description };
   const tokens = resolveTokens(c.theme.tokens as Parameters<typeof resolveTokens>[0]);
   const css = tokensCss(tokens) + (theme.css ?? "");
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c };
+  // media: `content/media/**` → `dist/media/**`, byte for byte (docs/02 "content/media/"). This is the
+  // minimum that makes `figure` — a spec primitive with a required `src` — usable end to end; the manifest,
+  // the derivatives and the licence lint that docs/02 describes are v0.2, and nothing here presumes them.
+  // Scanned *before* the route keys are built, because the intrinsic sizes go into the markup: a replaced
+  // image with new dimensions has to re-render the pages that place it, exactly as a theme edit does.
+  const mediaDir = join(root, "content", "media");
+  const walk = (dir: string, rel = ""): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.name.startsWith(".") ? [] : e.isDirectory() ? walk(join(dir, e.name), join(rel, e.name)) : [join(rel, e.name)]);
+  const mediaSizes: SiteCtx["media"] = {};
+  const mediaFiles: Array<{ rel: string; src: string; url: string; key: string }> = [];
+  if (existsSync(mediaDir)) for (const rel of walk(mediaDir)) {
+    const src = join(mediaDir, rel);
+    const st = statSync(src);
+    const url = `/media/${rel.split(sep).join("/")}`;
+    const size = await readImageSize(src);
+    if (size) mediaSizes[url] = size;
+    // Keyed on size + mtime rather than a content hash: hashing every image on every build would cost more
+    // than the copy it is trying to avoid, and a touched file recopying is the same trade `build.noop` makes.
+    mediaFiles.push({ rel, src, url, key: sha1(`${OUTPUT_FORMAT}:media:${rel}:${st.size}:${st.mtimeMs}`) });
+  }
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes };
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses }));
-  const base = `${OUTPUT_FORMAT}:${theme.hash}:${configHash}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
+  const mediaHash = sha1(JSON.stringify(mediaSizes));
+  const base = `${OUTPUT_FORMAT}:${theme.hash}:${configHash}:${mediaHash}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }
@@ -176,13 +203,21 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   for (const t of siteSurface.types) artefact(`api/${t.name}.json`, () => apiType(siteSurface, t));
   for (const t of siteSurface.taxonomies) artefact(`api/${t.name}.json`, () => apiTaxonomy(siteSurface, t));
   if (css) artefact("assets/theme.css", () => css, sha1(css));
+
+  for (const m of mediaFiles) {
+    const output = join("media", m.rel);
+    plan.push({ route: m.url, key: m.key, kind: "media", outputs: [output], render: () => ({ [output]: { copyFrom: m.src } }) });
+  }
   const t4 = performance.now();
 
   // ── render what changed, drop what vanished ────────────────────────────────
   let rendered = 0, cached = 0, removed = 0;
   const known = new Map(index.routes().map((r) => [r.route, r]));
   const planned = new Set(plan.map((p) => p.route));
-  const write = (rel: string, content: string) => { const f = join(out, rel); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, content); };
+  const write = (rel: string, content: Output) => {
+    const f = join(out, rel); mkdirSync(dirname(f), { recursive: true });
+    if (typeof content === "string") writeFileSync(f, content); else copyFileSync(content.copyFrom, f);
+  };
   index.transaction(() => {
     for (const p of plan) {
       const prev = known.get(p.route);
@@ -207,5 +242,6 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   if (!opts.index) index.close();
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
-  return { routes, artefacts: plan.length - routes, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage } };
+  const media = plan.filter((p) => p.kind === "media").length;
+  return { routes, artefacts: plan.length - routes - media, media, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage } };
 }

@@ -41,13 +41,10 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     if (building) return building;
     dirty = false;
     cfg = loadConfig(root);
-    const before = theme?.hash;
-    theme = await loadTheme(cfg);
-    // `loadTheme` re-imports entry files under a fresh query string, but a file those entries import
-    // statically stays in Bun's module cache (docs/04 "theme reload"). The bytes changed, so every route
-    // re-renders — possibly with the old code. Say so rather than serve a stale page silently; bundling
-    // the theme per change lands with `editorial` (S13), where someone is actually editing a theme.
-    if (before && theme.hash !== before) console.error(`snypd: theme changed — restart \`snypd serve --preview\` if an edit does not show (docs/04 theme reload)`);
+    // `bundle: true` is the whole of S11's deferred fix: entry files are rebuilt into single-file modules
+    // whose path carries the theme hash, so a theme edit reloads the *graph* — not just the entry, with
+    // its statically-imported `./shell` still coming from Bun's module cache and rendering the old page.
+    theme = await loadTheme(cfg, { bundle: true });
     building = build(root, { out, cfg, index, drafts: true, cache: new MdastCache(index.mdastStore()) });
     try { return await building; } finally { building = undefined; }
   };
@@ -68,7 +65,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   const shell = (title: string, body: Html, route: string) => {
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
     const css = tokensCss(tokens) + (theme.css ?? "");
-    const ctx: SiteCtx = { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config };
+    const ctx: SiteCtx = { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {} };
     const layout = theme.layouts.page ?? theme.layouts.post;
     if (!layout) return new Html(`<!doctype html><meta charset="utf-8"><title>${escape(title)}</title>${body.html}`);
     const page: Page = { route, type: "page", slug: "review", title, status: "draft", frontmatter: {}, body, terms: [], layout: "page", markdownUrl: "" };

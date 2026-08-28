@@ -12,7 +12,7 @@ switch (cmd) {
     // declared fallback. Only `missing` (the generic wrapper) is a hole, so only it is subtracted.
     const covered = r.theme.coverage.filter((c) => c.status !== "missing").length;
     const inherited = r.theme.coverage.filter((c) => c.status === "inherited").length;
-    console.log(`built ${r.routes} routes + ${r.artefacts} artefacts (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${covered}/${r.theme.coverage.length} primitives${inherited ? `, ${inherited} inherited` : ""})`);
+    console.log(`built ${r.routes} routes + ${r.artefacts} artefacts${r.media ? ` + ${r.media} media` : ""} (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${covered}/${r.theme.coverage.length} primitives${inherited ? `, ${inherited} inherited` : ""})`);
     if (flags.has("--verbose")) console.log(Object.entries(r.phases).map(([k, v]) => `${k} ${v.toFixed(1)} ms`).join(" · "));
     break;
   }
@@ -22,6 +22,13 @@ switch (cmd) {
       const rows = bench.compare(bench.load(args[1]!), bench.load(args[2]!));
       for (const r of rows) console.log(`${r.regressed ? "❌" : "✅"} ${r.name}: ${r.a} → ${r.b} (${(r.delta * 100).toFixed(1)} %)`);
       if (rows.some((r) => r.regressed)) process.exit(1);
+      break;
+    }
+    if (args[0] === "page") {    // S13: the built site in a real browser — 0 KB JS, 0 axe violations
+      const r = await bench.page({ root: args[1] });
+      console.log(bench.toMarkdown(r));
+      const over = bench.breaches(r);
+      if (over.length && flags.has("--ci")) { console.error(`budget breach: ${over.join(", ")}`); process.exit(1); }
       break;
     }
     if (args[0] === "visual") {   // D3 only: every visual primitive at its worst shape, no build (S10)
@@ -80,6 +87,6 @@ switch (cmd) {
   case "init":
     console.error(`snypd ${cmd}: not yet implemented (see docs/07 schedule)`); process.exit(2);
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd serve [root] --preview|--static [--port=N] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd serve [root] --preview|--static [--port=N] | snypd bench [page|visual|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 export {};

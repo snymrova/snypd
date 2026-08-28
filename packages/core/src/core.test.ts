@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, parsePath, parseYaml, pathKey, REPLACE } from "./index";
+import { defaultStatus, loadConfig, parsePath, parseYaml, pathKey, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -146,4 +146,20 @@ describe("diagnostics", () => {
     const theme = c.layers.find((l) => l.name === "theme")!;
     expect(theme.found).toBe(true); expect(theme.file!.endsWith("themes/base/theme.yaml")).toBe(true); expect(theme.dir!.endsWith("themes/base")).toBe(true);
   });
+});
+
+test("a type with no status field has no lifecycle, so it is public (S13)", () => {
+  const R = "corpora/_test/status";
+  rmSync(R, { recursive: true, force: true });
+  mkdirSync(R, { recursive: true });
+  writeFileSync(join(R, "snypd.yaml"), "snypd: 1\nsite: { name: S, url: https://s.example }\n");
+  const cfg = loadConfig(R);
+  // `post` and `page` declare `status:` — an unstated status starts the lifecycle, normally at `draft`.
+  expect(defaultStatus(cfg, "post")).toBe(cfg.config.initialStatus);
+  expect(defaultStatus(cfg, "page")).toBe(cfg.config.initialStatus);
+  // `author` does not. It used to inherit `draft` and became invisible: the base theme ships an `author`
+  // layout that could never render, and publishing one meant a frontmatter key lint calls unknown.
+  expect(cfg.config.types.author!.fields).not.toHaveProperty("status");
+  expect(cfg.config.statuses[defaultStatus(cfg, "author")]!.public).toBe(true);
+  rmSync(R, { recursive: true, force: true });
 });

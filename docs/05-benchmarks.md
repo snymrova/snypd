@@ -1,13 +1,13 @@
 # 05 — Benchmarks
 
-`snypd bench` is a CLI verb, an MCP tool (`bench.run`) and a CI step. Budgets live in `snypd.yaml › bench.budgets`; a breach fails the build. Results are written as Markdown to `bench/latest.md` and exposed as `snypd://bench/latest`. Published on the project site per release with methodology. Corpora: 100 / 1k / 10k synthetic posts using every primitive, checked in.
+`snypd bench` is a CLI verb, an MCP tool (`bench.run`) and a CI step. Budgets live in `snypd.yaml › bench.budgets`; a breach fails the build. Results are written as Markdown to `bench/latest.md` and exposed as `snypd://bench/latest`. Published on the project site per release with methodology. Corpora: 100 / 1k / 10k synthetic posts, checked in (10k generated on demand). A fourth, `corpora/theme`, is the *fixture* rather than a corpus: two posts, a page, an author, two terms and two rasters, carrying every primitive's own `example:` from the spec — it is what the browser suite and a theme review are run against, and it is far too small to time anything.
 
 ## Speed
 | Metric | How | Default budget |
 |---|---|---|
-| LCP, CLS, INP, TBT, Lighthouse perf — every URL | Unlighthouse CI (parallel Lighthouse over the crawl) | LCP ≤ 1.2 s · CLS ≤ 0.05 · perf ≥ 98 |
-| Client JS per page | renderer emit stats | 0 KB content pages; ≤ 15 KB with client primitives |
-| CSS per page | emit stats | ≤ 30 KB |
+| LCP, CLS, INP, TBT, Lighthouse perf — every URL | v0.2: Unlighthouse CI (parallel Lighthouse over the crawl). **v0.1 (S13): `snypd bench page`** drives headless Chrome over the DevTools protocol against the built theme fixture — six routes, one per url shape — and reports `page.lcp`, `page.cls` and `page.bytes.kb`. LCP off an unthrottled localhost is the shape of the page, not a field number, and is report-only; CLS is theme-caused and *is* comparable, and is what the S14 pass is judged on. A composite Lighthouse score comes from `bunx lighthouse` when one is to be published — not from a dependency (docs/07 decision 26) | LCP ≤ 1.2 s · CLS ≤ 0.05 · perf ≥ 98 |
+| Client JS per page | **`page.js.kb`** (S13): script bytes over the wire plus inline `<script>` and `on*` handlers, measured in the browser. `application/ld+json` is data and is excluded | **0 KB, gated** on content pages; ≤ 15 KB with client primitives (v0.2) |
+| CSS per page | emit stats; `page.bytes.kb` reports it per route beside the HTML and the images | ≤ 30 KB |
 | Build, cold / incremental | `snypd bench build` on 100 / 1k / 10k | ≤ 2 s / 100 cold; ≤ 300 ms incremental single-post |
 | Markdown engines | remark vs `Bun.markdown` on 10k | report only |
 | TTFB, preview/SSR | curl loop against `snypd serve --preview` | ≤ 50 ms local |
@@ -18,7 +18,7 @@
 ## Beauty (the parts that are measurable)
 | Metric | How | Budget |
 |---|---|---|
-| Accessibility | Lighthouse a11y | 100 |
+| Accessibility | **`page.a11y.violations`** (S13): axe-core — which *is* Lighthouse's accessibility category — run in the page on every url shape of the theme fixture, which is the only site in the repo that renders all 13 primitives and all 5 layouts | **0 violations, gated** (Lighthouse a11y 100) |
 | Typographic invariants | `theme.check`: line length 45–80ch, modular type scale, rhythm on token grid, contrast | pass |
 | Visual regression | `Bun.WebView` locally / Playwright in CI: primitive × theme × 3 viewports, pixel diff | 0 unexpected diffs |
 | Primitive coverage | `theme.coverage` | 100 % or explicit fallback |
@@ -27,7 +27,8 @@
 ## Agent-friendliness (nobody else benchmarks this)
 | Metric | How | Budget |
 |---|---|---|
-| Tokens per page, `.md` twin vs HTML | standard tokeniser on both | median ≤ 2,500; ≥ 85 % reduction — the reduction is measured on a styled theme (`editorial`, S13), not on `base`, which has no chrome to save (docs/07 decision 15) |
+| Tokens per page (`.md` twin) | standard tokeniser on the twin every route emits | median ≤ 2,500 — **this is the gated agent-cost metric**: it is what actually lands in a context window |
+| Reduction vs this site's own HTML | `1 − tokens(twin)/tokens(html)`, measured on both lanes (`base` and `editorial`) | **report-only, and a low number is good news** — it measures how thin the theme's HTML already is, not what an agent saves (docs/07 decision 15) |
 | Tokens to learn the site | size of `config` + `spec/primitives` + `theme` resources | ≤ 6,000 |
 | Time-to-first-post | scripted run from a fresh harness with only the MCP: tool calls and seconds to a lint-clean published draft; 3 models | ≤ 8 tool calls |
 | First-attempt lint pass rate on `write-post` | 20 topics × 3 models | ≥ 80 % |

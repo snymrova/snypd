@@ -1,0 +1,10 @@
+snypd: 1
+site:
+  name: Theme fixture
+  url: https://fixture.snypd.rocks
+  description: Every primitive and every layout, once.
+theme:
+  use: editorial
+types:
+  author:
+    layout: author

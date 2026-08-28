@@ -10,10 +10,11 @@ import { join } from "node:path";
 import { build } from "@snypd/render";
 import { preview } from "@snypd/render/preview";
 import { serve } from "@snypd/runtime";
-import { generate } from "./corpus";
+import { generate, generateTheme } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
-import { loadConfig, lintSite, MdastCache, INDEX_DIR } from "@snypd/core";
+import { loadConfig, lintSite, MdastCache, SiteIndex, INDEX_DIR } from "@snypd/core";
+import { pageSuite } from "./page";
 import { renderChart, renderDiagram, renderFlow, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
 
 export const BUDGETS = {
@@ -26,7 +27,7 @@ export const BUDGETS = {
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
-export const VERSION = "0.1.0-s11";
+export const VERSION = "0.1.0-s13";
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
@@ -176,9 +177,9 @@ export async function runTtfb(n: number, requests: number): Promise<Metric> {
 }
 
 /** Tokens per page: `.md` twin vs HTML over every built route; median of each and the % reduction. */
-export function runTokensPerPage(n: number | string): Metric[] {
+export function runTokensPerPage(n: number | string, opts: { dist?: string; label?: string; gate?: boolean } = {}): Metric[] {
   const root = corpus(n);
-  const posts = join(root, "dist", "posts");
+  const posts = join(opts.dist ?? join(root, "dist"), "posts");
   if (!existsSync(posts)) throw new Error(`build ${root} first`);
   const md: number[] = [], html: number[] = [];
   for (const slug of readdirSync(posts)) {
@@ -188,12 +189,36 @@ export function runTokensPerPage(n: number | string): Metric[] {
     html.push(countTokens(readFileSync(join(d, "index.html"), "utf8")));
   }
   const mMd = median(md), mHtml = median(html);
+  const where = opts.label ? ` (${opts.label})` : "";
   return [
+    // The twin is the source file byte for byte, so this number is the same under every theme; it is here
+    // once, from whichever lane ran, and has been comparable since S2.
     { name: "tokens.page.md", value: mMd, unit: "tokens", budget: ACTIVE.tokensPerPage },
-    { name: "tokens.page.html", value: mHtml, unit: "tokens" },
-    { name: "tokens.page.reduction", value: +((1 - mMd / mHtml) * 100).toFixed(1), unit: "%", higherIsBetter: true,
-      note: `vs this theme's own HTML; the ${BUDGETS.mdReduction} % budget applies from S13 (a styled theme) — see docs/07 decision 15` },
+    { name: `tokens.page.html${opts.label ? `.${opts.label}` : ""}`, value: mHtml, unit: "tokens", note: opts.label ? `${opts.label} theme` : undefined },
+    { name: `tokens.page.reduction${opts.label ? `.${opts.label}` : ""}`, value: +((1 - mMd / mHtml) * 100).toFixed(1), unit: "%", higherIsBetter: true,
+      budget: opts.gate ? ACTIVE.mdReduction : undefined,
+      // Report-only on purpose (docs/07 decision 15, rewritten in S13 with the editorial lane measured):
+      // as defined this ratio rewards fat HTML, and the gated agent-cost line is `tokens.page.md`.
+      note: `vs this theme's own HTML${where} — how thin this theme already is, not what an agent saves; low is good (docs/07 decision 15)` },
   ];
+}
+
+/**
+ * The editorial lane (S13). The same 100 posts, rendered by the styled theme, into their own `dist` and
+ * their own index — `corpora/100` keeps building under `base`, because every build and lint number in the
+ * report has been comparable back to S2 and a theme swap would break that line for a reason that has
+ * nothing to do with speed. The lane exists for the two metrics that are *about* the theme: what a page of
+ * real HTML costs an agent, and what the theme adds to `tokens.learn`.
+ * `SNYPD_ENV=editorial` is not a special case — it is the config layering the product already has
+ * (`snypd.<env>.yaml`, docs/02), so the lane is one four-line file in the corpus.
+ */
+export async function editorialLane(n: number | string = 100): Promise<{ root: string; dist: string; cfg: ReturnType<typeof loadConfig> }> {
+  const root = corpus(n);
+  const cfg = loadConfig(root, { env: "editorial" });
+  const dist = join(root, "dist-editorial");
+  const index = await SiteIndex.open(root, join(root, INDEX_DIR, "index.editorial.sqlite"));
+  try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
+  return { root, dist, cfg };
 }
 
 /**
@@ -314,6 +339,35 @@ export function runVizFlow(runs: number): Metric[] {
 }
 
 /**
+ * `corpora/theme` — the fixture the browser suite runs against (S13): every primitive, every layout, two
+ * posts, an author, a page, two terms and two real rasters. Generated on demand like every other corpus,
+ * and committed, because a theme review has to be able to look at the same site twice.
+ */
+export function themeFixture(): string {
+  const root = "corpora/theme";
+  if (!existsSync(join(root, "content"))) generateTheme(root);
+  return root;
+}
+
+/**
+ * `snypd bench page` (S13, Phase-3 exit): the built site in a real browser — zero JavaScript, zero axe
+ * violations, and the bytes and vitals beside them. Runs against the theme fixture, not `corpora/100`:
+ * a11y and coverage are claims about the *vocabulary*, and the generated corpus uses eight of thirteen
+ * primitives and three of five layouts.
+ */
+export async function page(opts: { root?: string; quick?: boolean } = {}): Promise<Report> {
+  const root = opts.root ?? themeFixture();
+  ACTIVE = budgetsFor(root);
+  await build(root);
+  const { metrics, browser } = await pageSuite({ root, label: "editorial" });
+  const report: Report = { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
+  mkdirSync("bench", { recursive: true });
+  writeFileSync("bench/page.json", JSON.stringify({ ...report, browser }, null, 2));
+  writeFileSync("bench/page.md", toMarkdown(report));
+  return report;
+}
+
+/**
  * `snypd bench visual` (docs/07 S10, gate D3): the per-primitive suite on its own — every visual primitive
  * at the worst shape its spec allows, with the render-time and byte budget beside it. It is the whole of D3
  * and none of D2, so it runs in a second and a viz change can be measured without a build.
@@ -360,8 +414,8 @@ export async function runSurface(n: number | string): Promise<Metric> {
  * Counting every primitive is the conservative upper bound; the index alone is what a harness
  * must read, the per-primitive YAML is what it reads before using a block.
  */
-export function learnSurface(root: string): Record<string, string> {
-  const out: Record<string, string> = { "snypd://config": loadConfig(root).render() };
+export function learnSurface(root: string, cfg?: ReturnType<typeof loadConfig>): Record<string, string> {
+  const out: Record<string, string> = { "snypd://config": (cfg ?? loadConfig(root)).render() };
   for (const r of specResources()) if (r.uri === "snypd://spec" || r.uri.startsWith("snypd://spec/primitives")) out[r.uri] = r.text();
   return out;
 }
@@ -377,10 +431,11 @@ export async function runTokensTools(): Promise<Metric> {
   return { name: "tokens.tools", value: tools, unit: "tokens", note: `${TOOLS.length} tools; paid once per session on top of tokens.learn, which docs/05 scopes to config + spec + theme` };
 }
 
-export function runTokensToLearn(n: number | string): Metric {
-  const surface = learnSurface(corpus(n));
+export function runTokensToLearn(n: number | string, opts: { cfg?: ReturnType<typeof loadConfig>; label?: string } = {}): Metric {
+  const surface = learnSurface(corpus(n), opts.cfg);
   const total = Object.values(surface).reduce((a, s) => a + countTokens(s), 0);
-  return { name: "tokens.learn", value: total, unit: "tokens", budget: ACTIVE.tokensToLearn, note: `${Object.keys(surface).length} resources` };
+  return { name: `tokens.learn${opts.label ? `.${opts.label}` : ""}`, value: total, unit: "tokens", budget: ACTIVE.tokensToLearn,
+    note: `${Object.keys(surface).length} resources${opts.label ? ` · ${opts.label} theme` : ""}` };
 }
 
 export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
@@ -397,9 +452,19 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(await runPreviewTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
+  // The editorial lane: the same content under the styled theme, which is what a real site ships and what
+  // docs/07 decision 15 says the reduction and the theme's share of `tokens.learn` are measured on.
+  const lane = await editorialLane(100);
+  metrics.push(...runTokensPerPage(100, { dist: lane.dist, label: "editorial", gate: false }).filter((m) => m.name !== "tokens.page.md"));
+  metrics.push(runTokensToLearn(100, { cfg: lane.cfg, label: "editorial" }));
   metrics.push(await runTokensTools());
   metrics.push(await runSurface(100));
   metrics.push(...runViz(runs));
+  if (!opts.quick) {   // the browser suite costs ~10 s and a Chrome; --quick is the inner-loop run
+    const fixture = themeFixture();
+    await build(fixture);
+    metrics.push(...(await pageSuite({ root: fixture, label: "editorial" })).metrics);
+  }
   const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/latest.json", JSON.stringify(report, null, 2));

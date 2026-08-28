@@ -7,3 +7,6 @@ bench/*.json
 corpora/_test/
 corpora/10000/
 .scratch/
+
+# S13: the editorial lane builds the same corpus into its own dist; bench/page.* joins bench/*.json
+corpora/*/dist-*/

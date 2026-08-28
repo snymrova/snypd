@@ -1,0 +1,5 @@
+# The editorial lane (S13). `SNYPD_ENV=editorial` layers this over snypd.yaml so the *same* content is
+# rendered by a styled theme. docs/07 decision 15: the md-reduction budget is measured on a real theme,
+# not on `base`, whose HTML is the content twice over.
+theme:
+  use: editorial

@@ -12,5 +12,8 @@
     "@snypd/core": "workspace:*",
     "@snypd/viz": "workspace:*",
     "@snypd/mcp": "workspace:*"
+  },
+  "devDependencies": {
+    "axe-core": "^4.13.0"
   }
 }

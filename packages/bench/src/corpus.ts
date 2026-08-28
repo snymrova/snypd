@@ -5,6 +5,8 @@
  */
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { deflateSync } from "node:zlib";
+import { primitives } from "@snypd/spec";
 
 function mulberry32(seed: number) {
   return () => {
@@ -89,7 +91,148 @@ export function generate(n: number, root = `corpora/${n}`) {
   return dir;
 }
 
+
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────────────
+// The theme fixture (S13).
+// ───────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A minimal, valid PNG of a single colour — signature, IHDR, one IDAT, IEND, each with its CRC.
+ * The theme fixture needs *real* rasters, because `width`/`height`, the LCP element and layout shift are
+ * all properties of a decoded image and none of them can be demonstrated with a placeholder. A flat colour
+ * compresses to almost nothing, so the bytes in git stay honest about what they are: dimensions, not art.
+ */
+export function png(width: number, height: number, rgb: [number, number, number]): Buffer {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc32 = (b: Buffer) => { let c = 0xffffffff; for (const byte of b) c = crcTable[(c ^ byte) & 0xff]! ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;   // 8-bit truecolour, no interlace
+  const row = Buffer.concat([Buffer.from([0]), Buffer.concat(Array.from({ length: width }, () => Buffer.from(rgb)))]);
+  const raw = Buffer.concat(Array.from({ length: height }, () => row));
+  const idat = deflateSync(raw, { level: 9 });
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", idat), chunk("IEND", Buffer.alloc(0))]);
+}
+
+/**
+ * `corpora/theme` — the fixture `snypd bench page` runs against: every one of the 13 primitives and all
+ * five layouts on a site small enough to read. The 100-post corpus cannot do this job — it is generated
+ * from a word list to exercise the *build*, uses eight primitives, and has no page, author or media — and
+ * a theme that is only ever seen rendering the same eight blocks is a theme with five untested holes.
+ *
+ * Every block below is the primitive's own `example:` from `packages/spec/primitives/*.yaml`, copied at
+ * generation time rather than paraphrased. If an example drifts from what the renderer accepts, this
+ * fixture stops lint-passing and the spec is what gets fixed — which is the right way round.
+ */
+export function generateTheme(root = "corpora/theme") {
+  const example = (name: string) => primitives().find((p) => p.name === name)!.example.trimEnd();
+  rmSync(root, { recursive: true, force: true });
+  for (const d of ["content/posts", "content/pages", "content/authors", "content/media", "content/taxonomies/category", "content/taxonomies/tag"]) mkdirSync(join(root, d), { recursive: true });
+
+  writeFileSync(join(root, "content/media/cover.png"), png(1200, 630, [0x8a, 0x33, 0x24]));
+  writeFileSync(join(root, "content/media/twin.png"), png(960, 540, [0x2f, 0x5d, 0x62]));
+
+  const post = [
+    "---",
+    "title: Every primitive, once",
+    "date: 2026-08-28",
+    "status: published",
+    "description: One post that uses all thirteen primitives, so a theme can be reviewed in a single page.",
+    "author: sunny",
+    "category: engineering",
+    "tags: [markdown, agents]",
+    "cover: { image: /media/cover.png, alt: A flat block of colour standing in for a cover photograph, eyebrow: Engineering }",
+    "---",
+    "",
+    example("tldr"),
+    "",
+    "## What this page is for",
+    "",
+    "Thirteen primitives and five layouts is the whole vocabulary. A theme is finished when every one of",
+    "them has been looked at, in both colour schemes, at a phone width and a desktop one — so they are all",
+    "here, in one route, exactly as the spec writes them.",
+    "",
+    example("cover"),
+    "",
+    example("callout"),
+    "",
+    example("pullquote"),
+    "",
+    "## Blocks that carry data",
+    "",
+    example("stat-row"),
+    "",
+    example("chart"),
+    "",
+    example("diagram"),
+    "",
+    example("flow"),
+    "",
+    "## Blocks that carry instructions",
+    "",
+    example("steps"),
+    "",
+    example("faq"),
+    "",
+    "## Blocks that carry a thing to look at",
+    "",
+    example("figure"),
+    "",
+    example("cta"),
+    "",
+  ].join("\n");
+  // `stat` is not given a block of its own: it is an inline primitive whose only legal home is `stat-row`
+  // (docs/01), and the row above contains two of them, so the component is exercised where it is meant to live.
+  writeFileSync(join(root, "content/posts/every-primitive-once.md"), post);
+
+  // A second post: an index, a term page and an author page with one row each show nothing about how a
+  // list was designed, and a tag used once is a lint warning (`tag-once`) for exactly that reason.
+  writeFileSync(join(root, "content/posts/prose-only.md"),
+    "---\ntitle: A post with nothing in it but prose\ndate: 2026-08-27\nstatus: published\n"
+    + "description: The other half of a theme review — what a post looks like when it uses no blocks at all.\n"
+    + "author: sunny\ncategory: engineering\ntags: [markdown, agents]\n---\n\n"
+    + "Most posts are not a tour of the vocabulary. They are headings, paragraphs, a list, a link and a code\n"
+    + "span, and a theme that only looks right when a post is full of blocks is a theme that looks wrong most\n"
+    + "of the time.\n\n"
+    + "## Body copy\n\nThe measure, the leading and the space between a heading and the paragraph under it are\n"
+    + "the whole design at this size. Everything else is decoration on top of a column of text.\n\n"
+    + "- A list item, because lists are half of technical writing\n- A second one, to show the gap between them\n"
+    + "- A [link](/about/) and a `code span`, which are the two things prose does that plain text cannot\n\n"
+    + "## A quote\n\n> Long-form reading. One serif column at a comfortable measure, generous leading, a single\n"
+    + "> accent used sparingly.\n\n"
+    + "```sh\nsnypd build\n```\n");
+
+  writeFileSync(join(root, "content/pages/about.md"),
+    "---\ntitle: About this fixture\nstatus: published\ndescription: The `page` layout, with the prose a real page carries and nothing else.\n---\n\n"
+    + "This site exists to be looked at. It is the smallest site that still renders every layout the base\ntheme declares, which makes it the right place to review a theme and the wrong place to measure a build.\n\n"
+    + ":::callout{kind=\"note\" title=\"Not a benchmark\"}\nBuild and lint timings come from `corpora/100`; this fixture is four routes and would say nothing.\n:::\n");
+
+  // The `author` type declares no `status` or `description` field (spec defaults), and lint says so about
+  // any frontmatter that invents one; an author is visible because its type has a layout, not because it
+  // carries a status. `bio` is the field the type does declare.
+  writeFileSync(join(root, "content/authors/sunny.md"),
+    "---\nname: Sunny\nbio: Writes the CMS and the posts.\n---\n\n"
+    + "Writes the CMS and the posts. The author layout lists the entries below the bio, so a fixture with one\nauthor and one post is enough to see whether that list has been designed or merely emitted.\n");
+
+  writeFileSync(join(root, "content/taxonomies/category/engineering.md"),
+    "---\ntitle: Engineering\nstatus: published\ndescription: How the thing is built, and what it cost.\n---\n\nThe term page carries its own prose above the list of entries.\n");
+  writeFileSync(join(root, "content/taxonomies/tag/markdown.md"),
+    "---\ntitle: Markdown\nstatus: published\ndescription: The source format, and the twin served beside every page.\n---\n\nA tag with a description reads as a page; one without reads as a filter.\n");
+
+  // `author` ships with `layout: null` (spec defaults), so a site that wants author pages asks for them.
+  writeFileSync(join(root, "snypd.yaml"),
+    "snypd: 1\nsite:\n  name: Theme fixture\n  url: https://fixture.snypd.rocks\n  description: Every primitive and every layout, once.\ntheme:\n  use: editorial\ntypes:\n  author:\n    layout: author\n");
+  return root;
+}
+
 if (import.meta.main) {
-  const n = Number(process.argv[2] ?? 100);
-  console.log(generate(n));
+  const arg = process.argv[2] ?? "100";
+  console.log(arg === "theme" ? generateTheme() : generate(Number(arg)));
 }

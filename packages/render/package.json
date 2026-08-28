@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./preview": "./src/preview.ts",
     "./jsx-runtime": "./src/jsx-runtime.ts",
-    "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts"
+    "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts",
+    "./media": "./src/media.ts"
   },
   "dependencies": {
     "@snypd/core": "workspace:*",

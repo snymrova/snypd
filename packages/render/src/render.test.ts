@@ -5,6 +5,8 @@ import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig, initRepo } from "@snypd/core";
 import { preview } from "./preview";
+import { imageSize, svgSize } from "./media";
+import { png } from "../../bench/src/corpus";
 
 describe("jsx runtime", () => {
   test("escapes strings, passes Html through, drops false/null attrs, renders void tags", () => {
@@ -388,5 +390,80 @@ describe("preview (S11)", () => {
     expect(r.rendered).toBeGreaterThan(0);
     expect(r.cached).toBeGreaterThan(r.rendered);                        // one route re-rendered, the rest kept
     expect(await (await fetch(`${server.url}/posts/hidden/`)).text()).toContain("Rewritten in place.");
+  });
+});
+
+describe("media (S13): copied verbatim, sized from its header, reserved in the markup", () => {
+  const root = "corpora/_test/media";
+  const dist = join(root, "dist");
+  beforeAll(async () => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/media/nested"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: M, url: https://m.example }\ntheme: { use: base }\n");
+    writeFileSync(join(root, "content/media/shot.png"), png(64, 48, [1, 2, 3]));
+    writeFileSync(join(root, "content/media/nested/logo.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"><rect width="30" height="20"/></svg>');
+    writeFileSync(join(root, "content/posts/p.md"),
+      "---\ntitle: P\ndate: 2026-01-01\nstatus: published\n---\n\n## S\n\nText.\n\n"
+      + '::figure{src="/media/shot.png" alt="A shot" caption="Cap."}\n\n'
+      + '::figure{src="https://elsewhere.example/x.png" alt="Off site"}\n');
+    await build(root);
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("image headers give intrinsic size for the five formats a site actually uses", () => {
+    expect(imageSize(png(7, 9, [0, 0, 0]))).toEqual({ width: 7, height: 9 });
+    expect(imageSize(new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x0a, 0x00, 0x14, 0x00, 0, 0]))).toEqual({ width: 10, height: 20 });
+    // JPEG: SOI, a COM segment to be walked over, then SOF0 carrying height then width.
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xfe, 0x00, 0x04, 0x41, 0x42, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x40, 0x00, 0x80, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(imageSize(jpeg)).toEqual({ width: 128, height: 64 });
+    expect(svgSize('<svg width="12px" height="8px">')).toEqual({ width: 12, height: 8 });
+    expect(svgSize('<svg viewBox="0 0 40 25" fill="none">')).toEqual({ width: 40, height: 25 });
+    expect(svgSize("<p>not an svg</p>")).toBeUndefined();
+    expect(imageSize(new Uint8Array([1, 2, 3, 4]))).toBeUndefined();
+  });
+
+  test("content/media is copied byte for byte, nested paths included", () => {
+    expect(readFileSync(join(dist, "media/shot.png"))).toEqual(readFileSync(join(root, "content/media/shot.png")));
+    expect(existsSync(join(dist, "media/nested/logo.svg"))).toBe(true);
+  });
+
+  test("figure reserves the box for a local image and guesses nothing for a remote one", () => {
+    const html = readFileSync(join(dist, "posts/p/index.html"), "utf8");
+    expect(html).toContain('<img src="/media/shot.png" alt="A shot" loading="lazy" decoding="async" width="64" height="48">');
+    expect(html).toContain('<img src="https://elsewhere.example/x.png" alt="Off site" loading="lazy" decoding="async">');
+  });
+
+  test("an unchanged media file is not recopied; a changed one is", async () => {
+    const r1 = await build(root);
+    expect(r1.media).toBe(2);
+    expect(r1.rendered).toBe(0);
+    writeFileSync(join(root, "content/media/shot.png"), png(10, 10, [9, 9, 9]));
+    const r2 = await build(root);
+    expect(r2.rendered).toBeGreaterThan(0);
+    expect(readFileSync(join(dist, "posts/p/index.html"), "utf8")).toContain('width="10" height="10"');
+  });
+});
+
+describe("theme reload (S13): the preview bundles, so an edit to an inner file is not served stale", () => {
+  const root = "corpora/_test/reload";
+  const shell = join(root, "themes/base/layouts/shell.tsx");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "content/posts"), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: R, url: https://r.example }\ntheme: { use: base }\n");
+    writeFileSync(join(root, "content/posts/p.md"), "---\ntitle: P\ndate: 2026-01-01\nstatus: published\n---\n\n## S\n\nText.\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("editing shell.tsx — which the layouts import statically — shows up without a restart", async () => {
+    const s = await preview(root, { port: 0, watch: false });
+    try {
+      expect(await (await fetch(`${s.url}/posts/p/`)).text()).not.toContain("RELOADED");
+      writeFileSync(shell, readFileSync(shell, "utf8").replace("<footer>", '<footer data-x="RELOADED">'));
+      await s.rebuild();
+      expect(await (await fetch(`${s.url}/posts/p/`)).text()).toContain("RELOADED");
+    } finally { s.stop(); }
   });
 });
