@@ -6,9 +6,13 @@ An open-source CMS whose **only interface is MCP**. Write, edit, theme and publi
 
 ```
 bun install
-bun run snypd bench      # speed suite → bench/latest.md
+bun run snypd init my-site --name="My Site" --url=https://example.com
+bun run snypd serve my-site        # the MCP server on stdio — the only interface
+bun run snypd bench                # speed suite → bench/latest.md
 bun run snypd build corpora/100
 bun test
 ```
+
+From a harness, everything else is the MCP: read `snypd://config`, `snypd://spec/primitives` and `snypd://theme`, run the `get-started` prompt, and write. `tools/list` stays small on purpose — `content.*` plus `find_tools`, which hands over theming, config and benchmarks when you ask for them ([docs/03](docs/03-mcp.md)).
 
 Design set: [`docs/`](docs/) · Site & public benchmarks: https://snypd.rocks

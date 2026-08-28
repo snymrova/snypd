@@ -11,12 +11,17 @@ export interface ResourceContents { uri: string; mimeType?: string; text: string
 export interface ResourceTemplate { uriTemplate: string; name: string; mimeType?: string; description?: string }
 export interface Tool { name: string; description?: string; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[] }; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean } }
 export interface Prompt { name: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[] }
+/** prompts/get result (2025-11-25). A prompt is a scripted opening turn, not a tool: text the agent continues from. */
+export interface PromptMessage { role: "user" | "assistant"; content: { type: "text"; text: string } }
+export interface GetPromptResult { description?: string; messages: PromptMessage[] }
+/** Server → client notification. Used for `notifications/tools/list_changed` when `find_tools` unlocks one. */
+export type Notify = (method: string, params?: Record<string, unknown>) => void;
 /** tools/call result (2025-11-25). `structuredContent` mirrors the text for callers that parse. */
 export interface ToolResult { content: { type: "text"; text: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean }
 export interface InitializeResult { protocolVersion: string; capabilities: Record<string, unknown>; serverInfo: { name: string; version: string }; instructions?: string }
 
 export const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"] as const;
-export const SERVER = { name: "snypd", version: "0.1.0-s11" };
+export const SERVER = { name: "snypd", version: "0.1.0-s16" };
 
 export type Id = number | string | null;
 export interface Request { jsonrpc: "2.0"; id?: Id; method: string; params?: Record<string, unknown> }
@@ -33,12 +38,15 @@ export interface Handlers {
   listTools?(): Promise<Tool[]>;
   callTool?(name: string, args: Record<string, unknown>): Promise<ToolResult>;
   listPrompts?(): Promise<Prompt[]>;
+  getPrompt?(name: string, args: Record<string, unknown>): Promise<GetPromptResult>;
+  /** Called once when the transport is up, with the channel notifications go out on. Never during `initialize`. */
+  connect?(notify: Notify): void;
 }
 
 export function initializeResult(params: Record<string, unknown> | undefined): InitializeResult {
   const asked = String(params?.protocolVersion ?? "");
   const protocolVersion = (PROTOCOL_VERSIONS as readonly string[]).includes(asked) ? asked : PROTOCOL_VERSIONS[0];
-  return { protocolVersion, capabilities: { resources: {}, tools: {}, prompts: {} }, serverInfo: SERVER, instructions: "Read snypd://config, then snypd://spec (and snypd://spec/primitives) before writing content. Writes go to a draft branch; publishing a draft-policy type needs a human to approve it on `snypd serve --preview`." };
+  return { protocolVersion, capabilities: { resources: {}, tools: { listChanged: true }, prompts: {} }, serverInfo: SERVER, instructions: "Read snypd://config, then snypd://spec (and snypd://spec/primitives) before writing content. Writes go to a draft branch; publishing a draft-policy type needs a human to approve it on `snypd serve --preview`." };
 }
 
 /** One message in → zero or one response out. Notifications (no id) never produce output. */
@@ -67,6 +75,13 @@ export async function dispatch(msg: Request, h: Handlers): Promise<Response | un
         return ok(await h.callTool(name, (args as Record<string, unknown>) ?? {}));
       }
       case "prompts/list": return ok({ prompts: (await h.listPrompts?.()) ?? [] });
+      case "prompts/get": {
+        const name = msg.params?.name;
+        if (typeof name !== "string") throw new RpcError(E.INVALID_PARAMS, "params.name required");
+        if (!h.getPrompt) throw new RpcError(E.METHOD_NOT_FOUND, "This server exposes no prompts");
+        const args = msg.params?.arguments;
+        return ok(await h.getPrompt(name, (args as Record<string, unknown>) ?? {}));
+      }
       default:
         if (msg.method.startsWith("notifications/")) return undefined;
         throw new RpcError(E.METHOD_NOT_FOUND, `Method not found: ${msg.method}`);
@@ -89,6 +104,10 @@ export function serveStdio(h: Handlers, input?: NodeJS.ReadableStream, output: N
   // duplicate check). `dispatch` is called by the chain, never before it.
   let queue: Promise<unknown> = Promise.resolve();
   const send = (r: Response | undefined) => { if (r) output.write(JSON.stringify(r) + "\n"); };
+  // Notifications are written straight out rather than queued: they answer no request, and a
+  // `tools/list_changed` that waited behind the call which caused it would arrive after the agent had
+  // already decided what to do next.
+  h.connect?.((method, params) => output.write(JSON.stringify({ jsonrpc: "2.0", method, ...(params ? { params } : {}) }) + "\n"));
   const enqueue = (run: () => Promise<Response | undefined>) => { queue = queue.then(run).then(send, (e) => send({ jsonrpc: "2.0", id: null, error: { code: E.INTERNAL, message: String(e) } })); };
   const feed = (chunk: string) => {
     buf += chunk;

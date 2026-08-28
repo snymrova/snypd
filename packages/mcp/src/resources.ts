@@ -7,8 +7,8 @@
  * server the most expensive one. An agent that wants the list calls `content.query`.
  * Both packages are imported lazily on first use so cold start stays at the spawn floor.
  */
-import { readFileSync } from "node:fs";
-import { relative } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import type { Handlers } from "./protocol";
 import { E, RpcError } from "./protocol";
 
@@ -18,10 +18,58 @@ let spec: Spec | undefined, core: Core | undefined;
 const loadSpec = async () => (spec ??= await import("@snypd/spec"));
 const loadCore = async () => (core ??= await import("@snypd/core"));
 
-const JSON_ = "application/json", YAML = "application/yaml";
+const JSON_ = "application/json", YAML = "application/yaml", MD = "text/markdown";
+
+/**
+ * S16 adds the theme resources and `snypd://bench/latest`. They are resources rather than `theme.get_*`
+ * tools on purpose (docs/07 decision 38): a read costs nothing until something reads it, whereas a tool
+ * costs its schema on every turn. Only `snypd://theme` is part of what docs/05 counts as learning the
+ * site — the token table and the coverage list are read when an agent sets out to restyle, not at session
+ * start, and folding them into that budget would price a session for work it is not doing.
+ */
 
 export function handlers(root: string): Handlers {
   const config = async () => (await loadCore()).loadConfig(root);
+
+  /**
+   * The three theme reads. `coverage` is the only one that has to load the renderer — it is the answer to
+   * "which primitives does this theme actually implement", which only resolving the chain can give — so an
+   * agent that just wants the palette never pays for it.
+   */
+  const themeResource = async (uri: string): Promise<[string, string]> => {
+    const c = await loadCore(), cfg = await config();
+    const part = uri.slice("snypd://theme".length).replace(/^\//, "");
+    if (part === "tokens") {
+      const rows = c.themeTokens(cfg);
+      if (!rows.length) return [YAML, `# ${cfg.config.theme.use} declares no tokens.\ntokens: {}\n`];
+      const settable = rows.filter((t) => t.customisable).length;
+      const body = rows.map((t) => [
+        `  ${t.name}:`,
+        `    value: ${JSON.stringify(t.value)}`,
+        t.overridden ? `    default: ${JSON.stringify(t.default)}   # overridden in snypd.yaml` : "",
+        t.kind ? `    kind: ${t.kind}` : "",
+        t.customisable ? "" : "    customisable: false   # fixed by the theme; extend it to change this",
+        t.description ? `    description: ${JSON.stringify(t.description)}` : "",
+      ].filter(Boolean).join("\n")).join("\n");
+      return [YAML, `# Tokens of theme \`${cfg.config.theme.use}\`. ${settable} of ${rows.length} can be set from snypd.yaml\n` +
+        `# with \`theme\` › set_tokens; the rest are structure, not taste. Every one is emitted as a CSS custom\n` +
+        `# property (\`color.accent\` → \`--color-accent\`), which is what a theme's stylesheet reads.\ntokens:\n${body}\n`];
+    }
+    if (part === "coverage") {
+      const { loadTheme } = await import("@snypd/render");
+      const t = await loadTheme(cfg);
+      const by = (s: string) => t.coverage.filter((x) => x.status === s);
+      return [JSON_, JSON.stringify({
+        theme: t.name, extends: t.chain.slice(1).map((l) => l.name),
+        summary: { own: by("own").length, inherited: by("inherited").length, fallback: by("fallback").length, missing: by("missing").length, total: t.coverage.length },
+        layouts: Object.keys(t.layouts).sort(),
+        primitives: t.coverage,
+        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing",
+      }, null, 2)];
+    }
+    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /coverage)`);
+    return [YAML, c.renderThemeSummary(root, cfg)];
+  };
   return {
     async listResources() {
       const [s, c] = [await loadSpec(), await config()];
@@ -31,6 +79,10 @@ export function handlers(root: string): Handlers {
         { uri: "snypd://types", name: "types", mimeType: JSON_, description: "Merged content types (spec + plugins + site), frontmatter as JSON Schema" },
         ...Object.keys(c.config.types).map((n) => ({ uri: `snypd://types/${n}`, name: `types/${n}`, mimeType: JSON_, description: `Merged schema for type ${n}` })),
         ...Object.keys(c.config.taxonomies).map((n) => ({ uri: `snypd://taxonomies/${n}`, name: `taxonomies/${n}`, mimeType: JSON_, description: `Merged schema for taxonomy ${n}` })),
+        { uri: "snypd://theme", name: "theme", mimeType: YAML, description: "The active theme: what it inherits, how it means to read, and what else is installed — read this with the config" },
+        { uri: "snypd://theme/tokens", name: "theme/tokens", mimeType: YAML, description: "Every token the theme declares, with its value, default and whether it may be set from snypd.yaml — the knobs that change how the site looks without writing CSS" },
+        { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
+        { uri: "snypd://bench/latest", name: "bench/latest", mimeType: MD, description: "The last full benchmark report: every speed and size budget with its measured value" },
       ];
     },
     async listTemplates() {
@@ -58,6 +110,12 @@ export function handlers(root: string): Handlers {
         if (md) return text("text/markdown", source);
         const { yaml, body } = c.splitFrontmatter(source);
         return text(YAML, `# ${t.path} → ${t.route}\n${yaml}\nbody: |\n${body.split("\n").map((l) => `  ${l}`).join("\n").replace(/\s+$/, "")}\n`);
+      }
+      if (uri === "snypd://theme" || uri.startsWith("snypd://theme/")) { const [m, t] = await themeResource(uri); return text(m, t); }
+      if (uri === "snypd://bench/latest") {
+        const file = join(root, "bench", "latest.md");
+        if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no bench/latest.md yet — run \`bench\` › run)`);
+        return text(MD, readFileSync(file, "utf8"));
       }
       const lintM = /^snypd:\/\/lint\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9/-]*)$/i.exec(uri);
       if (lintM) {

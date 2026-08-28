@@ -11,14 +11,14 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, type Theme, type SiteCtx, type Entry, type TermLink, type PrimitiveProps } from "./theme";
 import { Html } from "./jsx-runtime";
 import { resolveTokens, tokensCss, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
-import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, type SurfaceEntry, type SurfaceSite } from "./emit";
+import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
   out?: string; cfg?: LoadedConfig; index?: SiteIndex; cache?: MdastCache;
@@ -225,6 +225,21 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   for (const t of siteSurface.types) artefact(`api/${t.name}.json`, () => apiType(siteSurface, t));
   for (const t of siteSurface.taxonomies) artefact(`api/${t.name}.json`, () => apiTaxonomy(siteSurface, t));
   if (css) artefact("assets/theme.css", () => minifyCss(css), sha1(css));
+
+  /**
+   * Redirects last, so `routed` already holds every page the site really builds: a redirect whose old
+   * route is now a live page is dropped rather than shadowing it. Each one is its own plan item keyed on
+   * its pair, so adding a redirect rewrites that page and nothing else.
+   */
+  const routed = new Set(plan.filter((p) => p.kind === "route").map((p) => p.route));
+  const redirs: Redirect[] = Object.entries(redirects(cfg)).map(([from, to]) => ({ from, to })).filter((r) => !routed.has(r.from));
+  if (redirs.length) {
+    artefact("_redirects", () => redirectsFile(redirs), sha1(JSON.stringify(redirs)));
+    for (const r of redirs) {
+      const file = join(routeDir(r.from), "index.html");
+      plan.push({ route: r.from, key: sha1(`${base}:redirect:${r.from}>${r.to}`), kind: "artefact", outputs: [file], render: () => ({ [file]: redirectPage(siteSurface, r) }) });
+    }
+  }
 
   for (const m of mediaFiles) {
     const output = join("media", m.rel);

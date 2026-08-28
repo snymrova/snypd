@@ -176,3 +176,19 @@ export function flowSteps(data: unknown): string[] {
 }
 
 export const jsonLd = (schemas: unknown[]) => schemas.map((s) => JSON.stringify(s, (_, v) => (v === undefined ? undefined : v))).join("\n");
+
+/**
+ * Redirects (S16). Lint rule 10 has warned about a moved post since S6; `site.set_redirect` writes the
+ * config and this is what the build does with it. Two forms, because no one form is portable:
+ *  - `_redirects`, which Cloudflare Pages and Netlify read natively and serve as a real 301;
+ *  - one page per redirect, which every other static host serves — a meta refresh plus a canonical link
+ *    so a crawler that ignores the refresh still learns where the page went.
+ * A redirect whose old route is a page the site actually builds is dropped by the caller: a live route
+ * must never be shadowed by a redirect away from itself.
+ */
+export interface Redirect { from: string; to: string }
+export const redirectsFile = (list: Redirect[]) => `${list.map((r) => `${r.from} ${r.to} 301`).join("\n")}\n`;
+export function redirectPage(s: SurfaceSite, r: Redirect): string {
+  const to = absolute(s.url, r.to);
+  return `<!doctype html>\n<html lang="${s.locale}">\n<meta charset="utf-8">\n<title>Moved to ${r.to}</title>\n<link rel="canonical" href="${to}">\n<meta name="robots" content="noindex">\n<meta http-equiv="refresh" content="0; url=${to}">\n<p>This page moved to <a href="${to}">${r.to}</a>.</p>\n`;
+}

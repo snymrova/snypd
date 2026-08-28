@@ -265,3 +265,22 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
 export function formatDiagnostics(d: Diagnostic[]): string {
   return d.map((x) => `${x.level}: ${x.path ? `${x.path}: ` : ""}${x.message}${x.where ? ` (${x.where})` : ""}`).join("\n");
 }
+
+/** Routes are stored leading-slashed and un-trailing-slashed (`/posts/x`); `/` is itself. */
+export function normalizeRoute(route: string): string {
+  const r = `/${String(route).trim().replace(/^\/+/, "").replace(/\/+$/, "")}`;
+  return r === "/" ? "/" : r;
+}
+
+/**
+ * The site's redirects, old route → new route, both normalized (S16). Lives here rather than in site.ts
+ * so the lint (which must know whether a moved route is covered) can read it without importing the write
+ * half of the package.
+ */
+export function redirects(cfg: LoadedConfig): Record<string, string> {
+  const raw = (cfg.config.site as Record<string, unknown>).redirects;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === "string") out[normalizeRoute(k)] = normalizeRoute(v);
+  return out;
+}

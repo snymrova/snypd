@@ -16,27 +16,37 @@ MCP spec target: **2025-11-25** (stable) with the **2026-07-28** RC tracked (cac
 | `snypd://spec` · `snypd://spec/primitives` · `snypd://spec/primitives/{name}` | the vocabulary, one line each / full schema + intent + example + preview image |
 | `snypd://types` · `snypd://types/{name}` | merged type schemas |
 | `snypd://taxonomies/{name}` · `…/{name}/{term}` | terms and term files |
-| `snypd://theme` · `snypd://theme/tokens` · `snypd://theme/coverage` · `snypd://theme/patterns` | active theme |
+| `snypd://theme` · `snypd://theme/tokens` · `snypd://theme/coverage` | the active theme, its palette, and which primitives it implements itself (S16). `theme` is part of what docs/05 counts as learning the site; the other two are read by an agent that is restyling, and are not in that budget. `theme/patterns` — the class contract a stylesheet targets — is not built yet; `base`'s `snypd-<name>` classes are the contract in the meantime |
 | `snypd://content/{type}/{slug}` · `snypd://content/{type}/{slug}.md` | frontmatter+body as YAML/markdown |
 | `snypd://media/{id}` | manifest entry |
 | `snypd://history/{type}/{slug}` | commits touching it |
-| `snypd://bench/latest` · `snypd://bench/profile/{id}` | benchmark reports as Markdown |
+| `snypd://bench/latest` | the last full report as Markdown (S16). `snypd://bench/profile/{id}` follows when profiles do |
 | `snypd://lint/{type}/{slug}` | diagnostics: rules 0–9 (docs/01) as `{rule, n, severity, line, message, hint}` — every entry carries a fix hint the agent can act on; served from S5, rules 10–11 need the S6 index |
 
-Resources carry `ttlMs`; content resources subscribe so the harness is told when a post changes under it. Session start = read three resources (`config`, `spec/primitives`, `theme`) — budgeted at ≤ 6,000 tokens total (05).
+Resources carry `ttlMs`; content resources subscribe so the harness is told when a post changes under it. Session start = read three resources (`config`, `spec/primitives`, `theme`) — budgeted at ≤ 6,000 tokens total (05); measured 4,571 (base) / 4,775 (editorial) at S16, with `tools/list` a further 2,208 on top.
 
-### Tools (side effects; all carry `readOnlyHint / destructiveHint / idempotentHint`)
-**content.** *(S11 ships `create` `update` `query` `lint` `set_status` `publish` `trash` `restore`; S15 adds `suggest_blocks` and `render_preview`; the rest follow the schedule.)* `create(type, slug?, frontmatter, body)` · `update(type, slug, patch|body)` · `lint` · `suggest_blocks({type, slug} | {markdown}, apply?, fill?, only?, minConfidence?)` — upgrades plain prose into primitives; scored from `packages/spec/detect/*.yaml`, never returns a suggestion that would fail lint, and declares what the prose could not supply (a plain table has no `source:`) rather than inventing it. `apply` writes the accepted ones to the draft branch · `render_preview(type, slug, port?)` → URL + markdown twin + review URL (starts this session's preview server; screenshots and `theme`/`viewport` are v0.2) · `query({type, taxonomy, fields, status, sort, limit})` · `set_status` · `publish` (elicits approval when policy is `draft`) · `schedule(publishAt)` · `trash` · `restore` · `translate(slug, locale)` · `explain(slug)`
-**taxonomy.** `create_term` · `update_term` · `suggest(slug)` · `merge(from, to)` · `lint`
-**media.** `upload(path|base64, alt, credit?, licence?)` · `set_alt` · `find_unused` · `transform(id, ops)`
-**theme.** `list` · `set(name)` (runs coverage lint over all content) · `get_tokens` · `set_tokens(patch)` (declared keys only) · `preview(theme, slug)` · `coverage(theme)` · `scaffold(extends)` · `which_layout(slug)` · `check`
-**site.** `get_config` · `set_config(path, value)` (schema-validated) · `explain_config(path)` · `set_nav(location, items)` · `set_redirect(from, to)` · `doctor` · `use(site)` (workspaces) · `build(target?)`
-**history.** `list` · `diff(slug, from, to)` · `restore(slug, sha)`
-**jobs.** `list` · `run(name)`
+### Tools — a small list, and a catalogue behind it (S16, docs/07 decision 38)
+
+`tools/list` is paid on **every turn**, whether or not the agent themes anything. Measured in S15: 203 tokens per tool. The full v0.1 surface written flat — one tool per verb, as this document first specified it — is ≈ 8,600 tokens before the agent writes a word, on top of the ≈ 4,600 it pays to learn the vocabulary. So the surface is split, and the split is budgeted (`tokens.tools` ≤ 3,000, gated in `snypd bench`; measured **2,208**).
+
+**Always listed.** The hot path, plus the way to reach everything else.
+
+**content.** *(S11 ships `create` `update` `query` `lint` `set_status` `publish` `trash` `restore`; S15 adds `suggest_blocks` and `render_preview`.)* `create(type, slug?, frontmatter, body)` · `update(type, slug, patch|body)` · `lint` · `suggest_blocks({type, slug} | {markdown}, apply?, fill?)` · `render_preview` · `query` · `set_status` · `publish` · `trash` · `restore`
+**find_tools.** `find_tools(query?)` — say what you are trying to do; the matching tools come back with their full JSON Schema and join `tools/list` (`notifications/tools/list_changed`). A catalogue tool is callable whether or not it was ever listed, so a client that ignores the notification loses nothing.
+
+**In the catalogue.** One tool per namespace with an `action`, not one per verb: nine `theme.*` tools is nine descriptions and eight of them re-explain what a theme is. Reads are not tools at all — they are resources, which cost nothing until something reads them.
+
+**theme.** `set(name)` · `set_tokens(patch)` (declared `customisable` keys only) · `scaffold(name, extends)` → `theme.yaml` + one stylesheet + `package.json`
+**site.** `init(name, url, description?, theme?)` · `set_config(path, value)` (validated, and rolled back on disk if it does not load) · `explain_config(path)` · `set_redirect(from, to)` · `doctor` · `build`
 **bench.** `run(suite?)` · `compare(a, b)`
 
+*Not yet in v0.1:* `taxonomy.*`, `media.*`, `history.*`, `jobs.*`, `theme.preview`, `site.set_nav`, `site.use` (workspaces). They join the catalogue on the same terms — one tool, an `action`, reads as resources — which is what keeps the budget intact as they land. `theme.preview` is deliberately absent: `theme` › set followed by `content.render_preview` is the same thing in two calls the agent already knows.
+
 ### Prompts (versioned editorial workflows)
-`get-started` (creates `snypd.yaml` interactively) · `write-post` (system → draft → lint → preview → review) · `refresh-stale` · `build-theme` (scaffold → implement primitive → preview → repeat) · `migrate-from-wordpress` (WXR → types/terms/posts, shortcodes → primitives) · `weekly-content-review`.
+
+S16 ships two: **`get-started`** (look before writing → ask the human only for the name and URL → `site` › init → read the vocabulary → one real post → preview → hand back the review link) and **`write-post`** (read the primitives and the type first → choose the shape before the prose → create → act on the lint's own fix hints → preview). Both are written as instructions naming the exact resources and calls in order — a prompt that does not name its calls is a paragraph, not a workflow.
+
+Planned: `refresh-stale` · `build-theme` (scaffold → implement primitive → preview → repeat) · `migrate-from-wordpress` (WXR → types/terms/posts, shortcodes → primitives).
 
 ## Discoverability is the documentation
 
@@ -45,7 +55,7 @@ Descriptions are written for agents: purpose, intent, anti-intent, example. `too
 ## The "no UI" consequences, made explicit
 
 - **Approval:** `/_snypd/review/<id>` is a theme-rendered page in the site (diff + preview + approve), served by `snypd serve --preview`. No admin app.
-- **Onboarding:** `snypd init` = `snypd serve` + the `get-started` prompt.
+- **Onboarding:** the `get-started` prompt, which calls `site` › init itself — nothing has to be run in a terminal first. `snypd init --name=… --url=…` is the same call for someone who reached for a shell anyway (S16); `--deploy` joins it in S18.
 - **Media:** the harness already has file tools; `media.upload` takes a path.
 - **Public read-only MCP** for every built site (`/.well-known/mcp.json`: `search`, `get_page`, `ask`) — the site itself is queryable by other agents.
 

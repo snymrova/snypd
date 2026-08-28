@@ -11,6 +11,12 @@
  *    and never on the path `mcp.coldStart` measures. Keep it that way — it is the tightest budget here;
  *  - a failed tool returns `isError` with a hint, never a JSON-RPC error. A protocol error aborts the
  *    agent's turn; a tool error is something it can read and fix.
+ *
+ * S16 splits the surface in two (docs/07 decision 38). What is listed here is the hot path — `content.*`,
+ * which an agent writing a post needs immediately — plus `find_tools`, which hands over the rest
+ * (`theme`, `site`, `bench`; catalog.ts) on demand. A tool the catalogue defines is callable whether or
+ * not it was ever listed, so the split degrades to "slightly more typing" on a client that ignores
+ * `notifications/tools/list_changed` rather than to a broken server.
  */
 import { existsSync, readFileSync } from "node:fs";
 import type { Handlers, Tool, ToolResult } from "./protocol";
@@ -70,7 +76,15 @@ export const TOOLS: Tool[] = [
     description: "Bring a trashed item back as a draft, at its original path.",
     inputSchema: S({ type: TYPE, slug: SLUG }, ["type", "slug"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false } },
+
+  { name: "find_tools",
+    description: "Load the tools for anything that is not writing a post — changing the theme or its colours, editing site config, redirecting a URL that moved, checking the site's health, running the benchmarks. Say what you are trying to do and the matching tools come back with their full schemas, callable straight away. They are behind this call so that a session which only writes content never pays for a surface it does not use.",
+    inputSchema: S({ query: str("What you are trying to do, in your own words — \"change the accent colour\", \"the post moved, redirect the old URL\", \"is the build still fast\". Omit it to see everything there is.") }),
+    annotations: { readOnlyHint: true, idempotentHint: true } },
 ];
+
+/** The always-listed surface. The catalogue joins `tools/list` only once `find_tools` has unlocked part of it. */
+export const CORE_TOOLS = TOOLS;
 
 const text = (s: string, structured?: Record<string, unknown>): ToolResult => ({ content: [{ type: "text", text: s }], ...(structured ? { structuredContent: structured } : {}) });
 const fail = (message: string, hint?: string): ToolResult => ({ content: [{ type: "text", text: hint ? `${message}\n↳ ${hint}` : message }], structuredContent: { ok: false, error: message, ...(hint ? { hint } : {}) }, isError: true });
@@ -113,7 +127,16 @@ export async function dispose(): Promise<void> {
   if (p) { try { (await p).stop(); } catch { /* already gone */ } }
 }
 
-export function handlers(root: string): Pick<Handlers, "listTools" | "callTool"> {
+type Catalog = typeof import("./catalog");
+let catalog: Catalog | undefined;
+const loadCatalog = async () => (catalog ??= await import("./catalog"));
+
+/**
+ * Tools `find_tools` has handed over this session. Session-scoped rather than global: two roots served by
+ * one process must not leak each other's unlocked surface, and a fresh session starts back at the small list.
+ */
+export function handlers(root: string, notify?: (method: string, params?: Record<string, unknown>) => void): Pick<Handlers, "listTools" | "callTool"> {
+  const unlocked = new Set<string>();
   const cfgOf = async () => {
     const c = await loadCore();
     const cfg = c.loadConfig(root);
@@ -141,9 +164,29 @@ export function handlers(root: string): Pick<Handlers, "listTools" | "callTool">
   };
 
   return {
-    async listTools() { return TOOLS; },
+    async listTools() {
+      if (!unlocked.size) return CORE_TOOLS;
+      const { CATALOG } = await loadCatalog();
+      return [...CORE_TOOLS, ...CATALOG.filter((t) => unlocked.has(t.name))];
+    },
 
     async callTool(name, args): Promise<ToolResult> {
+      // Before the core import: finding a tool is the one call that needs nothing but the catalogue.
+      if (name === "find_tools") {
+        const { search, CATALOG } = await loadCatalog();
+        const q = typeof args.query === "string" ? args.query : "";
+        const found = search(q);
+        if (!found.length)
+            return text(`nothing matches "${q}"\nThere are ${CATALOG.length} tools here: ${CATALOG.map((t) => t.name).join(", ")}. Call find_tools with no query to see them all.`,
+              { ok: true, count: 0, available: CATALOG.map((t) => t.name) });
+        const fresh = found.filter((t) => !unlocked.has(t.name));
+        for (const t of found) unlocked.add(t.name);
+        // Tell the client its list grew. A client that acts on it can call these natively; one that
+        // does not still has the schemas printed below, and callTool takes them either way.
+        if (fresh.length) notify?.("notifications/tools/list_changed");
+        const body = found.map((t) => `## ${t.name}\n${t.description}\n\ninput: ${JSON.stringify(t.inputSchema)}`).join("\n\n");
+        return text(`${found.length} tool${found.length === 1 ? "" : "s"} ready to call:\n\n${body}`, { ok: true, count: found.length, tools: found });
+      }
       const c = await loadCore();
       try {
         switch (name) {
@@ -294,7 +337,13 @@ export function handlers(root: string): Pick<Handlers, "listTools" | "callTool">
                 { ok: true, files: files.length, errors, warnings, diagnostics: out.flatMap(diag) });
             } finally { index.close(); }
           }
-          default: return fail(`unknown tool "${name}"`, `Tools: ${TOOLS.map((t) => t.name).join(", ")}`);
+          default: {
+            const { CATALOG_NAMES, call } = await loadCatalog();
+            // A catalogue tool is callable whether or not `find_tools` listed it first: the schema is the
+            // same either way, and refusing here would only punish a client that read the schema and acted.
+            if (CATALOG_NAMES.has(name)) { unlocked.add(name); return await call(root, name, args); }
+            return fail(`unknown tool "${name}"`, `Listed: ${CORE_TOOLS.map((t) => t.name).join(", ")}. Everything else is behind find_tools.`);
+          }
         }
       } catch (e) {
         const err = e as Error & { hint?: string };

@@ -96,9 +96,24 @@ switch (cmd) {
     console.log(formatSiteLint(s));
     process.exit(s.errors ? 1 : 0);
   }
-  case "init":
-    console.error(`snypd ${cmd}: not yet implemented (see docs/07 schedule)`); process.exit(2);
+  case "init": {   // S16: the same `initSite` the `site` tool calls, for someone who reached for a terminal first
+    const { initSite, isRepoRoot } = await import("@snypd/core");
+    const flag = (n: string) => [...flags].find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
+    const root = args[0] ?? ".";
+    const name = flag("name"), url = flag("url");
+    if (!name || !url) { console.error("usage: snypd init [root] --name=\"My Site\" --url=https://example.com [--description=…] [--theme=editorial]"); process.exit(2); }
+    try {
+      const r = initSite(root, { name, url, description: flag("description"), theme: flag("theme") });
+      console.log(`initialised ${r.created.join(", ")}`);
+      console.log(isRepoRoot(root) ? "next: snypd serve  (then write through the MCP — that is the only interface)" : "next: git init here, then snypd serve");
+    } catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
+      process.exit(1);
+    }
+    break;
+  }
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd serve [root] --preview|--static [--port=N] | snypd bench [page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd init [root] --name=… --url=… | snypd serve [root] --preview|--static [--port=N] | snypd bench [page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 export {};

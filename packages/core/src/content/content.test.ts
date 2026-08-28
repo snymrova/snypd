@@ -219,4 +219,20 @@ describe("site rules 10–11 (S6)", () => {
     expect(d[0]!.message).toBe("Route changed from /posts/old to /posts/a; nothing redirects the old URL");
     expect(lintSite(root).warnings).toBe(0);
   });
+  /**
+   * S16. Until this session rule 10 named a remedy the product did not have ("the redirect type lands in
+   * v0.2"), so the only way to silence it was to undo the move. A declared redirect is now the other way.
+   */
+  test("10 slug-change: a declared redirect covers the old route and the warning stops", () => {
+    site({ a: post("ai"), b: post("ai") });
+    const moves = [{ path: "content/posts/a.md", from: "/posts/old", to: "/posts/a" }];
+    expect(lintSite(root, { moves }).files[0]!.diagnostics[0]!.hint).toContain("set_redirect");
+
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite:\n  name: t\n  url: https://t.example\n  redirects:\n    /posts/old: /posts/a\n");
+    expect(lintSite(root, { moves }).warnings).toBe(0);
+
+    // A redirect for a *different* route does not silence this one.
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite:\n  name: t\n  url: https://t.example\n  redirects:\n    /posts/elsewhere: /posts/a\n");
+    expect(lintSite(root, { moves }).files[0]!.diagnostics.map((x) => x.rule)).toEqual(["slug-change"]);
+  });
 });

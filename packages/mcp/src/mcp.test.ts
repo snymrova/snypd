@@ -61,7 +61,7 @@ describe("stdio", () => {
     expect(out.map((m) => m.id)).toEqual([1, null, 2, 3, 4]);
     expect(out[0].result.protocolVersion).toBe(PROTOCOL_VERSIONS[0]);
     expect(out[1].error.code).toBe(-32700);
-    expect(out[3].result.tools.map((t: any) => t.name)).toEqual(["content.create", "content.update", "content.query", "content.lint", "content.set_status", "content.publish", "content.suggest_blocks", "content.render_preview", "content.trash", "content.restore"]);
+    expect(out[3].result.tools.map((t: any) => t.name)).toEqual(["content.create", "content.update", "content.query", "content.lint", "content.set_status", "content.publish", "content.suggest_blocks", "content.render_preview", "content.trash", "content.restore", "find_tools"]);
   });
 });
 
@@ -69,7 +69,7 @@ describe("in-process", () => {
   test("initialize path imports nothing heavy", async () => {
     const s = createServer("corpora/100");
     const r = await s.handle({ jsonrpc: "2.0", id: 1, method: "initialize" });
-    expect((r as any).result.capabilities).toEqual({ resources: {}, tools: {}, prompts: {} });
+    expect((r as any).result.capabilities).toEqual({ resources: {}, tools: { listChanged: true }, prompts: {} });
     const missing = await s.handle({ jsonrpc: "2.0", id: 2, method: "resources/read", params: {} });
     expect((missing as any).error.code).toBe(-32602);
     expect(await s.handle({ jsonrpc: "2.0", method: "resources/read", params: {} })).toBeUndefined(); // notification → no reply even on error
@@ -217,7 +217,136 @@ describe("content.* tools", () => {
       req(4, "tools/call", { name: "content.create", arguments: [] }),
     ], site);
     expect(badStatus.result.content[0].text).toContain("unknown status");
-    expect(unknownTool.result.content[0].text).toContain("Tools: content.create");
+    expect(unknownTool.result.content[0].text).toContain("Listed: content.create");
     expect(badArgs.error.code).toBe(-32602);
+  });
+});
+
+/**
+ * S16: the deferred surface. What is being tested is the *bargain* — a small list every turn, the rest
+ * reachable — so the assertions are about what `tools/list` costs before and after, not just that a tool works.
+ */
+describe("find_tools + the catalogue", () => {
+  const site = "corpora/_test/mcp-s16";
+  const call = (id: number, name: string, args: object = {}) => req(id, "tools/call", { name, arguments: args });
+  const structured = (m: any) => m.result.structuredContent;
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(site, { recursive: true });
+    const { initRepo, git } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    writeFileSync(`${site}/.gitkeep`, "");
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
+  });
+
+  test("the listed surface is content.* + find_tools; a query hands over the rest and says so", async () => {
+    const out = await session([
+      req(1, "initialize"),
+      req(2, "tools/list"),
+      call(3, "find_tools", { query: "change the accent colour" }),
+      req(4, "tools/list"),
+      call(5, "find_tools", { query: "xyzzy" }),
+    ], "corpora/theme");
+    const [, before, found, after, unmatched] = out.filter((m: any) => m.id !== undefined);
+
+    // The client is told its list grew, once — the second find unlocks nothing new and stays quiet.
+    expect(out.filter((m: any) => m.method === "notifications/tools/list_changed")).toHaveLength(1);
+
+    const names = (m: any) => m.result.tools.map((t: any) => t.name);
+    expect(names(before)).not.toContain("theme");
+    expect(names(before).at(-1)).toBe("find_tools");
+    // The find returns the schema itself, so a client that never re-lists can still call it.
+    expect(structured(found).tools[0].name).toBe("theme");
+    expect(structured(found).tools[0].inputSchema.properties.action.enum).toContain("set_tokens");
+    expect(names(after)).toContain("theme");
+    // Only what matched joins the list: finding the theme tool must not drag the bench tool in with it.
+    expect(names(after)).not.toContain("bench");
+    expect(structured(unmatched)).toMatchObject({ count: 0 });
+    expect(structured(unmatched).available).toEqual(["theme", "site", "bench"]);
+  });
+
+  test("a catalogue tool is callable before it was ever listed", async () => {
+    const [, doctor, list] = await session([
+      req(1, "initialize"),
+      call(2, "site", { action: "doctor" }),
+      req(3, "tools/list"),
+    ], "corpora/theme");
+    expect(doctor.result.isError).toBeUndefined();
+    expect(doctor.result.content[0].text).toContain("config loads");
+    expect(list.result.tools.map((t: any) => t.name)).toContain("site");
+  });
+
+  test("init → set_config → redirect → tokens → scaffold, each validated before it sticks", async () => {
+    const [, init, dupeInit, renamed, bad, explained, unknownToken, redirected, loop, scaffolded, activated] = await session([
+      req(1, "initialize"),
+      call(2, "site", { action: "init", name: "S16", url: "https://s16.example", description: "A test." }),
+      call(3, "site", { action: "init", name: "again", url: "https://s16.example" }),
+      call(4, "site", { action: "set_config", path: "site.name", value: "S16 renamed" }),
+      call(5, "site", { action: "set_config", path: "site.url", value: "not a url" }),
+      call(6, "site", { action: "explain_config", path: "site.name" }),
+      call(7, "theme", { action: "set_tokens", tokens: { "color.nope": "#000" } }),
+      call(8, "site", { action: "set_redirect", from: "/posts/old", to: "/posts/new" }),
+      call(9, "site", { action: "set_redirect", from: "/posts/new", to: "/posts/old" }),
+      call(10, "theme", { action: "scaffold", name: "scratchy", extends: "editorial" }),
+      call(11, "theme", { action: "set", name: "scratchy" }),
+    ], site);
+
+    expect(structured(init)).toMatchObject({ ok: true, git: true });
+    expect(structured(init).created).toContain("snypd.yaml");
+    expect(dupeInit.result.isError).toBe(true);
+    expect(structured(renamed)).toMatchObject({ ok: true, from: "S16", to: "S16 renamed" });
+
+    // The one that matters: an invalid value is rolled back, and the file still loads afterwards.
+    expect(bad.result.isError).toBe(true);
+    expect(bad.result.content[0].text).toContain("left unchanged");
+    expect(readFileSync(`${site}/snypd.yaml`, "utf8")).toContain("https://s16.example");
+    expect(explained.result.content[0].text).toContain("snypd.yaml");
+
+    expect(unknownToken.result.isError).toBe(true);
+    expect(unknownToken.result.content[0].text).toContain("color.accent");   // the hint names real ones
+
+    expect(structured(redirected)).toMatchObject({ from: "/posts/old", to: "/posts/new" });
+    expect(loop.result.isError).toBe(true);
+    expect(loop.result.content[0].text).toContain("loop");
+
+    expect(structured(scaffolded)).toMatchObject({ theme: "scratchy", extends: "editorial" });
+    expect(readFileSync(`${site}/themes/scratchy/theme.yaml`, "utf8")).toContain("extends: editorial");
+    expect(structured(activated)).toMatchObject({ theme: "scratchy", from: "editorial", changed: true });
+  });
+
+  test("switching to a theme that does not declare a token you set says so rather than losing it", async () => {
+    const bare = "corpora/_test/mcp-s16-strand";
+    rmSync(bare, { recursive: true, force: true }); mkdirSync(bare, { recursive: true });
+    writeFileSync(`${bare}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntheme:\n  use: editorial\n  tokens:\n    color.accent: \"#0a5\"\n");
+    const [, switched] = await session([req(1, "initialize"), call(2, "theme", { action: "set", name: "base" })], bare);
+    expect(structured(switched)).toMatchObject({ theme: "base", from: "editorial", strandedTokens: ["color.accent"] });
+    expect(switched.result.content[0].text).toContain("base does not declare");
+  });
+
+  test("theme, tokens and coverage are resources, and prompts are scripts an agent can run", async () => {
+    const [, theme, tokens, coverage, badTheme, prompts, post, badPrompt] = await session([
+      req(1, "initialize"),
+      req(2, "resources/read", { uri: "snypd://theme" }),
+      req(3, "resources/read", { uri: "snypd://theme/tokens" }),
+      req(4, "resources/read", { uri: "snypd://theme/coverage" }),
+      req(5, "resources/read", { uri: "snypd://theme/nope" }),
+      req(6, "prompts/list"),
+      req(7, "prompts/get", { name: "write-post", arguments: { topic: "benchmarks" } }),
+      req(8, "prompts/get", { name: "nope" }),
+    ], "corpora/theme");
+
+    expect(theme.result.contents[0].text).toContain("active: editorial");
+    expect(tokens.result.contents[0].text).toContain("color.accent");
+    const cov = JSON.parse(coverage.result.contents[0].text);
+    expect(cov.summary.own + cov.summary.inherited + cov.summary.fallback + cov.summary.missing).toBe(cov.summary.total);
+    expect(cov.summary.missing).toBe(0);
+    expect(badTheme.error.code).toBe(-32002);
+
+    expect(prompts.result.prompts.map((p: any) => p.name)).toEqual(["get-started", "write-post"]);
+    // A prompt has to name the calls it wants made, or it is a paragraph rather than a workflow.
+    expect(post.result.messages[0].content.text).toContain("benchmarks");
+    expect(post.result.messages[0].content.text).toContain("content.suggest_blocks");
+    expect(badPrompt.error).toBeDefined();
   });
 });

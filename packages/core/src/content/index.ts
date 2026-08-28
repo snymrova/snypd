@@ -1,7 +1,7 @@
 /** @snypd/core content pipeline, S5: parse → validate (typed primitive tree + lint). */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
-import { loadConfig, type LoadedConfig } from "../config";
+import { loadConfig, redirects, type LoadedConfig } from "../config";
 import { MdastCache } from "./cache";
 import { lint, type LintOptions, type LintResult } from "./lint";
 import type { Diagnostic } from "./tree";
@@ -75,13 +75,16 @@ export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedC
     return { c, src, cached, terms };
   });
   const moves = new Map((opts.moves ?? []).map((m) => [m.path, m]));
+  const redirected = redirects(cfg);
   for (const { c, src, cached, terms } of docs) {
     const type = cfg.config.types[c.type]!;
     const rel = relative(root, c.file);
     const r = lint(cached.doc, cached.tree, src, { type: { fields: type.fields as never, taxonomies: type.taxonomies }, statuses, routes, file: rel });
     // ── 10 slug change without a redirect ──────────────────────────────────
     const mv = moves.get(rel.split("\\").join("/"));
-    if (mv) r.diagnostics.push(D("slug-change", 10, `Route changed from ${mv.from} to ${mv.to}; nothing redirects the old URL`, `Restore \`slug:\` (or the filename) so links to ${mv.from} keep working, or add a redirect (the redirect type lands in v0.2)`, frontmatterKeyLine(cached.doc, "slug")));
+    // S16: a redirect covering the old route is the fix, so a covered move is not a warning. Before S16
+    // this rule named a remedy the product did not have — `site.set_redirect` is now that remedy.
+    if (mv && !redirected[mv.from]) r.diagnostics.push(D("slug-change", 10, `Route changed from ${mv.from} to ${mv.to}; nothing redirects the old URL`, `Run \`site\` › set_redirect ${mv.from} → ${mv.to} so links to the old URL keep working, or restore \`slug:\` (or the filename)`, frontmatterKeyLine(cached.doc, "slug")));
     // ── 11 tag used once ───────────────────────────────────────────────────
     for (const { taxonomy, field, terms: list } of terms) {
       for (const t of list) {

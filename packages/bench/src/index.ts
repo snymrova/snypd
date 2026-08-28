@@ -13,14 +13,14 @@ import { serve } from "@snypd/runtime";
 import { generate, generateTheme } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
-import { loadConfig, lintSite, MdastCache, SiteIndex, INDEX_DIR } from "@snypd/core";
+import { loadConfig, lintSite, MdastCache, SiteIndex, renderThemeSummary, INDEX_DIR } from "@snypd/core";
 import { pageSuite } from "./page";
 import { suggestMetrics, scoreSuggest, formatSuggestScore, SUGGEST_CORPUS } from "./suggest";
 import { renderChart, renderDiagram, renderFlow, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
-  tokensPerPage: 2500, tokensToLearn: 6000,                          // tokens (docs/05)
+  tokensPerPage: 2500, tokensToLearn: 6000, tokensTools: 3000,        // tokens (docs/05; tokensTools is S16, decision 38)
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
   chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
@@ -28,7 +28,7 @@ export const BUDGETS = {
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
-export const VERSION = "0.1.0-s15";
+export const VERSION = "0.1.0-s16";
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
@@ -38,7 +38,7 @@ export function budgetsFor(root: string): typeof BUDGETS {
   /** Per-primitive budgets are nested (`budgets.chart.renderMs`), because that is the shape the spec declares. */
   const per = (k: string, sub: string, fallback: number) => { const o = b[k] as unknown as Record<string, unknown> | undefined; return o && typeof o === "object" && typeof o[sub] === "number" ? o[sub] as number : fallback; };
   return { buildPer100: num("buildPer100", BUDGETS.buildPer100), incremental: num("incremental", BUDGETS.incremental), mcpColdStart: num("mcpColdStart", BUDGETS.mcpColdStart),
-    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000),
+    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), tokensTools: num("tokensTools", BUDGETS.tokensTools), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000),
     chartRenderMs: per("chart", "renderMs", BUDGETS.chartRenderMs), chartSvgKb: per("chart", "svgKb", BUDGETS.chartSvgKb),
     diagramRenderMs: per("diagram", "renderMs", BUDGETS.diagramRenderMs), diagramSvgKb: per("diagram", "svgKb", BUDGETS.diagramSvgKb),
     flowRenderMs: per("flow", "renderMs", BUDGETS.flowRenderMs), flowSvgKb: per("flow", "svgKb", BUDGETS.flowSvgKb) };
@@ -432,8 +432,12 @@ export async function runSurface(n: number | string): Promise<Metric> {
  * must read, the per-primitive YAML is what it reads before using a block.
  */
 export function learnSurface(root: string, cfg?: ReturnType<typeof loadConfig>): Record<string, string> {
-  const out: Record<string, string> = { "snypd://config": (cfg ?? loadConfig(root)).render() };
+  const c = cfg ?? loadConfig(root);
+  const out: Record<string, string> = { "snypd://config": c.render() };
   for (const r of specResources()) if (r.uri === "snypd://spec" || r.uri.startsWith("snypd://spec/primitives")) out[r.uri] = r.text();
+  // The theme has been in docs/05's definition of this metric since S13 and only became a resource in S16;
+  // the palette and the coverage list are separate reads, made by an agent that is restyling, not learning.
+  out["snypd://theme"] = renderThemeSummary(root, c);
   return out;
 }
 /**
@@ -442,10 +446,18 @@ export function learnSurface(root: string, cfg?: ReturnType<typeof loadConfig>):
  * spec/primitives + theme and has been comparable since S2 — folding the write surface into it would
  * break that line. An agent that lists everything pays both, so both are on the page.
  */
-export async function runTokensTools(): Promise<Metric> {
-  const { TOOLS } = await import("@snypd/mcp/tools");   // the subpath, not the index: tools.ts must stay off `snypd serve`'s import path
-  const tools = countTokens(JSON.stringify({ tools: TOOLS }));
-  return { name: "tokens.tools", value: tools, unit: "tokens", note: `${TOOLS.length} tools; paid once per session on top of tokens.learn, which docs/05 scopes to config + spec + theme` };
+export async function runTokensTools(): Promise<Metric[]> {
+  // The subpaths, not the index: neither module may sit on `snypd serve`'s import path.
+  const { CORE_TOOLS } = await import("@snypd/mcp/tools");
+  const { CATALOG } = await import("@snypd/mcp/catalog");
+  const listed = countTokens(JSON.stringify({ tools: CORE_TOOLS }));
+  const full = countTokens(JSON.stringify({ tools: [...CORE_TOOLS, ...CATALOG] }));
+  return [
+    { name: "tokens.tools", value: listed, unit: "tokens", budget: ACTIVE.tokensTools,
+      note: `${CORE_TOOLS.length} always listed (content.* + find_tools); paid every turn, on top of tokens.learn, which docs/05 scopes to config + spec + theme` },
+    { name: "tokens.tools.full", value: full, unit: "tokens",
+      note: `the same ${CORE_TOOLS.length + CATALOG.length} tools with the catalogue listed rather than found — what deferring it saves a turn (docs/07 decision 38); report-only` },
+  ];
 }
 
 export function runTokensToLearn(n: number | string, opts: { cfg?: ReturnType<typeof loadConfig>; label?: string } = {}): Metric {
@@ -474,7 +486,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   const lane = await editorialLane(100);
   metrics.push(...runTokensPerPage(100, { dist: lane.dist, label: "editorial", gate: false }).filter((m) => m.name !== "tokens.page.md"));
   metrics.push(runTokensToLearn(100, { cfg: lane.cfg, label: "editorial" }));
-  metrics.push(await runTokensTools());
+  metrics.push(...(await runTokensTools()));
   metrics.push(await runSurface(100));
   metrics.push(...runViz(runs));
   metrics.push(...suggestMetrics());   // S15 gate: precision over the hand-labelled corpus; ~0.4 s, no build

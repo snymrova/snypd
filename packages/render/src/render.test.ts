@@ -561,3 +561,48 @@ describe("the cover is the header, not the first paragraph (S14)", () => {
     expect(h.match(/<h1>/g)!.length).toBe(2);
   });
 });
+
+/**
+ * S16: redirects as build output. Two forms because no single form is portable — `_redirects` for the hosts
+ * that read it, a page for every other host — and a redirect must never shadow a route the site really has.
+ */
+describe("redirects (S16)", () => {
+  const root = "corpora/_test/redirects";
+  const dist = join(root, "dist");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "content/posts"), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "content/posts/new.md"), "---\ntitle: New\nslug: new\ndate: 2026-03-01\nstatus: published\n---\n\nWords.\n");
+  });
+  const config = (redirects: string) =>
+    writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite:\n  name: T\n  url: https://t.example\n${redirects}theme: { use: base }\n`);
+
+  test("a declared redirect becomes _redirects and a page a crawler can follow", async () => {
+    config("  redirects:\n    /posts/old: /posts/new\n");
+    await build(root);
+    expect(readFileSync(join(dist, "_redirects"), "utf8")).toBe("/posts/old /posts/new 301\n");
+    const page = readFileSync(join(dist, "posts/old/index.html"), "utf8");
+    expect(page).toContain('http-equiv="refresh"');
+    expect(page).toContain('rel="canonical" href="https://t.example/posts/new/"');
+    expect(page).toContain('name="robots" content="noindex"');
+  });
+
+  test("a redirect away from a route the site actually builds is dropped, not honoured", async () => {
+    config("  redirects:\n    /posts/new: /posts/old\n");
+    await build(root);
+    // The real post still stands, and nothing was written that would send readers away from it.
+    expect(readFileSync(join(dist, "posts/new/index.html"), "utf8")).toContain("New");
+    expect(existsSync(join(dist, "_redirects"))).toBe(false);
+  });
+
+  test("removing the last redirect removes the files it produced", async () => {
+    config("  redirects:\n    /posts/old: /posts/new\n");
+    await build(root);
+    expect(existsSync(join(dist, "posts/old/index.html"))).toBe(true);
+    config("");
+    await build(root);
+    expect(existsSync(join(dist, "_redirects"))).toBe(false);
+    expect(existsSync(join(dist, "posts/old/index.html"))).toBe(false);
+  });
+});

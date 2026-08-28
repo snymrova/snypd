@@ -63,6 +63,7 @@
       "name": "@snypd/mcp",
       "version": "0.1.0",
       "dependencies": {
+        "@snypd/bench": "workspace:*",
         "@snypd/core": "workspace:*",
         "@snypd/render": "workspace:*",
         "@snypd/spec": "workspace:*",
