@@ -1,0 +1,66 @@
+# The editorial theme: a reading-first typographic skin over `base`.
+#
+# It declares no layouts and no primitives of its own. Every one of the 13 primitives and all 5 layouts
+# resolve up the `extends:` chain to `base`, whose markup is semantic and carries one `snypd-<name>` class
+# per primitive — which is exactly what `base`'s personality promises. So this theme is tokens plus one
+# stylesheet, and the *only* way it can drift from the vocabulary is if `base` does.
+#
+# Dark mode costs nothing here: every colour token is a `light-dark()` pair and `theme.css` sets
+# `color-scheme: light dark`, so the browser picks. That also settles viz — `@snypd/viz` paints its label
+# halo in `Canvas` (docs/07 decision 18), the page's own background, which resolves per `color-scheme`
+# with no token declared.
+theme: editorial
+version: 0.1.0
+spec: ^1
+extends: base
+css: ./theme.css
+personality: >-
+  Long-form reading. One serif column at a comfortable measure, generous leading, a single accent used
+  sparingly. Figures, charts, diagrams and flows break out of the column; nothing else does. Zero JS.
+
+tokens:
+  # ── Colour. Every value is a light-dark() pair; `color-scheme: light dark` in theme.css does the rest.
+  color.bg:        { default: "light-dark(#fdfcfa, #12110f)", customisable: true, kind: color, description: "Page background." }
+  color.surface:   { default: "light-dark(#f4f1ea, #1c1a17)", customisable: true, kind: color, description: "Raised blocks — callout, cta, tldr." }
+  color.text:      { default: "light-dark(#1a1815, #e8e4dc)", customisable: true, kind: color, description: "Body text." }
+  color.muted:     { default: "light-dark(#6b655c, #9a9287)", customisable: true, kind: color, description: "Dates, captions, secondary labels." }
+  color.accent:    { default: "light-dark(#8a3324, #e0785f)", customisable: true, kind: color, description: "Links and the one emphatic colour." }
+  color.on-accent: { default: "light-dark(#fdfcfa, #12110f)", customisable: true, kind: color, description: "Text on an accent fill." }
+  color.border:    { default: "light-dark(#ddd7cb, #2e2b26)", customisable: true, kind: color, description: "Hairlines and block edges." }
+
+  # ── Viz. `@snypd/viz` reads these directly (docs/07 decision 17: the theme brings colour, never geometry).
+  color.viz.1:           { default: "light-dark(#8a3324, #e0785f)", customisable: true, kind: color, description: "First series." }
+  color.viz.2:           { default: "light-dark(#2f5d62, #7fb2b8)", customisable: true, kind: color, description: "Second series." }
+  color.viz.3:           { default: "light-dark(#96702a, #d8ab52)", customisable: true, kind: color, description: "Third series." }
+  color.viz.4:           { default: "light-dark(#4a4560, #a49bc4)", customisable: true, kind: color, description: "Fourth series." }
+  color.viz.5:           { default: "light-dark(#5c6b3f, #a6bb7c)", customisable: true, kind: color, description: "Fifth series." }
+  color.viz.6:           { default: "light-dark(#8a5b6d, #cf98ab)", customisable: true, kind: color, description: "Sixth series." }
+  color.viz.axis:        { default: "light-dark(#6b655c, #9a9287)", customisable: true, kind: color, description: "Axis lines." }
+  color.viz.grid:        { default: "light-dark(#e6e0d4, #262320)", customisable: true, kind: color, description: "Gridlines." }
+  color.viz.tick:        { default: "light-dark(#6b655c, #9a9287)", customisable: true, kind: color, description: "Tick labels." }
+  color.viz.label:       { default: "light-dark(#1a1815, #e8e4dc)", customisable: true, kind: color, description: "Node and edge labels." }
+  color.viz.edge:        { default: "light-dark(#8f887d, #6f685e)", customisable: true, kind: color, description: "Diagram and flow edges." }
+  color.viz.node:        { default: "light-dark(#f4f1ea, #1c1a17)", customisable: true, kind: color, description: "Node fill." }
+  color.viz.node-stroke: { default: "light-dark(#c9c2b4, #3a362f)", customisable: true, kind: color, description: "Node outline." }
+
+  # ── Type. System stacks only: a webfont is a network round trip this theme will not spend.
+  font.body:    { default: "'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, ui-serif, serif", customisable: true, kind: font, description: "Prose." }
+  font.ui:      { default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", customisable: true, kind: font, description: "Eyebrows, meta, nav, captions." }
+  font.mono:    { default: "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", customisable: true, kind: font, description: "Code." }
+  size.body:    { default: "clamp(1.0625rem, 0.98rem + 0.42vw, 1.1875rem)", customisable: true, kind: size, description: "Body size; fluid between phone and desktop." }
+  size.h1:      { default: "clamp(2.1rem, 1.55rem + 2.7vw, 3.4rem)", customisable: true, kind: size, description: "Post and index title." }
+  size.h2:      { default: "clamp(1.45rem, 1.24rem + 1.05vw, 1.95rem)", customisable: true, kind: size, description: "Section heading." }
+  size.h3:      { default: "clamp(1.15rem, 1.06rem + 0.45vw, 1.35rem)", customisable: true, kind: size, description: "Sub-heading." }
+  size.small:   { default: "0.8125rem", customisable: true, kind: size, description: "Meta and caption." }
+  leading.body: { default: "1.65", customisable: true, kind: number, description: "Prose line height." }
+  leading.tight: { default: "1.15", customisable: true, kind: number, description: "Heading line height." }
+  measure:      { default: "34rem", customisable: true, kind: size, description: "Width of the reading column — the theme's single most opinionated number." }
+
+  # ── Space. One ratio, six steps; every gap in theme.css is one of these.
+  space.1: { default: "0.25rem", customisable: true, kind: size, description: "Hairline gap." }
+  space.2: { default: "0.5rem",  customisable: true, kind: size, description: "Inside a line." }
+  space.3: { default: "1rem",    customisable: true, kind: size, description: "Between paragraphs." }
+  space.4: { default: "1.75rem", customisable: true, kind: size, description: "Around a block." }
+  space.5: { default: "3rem",    customisable: true, kind: size, description: "Between sections." }
+  space.6: { default: "5rem",    customisable: true, kind: size, description: "Page top and bottom." }
+  radius:  { default: "4px",     customisable: true, kind: size, description: "Corner radius; small on purpose." }

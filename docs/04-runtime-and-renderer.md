@@ -116,6 +116,29 @@ personality: Editorial, serif, wide margins, asides in the gutter. Prefers few c
 
 Layout resolution: `frontmatter.layout` → `type.layout` → theme default; `theme.which_layout(slug)` prints it. Child themes via `extends:`; `theme.coverage` shows overridden / inherited / fallback per primitive.
 
+**`extends:` — implemented in S12.** A theme is resolved as a *chain*, child first, each parent found by the
+same search as `theme.use` (`themes/<name>`, `node_modules/<name>`, `node_modules/snypd-theme-<name>`).
+Resolution is **per slot, not per theme**: a layout or primitive the child does not declare comes from the
+nearest ancestor that does, and every path resolves against **the dir of the theme that wrote that line** —
+which is the whole reason the chain is carried rather than flattened into one map. Concretely:
+
+- **layouts** — `layouts:` is an array, so the nearest declarer's list replaces (it is the theme's index of
+  what it renders). Each named layout then resolves to the nearest ancestor shipping `layouts/<name>.tsx`.
+- **primitives** — nearest declarer wins per primitive. A `{ fallback: x }` entry is followed inside that
+  theme's map first, then on up the chain. `coverage` reports `own | inherited | fallback | missing`, with
+  `via` naming the ancestor or the fallback.
+- **tokens** — merge key by key, child overriding, in the config layer (so `snypd://config` shows the
+  merged set and collapses it to one line when the site overrides none of it).
+- **css** — every `css:` in the chain is emitted, **ancestors first**, so a child's rules cascade over what
+  it inherits without `!important`.
+- **the route key** — `themeHash` covers every dir in the chain. A child that inherits a primitive must
+  re-render when the *parent* changes, and hashing the child's dir alone would silently serve stale HTML.
+- A cycle or an unknown parent truncates the chain and reports a diagnostic; it never throws.
+
+`editorial` (S13) is the proof: `theme.yaml` + one stylesheet, **zero `.tsx` of its own**, 13/13 primitives
+and all 5 layouts inherited from `base` — which is exactly what `base`'s promise of "one class per
+primitive, so a child theme styles it without touching markup" is worth if it is true.
+
 ## Package layout
 
 ```

@@ -13,7 +13,9 @@ import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
 import { ConfigSchema, type Config } from "./schema";
 
 export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string }
-export interface LayerInfo { name: Layer["name"]; from?: string; file?: string; found: boolean; note?: string; /** absolute directory (theme layer): where layouts/ and primitives/ live */ dir?: string }
+export interface ThemeLink { name: string; dir: string; yamlFile?: string }
+export interface LayerInfo { name: Layer["name"]; from?: string; file?: string; found: boolean; note?: string; /** absolute directory (theme layer): where layouts/ and primitives/ live */ dir?: string;
+  /** theme layer only: the theme and its `extends:` ancestors, child first. `loadTheme` walks this per slot. */ chain?: ThemeLink[] }
 export interface LoadedConfig {
   root: string; env: string; ok: boolean;
   config: Config; raw: Record<string, unknown>;
@@ -28,8 +30,9 @@ const REPO = join(import.meta.dir, "..", "..", "..");
 const rel = (root: string, f: string) => { const r = relative(root, f); return r.startsWith("..") ? f : r; };
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-function readLayer(root: string, name: Layer["name"], file: string, diags: Diagnostic[], from?: string, wrap?: (v: unknown) => unknown): Layer {
-  const p = parseYaml(readFileSync(file, "utf8"), rel(root, file));
+type Parsed = ReturnType<typeof parseYaml>;
+function readLayer(root: string, name: Layer["name"], file: string, diags: Diagnostic[], from?: string, wrap?: (v: unknown) => unknown, pre?: Parsed): Layer {
+  const p = pre ?? parseYaml(readFileSync(file, "utf8"), rel(root, file));
   for (const w of p.warnings) diags.push({ level: "warning", path: "", message: w });
   let value = p.value, origins = p.origins;
   if (!isObj(value)) { diags.push({ level: "error", path: "", message: `${rel(root, file)}: expected a mapping at top level` }); value = {}; }
@@ -40,6 +43,41 @@ function readLayer(root: string, name: Layer["name"], file: string, diags: Diagn
 function findIn(dirs: string[], candidates: string[]): string | undefined {
   for (const d of dirs) for (const c of candidates) { const f = join(d, c); if (existsSync(f)) return f; }
   return undefined;
+}
+
+const themeCandidates = (name: string) => [`themes/${name}`, `node_modules/${name}`, `node_modules/snypd-theme-${name}`];
+const MAX_THEME_DEPTH = 8;
+
+/**
+ * A theme plus its `extends:` ancestors, child first. Every slot (layout, primitive, css) is looked up
+ * along this chain by the nearest theme that declares it, and each path resolves against *that* theme's
+ * dir — which is why the chain is carried whole rather than merged into one map (`loadTheme`, docs/04).
+ * Never throws: an unknown parent or a cycle truncates the chain and reports.
+ */
+export function resolveThemeChain(themeName: string, search: string[], relTo?: string): { chain: ThemeLink[]; errors: string[]; parsed: Map<string, Parsed> } {
+  const chain: ThemeLink[] = [], errors: string[] = [], seen: string[] = [];
+  // Walking the chain means reading every theme.yaml to find its `extends:`. The `yaml` package costs
+  // ~1.2 ms a call (docs/07 decision 12) and `mcp.coldStart` has 50 ms in total, so the parse is handed
+  // back for the caller to merge from rather than thrown away and repeated.
+  const parsed = new Map<string, Parsed>();
+  let name: string | undefined = themeName;
+  while (name) {
+    if (seen.includes(name)) { errors.push(`extends cycle: ${[...seen, name].join(" \u2192 ")}`); break; }
+    seen.push(name);
+    const dir = findIn(search, themeCandidates(name));
+    if (!dir) { errors.push(`theme "${name}" not found (looked for ${themeCandidates(name).join(", ")})`); break; }
+    const yamlFile = existsSync(join(dir, "theme.yaml")) ? join(dir, "theme.yaml") : undefined;
+    chain.push({ name, dir, yamlFile });
+    if (chain.length >= MAX_THEME_DEPTH) { errors.push(`extends chain deeper than ${MAX_THEME_DEPTH}: ${seen.join(" \u2192 ")}`); break; }
+    let parent: string | undefined;
+    if (yamlFile) {
+      const p = parseYaml(readFileSync(yamlFile, "utf8"), relTo ? rel(relTo, yamlFile) : yamlFile);
+      parsed.set(yamlFile, p);
+      if (isObj(p.value) && typeof p.value.extends === "string" && p.value.extends) parent = p.value.extends;
+    }
+    name = parent;
+  }
+  return { chain, errors, parsed };
 }
 
 /** Resolve `extends` (inherit-then-override; arrays replace) with cycle detection. */
@@ -94,12 +132,14 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const themeName = themeOf(envView) ?? themeOf(siteView) ?? "base";
   const pluginList = ([] as unknown[]).concat(Array.isArray(siteView.plugins) ? siteView.plugins : [], Array.isArray(envView.plugins) ? envView.plugins : []);
 
-  // 2. theme.yaml → under `theme`
-  const themeDir = findIn(search, [`themes/${themeName}`, `node_modules/${themeName}`, `node_modules/snypd-theme-${themeName}`]);
-  const themeYaml = themeDir && existsSync(join(themeDir, "theme.yaml")) ? join(themeDir, "theme.yaml") : undefined;
-  if (themeYaml) merged = mergeLayer(merged, readLayer(root, "theme", themeYaml, diags, themeName, (v) => ({ theme: v })), prov);
-  else if (!themeDir) diags.push({ level: "warning", path: "theme.use", message: `theme "${themeName}" not found (looked for themes/${themeName}, node_modules/${themeName}, node_modules/snypd-theme-${themeName})`, source: prov.get("theme.use") });
-  layers.push({ name: "theme", from: themeName, file: themeYaml ? rel(root, themeYaml) : undefined, found: !!themeDir, dir: themeDir, note: themeDir && !themeYaml ? "no theme.yaml yet" : undefined });
+  // 2. theme.yaml → under `theme`, ancestors first so the child overrides (`extends:`, docs/04)
+  const { chain: themeChain, errors: themeErrors, parsed: themeParsed } = resolveThemeChain(themeName, search, root);
+  for (const e of themeErrors) diags.push({ level: "warning", path: "theme.use", message: e, source: prov.get("theme.use") });
+  for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, (v) => ({ theme: v }), themeParsed.get(link.yamlFile)), prov);
+  const self = themeChain[0];
+  const inherited = themeChain.slice(1).map((l) => l.name);
+  layers.push({ name: "theme", from: themeName, file: self?.yamlFile ? rel(root, self.yamlFile) : undefined, found: !!self, dir: self?.dir, chain: themeChain,
+    note: [self && !self.yamlFile ? "no theme.yaml yet" : "", inherited.length ? `extends ${inherited.join(" \u2192 ")}` : ""].filter(Boolean).join("; ") || undefined });
 
   // 3. plugins' snypd.yaml, declared order
   for (const entry of pluginList) {

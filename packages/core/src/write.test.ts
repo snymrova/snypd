@@ -2,7 +2,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { loadConfig } from "./index";
 import { createContent, updateContent, setStatus, trashContent, restoreContent, splitFrontmatter, target, publishCheck, approve, approvals, contentHash } from "./write";
-import { Repo, git, isRepoRoot, principal, draftBranch } from "./git";
+import { Repo, git, initRepo, isRepoRoot, principal, draftBranch } from "./git";
 
 const root = "corpora/_test/write";
 const fresh = () => {
@@ -120,8 +120,7 @@ describe("git (S11)", () => {
     rmSync(repo, { recursive: true, force: true });
     mkdirSync(`${repo}/content/posts`, { recursive: true });
     writeFileSync(`${repo}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
-    git(repo, "init", "-q", "-b", "main");
-    git(repo, "config", "user.email", "t@example.com"); git(repo, "config", "user.name", "T");
+    initRepo(repo, { name: "T", email: "t@example.com" });   // guarded: never inits into the enclosing repo
     git(repo, "add", "-A"); git(repo, "commit", "-q", "-m", "init");
   };
 
@@ -178,5 +177,20 @@ describe("git (S11)", () => {
     const c = createContent(repo, { type: "post", slug: "third", frontmatter: { title: "Third" }, cfg: loadConfig(repo) });
     expect(() => r.useDraft("post", "third", c.paths)).toThrow(/uncommitted change/);
     expect(r.branch()).toBe("main");
+  });
+
+  test("initRepo refuses a dir that is not its own top level — the guard that stops a fixture committing to snypd", () => {
+    // A directory *inside* this repo with no repo of its own: `git -C` there walks up and finds snypd.
+    // Before the guard, `git init` failing (or never running) left `add -A` + `commit` pointed here,
+    // which is exactly how a test fixture once committed the whole snypd working tree.
+    const inside = "corpora/_test/not-a-repo";
+    rmSync(inside, { recursive: true, force: true }); mkdirSync(inside, { recursive: true });
+    expect(isRepoRoot(inside)).toBe(false);                                     // inside snypd, but not its own root
+    expect(() => initRepo("corpora/_test/does-not-exist")).toThrow("does not exist");
+    // A real init here *does* make it its own top level, which is the only case that may proceed.
+    const r = initRepo(inside, { name: "T", email: "t@example.com" });
+    expect(isRepoRoot(inside)).toBe(true);
+    expect(r.root).toBe(inside);
+    rmSync(inside, { recursive: true, force: true });
   });
 });

@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { join } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
-import { loadConfig } from "@snypd/core";
+import { loadConfig, initRepo } from "@snypd/core";
 import { preview } from "./preview";
 
 describe("jsx runtime", () => {
@@ -255,6 +255,72 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.coverage.find((c) => c.name === "tldr")!.status).toBe("own");
     expect(t.coverage.filter((c) => c.status === "missing").length).toBe(12);
   });
+
+  test("extends: a child inherits every slot it does not declare, and its own wins", async () => {
+    const root = "corpora/_test/theme-extends";
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "themes/parent/layouts"), { recursive: true });
+    mkdirSync(join(root, "themes/child"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T, url: https://t.example }\ntheme: { use: child }\n");
+    writeFileSync(join(root, "themes/parent/theme.yaml"),
+      "theme: parent\nlayouts: [post, page]\nprimitives: { tldr: ./tldr.tsx, callout: ./callout.tsx, cta: { fallback: callout } }\ntokens: { color.accent: red, size.body: 1rem }\ncss: ./p.css\n");
+    writeFileSync(join(root, "themes/parent/layouts/post.tsx"), 'export default () => "parent-post";');
+    writeFileSync(join(root, "themes/parent/layouts/page.tsx"), 'export default () => "parent-page";');
+    writeFileSync(join(root, "themes/parent/tldr.tsx"), 'export default () => "parent-tldr";');
+    writeFileSync(join(root, "themes/parent/callout.tsx"), 'export default () => "parent-callout";');
+    writeFileSync(join(root, "themes/parent/p.css"), ".p{}");
+    // The child declares one layout file, one primitive and one token. Everything else must come from parent.
+    mkdirSync(join(root, "themes/child/layouts"), { recursive: true });
+    writeFileSync(join(root, "themes/child/theme.yaml"),
+      "theme: child\nextends: parent\nlayouts: [post, page]\nprimitives: { tldr: ./tldr.tsx }\ntokens: { color.accent: blue }\ncss: ./c.css\n");
+    writeFileSync(join(root, "themes/child/layouts/post.tsx"), 'export default () => "child-post";');
+    writeFileSync(join(root, "themes/child/tldr.tsx"), 'export default () => "child-tldr";');
+    writeFileSync(join(root, "themes/child/c.css"), ".c{}");
+
+    const cfg = loadConfig(root);
+    const t = await loadTheme(cfg);
+    expect(t.chain.map((c) => c.name)).toEqual(["child", "parent"]);
+    // own beats inherited; a layout the child does not ship resolves up the chain
+    expect(String((t.layouts.post as (p: never) => unknown)(undefined as never))).toBe("child-post");
+    expect(String((t.layouts.page as (p: never) => unknown)(undefined as never))).toBe("parent-page");
+    const cov = (n: string) => t.coverage.find((c) => c.name === n)!;
+    expect(cov("tldr").status).toBe("own");
+    expect(cov("callout")).toMatchObject({ status: "inherited", via: "parent" });
+    expect(cov("cta")).toMatchObject({ status: "fallback", via: "callout" });   // fallback declared by the parent, followed in the parent
+    expect(cov("chart").status).toBe("missing");
+    // tokens merge, child overriding; both stylesheets emit, parent first so the child cascades over it
+    const tok = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
+    expect(tok["color.accent"]).toBe("blue");
+    expect(tok["size.body"]).toBe("1rem");
+    expect(t.css!.indexOf(".p{}")).toBeLessThan(t.css!.indexOf(".c{}"));
+  });
+  test("extends: the parent's bytes are in the child's hash, and a cycle is reported not thrown", async () => {
+    const root = "corpora/_test/theme-extends";
+    const before = (await loadTheme(loadConfig(root))).hash;
+    writeFileSync(join(root, "themes/parent/callout.tsx"), 'export default () => "parent-callout-2";');
+    expect((await loadTheme(loadConfig(root))).hash).not.toBe(before);   // else a child never re-renders when its parent changes
+
+    const loop = "corpora/_test/theme-cycle";
+    rmSync(loop, { recursive: true, force: true });
+    mkdirSync(join(loop, "themes/a"), { recursive: true }); mkdirSync(join(loop, "themes/b"), { recursive: true });
+    writeFileSync(join(loop, "snypd.yaml"), "snypd: 1\nsite: { name: T, url: https://t.example }\ntheme: { use: a }\n");
+    writeFileSync(join(loop, "themes/a/theme.yaml"), "theme: a\nextends: b\n");
+    writeFileSync(join(loop, "themes/b/theme.yaml"), "theme: b\nextends: a\n");
+    const cfg = loadConfig(loop);
+    expect(cfg.diagnostics.map((d) => d.message).join(" ")).toContain("extends cycle");
+    expect(cfg.layers.find((l) => l.name === "theme")!.chain!.map((c) => c.name)).toEqual(["a", "b"]);
+  });
+  test("editorial: the shipped child theme covers all 13 primitives without a single .tsx of its own", async () => {
+    const root = "corpora/_test/theme-editorial";
+    rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "content/posts"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: E, url: https://e.example }\ntheme: { use: editorial }\n");
+    const t = await loadTheme(loadConfig(root));
+    expect(t.chain.map((c) => c.name)).toEqual(["editorial", "base"]);
+    expect(t.coverage.filter((c) => c.status === "inherited").length).toBe(13);
+    expect(t.coverage.some((c) => c.status === "missing")).toBe(false);
+    expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
+    expect(t.css).toContain("color-scheme: light dark");
+  });
 });
 
 /** S11: the preview server — drafts visible, the review page, and approval as the publish gate. */
@@ -267,8 +333,7 @@ describe("preview (S11)", () => {
     mkdirSync(`${site}/content/posts`, { recursive: true });
     writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: preview, url: https://p.example }\n");
     const { git } = await import("@snypd/core");
-    git(site, "init", "-q", "-b", "main");
-    git(site, "config", "user.email", "t@example.com"); git(site, "config", "user.name", "T");
+    initRepo(site, { name: "T", email: "t@example.com" });   // guarded: never inits into the enclosing repo
     git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
     const c = await import("@snypd/core");
     const cfg = c.loadConfig(site);

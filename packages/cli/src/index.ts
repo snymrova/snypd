@@ -8,8 +8,11 @@ switch (cmd) {
   case "build": {
     const { build } = await import("@snypd/render");
     const r = await build(args[0] ?? ".");
-    const own = r.theme.coverage.filter((c) => c.status === "own").length;
-    console.log(`built ${r.routes} routes + ${r.artefacts} artefacts (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${own}/${r.theme.coverage.length} primitives)`);
+    // A primitive is covered when something renders it: the theme's own file, an ancestor's, or a
+    // declared fallback. Only `missing` (the generic wrapper) is a hole, so only it is subtracted.
+    const covered = r.theme.coverage.filter((c) => c.status !== "missing").length;
+    const inherited = r.theme.coverage.filter((c) => c.status === "inherited").length;
+    console.log(`built ${r.routes} routes + ${r.artefacts} artefacts (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${covered}/${r.theme.coverage.length} primitives${inherited ? `, ${inherited} inherited` : ""})`);
     if (flags.has("--verbose")) console.log(Object.entries(r.phases).map(([k, v]) => `${k} ${v.toFixed(1)} ms`).join(" · "));
     break;
   }

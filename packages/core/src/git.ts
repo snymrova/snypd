@@ -11,7 +11,7 @@
  * Runtime-neutral: `node:child_process`, no Bun API (docs/04 runtime interface).
  */
 import { spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { userInfo } from "node:os";
 
 export interface GitResult { ok: boolean; stdout: string; stderr: string; code: number }
@@ -30,6 +30,25 @@ export const draftBranch = (type: string, slug: string) => `snypd/draft-${type}-
 export function git(root: string, ...args: string[]): GitResult {
   const r = spawnSync("git", args, { cwd: root, encoding: "utf8", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } });
   return { ok: r.status === 0, code: r.status ?? -1, stdout: (r.stdout ?? "").trim(), stderr: (r.stderr ?? "").trim() };
+}
+
+/**
+ * Create a repo at `root` and refuse to hand one back unless `root` *itself* became the top level.
+ *
+ * `git()` runs with `cwd: root` and git finds a repo by walking **up**, so an init that did not take —
+ * a missing directory, a failed call, a half-cleaned fixture — leaves every later `add -A` / `commit`
+ * silently operating on the *enclosing* repo. That is not hypothetical: three test fixtures did their
+ * own `git init` + `add -A` + `commit -m init`, and one of them committed the entire snypd working tree
+ * as `T <t@example.com> "init"`. This is the header's first rule applied one level earlier — a tree that
+ * cannot be its own repo must fail loudly rather than write into somebody else's.
+ */
+export function initRepo(root: string, user?: { name: string; email: string }): Repo {
+  if (!existsSync(root)) throw new Error(`initRepo: ${root} does not exist`);
+  const r = git(root, "init", "-q", "-b", "main");
+  if (!r.ok) throw new Error(`initRepo: git init failed in ${root}: ${r.stderr}`);
+  if (!isRepoRoot(root)) throw new Error(`initRepo: ${root} is not its own git top level after init (toplevel is ${git(root, "rev-parse", "--show-toplevel").stdout}) — refusing, because add/commit here would land in that repo`);
+  if (user) { git(root, "config", "user.email", user.email); git(root, "config", "user.name", user.name); }
+  return Repo.open(root)!;   // isRepoRoot passed one line above, so `open` cannot be undefined here
 }
 
 /** True when `root` is itself the top level of a work tree — not merely inside one (see the header). */

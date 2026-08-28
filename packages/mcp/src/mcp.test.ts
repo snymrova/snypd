@@ -86,9 +86,8 @@ describe("content.* tools", () => {
     rmSync(site, { recursive: true, force: true });
     mkdirSync(`${site}/content/posts`, { recursive: true });
     writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
-    const { git } = await import("@snypd/core");
-    git(site, "init", "-q", "-b", "main");
-    git(site, "config", "user.email", "t@example.com"); git(site, "config", "user.name", "T");
+    const { git, initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });   // guarded: never inits into the enclosing repo
     git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
   });
 
