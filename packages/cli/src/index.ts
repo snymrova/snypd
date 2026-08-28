@@ -1,13 +1,28 @@
 #!/usr/bin/env bun
-/** `snypd serve | build | bench | init` — the four verbs (docs/00 §principles 1). */
+/**
+ * `snypd serve | build | bench | init` — the four verbs (docs/00 §principles 1).
+ *
+ * The body is a function rather than top-level code for one reason: `bun build --compile --bytecode`
+ * cannot compile a module with top-level `await`, and every verb here begins with one — the lazy
+ * `import()` that keeps `snypd serve` answering `initialize` without loading a renderer it will not use
+ * (S4, D2's 50 ms). Bytecode and lazy imports are both worth keeping, and `async function main()` is the
+ * whole price of having both.
+ */
 const [cmd, ...rest] = process.argv.slice(2);
 const flags = new Set(rest.filter((a) => a.startsWith("--")));
 const args = rest.filter((a) => !a.startsWith("--"));
 
+async function main(): Promise<void> {
 switch (cmd) {
   case "build": {
     const { build } = await import("@snypd/render");
-    const r = await build(args[0] ?? ".");
+    let r;
+    try { r = await build(args[0] ?? "."); }
+    catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(err.hint);
+      process.exit(1);
+    }
     // A primitive is covered when something renders it: the theme's own file, an ancestor's, or a
     // declared fallback. Only `missing` (the generic wrapper) is a hole, so only it is subtracted.
     const covered = r.theme.coverage.filter((c) => c.status !== "missing").length;
@@ -105,7 +120,7 @@ switch (cmd) {
     process.exit(s.errors ? 1 : 0);
   }
   case "init": {   // S16: the same `initSite` the `site` tool calls, for someone who reached for a terminal first
-    const { initSite, Repo } = await import("@snypd/core");
+    const { initSite, Repo, MCP_FILE } = await import("@snypd/core");
     const flag = (n: string) => [...flags].find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
     const root = args[0] ?? ".";
     const name = flag("name"), url = flag("url");
@@ -119,7 +134,12 @@ switch (cmd) {
       const repo = Repo.open(root);
       const committed = repo?.commit(r.paths, `site: init ${name}`);
       if (committed?.committed) console.log(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
-      console.log(repo ? "next: snypd serve  (then write through the MCP — that is the only interface)" : "next: git init here, then snypd serve");
+      // The registration is written but not loaded: a harness reads `.mcp.json` when it starts. Saying
+      // so here is the whole of onboarding — the step no prompt of ours can deliver, because a harness
+      // that has not loaded the server cannot run the server's prompts (S18a).
+      const registered = r.created.includes(MCP_FILE);
+      if (registered) console.log(`registered snypd in ${MCP_FILE} — restart your harness (Claude Code, Cursor, Codex) to load it`);
+      console.log(repo ? "next: restart the harness, then write through the MCP — that is the only interface" : "next: git init here, then restart the harness");
     } catch (e) {
       const err = e as Error & { hint?: string };
       console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
@@ -130,4 +150,6 @@ switch (cmd) {
   default:
     console.log("usage: snypd <serve|build|bench|init> | snypd init [root] --name=… --url=… | snypd serve [root] --preview|--static [--port=N] | snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
+}
+main();
 export {};

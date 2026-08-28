@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from "node:path";
 import { parseDocument } from "yaml";
 import { loadConfig, formatDiagnostics, normalizeRoute, redirects, type LoadedConfig } from "./config";
+import { bundledDir, bundledNames, themeFile } from "./themefs";
 import { parsePath, parseYaml, pathKey } from "./yaml";
 import { WriteError } from "./write";
 import { isRepoRoot } from "./git";
@@ -132,27 +133,77 @@ export function installedThemes(root: string, activeName?: string): { name: stri
   // theme is active — which is how S16 first reported base's personality under editorial.
   const active = activeName ?? loadConfig(root).config.theme.use;
   const out = new Map<string, { name: string; dir: string; active: boolean; description?: string }>();
-  for (const base of [join(root, "themes"), join(root, "node_modules", "@snypd"), join(import.meta.dir, "..", "..", "..", "themes")]) {
+  // Disk roots first, then the themes that ship in the binary. A binary has no `themes/` beside it, so
+  // without the last source `theme` › list would report nothing installed on the product users install
+  // (decision 46). A theme found on disk wins: that is the one that would actually load.
+  const roots = [join(root, "themes"), join(root, "node_modules", "@snypd"), join(import.meta.dir, "..", "..", "..", "themes")];
+  const found: { name: string; dir: string }[] = [];
+  for (const base of roots) {
     let names: string[] = [];
     try { names = readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { continue; }
-    for (const n of names) {
-      const dir = join(base, n);
-      if (!existsSync(join(dir, "theme.yaml"))) continue;
-      const name = n.replace(/^theme-/, "");
-      if (out.has(name)) continue;
-      let description: string | undefined;
-      try {
-        const y = parseYaml(readFileSync(join(dir, "theme.yaml"), "utf8"), dir).value as Record<string, unknown> | undefined;
-        const p = y?.personality;
-        if (typeof p === "string") description = p.replace(/\s+/g, " ").trim();
-      } catch { /* a theme that will not parse is still installed */ }
-      out.set(name, { name, dir, active: name === active, description });
-    }
+    for (const n of names) if (existsSync(join(base, n, "theme.yaml"))) found.push({ name: n.replace(/^theme-/, ""), dir: join(base, n) });
+  }
+  for (const n of bundledNames()) found.push({ name: n, dir: bundledDir(n) });
+  for (const { name, dir } of found) {
+    if (out.has(name)) continue;
+    let description: string | undefined;
+    try {
+      const y = parseYaml(themeFile(dir, "theme.yaml") ?? "", dir).value as Record<string, unknown> | undefined;
+      const p = y?.personality;
+      if (typeof p === "string") description = p.replace(/\s+/g, " ").trim();
+    } catch { /* a theme that will not parse is still installed */ }
+    out.set(name, { name, dir, active: name === active, description });
   }
   return [...out.values()].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
 }
 
 // ── bootstrap ─────────────────────────────────────────────────────────────────
+export const MCP_FILE = ".mcp.json";
+
+/**
+ * Register `snypd serve` with the harness, in the repo, beside `snypd.yaml` (S18a).
+ *
+ * This is the one step between an installed binary and a usable product, and until S18a nothing owned it:
+ * an agent that has not loaded the server cannot be told to load it by the server's own `get-started`
+ * prompt, so the instruction has to exist before any of the MCP surface does. `.mcp.json` is the
+ * project-scoped form Claude Code, Cursor and Codex all read, and it is committed with the scaffold, so a
+ * clone of the repo is registered too — the second person on a site does not repeat this.
+ *
+ * `command` is the running binary (`process.execPath`), not the string "snypd": the person who just ran
+ * `snypd init` demonstrably has *that* binary, and may not have it on `PATH` — an installer that placed it
+ * in `~/.local/bin` is one shell restart away from working, and a registration that names a command the
+ * harness cannot spawn fails in the harness's logs where nobody reads them. A `bun`-run checkout is the
+ * exception and gets `bun <entry>`, because `process.execPath` there is Bun itself.
+ *
+ * Never overwrites: an existing `.mcp.json` may hold other servers, and one of them may be a snypd the
+ * operator pointed somewhere on purpose.
+ */
+export function registerMcp(root: string, opts: { command?: string; args?: string[] } = {}): boolean {
+  const file = join(root, MCP_FILE);
+  if (existsSync(file)) {
+    // Only add ourselves if the file does not already name a `snypd` server.
+    try {
+      const cur = JSON.parse(readFileSync(file, "utf8")) as { mcpServers?: Record<string, unknown> };
+      if (cur.mcpServers?.snypd) return false;
+      cur.mcpServers = { ...cur.mcpServers, snypd: mcpEntry(root, opts) };
+      writeFileSync(file, JSON.stringify(cur, null, 2) + "\n");
+      return false;   // the file already existed; it is not something `init` created
+    } catch { return false; }   // not ours to repair
+  }
+  writeFileSync(file, JSON.stringify({ mcpServers: { snypd: mcpEntry(root, opts) } }, null, 2) + "\n");
+  return true;
+}
+
+function mcpEntry(root: string, opts: { command?: string; args?: string[] }) {
+  if (opts.command) return { command: opts.command, args: opts.args ?? ["serve"] };
+  const exec = process.execPath;
+  // A compiled binary is its own command; a checkout is `bun <entry>` — argv[1] is the script Bun ran.
+  const isBun = /(^|[\\/])bun(\.exe)?$/.test(exec);
+  return isBun
+    ? { command: exec, args: [process.argv[1] ?? "packages/cli/src/index.ts", "serve"] }
+    : { command: exec, args: ["serve"] };
+}
+
 
 export interface InitInput { name: string; url: string; description?: string; theme?: string }
 export interface InitResult { file: string; paths: string[]; created: string[]; git: boolean }
@@ -197,6 +248,7 @@ theme:
   }
   const ignore = join(root, ".gitignore");
   if (!existsSync(ignore)) { writeFileSync(ignore, "dist/\n.snypd/\nnode_modules/\n"); created.push(".gitignore"); }
+  if (registerMcp(root)) created.push(MCP_FILE);
   const cfg = loadConfig(root);
   if (!cfg.ok) throw new WriteError(`the config just written does not load`, formatDiagnostics(cfg.diagnostics));
   return { file: CONFIG_FILE, paths: created.filter((p) => !p.endsWith("/")).concat(created.filter((p) => p.endsWith("/")).map((p) => `${p}.gitkeep`)), created, git: isRepoRoot(root) };

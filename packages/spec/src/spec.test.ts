@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { ASSETS, assetDir } from "./assets";
+import { ASSET_DIRS } from "./assets.gen";
 import { defaults, exportJsonSchema, fieldToJsonSchema, frontmatterSchema, primitive, primitiveNames, primitives, primitiveSchema, primitivesIndex, resource, resources, specOverview } from "./index";
 
 const LOCKED = ["callout", "chart", "cover", "cta", "diagram", "faq", "figure", "flow", "pullquote", "stat", "stat-row", "steps", "tldr"];
@@ -83,5 +87,39 @@ describe("resources", () => {
     expect(resource("snypd://spec/primitives/stat")!.text()).toContain("source:");
     expect(resource("snypd://nope")).toBeUndefined();
     for (const r of resources()) expect(r.text().length).toBeGreaterThan(20);
+  });
+});
+
+// ── The barrel (S18a, decision 46) ────────────────────────────────────────────
+// The binary reads `assets.ts`, not the directory. So a YAML added without regenerating is a file the
+// compiled product does not have — and every other test here would still pass, because they run from a
+// checkout. This is the test that fails instead.
+describe("bundled assets", () => {
+  test("assets.ts is in sync with the directories it stands for", async () => {
+    const { generate } = await import("./assets.gen");
+    const onDisk = await Bun.file(join(import.meta.dir, "assets.ts")).text();
+    expect(generate()).toBe(onDisk);   // out of date → `bun packages/spec/src/assets.gen.ts`
+  });
+
+  test("every asset directory is fully bundled, byte for byte", () => {
+    for (const dir of ASSET_DIRS) {
+      const files = readdirSync(join(import.meta.dir, "..", dir)).filter((f) => f.endsWith(".yaml")).sort();
+      expect(assetDir(dir)).toEqual(files);
+      for (const f of files) expect(ASSETS[`${dir}/${f}`]).toBe(readFileSync(join(import.meta.dir, "..", dir, f), "utf8"));
+    }
+  });
+
+  test("nothing on the runtime path reads the spec from disk", async () => {
+    // `$bunfs` has no directories to list and no files the bundler was not shown. `index.ts` may name
+    // the checkout paths (the generator and these tests use them) but may not *read* through them.
+    const src = (await Bun.file(join(import.meta.dir, "index.ts")).text())
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");   // the comments explain the ban; they are not it
+    for (const fn of ["readdirSync", "readFileSync", "Bun.file"]) expect(src, fn).not.toContain(fn);
+  });
+
+  test("a primitive with no detector file is a packaging fault, not a silent opt-out", () => {
+    // Every one of the 13 ships a detector; if `detect/` ever fails to bundle, `suggest_blocks` must say
+    // so rather than quietly find nothing (the pre-S18a binary's failure mode, one layer down).
+    for (const n of LOCKED) expect(ASSETS[`detect/${n}.yaml`]).toBeString();
   });
 });

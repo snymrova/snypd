@@ -2,17 +2,21 @@
  * @snypd/spec — the closed vocabulary (docs/01) and the built-in defaults (docs/02):
  * 13 primitive YAMLs, types, taxonomies, statuses, budgets, field types, and the detector table
  * `suggest_blocks` scores against (S15, `../detect`). Exposed as MCP
- * resources (docs/03) and exported as JSON Schema. Files are read from `import.meta.dir`
- * so the same code works from a checkout and from a `--compile --asset` binary (/$bunfs).
+ * resources (docs/03) and exported as JSON Schema. The YAMLs are reached through `./assets`, a
+ * generated barrel of static text imports (decision 46) — `import.meta.dir` was the old answer and it
+ * does not survive `--compile`: `readdirSync` cannot list `$bunfs`, and a computed `import(join(dir,
+ * name))` puts nothing in the binary to read. The barrel is the same in a checkout and in the binary.
  */
-import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
+import { ASSETS, assetDir } from "./assets";
 import { fieldsToJsonSchema, type FieldSpec, type JsonSchema } from "./schema";
 export * from "./schema";
 
 export const SPEC_VERSION = 1;
 const sentence = (s: string) => s.split(/\.\s/)[0]!.replace(/\.$/, "") + ".";
+// Real paths into the checkout. Nothing on the runtime path may use them — they do not exist in a
+// compiled binary. They are here for the generator and for tests that read the source of truth on disk.
 const ROOT = join(import.meta.dir, "..");
 export const PRIMITIVES_DIR = join(ROOT, "primitives");
 export const DEFAULTS_DIR = join(ROOT, "defaults");
@@ -34,25 +38,30 @@ export interface Primitive {
 }
 
 const cache = new Map<string, unknown>();
+/** Parse one bundled asset by its package-relative path. Throws like the `readFileSync` it replaced. */
 function yaml<T>(path: string): T {
   let v = cache.get(path);
-  if (v === undefined) { v = parse(readFileSync(path, "utf8")); cache.set(path, v); }
+  if (v === undefined) {
+    const src = ASSETS[path];
+    if (src === undefined) throw new Error(`spec asset not bundled: ${path} (run \`bun packages/spec/src/assets.gen.ts\`)`);
+    v = parse(src); cache.set(path, v);
+  }
   return v as T;
 }
 
 /** Names in the vocabulary, sorted. */
 export function primitiveNames(): string[] {
-  return readdirSync(PRIMITIVES_DIR).filter((f) => f.endsWith(".yaml")).map((f) => f.slice(0, -5)).sort();
+  return assetDir("primitives").map((f) => f.slice(0, -5)).sort();
 }
 export function primitive(name: string): Primitive | undefined {
   if (!/^[a-z][a-z0-9-]*$/.test(name)) return undefined;
-  try { return yaml<Primitive>(join(PRIMITIVES_DIR, `${name}.yaml`)); } catch { return undefined; }
+  try { return yaml<Primitive>(`primitives/${name}.yaml`); } catch { return undefined; }
 }
 export function primitives(): Primitive[] { return primitiveNames().map((n) => primitive(n)!); }
 /** Raw YAML — what `snypd://spec/primitives/{name}` serves, byte for byte. */
 export function primitiveSource(name: string): string | undefined {
   if (!/^[a-z][a-z0-9-]*$/.test(name)) return undefined;
-  try { return readFileSync(join(PRIMITIVES_DIR, `${name}.yaml`), "utf8"); } catch { return undefined; }
+  return ASSETS[`primitives/${name}.yaml`];
 }
 
 // ── Detectors (S15) ───────────────────────────────────────────────────────────
@@ -98,7 +107,7 @@ const DETECT_DEFAULTS = { base: 0.3, require: {}, signals: [], min: 0.6 };
 export function detectors(): Record<string, Detector> {
   const out: Record<string, Detector> = {};
   for (const name of primitiveNames()) {
-    const file = join(DETECT_DIR, `${name}.yaml`);
+    const file = `detect/${name}.yaml`;
     let raw: Partial<Detector> = {};
     // A missing file is a *packaging* fault, not an opt-out — every primitive ships one, and a binary
     // built without `detect/` would otherwise turn suggest_blocks into a tool that silently finds nothing.
@@ -130,7 +139,7 @@ export interface Defaults {
 /** Layer 1 of the YAML stack (docs/02 §1): every built-in, merged from defaults/*.yaml. */
 export function defaults(): Defaults {
   const out: Record<string, unknown> = {};
-  for (const f of readdirSync(DEFAULTS_DIR).filter((f) => f.endsWith(".yaml")).sort()) Object.assign(out, yaml<object>(join(DEFAULTS_DIR, f)));
+  for (const f of assetDir("defaults")) Object.assign(out, yaml<object>(`defaults/${f}`));
   return out as unknown as Defaults;
 }
 

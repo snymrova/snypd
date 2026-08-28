@@ -11,7 +11,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { formatDiagnostics, loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, type Theme, type SiteCtx, type Entry, type TermLink, type PrimitiveProps } from "./theme";
@@ -48,6 +48,15 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t0 = performance.now();
   const out = opts.out ?? join(root, "dist");
   const cfg = opts.cfg ?? loadConfig(root);
+  // A config that does not load is not a site to build. Before S18a this fell through and produced a
+  // `dist/` from spec defaults and the base theme — a directory with no `snypd.yaml` built one route and
+  // reported success, so `snypd build` in the wrong folder looked exactly like `snypd build` in the right
+  // one. An installer, a CI job and a host's build command all read the exit code and nothing else.
+  if (!cfg.ok) {
+    const e = new Error(`cannot build ${root}: its configuration does not load`) as Error & { hint?: string };
+    e.hint = formatDiagnostics(cfg.diagnostics);
+    throw e;
+  }
   const t1 = performance.now();
   const theme = await loadTheme(cfg);
   const t2 = performance.now();

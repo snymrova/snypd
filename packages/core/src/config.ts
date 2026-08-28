@@ -9,6 +9,8 @@ import { Document, isMap, isSeq, type Node, type Pair } from "yaml";
 import { z } from "zod";
 import { defaults as specDefaults, primitiveNames } from "@snypd/spec";
 import { describeSource, getPath, mergeLayer, type Layer, type LayerName, type Provenance, type Source } from "./merge";
+import { BUNDLED } from "./bundled";
+import { bundledDir, themeFile, themeHas } from "./themefs";
 import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
 import { ConfigSchema, type Config } from "./schema";
 
@@ -64,14 +66,17 @@ export function resolveThemeChain(themeName: string, search: string[], relTo?: s
   while (name) {
     if (seen.includes(name)) { errors.push(`extends cycle: ${[...seen, name].join(" \u2192 ")}`); break; }
     seen.push(name);
-    const dir = findIn(search, themeCandidates(name));
+    // Disk first: a checkout, an npm install and a user's own theme all have a directory, and that is
+    // the path everything downstream expects. Only a `--compile` binary has no `themes/` to find, and
+    // there the two shipped themes answer from the barrel instead (decision 46).
+    const dir: string | undefined = findIn(search, themeCandidates(name)) ?? (BUNDLED[name] ? bundledDir(name) : undefined);
     if (!dir) { errors.push(`theme "${name}" not found (looked for ${themeCandidates(name).join(", ")})`); break; }
-    const yamlFile = existsSync(join(dir, "theme.yaml")) ? join(dir, "theme.yaml") : undefined;
+    const yamlFile = themeHas(dir, "theme.yaml") ? join(dir, "theme.yaml") : undefined;
     chain.push({ name, dir, yamlFile });
     if (chain.length >= MAX_THEME_DEPTH) { errors.push(`extends chain deeper than ${MAX_THEME_DEPTH}: ${seen.join(" \u2192 ")}`); break; }
     let parent: string | undefined;
     if (yamlFile) {
-      const p = parseYaml(readFileSync(yamlFile, "utf8"), relTo ? rel(relTo, yamlFile) : yamlFile);
+      const p = parseYaml(themeFile(dir, "theme.yaml")!, relTo ? rel(relTo, yamlFile) : yamlFile);
       parsed.set(yamlFile, p);
       if (isObj(p.value) && typeof p.value.extends === "string" && p.value.extends) parent = p.value.extends;
     }

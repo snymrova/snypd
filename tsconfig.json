@@ -24,9 +24,11 @@
         "./packages/*/src"
       ]
     },
-    "jsxImportSource": "@snypd/render"
+    "jsxImportSource": "@snypd/render",
+    "allowImportingTsExtensions": true
   },
   "include": [
+    "types/**/*.d.ts",
     "packages/**/*.ts",
     "packages/**/*.tsx",
     "themes/**/*.ts",

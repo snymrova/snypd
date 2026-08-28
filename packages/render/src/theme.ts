@@ -5,12 +5,12 @@
  * `themeHash()` is the "theme module graph" part of every route key: any byte of the theme changes → every
  * route re-renders.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
-import { resolveThemeChain, sha1, INDEX_DIR, type Block, type Config, type LoadedConfig, type ThemeLink } from "@snypd/core";
+import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LoadedConfig, type ThemeLink } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 
 export interface SiteCtx {
@@ -84,13 +84,6 @@ export interface Theme {
   coverage: Coverage[];
 }
 
-const walkFiles = (dir: string, fn: (path: string) => void) => {
-  for (const f of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (f.name === "node_modules" || f.name.startsWith(".")) continue;
-    const p = join(dir, f.name);
-    if (f.isDirectory()) walkFiles(p, fn); else fn(p);
-  }
-};
 
 /**
  * sha1 over every file in the theme dir (path + bytes) — the theme half of the route key. Pass the whole
@@ -99,15 +92,18 @@ const walkFiles = (dir: string, fn: (path: string) => void) => {
  */
 export function themeHash(dir: string | string[]): string {
   const parts: string[] = [];
-  for (const d of typeof dir === "string" ? [dir] : dir) walkFiles(d, (p) => parts.push(`${relative(d, p)}:${sha1(readFileSync(p))}`));
+  for (const d of typeof dir === "string" ? [dir] : dir) {
+    // A bundled theme with no directory hashes to the sha1 taken when the barrel was generated: its
+    // bytes are in the binary and cannot move, so there is nothing to re-read (decision 46).
+    if (isBundledDir(d)) { parts.push(themeSignature(d)); continue; }
+    for (const r of themeFiles(d)) parts.push(`${r}:${sha1(themeBytes(d, r)!)}`);
+  }
   return sha1(parts.join("\n"));
 }
 
 /** Cheap change signal (mtime + size of every file) so a rebuild skips re-hashing an untouched theme. */
 export function themeStamp(dir: string | string[]): string {
-  const parts: string[] = [];
-  for (const d of typeof dir === "string" ? [dir] : dir) walkFiles(d, (p) => { const s = statSync(p); parts.push(`${p}:${s.mtimeMs}:${s.size}`); });
-  return parts.join("|");
+  return (typeof dir === "string" ? [dir] : dir).map(themeSignature).join("|");
 }
 
 /** What the renderer does for a primitive the theme does not implement: a labelled wrapper around the body. */
@@ -184,7 +180,9 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   // The chain is resolved once in loadConfig; re-resolve only for a config that predates it.
   const chain = layer?.chain ?? resolveThemeChain(name, [cfg.root, join(import.meta.dir, "..", "..", "..")]).chain;
   const self = chain[0];
-  if (!self || !existsSync(self.dir)) throw new Error(`theme "${name}" not found (theme.use in snypd.yaml; looked in themes/, node_modules/)`);
+  // `themeHas` rather than `existsSync`: a bundled theme in a compiled binary has no directory to stat,
+  // and `existsSync` on its marker dir reports a theme that is present as missing (decision 46).
+  if (!self || !themeHas(self.dir, "theme.yaml")) throw new Error(`theme "${name}" not found (theme.use in snypd.yaml; looked in themes/, node_modules/, and the themes bundled in this build)`);
   const dir = self.dir;
   const dirs = chain.map((c) => c.dir);
   const stamp = themeStamp(dirs);
@@ -198,7 +196,14 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   // whole theme graph is part of `snypd serve --preview` (S11) — bundle the theme dir with Bun.build then.
   const bust = `?v=${hash.slice(0, 8)}`;
   let bundled: Map<string, string> | undefined;
-  const mod = async (p: string) => (await import((bundled?.get(resolve(p)) ?? resolve(p)) + bust)).default as unknown;   // absolute: import() is relative to this module, not cwd
+  // `p` is theme-relative and carries the link it came from, because a chain resolves each slot against
+  // *that* theme's dir. On disk this is `import(abs + bust)` as it always was; for a bundled theme with
+  // no directory it is the barrel's lazy thunk (decision 46).
+  const mod = async (link: ThemeLink, rel: string) => {
+    if (isBundledDir(link.dir)) return themeModule(link.dir, rel);
+    const abs = resolve(join(link.dir, rel));
+    return (await import((bundled?.get(abs) ?? abs) + bust)).default as unknown;   // absolute: import() is relative to this module, not cwd
+  };
 
   // One parsed theme.yaml per link, child first. Slots are looked up along this list rather than merged,
   // because `./primitives/callout.tsx` means "relative to the theme that wrote that line" (docs/04).
@@ -207,7 +212,8 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
     let y: ThemeYaml = {};
     // js-yaml's own message is the only thing that says *where* in the file; the theme name says which
     // file, which a chain of themes makes ambiguous. Both, or a bare YAMLException reaches the console.
-    if (existsSync(f)) try { y = (parseYaml(readFileSync(f, "utf8")) ?? {}) as ThemeYaml; }
+    const src = themeFile(link.dir, "theme.yaml");
+    if (src !== undefined) try { y = (parseYaml(src) ?? {}) as ThemeYaml; }
       catch (e) { throw new Error(`theme ${link.name}: ${f} is not valid YAML — ${(e as Error).message}`); }
     return { link, yaml: y, map: y.primitives ?? {} };
   });
@@ -227,8 +233,10 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   if (opts.bundle) {
     // Everything the chain could import as an entry. Bundling the whole set once is cheaper than working
     // out which of them the declarations below will reach, and a theme dir is a handful of files.
+    // Bundled themes with no directory are skipped: their modules are already single units inside the
+    // binary, and there is no file for `Bun.build` to read or for an edit to arrive in.
     const entries: string[] = [];
-    for (const d of dirs) walkFiles(d, (f) => { if (f.endsWith(".tsx") || f.endsWith(".ts")) entries.push(resolve(f)); });
+    for (const d of dirs) if (!isBundledDir(d)) for (const r of themeFiles(d)) if (r.endsWith(".tsx") || r.endsWith(".ts")) entries.push(resolve(join(d, r)));
     const outRoot = join(cfg.root, INDEX_DIR, "theme", hash.slice(0, 8));
     const parent = join(cfg.root, INDEX_DIR, "theme");
     if (existsSync(parent)) for (const old of readdirSync(parent)) if (old !== hash.slice(0, 8)) rmSync(join(parent, old), { recursive: true, force: true });
@@ -237,18 +245,20 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
 
   const layouts: Record<string, LayoutComponent> = {};
   for (const l of yaml.layouts ?? []) {
-    const found = links.find((x) => existsSync(join(x.link.dir, "layouts", `${l}.tsx`)));
+    const found = links.find((x) => themeHas(x.link.dir, `layouts/${l}.tsx`));
     if (!found) throw new Error(`theme ${name}: layout "${l}" is declared in theme.yaml but layouts/${l}.tsx is missing${chain.length > 1 ? ` in ${chain.map((c) => c.name).join(" or ")}` : ""}`);
-    layouts[l] = await mod(join(found.link.dir, "layouts", `${l}.tsx`)) as LayoutComponent;
+    layouts[l] = await mod(found.link, `layouts/${l}.tsx`) as LayoutComponent;
   }
 
   // Nearest declarer wins: the first theme in the chain whose map names a file for `n`. A `{ fallback }`
   // entry is followed within that same theme's map first, then on up the chain.
+  // `file` is relative to `link.dir` — the theme that wrote the line — and stays relative, because a
+  // bundled theme has no directory to join it onto (decision 46).
   const declarer = (n: string, seen: string[] = []): { link: ThemeLink; file: string; via?: string } | undefined => {
     if (seen.includes(n)) return undefined;
     for (const x of links) {
       const e = x.map[n];
-      if (typeof e === "string") return { link: x.link, file: join(x.link.dir, e) };
+      if (typeof e === "string") return { link: x.link, file: e.replace(/^\.\//, "") };
       if (e && typeof e.fallback === "string") { const f = declarer(e.fallback, [...seen, n]); return f && { ...f, via: e.fallback }; }
     }
     return undefined;
@@ -258,7 +268,7 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   for (const n of primitiveNames()) {
     const d = declarer(n);
     if (!d) { primitives[n] = genericPrimitive; coverage.push({ name: n, status: "missing" }); continue; }
-    primitives[n] = await mod(d.file) as PrimitiveComponent;
+    primitives[n] = await mod(d.link, d.file) as PrimitiveComponent;
     if (d.via) coverage.push({ name: n, status: "fallback", via: d.via });
     else if (d.link.dir !== dir) coverage.push({ name: n, status: "inherited", via: d.link.name });
     else coverage.push({ name: n, status: "own" });
@@ -268,9 +278,9 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   const sheets: string[] = [];
   for (const { link, yaml: y } of [...links].reverse()) {
     if (!y.css) continue;
-    const f = join(link.dir, y.css);
-    if (!existsSync(f)) throw new Error(`theme ${link.name}: css "${y.css}" is declared in theme.yaml but ${relative(link.dir, f)} is missing`);
-    sheets.push(links.length > 1 ? `/* ${link.name} */\n${readFileSync(f, "utf8")}` : readFileSync(f, "utf8"));
+    const src = themeFile(link.dir, y.css);
+    if (src === undefined) throw new Error(`theme ${link.name}: css "${y.css}" is declared in theme.yaml but ${y.css} is missing`);
+    sheets.push(links.length > 1 ? `/* ${link.name} */\n${src}` : src);
   }
   const css = sheets.length ? sheets.join("\n") : undefined;
 
