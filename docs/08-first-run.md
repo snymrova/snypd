@@ -29,14 +29,14 @@ This is the spine of the document. Everything below either serves this sequence 
 
 A person arrives at the repo, or at snypd.rocks. They do not open a terminal. They have a harness open already — that is the premise of the product — and what they see is **a sentence to paste into it**.
 
-> **Set up snypd here and write me a first post.** Ask me what the site is called, then run `bunx snypd init`.
+> **Set up snypd here and write me a first post.** Ask me what the site is called, then run `bunx @snypd/cli init`.
 
 | # | Who acts | What happens | Human action? |
 |---|---|---|---|
 | 1 | person | pastes the sentence into Claude Code, Cursor or Codex | **yes** — paste |
 | 2 | agent | asks, in **one** message: what is the site called, and one line about it | — |
 | 3 | person | answers | **yes** — answer |
-| 4 | agent | runs `bunx snypd init --name=… --description=…` | **yes** — approve the shell command |
+| 4 | agent | runs `bunx @snypd/cli init --name=… --description=…` | **yes** — approve the shell command |
 | 5 | `init` | writes `snypd.yaml`, the content dirs, `.gitignore`, `.mcp.json`; `git init` if the directory is empty; commits the scaffold. **Prints an onboarding document addressed to the agent** (decision 60) | — |
 | 6 | agent | relays the one thing it cannot do: *restart your harness so the snypd tools load* | — |
 | 7 | person | restarts the harness | **yes** — restart |
@@ -51,7 +51,7 @@ A person arrives at the repo, or at snypd.rocks. They do not open a terminal. Th
 
 **The URL is absent from this table on purpose.** The feed, sitemap and JSON-LD are all absolute, so a real origin is genuinely required — at step 12, not step 4. Asking for a production domain before a person has seen one pixel is the single most common way a setup flow loses somebody (decision 63).
 
-**Step 4 is built and waiting on one decision** (S18d′). The README carries the sentence, and everything `bunx snypd`
+**Step 4 is built and waiting on one decision** (S18d′). The README carries the sentence, and everything `bunx @snypd/cli`
 needs is written: a launcher on npm whose binary arrives as one platform-gated optional dependency, a release workflow
 that publishes it with provenance on a `v*` tag, and a test that builds the host package, links it the way an installer
 would and runs it under `node`. What has not happened is the publish — `07` decision 69 keeps that with Sunny, because a
@@ -103,7 +103,7 @@ the whole argument.
 
 ## 5. Agent-first is blocked at state 0, and that changes the schedule
 
-`bunx snypd init` is step 4 of §2 and nothing on npm answers it. Everything else in this document is downstream of that.
+`bunx @snypd/cli init` is step 4 of §2 and nothing on npm answers it. Everything else in this document is downstream of that.
 
 The first draft noted this and wrote *"No work here; the note exists so S18b″ is scoped with this in mind."* That is not tenable once agent-first is the declared primary flow: **you cannot gate a funnel on a population that cannot arrive.** `curl | sh` does not rescue it either — an agent cannot run a pipe-to-shell without a human approving something that *should* alarm them, which is a bad first impression and a correct security prompt at the same time.
 
@@ -271,9 +271,9 @@ When the six are true, none of this renders and what remains is the ordinary Des
 
 **58. The one sentence is a named artefact, and it names its first command** (amended): 
 
-> *Set up snypd here and write me a first post. Ask me what the site is called, then run `bunx snypd init`.*
+> *Set up snypd here and write me a first post. Ask me what the site is called, then run `bunx @snypd/cli init`.*
 
-Used verbatim in the README, on snypd.rocks, on the first-run Desk, and as the driver of the `onboard.*` lane. The original version carried intent only; an agent that has never heard of snypd cannot infer `bunx snypd init`, and a sentence whose first step is a web search has a nondeterministic first step. It names the question too, because asking for the site's name in one message beats naming a directory after the fact — and because the *ask* is what makes step 3 a conversation rather than a form.
+Used verbatim in the README, on snypd.rocks, on the first-run Desk, and as the driver of the `onboard.*` lane. The original version carried intent only; an agent that has never heard of snypd cannot infer `bunx @snypd/cli init`, and a sentence whose first step is a web search has a nondeterministic first step. It names the question too, because asking for the site's name in one message beats naming a directory after the fact — and because the *ask* is what makes step 3 a conversation rather than a form.
 
 **59. The front door is a sentence in a README, not a command in a terminal** (the audit): the entry point is a thing a person pastes into the harness they already have open. This is what "your CMS is wherever your agent is" means at turn zero, and it is the only claim in the pitch that the product has never actually made true. Everything the agent needs after that sentence is taught by the output of the command the sentence names.
 
@@ -348,8 +348,8 @@ identically to *you did not restart*. It also committed a local home-directory p
 pushes to public GitHub. The audit's recommendation was that the committed registration name the
 published command and the local one name the binary; what landed instead is one rule that produces both,
 because the file cannot be two files: **name the most portable command that is demonstrably present.**
-`snypd` on `PATH` → `snypd serve`. A binary in a `bunx`/`npx` cache — which is what `bunx snypd init`,
-§2 step 4, leaves behind — → `bunx snypd serve`, because that directory is collected and the path would
+`snypd` on `PATH` → `snypd serve`. A binary in a `bunx`/`npx` cache — which is what `bunx @snypd/cli init`,
+§2 step 4, leaves behind — → `bunx @snypd/cli serve`, because that directory is collected and the path would
 expire on *this* machine, not merely on somebody else's. A Bun checkout → `bun <entry> serve`. Otherwise
 the running binary, which is S18a's answer and remains right for an installer that dropped it in
 `~/.local/bin` without a shell restart. All four walked against the compiled artefact from an empty
@@ -407,7 +407,19 @@ Resequenced by the audit. The first draft ranked `snypd dev` first on the reason
 | ~~**S18f**~~ | **done: the page that meets you.** The checklist from doctor's facts, six rows by dependency with the unreachable ones shown as *later*; the three surface labels on every row; the prompts and the verbatim `.mcp.json` as selectable, keyboard-reachable text; "what is snypd" in a `<details>`; the placeholder URL flagged on the status card rather than presented as the address. `startedAt` and the whole record moved to `.snypd/activity.json` (`07` decision 70), which closes §12.9 and splits §10's two silences. The empty index is rendered by the dev server through the theme — nothing on disk to delete, and `build()` never emits it. | F7 ✅ on CI's quiet runner (`desk.first.*`: 0 KB JS, 0 violations over four route/viewport pairs, CLS 0) · F6 is now true and gets its number in S18g |
 | ~~**S18g**~~ | **Done, and the number is 6.** The `onboard.*` lane walks §2 end to end against the compiled binary from a directory that does not exist when the run starts, and counts an action *where the walk is stopped* rather than where this table says one should be — three of the six are established by the product refusing or by the file being absent. The sixth is the origin at publish (§5b); a machine with no git identity pays a seventh (§12.11, now closed). F3 is one case per row of §6, F4 is doctor's structured facts diffed across `rm -rf .snypd/`. `sites/` + `bun run scratch` landed with it. | **F1 ❌ 6 / 5**, left red on purpose · F2 ✅ · F3 ✅ · F4 ✅ 12 facts, 0 lost · 286 → 300 tests |
 
-**S18f has landed. The button was pressed and the publish is half done.** `v0.1.0` ran on 31 Aug and the five platform packages are on npm — `@snypd/darwin-arm64`, `@snypd/darwin-x64`, `@snypd/linux-arm64`, `@snypd/linux-x64`, `@snypd/windows-x64`, all 0.1.0, all signed with provenance. **The launcher is not.** `snypd` itself failed with `E403 … You may not perform that action with these credentials` — the token had write on the scope and not the right to create a new *unscoped* package, which is a different permission and one the dry run cannot exercise, for the reason `packaging/README.md` already gives about the first failure. So `bunx snypd init` still 404s and §2 step 4 is still a checkout. The retry is cheap and needs no version bump — S18d′'s publish step skips what the registry already has, and the run's log shows it doing exactly that for all five before it reached the sixth — but it needs a token with permission to create the package, which is Sunny's to issue.
+**The publish is done except for the launcher, and the launcher has a new name.** `v0.1.0` ran on 31 Aug
+and the five platform packages are on npm — `@snypd/darwin-arm64`, `@snypd/darwin-x64`,
+`@snypd/linux-arm64`, `@snypd/linux-x64`, `@snypd/windows-x64`, all 0.1.0, all signed with provenance from
+CI (run `33393069941` attempt 2). The launcher failed twice. First
+`E403 … You may not perform that action with these credentials` — a granular token can write inside a
+scope and cannot *create* an unscoped package, and the same run publishing five and refusing one is that
+diagnosis in a single log. Then, with an all-packages token,
+`E403 … Package name too similar to existing package snyk`, which is a registry rule no credential
+reaches. **So the launcher is `@snypd/cli`** (`07` decision 71), the installed command is still `snypd`,
+and §2 step 4 now reads `bunx @snypd/cli init`. S18h ships that as **0.1.1** rather than a moved tag,
+because the published 0.1.0 binaries carry `npx -y snypd@0.1.0 build` in `--deploy` — a host command
+naming a package that cannot exist. Until `v0.1.1` is tagged and pushed, step 4 is still a checkout, and
+that push is Sunny's (decision 69).
 
 **S18d′ has landed, up to the button.** The machinery is done and the decision is not: publishing claims a name permanently, unpublishes for 72 hours, and cannot be rehearsed here — `07` decision 69 leaves it with Sunny, and until it is pressed §2 step 4 is a checkout. **S18e is next**, and it is the first session in this list that serves the *secondary* arrival: `snypd dev`, the EADDRINUSE fix (§12.3), and the TTY split. S18f then makes the page meet the person who got there, and closes §12.9 — the heartbeat that is blind for every user with a preview open, which is every user at step 12, and which S18e makes *more* urgent rather than less: a `dev` server is a second process by construction, so the status card it renders can only ever say "nothing has called this server yet" until the record moves to `.snypd/activity.json`. S18g is the number, and is what keeps the rest from rotting.
 

@@ -17,7 +17,7 @@ import { basename, join, resolve } from "node:path";
 import { parseDocument } from "yaml";
 import { loadConfig, formatDiagnostics, isPlaceholderUrl, normalizeRoute, redirects, PLACEHOLDER_URL, type LoadedConfig } from "./config";
 import { bundledDir, bundledNames, themeFile } from "./themefs";
-import { writeDeploy, type DeployTarget } from "./deploy";
+import { writeDeploy, LAUNCHER, type DeployTarget } from "./deploy";
 import { parsePath, parseYaml, pathKey } from "./yaml";
 import { WriteError } from "./write";
 import { git, initRepo, isRepoRoot } from "./git";
@@ -188,9 +188,11 @@ export const MCP_FILE = ".mcp.json";
  *      rather than assumed: S18a was right that naming a command the harness cannot spawn fails in a log
  *      nobody reads, and the fix for that is to look before naming it, not to give up on the name.
  *   2. run through `bunx`/`npx`, i.e. `process.execPath` sits in a package-manager cache that may be
- *      collected → name the launcher the same way they reached it. `bunx snypd init` is docs/08 §2 step
- *      4, so this is the majority path's registration, and writing the cache path there would produce a
- *      file that stops working on this machine, not merely on somebody else's.
+ *      collected → name the launcher the same way they reached it. `bunx @snypd/cli init` is docs/08 §2
+ *      step 4, so this is the majority path's registration, and writing the cache path there would
+ *      produce a file that stops working on this machine, not merely on somebody else's. The package is
+ *      `@snypd/cli` and the command on `PATH` is `snypd` — branch 1 above tests the binary, this one
+ *      names the package, and `deploy.ts` › `LAUNCHER` is why they are allowed to differ.
  *   3. otherwise the running binary (`process.execPath`) — the S18a behaviour, now the fallback: an
  *      installer that dropped it in `~/.local/bin` without a shell restart still gets a working harness.
  *
@@ -233,8 +235,8 @@ export function mcpCommand(exec: string, argv1?: string, env: Record<string, str
   if (/(^|[\\/])bun(\.exe)?$/.test(exec)) return { command: exec, args: [argv1 ?? "packages/cli/src/index.ts", "serve"] };
   if (onPath("snypd", env)) return { command: "snypd", args: ["serve"] };
   const runner = ephemeralRunner(exec);
-  if (runner === "bunx") return { command: "bunx", args: ["snypd", "serve"] };
-  if (runner === "npx") return { command: "npx", args: ["-y", "snypd", "serve"] };
+  if (runner === "bunx") return { command: "bunx", args: [LAUNCHER, "serve"] };
+  if (runner === "npx") return { command: "npx", args: ["-y", LAUNCHER, "serve"] };
   return { command: exec, args: ["serve"] };
 }
 

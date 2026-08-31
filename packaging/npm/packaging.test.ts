@@ -17,7 +17,7 @@ import { readdirSync } from "node:fs";
 import { buildLauncher, buildTarget, formula, TARGETS, version } from "./build";
 import { REPO } from "../../packages/bench/src/compile";
 
-const LAUNCHER_SRC = join(REPO, "packaging", "npm", "snypd");
+const LAUNCHER_SRC = join(REPO, "packaging", "npm", "cli");
 const host = TARGETS.find((t) => t.os === process.platform && t.cpu === process.arch);
 
 describe("the release manifest", () => {
@@ -38,7 +38,7 @@ describe("the release manifest", () => {
     // What `--deploy` pins a host's build command to. A version that was never published is a site that
     // cannot deploy, and the failure lands on somebody else's build log.
     expect(read("packages", "core", "package.json").version).toBe(v);
-    const launcher = read("packaging", "npm", "snypd", "package.json");
+    const launcher = read("packaging", "npm", "cli", "package.json");
     expect(launcher.version).toBe(v);
     // Exact pins, one per target: a range here would let a resolver pair this launcher with an older binary.
     expect(launcher.optionalDependencies).toEqual(Object.fromEntries(TARGETS.map((t) => [t.pkg, v])));
@@ -71,12 +71,15 @@ describe("the workflows", () => {
 
   test("the release publishes platform packages before the launcher", () => {
     // The launcher's `optionalDependencies` are exact pins. Publishing it first leaves a window in which
-    // `npm i snypd` resolves a launcher whose binary does not exist yet.
+    // `npm i @snypd/cli` resolves a launcher whose binary does not exist yet. Since S18h the launcher is
+    // staged at `npm/launcher` — a role-named directory, so the `@snypd/*` glob names the five binaries
+    // and nothing else. Staging it as `npm/@snypd/cli` would put it inside the glob and silently lose
+    // the ordering this test exists to hold.
     const y = readFileSync(join(REPO, ".github", "workflows", "release.yml"), "utf8");
     // One loop, and the glob expands before the launcher's own path — so the order is in the shell
     // word list rather than in two statements that could be reordered without anything noticing.
     const loop = y.slice(y.indexOf("for d in dist/release/npm/"));
-    expect(loop.indexOf("@snypd/*")).toBeLessThan(loop.indexOf("dist/release/npm/snypd"));
+    expect(loop.indexOf("@snypd/*")).toBeLessThan(loop.indexOf("dist/release/npm/launcher"));
     // A retry after a partial publish must not die on EPUBLISHCONFLICT (v0.1.0's first attempt).
     expect(y).toContain("already on the registry — skipping");
     expect(y).toContain("--provenance");

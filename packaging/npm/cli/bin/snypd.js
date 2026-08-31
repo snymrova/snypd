@@ -3,11 +3,16 @@
 /**
  * The launcher: 40 lines of CommonJS that find the real binary and get out of the way (S18d′).
  *
- * `snypd` on npm carries no code. The product is a ~90 MB `bun build --compile` artefact per platform,
+ * `@snypd/cli` carries no code. The product is a ~90 MB `bun build --compile` artefact per platform,
  * and npm's answer to that — the one esbuild and bun both ship — is `optionalDependencies` gated by
  * `os`/`cpu`: the installer resolves all five, downloads the one that matches, and skips the rest. So
  * this package is a few kilobytes and the download is one binary, whichever way somebody arrives
- * (`bunx snypd init`, `npm i -g snypd`, `npx snypd`).
+ * (`bunx @snypd/cli init`, `npm i -g @snypd/cli`, `npx @snypd/cli`).
+ *
+ * **The package is scoped and the command is not** (S18h). npm refused the bare `snypd` with *"Package
+ * name too similar to existing package snyk"* — a registry rule, not a permission — so the name you
+ * install is `@snypd/cli` and the name this file is installed *as* is `snypd`, via the one-line `bin`
+ * map in `package.json`. Everything downstream of the install still says `snypd`.
  *
  * CommonJS, `node` in the shebang, no dependencies: `npx` runs this under Node, `bunx` under Bun, and a
  * global install under whichever the user has. It must start under the *worst* of those and cannot

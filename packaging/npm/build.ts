@@ -4,15 +4,18 @@
  * `07` S18d′ picked the shape — npm platform packages with provenance, the esbuild/bun pattern — over
  * `curl | sh`, on two counts: a pipe to a shell is the weakest trust story available, and an agent cannot
  * run one without a human approving a pipe to a shell, which is the step docs/08 §2 spends its whole
- * budget avoiding. `bunx snypd init` is step 4 of that flow and nothing on npm answered it.
+ * budget avoiding. `bunx @snypd/cli init` is step 4 of that flow and nothing on npm answered it.
  *
  * Everything a release contains is derived here from `TARGETS` and the root `package.json` version, so a
  * sixth platform is one row and a version bump is one field. Three artefacts come out of `--out`:
  *
  *   npm/@snypd/<os>-<arch>/   one per target: the compiled binary, `os`/`cpu` gated so the installer
  *                             downloads exactly one of them
- *   npm/snypd/                the launcher from `packaging/npm/snypd`, its `optionalDependencies`
- *                             rewritten to this version
+ *   npm/launcher/             the launcher from `packaging/npm/cli`, its `optionalDependencies`
+ *                             rewritten to this version. The directory is named for its *role*, not
+ *                             its package: `@snypd/cli` staged under `npm/@snypd/` would be swept up
+ *                             by the platform glob in `release.yml`, and that glob is what keeps the
+ *                             binaries publishing before the thing that depends on them (S18h)
  *   release/snypd-<os>-<arch>.tar.gz + .sha256   what the GitHub release carries and Homebrew reads
  *
  * The binary is `packages/bench/src/compile.ts`'s recipe — the same `--compile --splitting` the D2 gate
@@ -60,7 +63,7 @@ export const UNBUILT = ["linux-*-musl", "*-x64-baseline"] as const;
 
 export const version = (): string => JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")).version as string;
 
-const LAUNCHER = join(REPO, "packaging", "npm", "snypd");
+const LAUNCHER = join(REPO, "packaging", "npm", "cli");
 
 /** One platform package, compiled and complete, at `<out>/npm/<pkg>`. */
 export async function buildTarget(t: Target, out: string, v = version()): Promise<{ dir: string; bin: string; bytes: number }> {
@@ -88,8 +91,8 @@ export async function buildTarget(t: Target, out: string, v = version()): Promis
   writeFileSync(join(dir, "README.md"), [
     `# ${t.pkg}`, "",
     `The \`snypd\` binary for ${t.os}-${t.cpu}. Not installed directly — it arrives as an optional dependency of`,
-    "[`snypd`](https://www.npmjs.com/package/snypd), which picks the one package that matches your platform.", "",
-    "```", "bunx snypd init      # or: npm install -g snypd", "```", "",
+    "[`@snypd/cli`](https://www.npmjs.com/package/@snypd/cli), which picks the one package that matches your platform.", "",
+    "```", "bunx @snypd/cli init      # or: npm install -g @snypd/cli", "```", "",
     "https://snypd.rocks · https://github.com/snymrova/snypd",
   ].join("\n") + "\n");
   return { dir, bin, bytes: statSync(bin).size };
@@ -97,7 +100,7 @@ export async function buildTarget(t: Target, out: string, v = version()): Promis
 
 /** The launcher, copied from source with its version and `optionalDependencies` pinned to this release. */
 export function buildLauncher(out: string, v = version(), targets: Target[] = TARGETS): string {
-  const dir = join(out, "npm", "snypd");
+  const dir = join(out, "npm", "launcher");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   cpSync(LAUNCHER, dir, { recursive: true });
@@ -196,7 +199,7 @@ if (import.meta.main) {
   // Only the targets actually built are declared, so a one-platform run produces a launcher that is
   // honest about what it can find rather than one advertising four packages this release never made.
   const dir = buildLauncher(out, v, targets);
-  console.log(`snypd@${v} → ${dir}`);
+  console.log(`@snypd/cli@${v} → ${dir}`);
   if (argv.includes("--formula")) {
     // A formula is a release-wide artefact: it names four tarballs and their hashes. Writing one from a
     // single-target run would commit `SHA256_PENDING` into a file brew reads literally, and the failure

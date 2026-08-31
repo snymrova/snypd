@@ -405,8 +405,8 @@ async function doctor(root: string): Promise<ToolResult> {
   if (!reg.present) bad(`no ${c.MCP_FILE}`, `Nothing registers this server with a harness. \`site\` › init writes it; without it the next session has no snypd tools.`);
   else if (!reg.names) bad(`${c.MCP_FILE} does not name a \`snypd\` server`, `It exists but registers something else. Add a \`snypd\` entry to \`mcpServers\`, then restart the harness.`);
   else if (reg.missingCommand) bad(`${c.MCP_FILE} names a command that is not on this machine: ${reg.command}`, reg.absolute
-    ? `An absolute path from whoever ran \`init\` — on a clone it fails inside the harness, which renders identically to nobody having restarted. Install snypd here (\`npm i -g snypd\`) and rewrite the command as \`snypd\`, or point it at a snypd this machine has.`
-    : `Nothing by that name is on this shell's PATH. The harness's PATH may differ, so this is a warning about a likely cause and not a proof; \`npm i -g snypd\` or \`brew install snymrova/tap/snypd\` settles it.`);
+    ? `An absolute path from whoever ran \`init\` — on a clone it fails inside the harness, which renders identically to nobody having restarted. Install snypd here (\`npm i -g @snypd/cli\`) and rewrite the command as \`snypd\`, or point it at a snypd this machine has.`
+    : `Nothing by that name is on this shell's PATH. The harness's PATH may differ, so this is a warning about a likely cause and not a proof; \`npm i -g @snypd/cli\` or \`brew install snymrova/tap/snypd\` settles it.`);
   else ok(`registered in ${c.MCP_FILE} as \`${reg.command}\`${reg.resolved && reg.resolved !== reg.command ? ` → ${reg.resolved}` : ""}`);
 
   // Read from `.snypd/activity.json` since S18f, not from this process's memory. In here the two agree by
