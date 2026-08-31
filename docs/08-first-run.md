@@ -71,8 +71,8 @@ First run is done when all seven are true, on Linux + macOS, from the compiled b
 | **F3** | **No dead ends.** Every state in §6 names its own next action, *on the surface its actor is looking at* — stdout for an agent, the page for a person. A state that can be reached and cannot be left is a release blocker. | state-transition test, one case per row of §6 |
 | **F4** | **Survives the restart.** Onboarding state is derived from disk on every request and on every session start; killing and restarting any process loses nothing that is not re-derivable. | `rm -rf .snypd/` mid-flow changes no answer except the heartbeat |
 | **F5** | **Three entry paths converge.** Agent-first (§2), terminal-first (`snypd init` typed by a person), and clone (`snypd.yaml` + `.mcp.json` already committed) reach the same state and are told the same next thing. | all three drive the same assertions |
-| **F6** | **Time to first visual.** For the terminal-first fallback: ≤ 2 commands from an empty directory to a painted Desk, no flags required. | `onboard.ttfv`, against the artefact |
-| **F7** | **The first-run surfaces are held to the Desk's budgets.** 0 KB JS, 0 axe violations, CLS 0 — on the *empty* and *first-run* states, not only the populated one. | `desk.*` lane extended to cover them |
+| **F6** | **Time to first visual.** For the terminal-first fallback: ≤ 2 commands from an empty directory to a painted Desk, no flags required. | `onboard.ttfv`, against the artefact — **true since S18e and painted since S18f** (`init` + `dev`, and the index those two produce is the theme rendering the vocabulary rather than an empty list); the number is S18g's |
+| **F7** | **The first-run surfaces are held to the Desk's budgets.** 0 KB JS, 0 axe violations, CLS 0 — on the *empty* and *first-run* states, not only the populated one. | ✅ **S18f** — `desk.first.*`, its own prefix rather than two more routes on `desk.*`, which would silently redefine a worst-of that has been comparable since S18b (`07` decision 48). Green on its first run: 0 KB JS, 0 violations over four route/viewport pairs, CLS 0 |
 
 **F1, F2 and F6 get budgets; the rest are boolean.** F1's budget is 5 and is the number this document exists to defend. `onboard.ttfp` ≤ 60 s including model latency and `onboard.ttfv` ≤ 5 s wall clock on a cold box are proposed, to be confirmed by the first measurement rather than argued now.
 
@@ -175,7 +175,7 @@ The registration row does more than report presence: it reads the command `.mcp.
 
 This section is unchanged in content and demoted in priority. It serves the **terminal-first** arrival and the **person** at states 2, 4 and 5 — a real user, correctly served, and not the one §2 is built for.
 
-`/_snypd` today has three cards: Status, In flight, Theme (`desk.ts:190-192`). First run adds a checklist above them and two disclosures below.
+`/_snypd` had three cards: Status, In flight, Theme. **Landed S18f**: first run adds a checklist above them and two disclosures below, and the six items are as written here.
 
 1. **The checklist** — the six derived facts of decision 52, rendered from what `site` › doctor computes (decision 64), ordered by dependency, with unreachable rows shown as not-yet rather than hidden.
 2. **Three surface labels, not two.** *type this* / *say this to your agent* / *click this*, and the restart is properly *do this in your harness*. The entire confusion of onboarding is not knowing which surface you are on; the labels are cheaper than any copy.
@@ -194,14 +194,14 @@ When the six are true, none of this renders and what remains is the ordinary Des
 
 | Failure | Detectable | Today |
 |---|---|---|
-| harness never restarted | yes — no heartbeat | ✅ `desk.ts:144` |
-| **server spawned but crashed** | **not distinguishable from the above** | ❌ both render as silence |
+| harness never restarted | yes — no heartbeat | ✅ `desk.ts:144`; true across processes since S18f |
+| **server spawned but crashed** | yes | ✅ **fixed S18f** — `startedAt` is written when the transport binds, so *spawned and silent* and *never spawned* are two rows with two different instructions, and a dead pid is a third |
 | `.mcp.json` written, harness ignores it | no | mitigate by showing the block (§9.4) |
 | not a git repo | yes | reported, not fixed |
 | port 4321 occupied | yes | ✅ **fixed S18e** — the next free port, or the `dev` server already there |
 | two harnesses connected at once | yes | not surfaced |
 
-**Refinement to `07` decision 51's heartbeat file:** record `startedAt` separately from `calls` in `.snypd/activity.json` — the `Activity` record already has `since` (`protocol.ts:65`). Then *spawned but never called* (server up, harness misconfigured) is distinguishable from *never spawned* (you did not restart) — two very different instructions, today rendered identically as one silent line, and both of them consumed by `site` › doctor as well as by the Desk.
+**Refinement to `07` decision 51's heartbeat file — landed S18f:** `startedAt` is recorded separately from `calls` in `.snypd/activity.json`. *Spawned but never called* (server up, harness misconfigured — its own log is where to look) is now a different sentence from *never spawned* (you did not restart) and from *stale* (a harness had this server and let it go), and all three are consumed by `site` › doctor as well as by the Desk, from one function.
 
 ---
 
@@ -315,12 +315,16 @@ command, which means the agent can run it with the human's approval rather than 
 homework. **This does not appear in §2's five human actions and may become a sixth on some machines**, and
 whether it does is a question for S18g's measured walk rather than for this paragraph.
 
-9. **The Desk's heartbeat is blind whenever the preview is its own process — which is always.** The walk drove a
-full MCP session and the Desk still read *"nothing has called this server yet"*, because activity lives in a
-module-scoped record (`protocol.ts`) and `snypd serve --preview` is a different process from the one the harness
-spawned. `07` decision 51 already prescribes `.snypd/activity.json` and §10 already asks for `startedAt`; what
-the audit adds is that this is not an edge case for diagnosing a crash. **It is the normal configuration**, so
-the status card is wrong for every user who has a preview open — which is every user at step 12.
+9. ~~**The Desk's heartbeat is blind whenever the preview is its own process — which is always.**~~ **Fixed,
+S18f** (`07` decision 70). The walk drove a full MCP session and the Desk still read *"nothing has called this
+server yet"*, because activity lived in a module-scoped record (`protocol.ts`) and the preview is a different
+process from the one the harness spawned. **It is the normal configuration**, so the status card was wrong for
+every user who had a preview open — which is every user at step 12. The record is now `.snypd/activity.json`,
+written by a leaf module that keeps the cold-start path free of the package index, scheduled off the turn that
+answers `initialize`, and written atomically because the reader is another process on a poll. `startedAt` came
+with it, which is what closes §10's undiagnosable row below. A regression test writes the record the way the
+server does and asserts the page changes; a dead pid returns it to grey, because a claim that outlived its
+process is worse than no claim.
 
 10. ~~**A pre-existing flake, unrelated to onboarding but corrosive to the gates.**~~ **Fixed, S18d.**
 `mcp.test.ts` › *"init → set_config → redirect → tokens → scaffold"* drives eleven tool calls in one session
@@ -342,10 +346,10 @@ Resequenced by the audit. The first draft ranked `snypd dev` first on the reason
 | ~~**S18d**~~ | **done.** The agent's path, decisions 60–64 — every one of them a string or a branch rather than a surface. `init` stdout and `site` › init text written for the reader they have; `get-started`'s three branches; `initialize` › `instructions` naming the prompt; argument-free `init` with the placeholder URL on **both** paths, and `publishCheck` as where that debt comes due; `git init` in an empty dir; `site` › doctor extended to eight of the nine derived facts and returning them as data. Four defects closed (§12.1, 2, 4, 10). Walked end to end against the compiled binary from an empty directory. | ✅ §2 completes agent-driven; 250 pass / 0 fail; F3 and F5 for the agent path |
 | ~~**S18d′**~~ | **done, up to the button.** Five platform packages generated from one list, a 20 KB launcher that resolves and spawns the one binary npm downloaded, `release.yml` publishing with provenance on a `v*` tag, a generated Homebrew formula, and the repo's own remote. Two riders: §12.8 closed (`07` decision 67) and `--deploy` writing a host build command that is an installed pinned command rather than a pipe to a shell (68). | ✅ built, tested against the artefact and rehearsed with `--dry-run`; **`bunx snypd init` resolves on the first publish, which is Sunny's** (69). F1 stays measured, not claimed |
 | ~~**S18e**~~ | **done: the human verb.** `snypd dev` — bind, open, watch, print — and `serve --preview` kept as an alias that is *the same code path*, not a second one to drift. The preview inverts owner: it exists before any tool call, survives the harness restarting, and `render_preview` finds it through `.snypd/dev.json` (proven over `/_snypd/alive`) rather than racing it for 4321. §12.3 closed. Decision 57's TTY split holds — the browser opens only when stdout is a terminal, so `packages/bench/smoke/` never sees a window. Live reload is a `Refresh` header and the Desk link a response-path strip, with a test that every item page in `.snypd/preview` is byte-identical to `dist/`. | ✅ `init` then `dev` from an empty directory paints the Desk, asserted against the compiled binary; item bytes equal `dist/` bytes; 277 tests |
-| **S18f** | **The page that meets you.** The first-run checklist rendered from doctor's facts (§9), three surface labels, prompts as text, the verbatim `.mcp.json`, the rendered empty state, `startedAt` in the heartbeat. | F6, F7 |
+| ~~**S18f**~~ | **done: the page that meets you.** The checklist from doctor's facts, six rows by dependency with the unreachable ones shown as *later*; the three surface labels on every row; the prompts and the verbatim `.mcp.json` as selectable, keyboard-reachable text; "what is snypd" in a `<details>`; the placeholder URL flagged on the status card rather than presented as the address. `startedAt` and the whole record moved to `.snypd/activity.json` (`07` decision 70), which closes §12.9 and splits §10's two silences. The empty index is rendered by the dev server through the theme — nothing on disk to delete, and `build()` never emits it. | F7 ✅ (`desk.first.*`: 0 KB JS, 0 violations, CLS 0) · F6 is now true and gets its number in S18g |
 | **S18g** | **The number.** The `onboard.*` lane in `packages/bench/smoke/`, driving the compiled binary from a temp directory: `handoff`, `ttfp`, `ttfv`, and the state-transition test that is F3. `sites/` + `bun run scratch` (decision 53) as the loop that dogfoods this by walking it. | F1, F2, F4; budgets set from the first measurement and gated thereafter |
 
-**S18e has landed; the button is still Sunny's.** The paragraph below is unchanged in its one open claim — nothing on npm answers `bunx snypd init` until the first publish — and S18e was the next session in this list rather than a substitute for it.
+**S18f has landed. The button was pressed and the publish is half done.** `v0.1.0` ran on 31 Aug and the five platform packages are on npm — `@snypd/darwin-arm64`, `@snypd/darwin-x64`, `@snypd/linux-arm64`, `@snypd/linux-x64`, `@snypd/windows-x64`, all 0.1.0, all signed with provenance. **The launcher is not.** `snypd` itself failed with `E403 … You may not perform that action with these credentials` — the token had write on the scope and not the right to create a new *unscoped* package, which is a different permission and one the dry run cannot exercise, for the reason `packaging/README.md` already gives about the first failure. So `bunx snypd init` still 404s and §2 step 4 is still a checkout. The retry is cheap and needs no version bump — S18d′'s publish step skips what the registry already has, and the run's log shows it doing exactly that for all five before it reached the sixth — but it needs a token with permission to create the package, which is Sunny's to issue.
 
 **S18d′ has landed, up to the button.** The machinery is done and the decision is not: publishing claims a name permanently, unpublishes for 72 hours, and cannot be rehearsed here — `07` decision 69 leaves it with Sunny, and until it is pressed §2 step 4 is a checkout. **S18e is next**, and it is the first session in this list that serves the *secondary* arrival: `snypd dev`, the EADDRINUSE fix (§12.3), and the TTY split. S18f then makes the page meet the person who got there, and closes §12.9 — the heartbeat that is blind for every user with a preview open, which is every user at step 12, and which S18e makes *more* urgent rather than less: a `dev` server is a second process by construction, so the status card it renders can only ever say "nothing has called this server yet" until the record moves to `.snypd/activity.json`. S18g is the number, and is what keeps the rest from rotting.
 

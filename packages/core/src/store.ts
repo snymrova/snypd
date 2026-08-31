@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { ensureDisposableDir, INDEX_DIR } from "./paths";
 import { load as parseYaml } from "js-yaml";
 import { openDatabase, type Db } from "@snypd/runtime";
 import type { LoadedConfig } from "./config";
@@ -43,7 +44,8 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS mdast (hash TEXT PRIMARY KEY, json TEXT NOT NULL);`;
 
 export const sha1 = (s: string | Buffer) => createHash("sha1").update(s).digest("hex");
-export const INDEX_DIR = ".snypd";
+// Defined in the leaf `paths.ts` so the MCP cold-start path can read it without this file (S18f).
+export { INDEX_DIR } from "./paths";
 
 /** Frontmatter only, without a markdown parse: the `---` block + js-yaml. Same result parseMarkdown gives. */
 export function readFrontmatter(source: string): Record<string, unknown> {
@@ -82,12 +84,11 @@ export class SiteIndex {
   private constructor(readonly root: string, readonly path: string, private db: Db) {}
 
   static async open(root: string, path = join(root, INDEX_DIR, "index.sqlite")): Promise<SiteIndex> {
-    const dir = join(path, "..");
-    mkdirSync(dir, { recursive: true });
     // The index is disposable (docs/07 decision 13) and must never reach a commit — nor make the tree
     // look dirty, which would stop the one drafts-branch switch (git.ts). A self-ignoring directory needs no
-    // repo-level .gitignore and no cooperation from the site's own.
-    if (!existsSync(join(dir, ".gitignore"))) writeFileSync(join(dir, ".gitignore"), "*\n");
+    // repo-level .gitignore and no cooperation from the site's own. Shared with the heartbeat since S18f,
+    // which writes into this directory before any index has opened it.
+    ensureDisposableDir(join(path, ".."));
     const db = await openDatabase(path);
     db.transaction(() => { for (const stmt of SCHEMA.split(";")) if (stmt.trim()) db.run(stmt); });   // one transaction: one journal write, not one per table
     return new SiteIndex(root, path, db);

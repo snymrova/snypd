@@ -394,11 +394,14 @@ async function doctor(root: string): Promise<ToolResult> {
   if (!repo) bad("not a git repo", "`git init` here: writes are not versioned and nothing can be published without one.");
   else ok("git repo");
 
-  // ── The four facts docs/08 decision 64 adds ──────────────────────────────────────────────────────
-  // Doctor is what the agent has instead of a page: the Desk renders these same facts for a person
-  // (S18f) and the rule is that nothing appears there which cannot be asked for here. So they are
-  // computed once, in this function, and returned in `facts` as well as in prose.
-  const reg = registration(root, c);
+  // ── The facts docs/08 decision 64 adds ───────────────────────────────────────────────────────────
+  // Doctor is what the agent has instead of a page, and since S18f the two readings come from one
+  // function: `onboardingFacts` in `@snypd/core` computes them, this turns them into sentences, and the
+  // Desk turns the same object into a checklist. The rule that follows — no fact appears on the Desk
+  // that doctor cannot answer — is now structural rather than a promise, because there is one source.
+  const dev = await c.liveDev(root);
+  const facts = c.onboardingFacts(root, { cfg, items: stored.length, dev: dev ? { url: dev.url } : undefined });
+  const reg = facts.registration;
   if (!reg.present) bad(`no ${c.MCP_FILE}`, `Nothing registers this server with a harness. \`site\` › init writes it; without it the next session has no snypd tools.`);
   else if (!reg.names) bad(`${c.MCP_FILE} does not name a \`snypd\` server`, `It exists but registers something else. Add a \`snypd\` entry to \`mcpServers\`, then restart the harness.`);
   else if (reg.missingCommand) bad(`${c.MCP_FILE} names a command that is not on this machine: ${reg.command}`, reg.absolute
@@ -406,27 +409,37 @@ async function doctor(root: string): Promise<ToolResult> {
     : `Nothing by that name is on this shell's PATH. The harness's PATH may differ, so this is a warning about a likely cause and not a proof; \`npm i -g snypd\` or \`brew install snymrova/tap/snypd\` settles it.`);
   else ok(`registered in ${c.MCP_FILE} as \`${reg.command}\`${reg.resolved && reg.resolved !== reg.command ? ` → ${reg.resolved}` : ""}`);
 
-  // Process-local and true by construction when an agent asks — if this call arrived, a harness is
-  // connected. It earns its place for the *other* reader: the Desk, and a person asking why their
-  // editor sees no tools. S18f moves the record to `.snypd/activity.json` so a preview in its own
-  // process can answer it too; today a preview is blind to it (docs/08 §12.9) — and since S18e a preview
-  // in its own process is the normal case rather than the odd one, which is what makes that row urgent.
+  // Read from `.snypd/activity.json` since S18f, not from this process's memory. In here the two agree by
+  // construction — if this call arrived, a harness is connected — and the file is what lets the *other*
+  // reader agree with us: a `snypd dev` preview is a different process and rendered "nothing has called
+  // this server yet" through a full session (docs/08 §12.9). The disk record also separates the two
+  // silences docs/08 §10 asked for: spawned-and-quiet is a registration problem, never-spawned is a
+  // restart. In-memory is the fallback for a server driven by `handle()` without `listen()`.
+  // In-process wins where the two disagree, and they will: the record is written a quarter of a second
+  // after the server binds (decision 70 — anything sooner is charged to `mcp.coldStart.binary`), so a
+  // harness that calls doctor inside its first turn is asking before the file exists. Memory is exact
+  // here and the file is what the *other* process has; neither is a substitute for the other.
   const act = activitySnapshot();
-  if (act.calls) ok(`a harness is connected${act.client ? ` — ${act.client}` : ""}, ${act.calls} call${act.calls === 1 ? "" : "s"} this session`);
+  const harness = facts.harness === "never" && act.calls > 0 ? "connected" : facts.harness;
+  const client = act.client ?? facts.heartbeat?.client;
+  const calls = Math.max(act.calls, facts.heartbeat?.calls ?? 0);
+  const startedAt = act.startedAt ?? facts.heartbeat?.startedAt;
+  if (harness === "connected") ok(`a harness is connected${client ? ` — ${client}` : ""}, ${calls} call${calls === 1 ? "" : "s"} this session`);
+  else if (harness === "silent") bad("a server is running but no harness has spoken to it", "It was spawned and then went unused — the harness has it registered and is not calling it. Check the harness's own MCP log for a startup error rather than restarting again.");
+  else if (harness === "stale") warn("a harness had this server and let it go — nothing is connected now; restarting the editor spawns a new one");
   else warn("no harness has called this server yet — if an editor is open, it has not been restarted since `.mcp.json` was written");
 
-  // The fifth fact (S18e): is a preview already serving this site? It is the difference between "tell
-  // them to open a URL" and "tell them to look at the tab they already have open", and it is proven over
-  // HTTP rather than read from `.snypd/dev.json` — a record outlives the process that wrote it.
-  const dev = await c.liveDev(root);
+  // Is a preview already serving this site? The difference between "open this URL" and "look at the tab
+  // you already have open", and it is proven over HTTP rather than read from `.snypd/dev.json` — a
+  // record outlives the process that wrote it.
   if (dev) ok(`a \`snypd dev\` server is running — Desk at ${dev.url}/_snypd`);
   else warn("no preview server — `snypd dev` starts one, or `content.render_preview` starts a session-scoped one when you ask for a URL");
 
-  const items = stored.length;
+  const items = facts.items;
   if (items) ok(`${items} item${items === 1 ? "" : "s"}`);
   else warn("no content yet — the `get-started` prompt writes the first post");
 
-  if (c.isPlaceholderUrl(cfg.config.site.url))
+  if (facts.placeholderUrl)
     warn(`site.url is ${cfg.config.site.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before anything publishes (content.publish refuses until then)`);
 
   // Broken and unfinished are different things, and a first run is full of the second kind (S18d): a
@@ -437,33 +450,6 @@ async function doctor(root: string): Promise<ToolResult> {
     : "\nnothing to fix";
   return text([...lines, tail].join("\n"),
     { ok: !problems.length, problems, lint: { errors: lint.errors, warnings: lint.warnings },
-      facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: act.calls > 0, client: act.client, dev: !!dev, deskUrl: dev ? `${dev.url}/_snypd` : undefined, items, placeholderUrl: c.isPlaceholderUrl(cfg.config.site.url) } });
+      facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: harness === "connected", harnessState: harness, startedAt, client, dev: !!dev, deskUrl: dev ? `${dev.url}/_snypd` : undefined, items, placeholderUrl: facts.placeholderUrl } });
 }
 
-/**
- * Is this repo registered with a harness, and does the registration name something that exists?
- *
- * The last of those three questions is docs/08 §12.8: `.mcp.json` is committed carrying whatever
- * absolute path `init` ran from, so a clone's harness spawns a command that is not on that machine and
- * fails in its own logs — which the Desk renders identically to *you did not restart*. Doctor cannot fix
- * that (S18d′ supplies the portable command), but it can name it, which is the difference between a
- * five-minute puzzle and a five-hour one.
- */
-function registration(root: string, c: Core): { present: boolean; names: boolean; command?: string; resolved?: string; absolute: boolean; missingCommand: boolean } {
-  const file = join(root, ".mcp.json");
-  const none = { present: false, names: false, absolute: false, missingCommand: false };
-  if (!existsSync(file)) return none;
-  try {
-    const j = JSON.parse(readFileSync(file, "utf8")) as { mcpServers?: Record<string, { command?: string }> };
-    const entry = j.mcpServers?.snypd;
-    if (!entry) return { ...none, present: true };
-    const command = entry.command;
-    const absolute = !!command && (command.startsWith("/") || /^[A-Za-z]:[\\/]/.test(command));
-    // An absolute path is checked as a file; a bare command is looked for on *this* process's PATH
-    // (S18d′). The harness's PATH is not ours to know, so a miss is reported as a likely cause rather
-    // than a verdict — but "nothing by that name exists anywhere I can see" is still the single most
-    // useful sentence available when the tools did not load.
-    const resolved = command ? (absolute ? (existsSync(command) ? command : undefined) : c.onPath(command) ?? undefined) : undefined;
-    return { present: true, names: true, command, resolved, absolute, missingCommand: !!command && !resolved };
-  } catch { return { ...none, present: true } }
-}

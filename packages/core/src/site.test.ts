@@ -7,7 +7,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl } from "./index";
+import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -265,5 +265,81 @@ describe("bundled themes", () => {
     expect(themeFiles(dir)).toContain("layouts/post.tsx");
     expect(bundledNames()).toEqual(["base", "editorial"]);
     expect(themeFile(bundledDir("nope"), "theme.yaml")).toBeUndefined();
+  });
+});
+
+/**
+ * S18f — the heartbeat, and the six facts doctor and the Desk both render.
+ *
+ * The record exists because the Desk was wrong for every real user: "is a harness connected" lived in a
+ * module-scoped object inside the MCP process, and since S18e the page that asks the question is
+ * normally served by a different one (docs/08 §12.9).
+ */
+describe("the heartbeat and the first-run facts (S18f)", () => {
+  const site = "corpora/_test/heartbeat";
+  beforeEach(() => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(`${site}/content/posts`, { recursive: true });
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: h, url: https://h.example }\n");
+  });
+
+  test("a record round-trips, and a foreign root is the same as no record", () => {
+    expect(readHeartbeat(site)).toBeUndefined();
+    writeHeartbeat(site, { startedAt: 1, calls: 3, lastMethod: "tools/call", client: "a-harness" });
+    const rec = readHeartbeat(site)!;
+    expect(rec).toMatchObject({ calls: 3, client: "a-harness", pid: process.pid });
+    // A directory copied to another machine carries a record that is not about it.
+    writeHeartbeat(site, { startedAt: 1, calls: 3, root: "/somewhere/else" });
+    expect(readHeartbeat(site)).toBeUndefined();
+  });
+
+  /**
+   * The defect four tests found the first time the heartbeat shipped. `initSite` writes the root
+   * `.gitignore` only when there is not one already, so a repo that predates snypd never gets the
+   * `.snypd/` line — and then `Repo.useDrafts` refuses every write, naming a file the user never wrote.
+   */
+  test("writing the record cannot make the tree dirty", () => {
+    initRepo(site, { name: "T", email: "t@example.com" });
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
+    writeHeartbeat(site, { startedAt: Date.now(), calls: 1 });
+    expect(readFileSync(`${site}/.snypd/.gitignore`, "utf8")).toBe("*\n");
+    expect(Repo.open(site)!.dirty()).toEqual([]);
+  });
+
+  test("the four harness states are four different answers", () => {
+    expect(harnessState(site).state).toBe("never");
+    writeHeartbeat(site, { startedAt: Date.now(), calls: 0 });
+    expect(harnessState(site).state).toBe("silent");           // spawned, and nothing has spoken to it
+    writeHeartbeat(site, { startedAt: Date.now(), calls: 4 });
+    expect(harnessState(site).state).toBe("connected");
+    // A pid nothing is using: the harness had this server and let it go. Pid 2^22 is above the usual
+    // `pid_max` on Linux and unused on macOS, so this is a dead pid rather than somebody else's.
+    writeHeartbeat(site, { startedAt: Date.now(), calls: 4, pid: 4_194_304 });
+    expect(harnessState(site).state).toBe("stale");
+  });
+
+  test("the six facts are derived from disk and nothing is stored", () => {
+    const cfg = loadConfig(site);
+    const bare = onboardingFacts(site, { cfg, items: 0 });
+    expect(bare.config).toBe(true);
+    expect(bare.git).toBe(false);
+    expect(bare.registration.present).toBe(false);
+    expect(bare.harness).toBe("never");
+    expect(onboarded(bare)).toBe(false);
+
+    initRepo(site, { name: "T", email: "t@example.com" });
+    writeFileSync(`${site}/.mcp.json`, JSON.stringify({ mcpServers: { snypd: { command: "definitely-not-on-path", args: ["serve"] } } }));
+    writeHeartbeat(site, { startedAt: Date.now(), calls: 2 });
+    const f = onboardingFacts(site, { cfg, items: 1 });
+    expect(f.git).toBe(true);
+    expect(f.registration).toMatchObject({ present: true, names: true, missingCommand: true });
+    expect(f.harness).toBe("connected");
+    expect(onboarded(f)).toBe(false);                          // the command it names is not here
+
+    // Nothing above wrote a progress file: delete the derived directory and the answers are unchanged
+    // except the one that is a claim about a live process.
+    rmSync(`${site}/.snypd`, { recursive: true, force: true });
+    expect(onboardingFacts(site, { cfg, items: 1 }).harness).toBe("never");
+    expect(onboardingFacts(site, { cfg, items: 1 }).git).toBe(true);
   });
 });

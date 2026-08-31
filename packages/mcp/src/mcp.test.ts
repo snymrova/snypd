@@ -106,6 +106,42 @@ describe("in-process", () => {
     expect(a.calls).toBe(before + 2);
     expect(a.since).toBeLessThanOrEqual(a.lastAt!);
   });
+
+  /**
+   * S18f — the same record, on disk, for the process that renders the page (docs/08 §12.9 and §10).
+   *
+   * Driven against a real spawned server rather than `handle()`, because the two facts under test are
+   * both about the *transport*: `startedAt` is written when it comes up, and the record is removed when
+   * it goes down. A snapshot from inside this process would demonstrate neither.
+   */
+  test("the heartbeat is on disk while the server lives, and gone when it does not", async () => {
+    const root = "corpora/_test/mcp-heartbeat";
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(`${root}/content/posts`, { recursive: true });
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: hb, url: https://hb.example }\n");
+    const { readHeartbeat } = await import("@snypd/core");
+    const proc = Bun.spawn([process.execPath, "packages/mcp/src/server.ts"], { stdin: "pipe", stdout: "pipe", stderr: "ignore", env: { ...process.env, SNYPD_ROOT: root } });
+    try {
+      proc.stdin.write(JSON.stringify(req(1, "initialize", { clientInfo: { name: "a-harness" } })) + "\n");
+      proc.stdin.flush();
+      const reader = proc.stdout.getReader();
+      await reader.read();                                   // the reply is on the wire; the flush follows it
+      reader.releaseLock();
+      // The write is scheduled off the turn that answers `initialize`, so this waits for the event loop
+      // rather than for a duration — the point of the design is that the protocol never pays for it.
+      let rec = readHeartbeat(root);
+      for (let i = 0; i < 50 && !rec; i++) { await Bun.sleep(20); rec = readHeartbeat(root) }
+      expect(rec).toBeDefined();
+      expect(rec!.pid).toBe(proc.pid);
+      expect(rec!.client).toBe("a-harness");
+      expect(rec!.calls).toBeGreaterThan(0);
+      expect(rec!.startedAt).toBeLessThanOrEqual(rec!.lastAt!);   // it was up before anything called it
+    } finally {
+      proc.stdin.end();
+      await proc.exited;
+    }
+    expect(readHeartbeat(root)).toBeUndefined();             // a record that outlived its process is a lie
+  });
 });
 
 /** S11: the write loop as an agent drives it — tools/call over the same stdio server, on a real repo. */
@@ -548,6 +584,11 @@ describe("the first run, from the agent's side", () => {
     // S18f's checklist reads, so it is asserted as data rather than as prose.
     expect(structured(doc).facts).toMatchObject({ config: true, theme: true, git: true, registered: true, harness: true, items: 0, placeholderUrl: true });
     expect(structured(doc).facts.client).toBe("an-editor");   // `initialize` said who it was; doctor says so back
+    // S18f: the facts come from `.snypd/activity.json` now, not from this process's memory, so doctor
+    // and a Desk in a different process cannot disagree. `startedAt` is the second field, and the one
+    // that separates docs/08 §10's two silences.
+    expect(structured(doc).facts.harnessState).toBe("connected");
+    expect(structured(doc).facts.startedAt).toBeGreaterThan(0);
     expect(s).toContain("an-editor");                        // two editors on one repo is the ordinary case
     expect(s).toContain("registered in .mcp.json");
     expect(s).toContain("a harness is connected");

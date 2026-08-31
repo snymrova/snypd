@@ -114,6 +114,9 @@ switch (verb) {
   case "dev": {
     const { preview } = await import("@snypd/render/preview");
     const { liveDev, writeDev, clearDev, VERSION } = await import("@snypd/core");
+    // S18f: the first-run Desk lists what a harness will offer once it connects. Names and descriptions
+    // only — `@snypd/render` may not import `@snypd/mcp`, and this verb already can.
+    const { PROMPTS } = await import("@snypd/mcp/prompts");
     const root = args[0] ?? ".";
     const val = (n: string) => rest.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
     const { resolve } = await import("node:path");
@@ -148,6 +151,7 @@ switch (verb) {
         watch: !flags.has("--no-watch"),
         reload: reload > 0 ? reload : undefined,
         deskLink: true,
+        prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })),
       });
     } catch (e) {
       const err = e as Error & { hint?: string };

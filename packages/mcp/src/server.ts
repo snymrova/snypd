@@ -4,7 +4,7 @@
  * so the cold-start benchmark (spawn → initialize) measures the Bun floor plus this file.
  * Root = SNYPD_ROOT or cwd. Never write to stdout except protocol messages.
  */
-import { dispatch, serveStdio, type Handlers, type Notify, type Request } from "./protocol";
+import { dispatch, persistActivity, serveStdio, type Activity, type Handlers, type Notify, type Request } from "./protocol";
 
 export function createServer(root = process.env.SNYPD_ROOT ?? process.cwd()) {
   let h: Handlers | undefined, t: Pick<Handlers, "listTools" | "callTool"> | undefined, p: Pick<Handlers, "listPrompts" | "getPrompt"> | undefined;
@@ -29,8 +29,43 @@ export function createServer(root = process.env.SNYPD_ROOT ?? process.cwd()) {
   return {
     handle: (msg: Request) => dispatch(msg, lazy),
     close,
-    listen: async () => { await serveStdio(lazy); await close(); },
+    listen: async () => {
+      // From here rather than from `protocol.ts` because this is the file that knows the root — and
+      // *lazily*, like everything else in this file. `@snypd/core/heartbeat` is a leaf (`node:fs`,
+      // `node:path`, one string), so a static import is cheap; it is deferred anyway because "cheap" was
+      // measured at 2.5 ms on a busy box and `initialize` is gated at 50 ms. What actually cost the
+      // artefact 5–10 ms was doing this work *at all* before the reply had flushed, which is why
+      // `FIRST_WRITE_MS` exists and why nothing here runs for a quarter of a second.
+      persistActivity((a) => void writeRecord(root, a));
+      try { await serveStdio(lazy) } finally { await clearRecord(root); await close(); }
+    },
   };
 }
 
 if (import.meta.main) void createServer().listen();
+
+/**
+ * The heartbeat writer (S18f, `07` decision 70), imported on first use and never before.
+ *
+ * `written` is a sequence guard rather than a nicety: the initial write is scheduled at `listen()` and
+ * the first call writes immediately, so two snapshots can be in flight at once across an `await import`.
+ * Landing them out of order would leave `calls: 0` on disk while a harness was talking to us — the Desk
+ * grey for a second on the one transition a person is watching for.
+ */
+let heartbeat: Promise<typeof import("@snypd/core/heartbeat")> | undefined;
+let written = -1;
+async function writeRecord(root: string, a: Activity): Promise<void> {
+  if (a.calls <= written) return;
+  written = a.calls;
+  const m = await (heartbeat ??= import("@snypd/core/heartbeat"));
+  m.writeHeartbeat(root, { startedAt: a.startedAt ?? Date.now(), calls: a.calls, lastMethod: a.lastMethod, lastAt: a.lastAt, since: a.since, client: a.client });
+}
+
+/**
+ * Removed on the way out for the reason `clearDev` is: a record that outlives its process tells a person
+ * their harness is connected to a server that is gone. Nothing to clear if nothing was ever written.
+ */
+async function clearRecord(root: string): Promise<void> {
+  if (!heartbeat) return;
+  (await heartbeat).clearHeartbeat(root);
+}

@@ -5,7 +5,7 @@ import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig, initRepo } from "@snypd/core";
 import { preview } from "./preview";
-import { deskPage } from "./desk";
+import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
 
@@ -471,9 +471,142 @@ describe("Desk (S18b)", () => {
     // out from under axe-core and make the a11y number a race.
     expect(deskPage({ ...facts, refresh: 0 }, now).html).not.toContain("http-equiv");
   });
+
+  /**
+   * S18f — the first-run checklist (`07` decision 52, docs/08 §9).
+   *
+   * The property worth a test is the *disappearance*: there is no dismiss button and no stored flag
+   * anywhere in this codebase, so "the six are true" has to be the only thing that stops it rendering.
+   * A checklist that could be turned off would be a seventh piece of state, and it would be wrong the
+   * first time somebody deleted their only post.
+   */
+  test("the first-run checklist renders from the six facts, and vanishes when they are true", () => {
+    const base = {
+      site: { name: "S", url: "http://localhost:4321" },
+      theme: { name: "base", chain: ["base"], coverage: [] },
+      drafts: [], previewUrl: "http://localhost:1", refresh: 0,
+    };
+    const fresh: DeskOnboarding = {
+      config: false, git: false, harness: "never", items: 0, placeholderUrl: true,
+      registration: { present: true, names: true, missingCommand: false, command: "snypd" },
+      mcpJson: '{\n  "mcpServers": { "snypd": { "command": "snypd", "args": ["serve"] } }\n}',
+      prompts: [{ name: "get-started", description: "Start here." }],
+      sentence: "Set up snypd here and write me a first post.",
+    };
+    const html = deskPage({ ...base, onboarding: fresh }, now).html;
+    expect(html).toContain("First run — 1 of 6");
+    // All three surfaces are named, because not knowing which one you are looking at is the whole of
+    // onboarding confusion (decision 52).
+    expect(html).toContain("do this in your harness");
+    expect(html).toContain("say this to your agent");
+    expect(html).toContain("type this");
+    expect(html).toContain("Set up snypd here");                 // the sentence, passed in, not repeated here
+    expect(html).toContain("mcpServers");                        // the block, verbatim (§9.4)
+    expect(html).toContain("<code>get-started</code>");
+    expect(html).toContain("<summary>What is snypd?</summary>");
+    // Rows that cannot be reached yet are shown as later rather than hidden: a flow you can see the end
+    // of is a flow people finish.
+    expect(html).toContain(">later<");
+    expect(html).toContain(">next<");
+    // The placeholder is flagged on the status card rather than presented as the site's address.
+    expect(html).toContain("placeholder — needed before publish");
+    // Every `pre` on this page scrolls, so every one of them is keyboard-reachable (decision 50).
+    expect(html).not.toContain("<pre>");
+
+    const done: DeskOnboarding = { ...fresh, config: true, git: true, harness: "connected", items: 2, placeholderUrl: false };
+    const settled = deskPage({ ...base, onboarding: done }, now).html;
+    expect(settled).not.toContain("First run");
+    expect(settled).not.toContain("mcpServers");
+    expect(settled).not.toContain("placeholder — needed");
+  });
+
+  /**
+   * docs/08 §10: *spawned and silent* and *never spawned* are two different instructions to a person,
+   * and until S18f they rendered as the same grey line.
+   */
+  test("the four harness states each say something different", () => {
+    const base = {
+      site: { name: "S", url: "https://s.example" },
+      theme: { name: "base", chain: ["base"], coverage: [] },
+      drafts: [], previewUrl: "http://localhost:1", refresh: 0,
+    };
+    const o = (harness: DeskOnboarding["harness"]): DeskOnboarding => ({
+      config: true, git: true, harness, items: 0, placeholderUrl: false,
+      registration: { present: true, names: true, missingCommand: false, command: "snypd" }, sentence: "x",
+    });
+    expect(deskPage({ ...base, onboarding: o("never") }, now).html).toContain("has not seen");
+    expect(deskPage({ ...base, onboarding: o("silent") }, now).html).toContain("spawned and then went unused");
+    expect(deskPage({ ...base, onboarding: o("stale") }, now).html).toContain("had this server and let it go");
+    expect(deskPage({ ...base, onboarding: o("connected") }, now).html).toContain("went green on its first call");
+  });
 });
 
 /** S11: the preview server — drafts visible, the review page, and approval as the publish gate. */
+/**
+ * S18f — the empty state (`07` decision 52).
+ *
+ * Two claims, and the second is the one that matters: the index a brand-new site serves is *rendered*,
+ * and `build()` never emits it. A welcome post would satisfy the first and fail the second — a file
+ * every new site has to delete is a file that ships to production when somebody forgets.
+ */
+describe("the empty state (S18f)", () => {
+  const site = "corpora/_test/empty";
+  let server: Awaited<ReturnType<typeof preview>>;
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(`${site}/content/posts`, { recursive: true });
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: brand new, url: https://n.example }\n");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    server = await preview(site, { port: 0, watch: false });
+  });
+  afterAll(() => server?.stop());
+
+  /**
+   * docs/08 §12.9 — the defect this session exists for. A preview started by `snypd dev` is a different
+   * process from the MCP server, so "is a harness connected" had to leave that process to be true here.
+   * The test writes the record the way the server does and asserts the page changes.
+   */
+  test("the status card reads a harness that is in another process", async () => {
+    const c = await import("@snypd/core");
+    expect(await (await fetch(`${server.url}/_snypd`)).text()).toContain("nothing has called this server yet");
+    c.writeHeartbeat(site, { startedAt: Date.now() - 5_000, calls: 7, lastMethod: "tools/call", lastAt: Date.now(), since: Date.now() - 5_000, client: "another-process" });
+    const page = await (await fetch(`${server.url}/_snypd`)).text();
+    expect(page).toContain("connected");
+    expect(page).toContain("another-process");
+    // A record whose process is gone is a claim that expired, not a connection.
+    c.writeHeartbeat(site, { startedAt: Date.now(), calls: 7, pid: 4_194_304 });
+    expect(await (await fetch(`${server.url}/_snypd`)).text()).toContain("nothing has called this server yet");
+    c.clearHeartbeat(site, 4_194_304);
+  });
+
+  test("a site with nothing in it renders the vocabulary, and the build never emits it", async () => {
+    const html = await (await fetch(`${server.url}/`)).text();
+    expect(html).toContain("data-snypd-empty-state");
+    expect(html).toContain("Only you can see this");
+    // The theme rendering the vocabulary, not a splash page we wrote: these classes come from the
+    // primitives, so a theme with real components produces real components here.
+    expect(html).toMatch(/tldr|callout|steps|faq/);
+
+    // The markdown twin is what an agent reads, and it gets the real (empty) index rather than a page
+    // written at a person.
+    const md = await fetch(`${server.url}/`, { headers: { accept: "text/markdown" } });
+    expect(await md.text()).not.toContain("Only you can see this");
+
+    await build(site);
+    const index = `${site}/dist/index.html`;
+    expect(existsSync(index)).toBe(true);
+    expect(readFileSync(index, "utf8")).not.toContain("data-snypd-empty-state");
+
+    // And it is gone the moment there is one real item — nothing to delete.
+    const c = await import("@snypd/core");
+    const cfg = c.loadConfig(site);
+    c.createContent(site, { type: "post", slug: "first", frontmatter: { title: "First", date: "2026-08-01" }, body: "Words.", cfg });
+    await server.rebuild();
+    expect(await (await fetch(`${server.url}/`)).text()).not.toContain("data-snypd-empty-state");
+  });
+});
+
 describe("preview (S11)", () => {
   const site = "corpora/_test/preview";
   let server: Awaited<ReturnType<typeof preview>>;

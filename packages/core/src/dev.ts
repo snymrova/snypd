@@ -18,9 +18,9 @@
  * `liveDev` proves the claim over HTTP before anybody acts on it, and nothing here trusts the file's
  * own word for anything but where to look.
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { INDEX_DIR } from "./store";
+import { ensureDisposableDir, INDEX_DIR } from "./paths";
 
 /** Answered by the preview server itself; the shape `liveDev` proves a port is one of ours by. */
 export const ALIVE_ROUTE = "/_snypd/alive";
@@ -42,7 +42,7 @@ export const devPath = (root: string) => join(root, INDEX_DIR, "dev.json");
 
 /** Written once, when the server has bound and knows its real port — never with the port it asked for. */
 export function writeDev(root: string, rec: DevRecord): void {
-  mkdirSync(join(root, INDEX_DIR), { recursive: true });
+  ensureDisposableDir(join(root, INDEX_DIR));
   writeFileSync(devPath(root), `${JSON.stringify(rec, null, 2)}\n`);
 }
 

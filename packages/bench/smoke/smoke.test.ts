@@ -11,7 +11,7 @@
  * nothing else, so a command that prints a stack trace and exits 0 is the worse defect of the two.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { compile } from "./build";
@@ -268,6 +268,27 @@ describe("the compiled binary, in a directory it has never seen", () => {
       // Nothing has been written yet, so this is the state every new site is in for its first minutes,
       // and the page has to be legible in it rather than only once there is a draft to list.
       expect((await fetch(`${j.url}/_snypd/alive`)).status).toBe(200);
+
+      // S18f — the checklist, from the artefact and from a directory that was empty a second ago
+      // (decision 55: anything asserting about first run from inside the workspace asserts about a state
+      // no user is ever in). Four rows are unfinished here, and each one names the surface it lives on.
+      expect(page).toContain("First run");
+      expect(page).toContain("do this in your harness");     // the restart, which is neither a shell nor a sentence
+      expect(page).toContain("mcpServers");                  // the registration, verbatim (docs/08 §9.4)
+      expect(page).toContain("What is snypd?");
+      expect(page).not.toContain("<pre>");                   // every scroll region is keyboard-reachable
+
+      // And the index: rendered by this server, present in no file, gone on the first real post.
+      const index = await fetch(`${j.url}/`);
+      expect(index.status).toBe(200);
+      const home = await index.text();
+      expect(home).toContain("data-snypd-empty-state");
+      expect(home).toContain("Only you can see this");
+      expect(home).not.toContain("<script");
+      expect(existsSync(join(empty, "content", "posts"))).toBe(true);
+      // A `.gitkeep` and nothing else: no welcome post, so there is no file a new site has to delete
+      // and none that ships to production when somebody forgets to (decision 52).
+      expect(readdirSync(join(empty, "content", "posts"))).toEqual([".gitkeep"]);
 
       // The banner names the Desk. Three sessions of `serve --preview` printed the S11 review path with
       // `<type>/<slug>` placeholders in it and never once said `/_snypd` (decision 51). Read chunk by
