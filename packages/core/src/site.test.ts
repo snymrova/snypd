@@ -7,7 +7,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded } from "./index";
+import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, onPath, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -117,6 +117,37 @@ describe("initSite", () => {
         .toEqual({ command: "bunx", args: ["@snypd/cli", "serve"] });
       expect(mcpCommand("/home/x/.npm/_npx/9f2/node_modules/@snypd/linux-x64/bin/snypd", undefined, noPath))
         .toEqual({ command: "npx", args: ["-y", "@snypd/cli", "serve"] });
+    });
+
+    // S18j, and the reason this suite grew a case that builds its own PATH: every test above hands
+    // `mcpCommand` a PATH that does not contain `snypd`, so branch 1 was only ever exercised against a
+    // shim a test wrote on purpose. The real `bunx @snypd/cli init` arrives with the runner's own
+    // `node_modules/.bin` on PATH — branch 1 found *that*, returned `snypd`, and the majority path
+    // committed a command which is gone as soon as the cache is collected. The paths below are the ones
+    // `bunx @snypd/cli init` actually produced on this machine, not constructed ones.
+    test("a `snypd` on PATH that is the runner's own shim does not count as installed", () => {
+      const cache = mkdtempSync(join(tmpdir(), "bunx-1000-@snypd-"));
+      const dotbin = join(cache, "cli@latest", "node_modules", ".bin");
+      mkdirSync(dotbin, { recursive: true });
+      writeFileSync(join(dotbin, "snypd"), "#!/bin/sh\n", { mode: 0o755 });
+      const exec = join(cache, "cli@latest", "node_modules", "@snypd", "linux-x64", "bin", "snypd");
+      // PATH holds a real, statable `snypd` — and it is still the wrong thing to commit.
+      expect(onPath("snypd", { PATH: `${dotbin}:/nonexistent` })).not.toBeNull();
+      expect(mcpCommand(exec, undefined, { PATH: `${dotbin}:/nonexistent` }))
+        .toEqual({ command: "bunx", args: ["@snypd/cli", "serve"] });
+    });
+
+    test("a durable install still wins, even while a cache is on PATH beside it", () => {
+      // The exclusion is narrow: it drops cache hits, not the branch. Someone with a real global
+      // install who runs `bunx @snypd/cli init` should still get the portable `snypd`.
+      const real = mkdtempSync(join(tmpdir(), "snypd-real-"));
+      writeFileSync(join(real, "snypd"), "#!/bin/sh\n", { mode: 0o755 });
+      const cache = mkdtempSync(join(tmpdir(), "bunx-1000-@snypd-"));
+      const dotbin = join(cache, "cli@latest", "node_modules", ".bin");
+      mkdirSync(dotbin, { recursive: true });
+      writeFileSync(join(dotbin, "snypd"), "#!/bin/sh\n", { mode: 0o755 });
+      const exec = join(cache, "cli@latest", "node_modules", "@snypd", "linux-x64", "bin", "snypd");
+      expect(mcpCommand(exec, undefined, { PATH: `${dotbin}:${real}` })).toEqual({ command: "snypd", args: ["serve"] });
     });
 
     test("otherwise the running binary, which is S18a's answer and still the right fallback", () => {
