@@ -144,7 +144,12 @@ describe("diagnostics", () => {
     expect(c.ok).toBe(true);
     expect(c.diagnostics).toEqual([]);
     const theme = c.layers.find((l) => l.name === "theme")!;
-    expect(theme.found).toBe(true); expect(theme.file!.endsWith("themes/base/theme.yaml")).toBe(true); expect(theme.dir!.endsWith("themes/base")).toBe(true);
+    expect(theme.found).toBe(true); expect(theme.dir!.endsWith("themes/base")).toBe(true);
+    // `base/theme.yaml`, not an absolute path: a theme lives beside the site rather than in it, so the
+    // old rule wrote the checkout's location into `snypd://config` and made `tokens.learn` a number that
+    // moved with a directory name (S18d′ — CI read 4,807 where this box read 4,777). `dir` above is a
+    // real path used to open files; `file` is provenance an agent reads, and only that one is rewritten.
+    expect(theme.file).toBe("base/theme.yaml");
   });
 });
 
