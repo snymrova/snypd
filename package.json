@@ -1,5 +1,5 @@
 {
-  "name": "snypd",
+  "name": "snypd-workspace",
   "private": true,
   "version": "0.1.0",
   "description": "Snypd — an MCP-native CMS on Bun",
