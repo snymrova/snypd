@@ -1,0 +1,75 @@
+name: release
+# One job, one tag, five packages. `bun build --compile --target=…` cross-compiles every platform from
+# this runner (it downloads the target's runtime and embeds it), so there is no build matrix and no
+# artefact passing between jobs — which also means one provenance attestation chain, from one workflow
+# run, over everything published.
+on:
+  push: { tags: ["v*"] }
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and `npm publish --dry-run` only — publishes nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # the GitHub release and its tarballs
+  id-token: write   # npm provenance: the attestation is signed with this run's OIDC identity
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.4.0" }
+      # npm, not bun, does the publishing: `--provenance` is npm's, and provenance is half the argument
+      # for shipping this way at all (`07` S18d′ — a pipe to a shell has no attestation to offer).
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
+
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+
+      # The tag is the version, or this is not a release. Caught here rather than after four packages
+      # are on a registry that only unpublishes for 72 hours.
+      - name: tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "refs/tags/v$v" = "${{ github.ref }}" ] || { echo "tag ${{ github.ref }} ≠ v$v"; exit 1; }
+
+      - name: build every platform package
+        run: bun packaging/npm/build.ts --out=dist/release --formula
+
+      - name: what is about to be published
+        run: |
+          for d in dist/release/npm/@snypd/* dist/release/npm/snypd; do
+            (cd "$d" && npm publish --dry-run --access public 2>&1 | tail -20)
+          done
+
+      # Platform packages first: the launcher's `optionalDependencies` are exact pins, so publishing it
+      # ahead of them leaves a window in which `npm i snypd` resolves nothing to run.
+      - name: publish
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
+        run: |
+          for d in dist/release/npm/@snypd/*; do
+            (cd "$d" && npm publish --provenance --access public)
+          done
+          (cd dist/release/npm/snypd && npm publish --provenance --access public)
+
+      - name: github release
+        if: ${{ github.event_name == 'push' }}
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --generate-notes --verify-tag \
+            dist/release/release/* packaging/homebrew/snypd.rb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            dist/release/release/
+            packaging/homebrew/snypd.rb

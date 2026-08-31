@@ -37,7 +37,7 @@ Resources carry `ttlMs`; content resources subscribe so the harness is told when
 **In the catalogue.** One tool per namespace with an `action`, not one per verb: nine `theme.*` tools is nine descriptions and eight of them re-explain what a theme is. Reads are not tools at all — they are resources, which cost nothing until something reads them.
 
 **theme.** `set(name)` · `set_tokens(patch)` (declared `customisable` keys only) · `scaffold(name, extends)` → `theme.yaml` + one stylesheet + `package.json`
-**site.** `init(name, url, description?, theme?)` · `set_config(path, value)` (validated, and rolled back on disk if it does not load) · `explain_config(path)` · `set_redirect(from, to)` · `doctor` · `build`
+**site.** `init(name?, url?, description?, theme?, deploy?)` — every argument optional (S18d: a name falls back to the directory, a URL to a placeholder that comes due at publish); `deploy: cloudflare|vercel` also writes the host's half, a build command and `dist/` (S18d′) · `set_config(path, value)` (validated, and rolled back on disk if it does not load) · `explain_config(path)` · `set_redirect(from, to)` · `doctor` · `build`
 **bench.** `run(suite?)` · `compare(a, b)`
 
 *Not yet in v0.1:* `taxonomy.*`, `media.*`, `history.*`, `jobs.*`, `theme.preview`, `site.set_nav`, `site.use` (workspaces). They join the catalogue on the same terms — one tool, an `action`, reads as resources — which is what keeps the budget intact as they land. `theme.preview` is deliberately absent: `theme` › set followed by `content.render_preview` is the same thing in two calls the agent already knows.

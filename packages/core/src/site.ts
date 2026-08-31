@@ -12,11 +12,12 @@
  *    it writes `site.redirects`, the build emits it (`_redirects` plus one meta-refresh page per entry, so
  *    it works on a host that reads neither), and rule 10 goes quiet for a route that is covered.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { parseDocument } from "yaml";
 import { loadConfig, formatDiagnostics, isPlaceholderUrl, normalizeRoute, redirects, PLACEHOLDER_URL, type LoadedConfig } from "./config";
 import { bundledDir, bundledNames, themeFile } from "./themefs";
+import { writeDeploy, type DeployTarget } from "./deploy";
 import { parsePath, parseYaml, pathKey } from "./yaml";
 import { WriteError } from "./write";
 import { git, initRepo, isRepoRoot } from "./git";
@@ -177,11 +178,24 @@ export const MCP_FILE = ".mcp.json";
  * project-scoped form Claude Code, Cursor and Codex all read, and it is committed with the scaffold, so a
  * clone of the repo is registered too — the second person on a site does not repeat this.
  *
- * `command` is the running binary (`process.execPath`), not the string "snypd": the person who just ran
- * `snypd init` demonstrably has *that* binary, and may not have it on `PATH` — an installer that placed it
- * in `~/.local/bin` is one shell restart away from working, and a registration that names a command the
- * harness cannot spawn fails in the harness's logs where nobody reads them. A `bun`-run checkout is the
- * exception and gets `bun <entry>`, because `process.execPath` there is Bun itself.
+ * `command` names the most portable thing that is *demonstrably here* (S18d′, docs/08 §12.8). The order
+ * matters, because this file is committed and has two readers who want different bytes: the person who
+ * just ran `init`, for whom any working command will do, and the clone on another machine, for whom an
+ * absolute path is a guaranteed failure — and a failure that arrives as §10's undiagnosable case, a
+ * server that was spawned and crashed, rendered identically to one nobody restarted.
+ *
+ *   1. `snypd` on `PATH` → `snypd serve`. Portable, committed safely, and verified on this machine
+ *      rather than assumed: S18a was right that naming a command the harness cannot spawn fails in a log
+ *      nobody reads, and the fix for that is to look before naming it, not to give up on the name.
+ *   2. run through `bunx`/`npx`, i.e. `process.execPath` sits in a package-manager cache that may be
+ *      collected → name the launcher the same way they reached it. `bunx snypd init` is docs/08 §2 step
+ *      4, so this is the majority path's registration, and writing the cache path there would produce a
+ *      file that stops working on this machine, not merely on somebody else's.
+ *   3. otherwise the running binary (`process.execPath`) — the S18a behaviour, now the fallback: an
+ *      installer that dropped it in `~/.local/bin` without a shell restart still gets a working harness.
+ *
+ * A `bun`-run checkout is the exception and gets `bun <entry>`, because `process.execPath` there is Bun
+ * itself. `site` › doctor reports which of these the file names and whether it resolves here.
  *
  * Never overwrites: an existing `.mcp.json` may hold other servers, and one of them may be a snypd the
  * operator pointed somewhere on purpose.
@@ -204,12 +218,50 @@ export function registerMcp(root: string, opts: { command?: string; args?: strin
 
 function mcpEntry(root: string, opts: { command?: string; args?: string[] }) {
   if (opts.command) return { command: opts.command, args: opts.args ?? ["serve"] };
-  const exec = process.execPath;
+  return mcpCommand(process.execPath, process.argv[1]);
+}
+
+/**
+ * The four-branch decision above, as a function of its inputs rather than of this process.
+ *
+ * Every branch but one is unreachable from `bun test`, which runs under Bun and takes the first: the
+ * cases that matter in distribution are exactly the cases a test cannot arrive in by accident. So the
+ * decision takes `exec`, `argv1` and `env` as arguments and the test drives all four (S18d′).
+ */
+export function mcpCommand(exec: string, argv1?: string, env: Record<string, string | undefined> = process.env): { command: string; args: string[] } {
   // A compiled binary is its own command; a checkout is `bun <entry>` — argv[1] is the script Bun ran.
-  const isBun = /(^|[\\/])bun(\.exe)?$/.test(exec);
-  return isBun
-    ? { command: exec, args: [process.argv[1] ?? "packages/cli/src/index.ts", "serve"] }
-    : { command: exec, args: ["serve"] };
+  if (/(^|[\\/])bun(\.exe)?$/.test(exec)) return { command: exec, args: [argv1 ?? "packages/cli/src/index.ts", "serve"] };
+  if (onPath("snypd", env)) return { command: "snypd", args: ["serve"] };
+  const runner = ephemeralRunner(exec);
+  if (runner === "bunx") return { command: "bunx", args: ["snypd", "serve"] };
+  if (runner === "npx") return { command: "npx", args: ["-y", "snypd", "serve"] };
+  return { command: exec, args: ["serve"] };
+}
+
+/**
+ * `which`, without shelling out or reaching for a `Bun.*` the runtime seam does not carry (docs/04).
+ * Exported because `site` › doctor answers "does the command in `.mcp.json` exist here?" with it.
+ */
+export function onPath(cmd: string, env = process.env): string | null {
+  const parts = (env.PATH ?? "").split(process.platform === "win32" ? ";" : ":").filter(Boolean);
+  const names = process.platform === "win32" ? [`${cmd}.exe`, `${cmd}.cmd`, `${cmd}.bat`, cmd] : [cmd];
+  for (const dir of parts) for (const n of names) {
+    const p = join(dir, n);
+    try { if (statSync(p).isFile()) return p; } catch { /* not here */ }
+  }
+  return null;
+}
+
+/**
+ * Whether this binary is living in a package-manager cache that is not ours to name.
+ *
+ * `bunx` unpacks into `/tmp/bunx-<uid>-<pkg>@<version>/`, `npx` into `~/.npm/_npx/<hash>/`. Both are
+ * collected — writing either path into a committed file produces a registration with an expiry date.
+ */
+function ephemeralRunner(exec: string): "bunx" | "npx" | null {
+  if (/[\\/]bunx-[^\\/]*[\\/]/.test(exec) || /[\\/]\.bun[\\/]install[\\/]cache[\\/]/.test(exec)) return "bunx";
+  if (/[\\/]_npx[\\/]/.test(exec)) return "npx";
+  return null;
 }
 
 
@@ -223,8 +275,8 @@ function mcpEntry(root: string, opts: { command?: string; args?: string[] }) {
  *
  * A URL that is *passed* and is not a URL still throws: a typo is a different thing from an omission.
  */
-export interface InitInput { name?: string; url?: string; description?: string; theme?: string }
-export interface InitResult { file: string; paths: string[]; created: string[]; git: boolean; gitInit: boolean; name: string; url: string; placeholderUrl: boolean }
+export interface InitInput { name?: string; url?: string; description?: string; theme?: string; deploy?: DeployTarget }
+export interface InitResult { file: string; paths: string[]; created: string[]; git: boolean; gitInit: boolean; name: string; url: string; placeholderUrl: boolean; deploy?: DeployTarget }
 
 /**
  * Whether `init` should create the repository itself (S18d, docs/08 §7 · 1 → 2).
@@ -297,9 +349,13 @@ theme:
   const ignore = join(root, ".gitignore");
   if (!existsSync(ignore)) { writeFileSync(ignore, "dist/\n.snypd/\nnode_modules/\n"); created.push(".gitignore"); }
   if (registerMcp(root)) created.push(MCP_FILE);
+  // The host's half of the contract (S18d′, `07` §3b): a build command and an output directory, written
+  // into the repo rather than typed into a dashboard. Validated before anything else is, so an unknown
+  // target fails on an empty directory instead of half a site.
+  if (input.deploy) created.push(...writeDeploy(root, input.deploy, { name }));
   const cfg = loadConfig(root);
   if (!cfg.ok) throw new WriteError(`the config just written does not load`, formatDiagnostics(cfg.diagnostics));
-  return { file: CONFIG_FILE, paths: created.filter((p) => !p.endsWith("/")).concat(created.filter((p) => p.endsWith("/")).map((p) => `${p}.gitkeep`)), created, git: isRepoRoot(root), gitInit, name, url, placeholderUrl };
+  return { deploy: input.deploy, file: CONFIG_FILE, paths: created.filter((p) => !p.endsWith("/")).concat(created.filter((p) => p.endsWith("/")).map((p) => `${p}.gitkeep`)), created, git: isRepoRoot(root), gitInit, name, url, placeholderUrl };
 }
 
 /**

@@ -31,7 +31,7 @@
 **v1.0**: spec freeze at ~35 primitives; RFC process; Node-compatible build verified; hosted cloud optional.
 
 ## Naming
-**Snypd** — decided 27 Aug 2026. Domain `snypd.rocks` (owned; also the dogfood site and public benchmark page). npm scope `@snypd/*`, binary `snypd`, config `snypd.yaml`, URI scheme `snypd://`. Earlier working name "Press" retired; parked alternatives dropped.
+**Snypd** — decided 27 Aug 2026. Domain `snypd.rocks` (owned; also the dogfood site and public benchmark page). npm scope `@snypd/*` (and the bare name `snypd`, verified unpublished in S18b′ and claimed by the launcher package in S18d′), binary `snypd`, config `snypd.yaml`, URI scheme `snypd://`. Earlier working name "Press" retired; parked alternatives dropped.
 
 ## Open questions
 - Fenced-code alias (```` ```callout ````) for the top five primitives, for renderers that don't know directives (GitHub preview)?

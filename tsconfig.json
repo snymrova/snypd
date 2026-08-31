@@ -25,13 +25,15 @@
       ]
     },
     "jsxImportSource": "@snypd/render",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true
   },
   "include": [
     "types/**/*.d.ts",
     "packages/**/*.ts",
     "packages/**/*.tsx",
     "themes/**/*.ts",
-    "themes/**/*.tsx"
+    "themes/**/*.tsx",
+    "packaging/**/*.ts"
   ]
 }
