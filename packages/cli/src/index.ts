@@ -141,6 +141,10 @@ switch (cmd) {
       const committed = repo?.commit(r.paths, `site: init ${r.name}`);
       if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
       else if (!repo) say.push(`not a git repo, and this directory already has files in it — \`git init\` here, then re-run; nothing can be versioned or published without one`);
+      // The third case, which said nothing at all until S18d′ and is the one a fresh machine is in: the
+      // repo exists and the commit did not happen. Silence here surfaces two steps later as a refused
+      // `content.create`, which is the cause hidden behind a symptom.
+      else say.push(`the scaffold could not be committed: ${committed?.reason ?? "unknown"}${committed?.hint ? `\n${committed.hint}` : ""}`);
       console.log(say.join("\n"));
 
       // ── Everything below is addressed to an agent (S18d, docs/08 decision 60) ────────────────────

@@ -7,7 +7,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl } from "./index";
+import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -188,6 +188,28 @@ describe("initSite", () => {
       // The point of the repo is that the scaffold can be committed into it — the step the first
       // `content.create` used to discover was missing.
       expect(Repo.open(outside)!.commit(r.paths, "site: init New").committed).toBe(true);
+    } finally { rmSync(outside, { recursive: true, force: true }); }
+  });
+
+  // The first CI run this repo ever had failed here (S18d′): a GitHub runner has no git author identity,
+  // and neither does a fresh laptop, a container or a devcontainer. `init` wrote the scaffold, created
+  // the repo, and the commit silently did not happen — so the *next* call, `content.create`, refused on
+  // a tree it was never told about, one step downstream of the cause.
+  test("a machine with no git identity is told so, in the words that fix it", () => {
+    const outside = mkdtempSync(join(tmpdir(), "snypd-noident-"));
+    try {
+      const r = initSite(outside, { name: "New", url: "https://new.example" });
+      // `/dev/null` for both config scopes is how git itself is told to forget who you are.
+      const noIdentity = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null",
+        GIT_AUTHOR_NAME: "", GIT_AUTHOR_EMAIL: "", GIT_COMMITTER_NAME: "", GIT_COMMITTER_EMAIL: "" };
+      const saved = process.env;
+      let out;
+      try { process.env = noIdentity as never; out = Repo.open(outside)!.commit(r.paths, "site: init New"); }
+      finally { process.env = saved; }
+      expect(out.committed).toBe(false);
+      expect(out.hint).toContain("git config --global user.email");
+      expect(commitHint("*** Please tell me who you are.")).toContain("user.name");
+      expect(commitHint("fatal: pathspec did not match")).toBeUndefined();   // only this failure gets it
     } finally { rmSync(outside, { recursive: true, force: true }); }
   });
 

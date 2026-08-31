@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { userInfo } from "node:os";
 
 export interface GitResult { ok: boolean; stdout: string; stderr: string; code: number }
-export interface CommitResult { committed: boolean; sha?: string; branch?: string; reason?: string }
+export interface CommitResult { committed: boolean; sha?: string; branch?: string; reason?: string; hint?: string }
 
 /** `agent:claude-code/<user>` (docs/02 §11). `SNYPD_PRINCIPAL` overrides; the trailer is the audit trail. */
 export function principal(env: NodeJS.ProcessEnv = process.env): string {
@@ -34,6 +34,23 @@ export function principal(env: NodeJS.ProcessEnv = process.env): string {
   let user = env.SNYPD_USER || env.USER || env.LOGNAME || "";
   if (!user) { try { user = userInfo().username; } catch { user = "unknown"; } }
   return `agent:claude-code/${user}`;
+}
+
+/**
+ * The one `git commit` failure that is a *state a first-timer is in* rather than a bug (S18d′).
+ *
+ * Git has no author identity until somebody sets one, and a fresh laptop, a container, a devcontainer
+ * and a CI runner all start there — this repo's own first CI run failed on it, in the test that asserts
+ * `init` commits the scaffold. Left unexplained it is the worst possible failure for this product: the
+ * scaffold is written, the repo is created, the commit silently does not happen, and the *next* thing
+ * the agent does — `content.create` — refuses on a tree it was never told about, one step downstream of
+ * the cause. Snypd will not commit under a name it invented; it says whose name is missing and how to
+ * supply it, which is a shell command the agent can run with the human's approval.
+ */
+export function commitHint(stderr: string): string | undefined {
+  if (/Please tell me who you are|unable to auto-detect email|empty ident name|no email was given/i.test(stderr))
+    return "git has no author identity on this machine, so nothing can be committed here yet. Fix it once, globally:\n    git config --global user.email \"you@example.com\"\n    git config --global user.name \"Your Name\"\nThen re-run. Snypd will not commit under a name it made up.";
+  return undefined;
 }
 
 /** One branch for every draft on the site. The tree sits here from the first write until the site is deleted. */
@@ -162,7 +179,7 @@ export class Repo {
     if (!staged) return { committed: false, reason: "no change" };
     const message = `${subject}\n\nSnypd-Principal: ${who}\n`;
     const c = this.run("-c", "core.hooksPath=/dev/null", "commit", "-q", "--no-verify", "-m", message, "--only", "--", ...paths);
-    if (!c.ok) return { committed: false, reason: `git commit: ${c.stderr || c.stdout}` };
+    if (!c.ok) return { committed: false, reason: `git commit: ${c.stderr || c.stdout}`, hint: commitHint(c.stderr || c.stdout) };
     return { committed: true, sha: this.run("rev-parse", "HEAD").stdout, branch: this.branch() };
   }
 
