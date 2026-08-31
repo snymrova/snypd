@@ -148,7 +148,15 @@ switch (verb) {
       if (!Number.isFinite(v)) { console.error(`--${n}=${raw} is not a number`); process.exit(1); }
       return v;
     };
-    const reload = flags.has("--no-reload") ? 0 : num("reload", 2)!;
+    /**
+     * Since S18k the default is the change stream, not a clock: the page reloads because the watcher saw
+     * an edit. `--reload=N` asks for the old fixed poll back — the one mode that needs nothing from the
+     * browser — and `--no-reload` leaves a page that changes only when a person refreshes it.
+     */
+    const asked = val("reload");
+    const reload: number | "watch" | undefined = flags.has("--no-reload") ? undefined
+      : asked === undefined || asked === "watch" ? "watch"
+      : num("reload")! > 0 ? num("reload")! : undefined;
     const port = num("port");
     let s;
     try {
@@ -157,7 +165,7 @@ switch (verb) {
         hostname: val("host"),
         strictPort: port !== undefined,   // a typed port is a choice; the default is not
         watch: !flags.has("--no-watch"),
-        reload: reload > 0 ? reload : undefined,
+        reload,
         deskLink: true,
         prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })),
       });
@@ -188,7 +196,9 @@ switch (verb) {
       `  Site   ${s.url}/                drafts included — this is the build that publishes`,
       ``,
       `Writing happens over MCP, from your harness — there is no editor here and no button that writes.`,
-      reload > 0 ? `Pages reload every ${reload}s while this runs; --no-reload turns that off.` : `Reload is off; refresh the page to see a change.`,
+      reload === "watch" ? `Pages reload when you change a file; --reload=N polls every N seconds instead, --no-reload turns it off.`
+        : reload ? `Pages reload every ${reload}s while this runs; --no-reload turns that off.`
+        : `Reload is off; refresh the page to see a change.`,
       `Ctrl-C to stop.`,
     ].join("\n"));
 
@@ -291,7 +301,7 @@ switch (verb) {
       "usage: snypd <init|dev|serve|build|bench> [--version]",
       "",
       "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
-      "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--no-reload]      the Desk and the site with drafts in it, for a person",
+      "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--verbose]                                        content → dist/",
       "  snypd bench [agent|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",

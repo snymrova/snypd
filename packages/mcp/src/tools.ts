@@ -131,7 +131,7 @@ async function previewServer(root: string, port?: number): Promise<{ url: string
   // tool call, so by the time anyone can load the page a harness has demonstrably called us. S18f gives
   // the *other* configuration the same answer — `.snypd/activity.json`, which a `snypd dev` in its own
   // process can read (docs/08 §12.9) — and this stays the in-process fast path.
-  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot, prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })), deskLink: true, reload: 2 }));
+  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot, prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })), deskLink: true, reload: "watch" }));
   return { ...(await previewing), ours: true };
 }
 /**

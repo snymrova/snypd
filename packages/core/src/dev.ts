@@ -25,6 +25,15 @@ import { ensureDisposableDir, INDEX_DIR } from "./paths";
 /** Answered by the preview server itself; the shape `liveDev` proves a port is one of ours by. */
 export const ALIVE_ROUTE = "/_snypd/alive";
 
+/**
+ * The change stream a preview page listens to (S18k, docs/07 decision 51 as amended). Server-sent events,
+ * one line per rebuild-worthy change, and nothing on a quiet tree — which is the whole difference between
+ * this and the `Refresh` header it replaces: a page that reloads *because something changed* rather than
+ * every N seconds regardless. Named here beside `ALIVE_ROUTE` because both are preview-only routes under
+ * `/_snypd` that something other than the preview has to be able to spell.
+ */
+export const LIVE_ROUTE = "/_snypd/live";
+
 export interface DevRecord {
   /** Where a browser goes. Includes the scheme and the port, never a trailing slash. */
   url: string;

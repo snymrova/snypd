@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, write
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
-import { loadConfig, initRepo } from "@snypd/core";
+import { loadConfig, initRepo, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
@@ -847,6 +847,98 @@ describe("snypd dev (S18e): one preview, findable, and the same bytes as dist/",
       expect(existsSync(join(prev, f))).toBe(true);
       expect(readFileSync(join(prev, f))).toEqual(readFileSync(join(dist, f)));
     }
+  });
+});
+
+/**
+ * S18k — the reload stops being a clock. What has to hold: the listener reaches the *browser* and never a
+ * file (decision 51's reason, which byte-equality above is the other half of), one save is one reload
+ * however many events the filesystem reports for it, and the mode a caller does not ask for is off.
+ */
+describe("live reload (S18k): the page reloads because something changed, not every N seconds", () => {
+  const site = "corpora/_test/live";
+  const post = join(site, "content/posts/hello.md");
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(join(site, "content/posts"), { recursive: true });
+    writeFileSync(join(site, "snypd.yaml"), "snypd: 1\nsite: { name: live, url: https://l.example }\n");
+    const c = await import("@snypd/core");
+    const cfg = c.loadConfig(site);
+    c.createContent(site, { type: "post", slug: "hello", frontmatter: { title: "Hello", date: "2026-08-01" }, body: "First words.", cfg });
+    c.setStatus(site, { type: "post", slug: "hello", status: "published", cfg });
+  });
+  afterAll(() => rmSync(site, { recursive: true, force: true }));
+
+  /** Data events only: SSE comments are the heartbeat and the greeting, and neither reloads a page. */
+  const collect = async (url: string, ms: number, during?: () => void): Promise<string[]> => {
+    const res = await fetch(url);
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    const events: string[] = [];
+    const until = Date.now() + ms;
+    const pump = (async () => {
+      while (Date.now() < until) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        for (const line of buf.split("\n")) if (line.startsWith("data:")) events.push(line.slice(5).trim());
+        buf = buf.slice(buf.lastIndexOf("\n") + 1);
+      }
+    })();
+    await Bun.sleep(150);                       // the stream is open and registered before the edit lands
+    during?.();
+    await Promise.race([pump, Bun.sleep(ms)]);
+    await reader.cancel().catch(() => {});
+    return events;
+  };
+
+  test("the listener rides the response and never a file the preview wrote", async () => {
+    const s = await preview(site, { port: 0, watch: false, reload: "watch", deskLink: true });
+    try {
+      const res = await fetch(`${s.url}/posts/hello/`);
+      const html = await res.text();
+      expect(html).toContain("data-snypd-live");
+      expect(html).toContain(LIVE_ROUTE);
+      // The whole of decision 51's reason: what publishes has none of this in it.
+      expect(readFileSync(join(s.out, "posts/hello/index.html"), "utf8")).not.toContain("data-snypd-live");
+      // A stream and a poll are alternatives, not layers — two of them would reload twice.
+      expect(res.headers.has("refresh")).toBe(false);
+    } finally { s.stop(); }
+  });
+
+  test("a numeric reload is still the S18e header, with no script in the page", async () => {
+    const s = await preview(site, { port: 0, watch: false, reload: 2, deskLink: true });
+    try {
+      const res = await fetch(`${s.url}/posts/hello/`);
+      expect(res.headers.get("refresh")).toBe("2");
+      expect(await res.text()).not.toContain("data-snypd-live");
+      expect((await fetch(`${s.url}${LIVE_ROUTE}`)).status).toBe(404);
+    } finally { s.stop(); }
+  });
+
+  test("no reload asked for is no listener, no header, and no stream to open", async () => {
+    const s = await preview(site, { port: 0, watch: false, deskLink: true });
+    try {
+      const res = await fetch(`${s.url}/posts/hello/`);
+      expect(res.headers.has("refresh")).toBe(false);
+      expect(await res.text()).not.toContain("data-snypd-live");
+      expect((await fetch(`${s.url}${LIVE_ROUTE}`)).status).toBe(404);
+    } finally { s.stop(); }
+  });
+
+  test("one save is one event, however many the filesystem reports, and the next page has the edit", async () => {
+    const s = await preview(site, { port: 0, reload: "watch", deskLink: true });
+    try {
+      const events = await collect(`${s.url}${LIVE_ROUTE}`, 900, () => {
+        writeFileSync(post, readFileSync(post, "utf8").replace("First words.", "Second words."));
+      });
+      // A single `writeFileSync` is routinely two inotify events; the settle window is what makes it
+      // one reload. More than one here is a page that flickers twice per keystroke.
+      expect(events).toEqual(["1"]);
+      expect(await (await fetch(`${s.url}/posts/hello/`)).text()).toContain("Second words.");
+    } finally { s.stop(); }
   });
 });
 
