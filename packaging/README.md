@@ -27,15 +27,27 @@ Two artefacts, one build: the npm packages and the GitHub release the Homebrew f
    first exercised by the real publish. That is why the publish step skips what is already there — a
    retry after a partial run is safe, and no version has to be burned to get past it.
 
-   **And a scope is not a package.** v0.1.0's *second* attempt got all five platform packages onto the
-   registry and then failed on the sixth:
+   **And a scope is not a package.** The five platform packages are on the registry, published **by
+   hand** at 12:49 UTC on 31 Aug (the fallback below) — the registry's own `time.created` says so, and
+   both tag runs came after it: the first found them already there and failed on a *version* conflict,
+   the second skipped them and reached the sixth. So CI's token has never successfully published
+   anything, and the only package it ever attempted where the version was not already taken is the one
+   that answered:
 
    > `E403 … You may not perform that action with these credentials` — `PUT https://registry.npmjs.org/snypd`
 
-   A granular token scoped to `@snypd/*`, or to a list of existing packages, can write those five and
-   cannot *create* the unscoped `snypd`. Creating a new top-level package needs a token with **all
-   packages** write access (or a classic Automation token). The retry is one re-run of the workflow at
-   the same tag: the five are skipped as already present, and only the launcher publishes.
+   The token **authenticated** — provenance was signed and logged to Sigstore before the rejection — and
+   was then refused write on that one package. A granular token scoped to `@snypd/*`, or to a list of
+   packages that existed when it was minted, is refused exactly like this: it cannot *create* a new
+   top-level name. Creating one needs **all packages** write access, or a classic Automation token.
+
+   What these logs cannot separate is that case from a token with no publish rights at all, because the
+   by-hand publish means CI never wrote anything successfully. Two ways to tell, both a minute's work:
+   read the token's settings on npmjs.com, or let CI publish a scoped `0.1.1` — if a scoped write
+   succeeds the token is scope-limited and adding `snypd` fixes it; if that 403s too, the token is.
+
+   The retry is one re-run of the workflow at the same tag: the five are skipped as already present, and
+   only the launcher publishes.
 3. **Decide it.** The name is claimed permanently and a scoped unpublish window is 72 hours. `07`
    decision 69 keeps this with a person on purpose.
 

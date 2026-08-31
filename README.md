@@ -24,9 +24,11 @@ bun run snypd dev my-site          # the Desk + the site with drafts in it, for 
 bun run snypd serve my-site        # the MCP server on stdio — the only interface that writes
 bun run snypd bench                # speed suite → bench/latest.md
 bun run snypd bench agent          # the kill test → bench/agent.md + a transcript
+bun run snypd bench onboard        # first run, walked end to end → bench/onboard.md
 bun run snypd build corpora/100
 bun test
 bun run release                    # five platform packages + tarballs → dist/release
+bun run scratch                    # a real site in sites/, wired to this tree, with dev running
 ```
 
 `dev` is the one verb aimed at a person, and it writes nothing — it serves what a build already
