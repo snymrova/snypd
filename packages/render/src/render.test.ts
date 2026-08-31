@@ -348,6 +348,89 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
  * `<script>` at all: approval stays on the review page, where the reviewer has read the diff they are
  * signing. Both are asserted, because "we decided not to" is not a constraint until something checks.
  */
+/**
+ * S19a: the push card and the Desk's one button (decision 44).
+ *
+ * The fixture is a site with a bare repo beside it standing in for a host — which is the only honest way
+ * to test this, because the thing being asserted is that clicking the button moves a branch onto a remote
+ * and that nothing else goes with it. Three properties, in the order somebody would be hurt by losing them:
+ *
+ *  - **A `GET` cannot deploy anything**, and neither can a form on a page in another origin. A prefetch,
+ *    a crawler and a cross-site POST all get a refusal.
+ *  - **The button appears only when a push would mean something**, and says what is not going with it.
+ *  - **The drafts branch stays home**, asserted on the remote's ref list rather than on our own words.
+ */
+describe("the push card (S19a)", () => {
+  const site = "corpora/_test/desk-push";
+  const remote = "corpora/_test/desk-push-remote.git";
+  let server: Awaited<ReturnType<typeof preview>>;
+  const refs = () => {
+    const { git } = require("@snypd/core") as typeof import("@snypd/core");
+    return git(remote, "for-each-ref", "--format=%(refname)").stdout.split("\n").filter(Boolean);
+  };
+
+  beforeAll(async () => {
+    const c = await import("@snypd/core");
+    for (const d of [site, remote]) rmSync(d, { recursive: true, force: true });
+    mkdirSync(`${site}/content/posts`, { recursive: true });
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: Push desk, url: https://push-desk.example }\n");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    c.git(site, "add", "-A"); c.git(site, "commit", "-q", "-m", "init");
+    mkdirSync(remote, { recursive: true });
+    c.git(remote, "init", "-q", "--bare", "-b", "main");
+    c.git(site, "remote", "add", "origin", `${process.cwd()}/${remote}`);
+
+    const cfg = c.loadConfig(site);
+    const repo = c.Repo.open(site)!;
+    const made = c.createContent(site, { type: "post", slug: "live-one", frontmatter: { title: "Live one", date: "2026-09-01" }, body: "Published words.", cfg });
+    repo.useDrafts(made.paths); repo.commit(made.paths, "content: create post/live-one");
+    const pub = c.setStatus(site, { type: "post", slug: "live-one", status: "published", cfg });
+    repo.commit(pub.paths, "content: publish post/live-one");
+    repo.land(pub.paths, "content: publish post/live-one");
+    // One draft in flight, so the card can say what a push leaves behind.
+    const draft = c.createContent(site, { type: "post", slug: "still-drafting", frontmatter: { title: "Still drafting", date: "2026-09-02" }, body: "Not yet.", cfg });
+    repo.commit(draft.paths, "content: create post/still-drafting");
+
+    server = await preview(site, { port: 0, watch: false });
+  });
+  afterAll(() => server?.stop());
+
+  test("shows where the site goes, what would go, and what is staying here", async () => {
+    const page = await (await fetch(`${server.url}/_snypd`)).text();
+    expect(page).toContain(">Push<");
+    expect(page).toContain("origin");
+    expect(page).toContain("never pushed");
+    expect(page).toContain("content: publish post/live-one");     // the commit that would go, by subject
+    expect(page).toContain("1 draft in flight");                  // and the one that would not
+    expect(page).toContain("<form");
+    expect(page).toContain("<button");
+    expect(page).toContain('action="/_snypd/push"');
+    expect(page).not.toContain("<input");                          // still nothing a person can type into
+    expect(page).not.toContain("<script");
+  });
+
+  test("a GET cannot push, and neither can a form in another origin", async () => {
+    expect((await fetch(`${server.url}/_snypd/push`)).status).toBe(405);
+    const cross = await fetch(`${server.url}/_snypd/push`, { method: "POST", headers: { "sec-fetch-site": "cross-site" }, redirect: "manual" });
+    expect(cross.status).toBe(403);
+    expect(refs()).toEqual([]);                                    // neither of those moved a byte
+  });
+
+  test("the button pushes the base branch, and only the base branch", async () => {
+    const res = await fetch(`${server.url}/_snypd/push`, { method: "POST", redirect: "manual", headers: { "sec-fetch-site": "same-origin", "x-snypd-reviewer": "sunny" } });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/_snypd");
+    // The whole point, asserted on the remote rather than on the page: `snypd/drafts` did not go.
+    expect(refs()).toEqual(["refs/heads/main"]);
+
+    const page = await (await fetch(`${server.url}/_snypd`)).text();
+    expect(page).toContain("Pushed");
+    expect(page).toContain("sunny");
+    expect(page).toContain("up to date");
+    expect(page).not.toContain("never pushed");
+  });
+});
+
 describe("Desk (S18b)", () => {
   const site = "corpora/_test/desk";
   const bare = "corpora/_test/desk-nogit";
@@ -415,17 +498,29 @@ describe("Desk (S18b)", () => {
     expect(page).toContain("Orphan");
   });
 
-  test("carries no script and no form: approval lives on the review page (decision 44)", async () => {
+  /**
+   * S19a narrows this, deliberately. Until now the Desk carried no `<form>` and no `<button>` at all, and
+   * decision 44's push button is exactly the exception that rule was written to allow — "a human clicking
+   * in a local browser is a stronger gate than a `destructiveHint` on a tool an agent can call". So what
+   * is asserted is no longer "no controls" but **which** control: one form, one button, posting to one
+   * route that pushes a branch. No field a person can type into, and still no script anywhere.
+   *
+   * Both fixtures here have no remote, so neither renders the button — the card draws a sentence instead.
+   * The button's own test is the `push card` block below, against a bare repo it can actually push to.
+   */
+  test("carries no script and nothing a person can type into (decision 44)", async () => {
     for (const url of [`${server.url}/_snypd`, `${bareServer.url}/_snypd`]) {
       const page = await (await fetch(url)).text();
       expect(page).not.toContain("<script");
-      expect(page).not.toContain("<form");
       expect(page).not.toContain("onclick");
-      // The affordance, not the word: the footer *says* "New post" in the sentence refusing one.
-      expect(page).not.toContain("<button");
       expect(page).not.toContain("<input");
       expect(page).not.toContain("<textarea");
+      // No remote in either fixture ⇒ no push is possible ⇒ no button is drawn.
+      expect(page).not.toContain("<form");
+      expect(page).not.toContain("<button");
     }
+    // And the one that is not a repo has no push card at all: nothing to say, so nothing said.
+    expect(await (await fetch(`${bareServer.url}/_snypd`)).text()).not.toContain(">Push<");
   });
 
   test("an approved draft reads as ready, and stops reading that way when it changes", async () => {

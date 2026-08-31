@@ -14,5 +14,7 @@ export { readDev, writeDev, clearDev, liveDev, devPath, devProcessAlive, ALIVE_R
 export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
 export { Repo, git, initRepo, isRepoRoot, principal, commitHint, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
 export { writeDeploy, buildCommand, DEPLOY_TARGETS, LAUNCHER, VERSION, type DeployTarget } from "./deploy";
+// S19a: the push — the only outward-facing act in the product, and the one a person performs (decision 44).
+export { pushState, pushSite, pushHint, deployTarget, originName, PUSH_ROUTE, type PushState, type PushResult, type PushCommit, type PushBlocker } from "./push";
 export { setConfig, setRedirect, redirects, normalizeRoute, themeTokens, installedThemes, initSite, registerMcp, onPath, mcpCommand, MCP_FILE, renderThemeSummary, CONFIG_FILE, type ConfigWrite, type TokenInfo, type InitResult } from "./site";
 export { createContent, updateContent, setStatus, trashContent, restoreContent, target, typeDef, writePolicy, transitions, splitFrontmatter, slugify as slugifyTitle, draftSource, approve, approvalOf, clearApproval, approvalKey, approvals, contentHash, publishCheck, reviewPath, WriteError, TRASH_DIR, type WriteResult, type WriteTarget, type CreateInput, type UpdateInput, type StatusInput, type Approval, type ApprovalStore } from "./write";

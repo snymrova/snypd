@@ -267,6 +267,12 @@ blocks would be a second, dumber path to the same output. Both are v0.2 with the
 
 ## 5. The settings page — a customizer that does not become an admin app
 
+> **Declined on 1 Sep 2026, and kept.** U4 is dropped and decision 77 withdrawn (§9): configuration stays
+> agent-and-file only. This section stays in the document as the design that was *declined* rather than
+> deleted — the next person who wants a settings page has to read it and say what changed, and the rules
+> below are what any future version has to beat. Everything downstream of it — §4.2's schema with its two
+> readers, U1–U3 and U5 — is unaffected.
+
 ### The collision, stated honestly
 
 Decision 44 refused an admin app: *"no authoring here, no theme switcher, no config editor… a second way to
@@ -349,9 +355,9 @@ Nothing here may move a shipped number. New lanes extend `desk.*` and `page.*` r
 |---|---|---|---|
 | T1 | Parts cost nothing at build | `build.cold.100` within 10 % of `main`; `mcp.coldStart.binary` unmoved | `bench.compare` in CI |
 | T2 | The settings surface is free until read | `tokens.learn` ≤ 6,000 unchanged — `snypd://theme/settings` is a resource, and resources cost nothing until read (S11 precedent). `tokens.tools` ≤ 3,000 with `set_settings` added | `snypd bench agent` |
-| T3 | The settings page is a page, not an app | `settings.js.kb` **0** · `settings.a11y.violations` **0** over 4 route/viewport pairs · `settings.cls` ≤ 0.05 · TTFB ≤ 50 ms | new `settings.*` in the `desk` lane (`bench/src/page.ts` already measures a live server, S18b′) |
+| ~~T3~~ | ~~The settings page is a page, not an app~~ — **void: U4 dropped, 1 Sep 2026.** The `settings.*` lane is not built, and the JS budget it would have spent is already spent nowhere: `desk.js.kb` gates the Desk's whole document at 0, push button included | — | — |
 | T4 | A site with no plugins pays nothing for hooks | slot/filter resolution absent from a no-plugin build's profile; `build.cold.100` unmoved | `bench.compare` |
-| T5 | The wall holds | `build()` never emits `/_snypd/settings`; the settings handler cannot write under `content/**/*.md` | assertion tests, the shape decision 52 uses |
+| T5 | The wall holds | **Narrowed with U4's drop:** there is no settings handler to constrain, so what remains is the rule that outlived it — `build()` emits no `/_snypd/*` route at all, and the one handler on that namespace that writes anything (`07` decision 79's push) touches git and never `content/**/*.md` | assertion tests, the shape decision 52 uses |
 | T6 | Nav is real | header and footer menus render on `base` and `editorial`, from files, with a dead `ref` caught by lint rule 7 | `render.test.ts` + a corpus fixture |
 | T7 | Themes are validated | a `theme.yaml` with an unknown key or a mistyped `layout:` produces a diagnostic naming file and line | Zod over `ThemeYaml`, `theme.test.ts` |
 
@@ -359,7 +365,7 @@ Nothing here may move a shipped number. New lanes extend `desk.*` and `page.*` r
 
 ## 7. Sessions
 
-Six sessions, in dependency order. **U1 and U2 are the two that belong before S19b** (docs/07 Phase 4):
+Six sessions, in dependency order — **five since U4 was dropped on 1 Sep 2026.** **U1 and U2 are the two that belong before S19b** (docs/07 Phase 4):
 the three launch posts will be read on a public site, and a public site whose header is a bare site-name
 link is the first thing a visitor sees. U3–U6 can land after Gate C without blocking it.
 
@@ -368,7 +374,7 @@ link is the first thing a visitor sees. U3–U6 can land after Gate C without bl
 | **U1** | **Parts.** `parts:` in `theme.yaml`, resolved by the primitive code path; `shell`, `header`, `footer`, `entries` moved to `themes/base/parts/` and declared; layouts take `ctx.parts`; `coverage` extended to parts; Zod over `ThemeYaml` (T7), which also makes §2.2's four dead keys say so out loud | `editorial` overrides the header with one file and no layouts · coverage reports it · T1 green |
 | **U2** | **Nav.** `locations:` honoured; `content/nav/<location>.yaml` loaded and resolved; `ref` → route through the index; dead `ref` on lint rule 7; `header`/`footer` parts render a real menu on both themes; `snypd://nav` resource; `site › set_nav` | T6 green · a menu survives a slug change · `base` and `editorial` both ship a header a real blog can use |
 | **U3** | **Settings schema.** `settings:` in `theme.yaml`, closed type list, defaults, groups; `ctx.settings`; `snypd://theme/settings`; `theme › set_settings` with the same validation `set_tokens` has; `editorial` declares its first six (logo, tagline, showDates, dateFormat, footerNote, social) | T2 green · an agent can set a setting it discovered from a resource · a theme with no `settings:` is unaffected |
-| **U4** | **The settings page.** `/_snypd/settings` — form + iframe, zero JS, POST-back through `setConfig`, one commit per save with a `human:` principal; groups from the declarations; every group naming its MCP equivalent; nav read-only with a link to the file | T3 + T5 green · a person changes the accent and sees it, having called nothing · the same change is visible to the agent in `snypd://config` |
+| ~~**U4**~~ | **dropped, 1 Sep 2026** — the sequencing call §12 left to Sunny, answered *no*. The settings page is not built: configuration stays agent-and-file only, and decision 44 stands unamended (see decision 77 below). U1–U3 and U5 are unchanged, because the settings *schema* always had two readers — the agent and the renderer — and the page was only ever the third | — |
 | **U5** | **Slots and filters.** The five slots and six filters; declared in a plugin's `snypd.yaml`, resolved at load, ordered by the `plugins:` array; `site › doctor` lists them; `content.explain` prints what ran; one real plugin in-tree (`snypd-plugin-seo`, OG + Twitter tags in `head`) as the proof | T4 green · the seo plugin adds OG tags with no theme change · removing it from `plugins:` removes them |
 | **U6** | **The design pass**, the way S14 was one: `base` and `editorial` headers, footers and menus reviewed at 390 px and 1280; the settings page given the same treatment; a third theme (`technical`, docs/06 v0.2) scaffolded as the real test of whether parts + settings + nav are enough to build a theme *without* touching `base` | a theme built from `scaffold` + settings + parts, no forked layouts · `page.*` and `settings.*` green at both viewports |
 
@@ -390,12 +396,12 @@ warning.
 
 | Risk | L | Mitigation |
 |---|---|---|
-| **The settings page becomes the admin app.** Every field added is a precedent for the next one | High | §5's rule 2 is enforced by the *write path*, not by review: the handler has `setConfig` and `setNav` and nothing else. The day someone wants a content field there, they have to add a capability the module does not have — which is the argument happening in code review rather than in production |
+| ~~**The settings page becomes the admin app.**~~ **Retired with U4 (1 Sep 2026)** — the risk is closed by not building the page. The live version of it is now `07` decision 79's push button: one control on the Desk, and every future one has to argue with decision 77 above | — |
 | Two writers on one `snypd.yaml` — an agent mid-session and a person mid-form | Medium | The form carries the values it rendered; the handler diffs and writes only what moved, and reports any field that changed underneath rather than clobbering it. Config writes already roll back when the result does not validate (decision 40) |
 | Moving `shell` out of `layouts/` breaks any theme that exists | Low **now**, High later | Two themes exist and both are ours. This is the cheapest it will ever be, and it is the reason U1 is first rather than fourth |
 | `tokens.learn` regresses because the settings surface is bigger | Medium | Settings are a *resource*, not a tool, so they cost nothing until read — the same property that let S11 add `content`/`history` for free. Gated by T2, and if it breaches, the fix is to trim the declaration rather than to redefine the metric |
 | Hooks reintroduce WordPress's real cost — unknowable ordering | Medium | Declared-only, no priorities, one readable order, and doctor prints it. If a second ordering mechanism is ever proposed, it is a decision in this document and not a patch |
-| A slot lets a plugin inject `<script>` and the 0 KB JS guarantee dies quietly | **High** | The JS budget is measured on the output (`page.js.kb`, `desk.js.kb`, gated at 0), so a slot that emits a script **fails a gate** rather than shipping. Add `settings.js.kb` (T3) and extend the same assertion to slot output in U5. docs/04's unbuilt `client:` key stays unbuilt until there is a budget to spend |
+| A slot lets a plugin inject `<script>` and the 0 KB JS guarantee dies quietly | **High** | The JS budget is measured on the output (`page.js.kb`, `desk.js.kb`, gated at 0), so a slot that emits a script **fails a gate** rather than shipping. Extend the same assertion to slot output in U5 (T3's `settings.js.kb` is void with U4). docs/04's unbuilt `client:` key stays unbuilt until there is a budget to spend |
 | The iframe preview is stale after a save | Low | The dev server already rebuilds on change and the POST returns 303; both panes reload on the same response |
 
 ---
@@ -419,10 +425,19 @@ Continuing `07` §7. These override `04` and `02` where they conflict.
 76. **Hooks are declared, never registered.** Slots and filters exist because YAML names a file. No global
     registry, no runtime registration, no priority numbers; order is the `plugins:` array. Doctor lists
     them, `content.explain` prints what ran.
-77. **The settings page edits configuration and never content, and lives only on the dev server.** Decision
-    44's wall is redrawn where it was always actually load-bearing: one way to write *words*. A colour is
-    not a word. The page is zero-JS, POST-back, writes through the same `setConfig` the MCP tool calls, and
-    commits with a `human:` principal so the agent can see what a person did.
+77. ~~**The settings page edits configuration and never content, and lives only on the dev server.**~~
+    **Withdrawn, 1 Sep 2026, before anything was built.** The argument stands as written — a colour is not
+    a word, so decision 44's wall was in the wrong place — and it was still declined, because "the wall is
+    in the wrong place" is a reason to *move* it and not yet a reason to spend a session and a permanent
+    surface on the move. What the settings schema needed was two readers, the agent and the renderer (U3),
+    and it has them. The page was the third, and a third reader that is also the product's first
+    human-writable form is a precedent worth more than the convenience it buys.
+
+    **Decision 44 therefore stands, with exactly one control on the Desk** — `07` decision 79's push
+    button, which writes nothing and is the act of making a site public rather than of editing it. If the
+    settings page is ever reopened, this is the paragraph to argue with, and `07` §5's S19a row is the
+    evidence about what one control costs to add.
+
 78. **A slot may not add JavaScript in v0.1.5.** The 0 KB budget is measured on output and gated at zero,
     so this is enforced rather than promised. `client:` (docs/04) stays unbuilt until there is a budget for
     it to spend.
@@ -431,9 +446,8 @@ Continuing `07` §7. These override `04` and `02` where they conflict.
 
 ## 10. Open questions
 
-- **Nav editing on the settings page** — read-only with a link to the file (U4's recommendation), or
-  up/down buttons that POST? The second is the first thing here that feels like an admin app, and it should
-  be decided with a rendered page to look at rather than in this paragraph.
+- ~~**Nav editing on the settings page**~~ — moot with U4 dropped: there is no settings page, so a menu is
+  edited the way every other file is, through `site` › set_nav (U2) or by hand.
 - **Does `site.*` get a declared schema too**, or do site-level settings stay Zod-strict in `schema.ts` and
   theme-level ones declared in `theme.yaml`? Two mechanisms for one form is a smell; one mechanism means a
   theme could redeclare `site.name`, which is worse.
@@ -470,7 +484,8 @@ Two sequencing calls are Sunny's rather than a session's:
    read on a public site, and today that site's header is one link. The counter-argument is that S19a/S19b
    are the last of Gate C and this is new scope. Either order works; doing U1 *after* a third-party theme
    exists does not, which is decision 72's whole argument.
-2. **Whether §5's settings page is built at all**, since it is the one item here that redraws decision 44.
-   Decisions 77 states the line; U4 is where it becomes real. If the answer is no, U1–U3 and U5 stand
-   unchanged — the schema still has two readers, the agent and the renderer, and the page was always the
-   third.
+2. ~~**Whether §5's settings page is built at all**~~ — **answered on 1 Sep 2026: no.** U4 is dropped and
+   decision 77 is withdrawn above. U1–U3 and U5 stand unchanged, and §5 is kept in this document as the
+   design that was declined rather than deleted: the next person to want a settings page should have to
+   read it and say what changed, and the reasoning in it — one form renderer, one write path, `setConfig`
+   and `setNav` and nothing else — is what any future version has to beat.

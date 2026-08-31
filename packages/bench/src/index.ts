@@ -188,7 +188,7 @@ export async function runColdStarts(runs: number): Promise<Metric[]> {
  * costs one incremental build on the first request after the change; that is `build.incremental`,
  * measured separately, and pretending otherwise would hide which of the two moved.
  */
-export async function runPreviewTtfb(n: number, requests: number): Promise<Metric> {
+export async function runPreviewTtfb(n: number, requests: number): Promise<Metric[]> {
   const root = corpus(n);
   const s = await preview(root, { port: 0, watch: false });
   try {
@@ -202,7 +202,27 @@ export async function runPreviewTtfb(n: number, requests: number): Promise<Metri
       await res.text();
     }
     const draft = await fetch(`${s.url}/_snypd/review/post/post-00001`);
-    return { name: "preview.ttfb", value: +median(xs).toFixed(2), unit: "ms", budget: ACTIVE.ttfb, note: `the preview server (\`snypd dev\`), unchanged tree, drafts included; review page ${draft.status === 200 ? "served" : `HTTP ${draft.status}`}` };
+
+    // S19a: the Desk's own latency, report-only.
+    //
+    // `desk.ts` has claimed since S18b that the page "may not shell out to git per request", and until
+    // this session nothing measured it — which is how `onboardingFacts`' `isRepoRoot` (S18f) and this
+    // session's push card both arrived on that path without anyone noticing a cost. A number with no
+    // budget is the honest first move: there is no baseline to gate against yet, and the next session
+    // that changes this page can now see what it did. The corpus is not a git repo, so what this reads
+    // is the floor — the render, the index and the approvals file, with git absent by construction.
+    const deskXs: number[] = [];
+    for (let i = 0; i < 5; i++) await (await fetch(`${s.url}/_snypd`)).text();
+    for (let i = 0; i < Math.min(requests, 30); i++) {
+      const t0 = performance.now();
+      const res = await fetch(`${s.url}/_snypd`);
+      deskXs.push(performance.now() - t0);
+      await res.text();
+    }
+    return [
+      { name: "preview.ttfb", value: +median(xs).toFixed(2), unit: "ms", budget: ACTIVE.ttfb, note: `the preview server (\`snypd dev\`), unchanged tree, drafts included; review page ${draft.status === 200 ? "served" : `HTTP ${draft.status}`}` },
+      { name: "desk.ttfb", value: +median(deskXs).toFixed(2), unit: "ms", note: "report-only (S19a): `/_snypd` on the same server and the same unchanged tree. The Desk inherits D2's 50 ms rather than owning it, and this is the first session that can say whether it is inside it" },
+    ];
   } finally { s.stop(); }
 }
 
@@ -598,7 +618,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   for (const n of sizes.filter((n) => n <= 1000)) metrics.push(...await runLint(n, runs));
   metrics.push(...cold);
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
-  metrics.push(await runPreviewTtfb(100, opts.quick ? 20 : 100));
+  metrics.push(...(await runPreviewTtfb(100, opts.quick ? 20 : 100)));
   metrics.push(...runTokensPerPage(100));
   metrics.push(runTokensToLearn(100));
   // The editorial lane: the same content under the styled theme, which is what a real site ships and what
