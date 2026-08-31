@@ -76,7 +76,7 @@ git. Surfaced as `history.list/diff/restore`. Agent edits autosave to **one draf
 
 ## 8. Nav, globals, redirects
 
-Nav: `content/nav/<location>.yaml` per theme-declared location. Globals: `snypd.yaml › site`. Redirects: `content/redirects.yaml`; a slug change on a published item auto-appends one and lint blocks publishes that would 404 a known URL.
+Nav: `content/nav/<location>.yaml` per theme-declared location — **not built; docs/09 §4.3 (U2) is the plan, decision 75**. Globals: `snypd.yaml › site`. Redirects: `content/redirects.yaml`; a slug change on a published item auto-appends one and lint blocks publishes that would 404 a known URL.
 
 ## 9. Pipeline (typed hooks, fixed order)
 
@@ -90,6 +90,8 @@ publish    event                            webhooks, IndexNow, cross-post
 ```
 
 Lifecycle events: `onCreate, onUpdate, onStatusChange, onPublish, onDelete`. Stages are pure `(input, ctx) → output`; plugins register in declared order; `content.explain(slug)` prints the pipeline a post went through.
+
+**Not built.** The stages exist as functions and nothing can register into them. docs/09 §4.4 (U5) is the plan: slots and filters, *declared* in YAML rather than registered, ordered by the `plugins:` array, with no priority numbers and no global registry — decision 76.
 
 ## 10. Plugins
 

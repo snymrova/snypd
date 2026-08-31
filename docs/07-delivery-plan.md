@@ -33,6 +33,12 @@ v0.1 is done when all six are true on `main`, in CI, on Linux + macOS:
 
 **Lint (12 rules, 0–11 — `packages/core/src/content/lint.ts` carries the table):** frontmatter schema · unknown block · required / invalid / unknown prop and slot limit · unsourced `stat`/`chart` · image without alt · dead internal link · heading skip · stale `updated` · slop-phrase list · callout density · slug change without redirect (rule 10, a real remedy since S16 — decision 39) · a tag no other post uses. Plus the **≤ 40-node graph cap** (readability + render budget, §3.4).
 
+**The presentation layer is planned separately — docs/09** (31 Aug 2026). Parts, header/footer, nav,
+a declared settings schema, the slot/filter hook model and a zero-JS settings page are **not v0.1 scope**
+and are sessions U1–U6 there. Two of them (U1 parts, U2 nav) are argued to belong *before* S19b, because a
+public site whose header is one link is what the launch posts would be read on; that sequencing call is in
+docs/09 §12 and is Sunny's. Decisions 72–78 live in docs/09 and override `04` and `02` where they conflict.
+
 **Cut to v0.2:** `gallery` (needs media manifest) · `review`/`scheduled` statuses · Pagefind · `render_preview` screenshots (`Bun.WebView`) · `history.*` / `taxonomy.*` / `media.*` tools · Mermaid *import* (we own the syntax; a `mermaid → diagram` converter is a v0.2 plugin) · Windows binary.
 
 ## 3. Speed strategy
@@ -131,6 +137,10 @@ If Gate B is red, S13–S14 become speed sessions and the editorial theme slips.
 | S20 | remark vs `Bun.markdown` report; final speed pass | all D2/D3 ≥ 20 % under budget |
 | S21 | kill test × 3 models; 20-topic `write-post` first-attempt lint pass | D1, D4; pass rate published (target ≥ 80 %, no budget yet) |
 | S22 | `snypd.rocks/bench` page generated from `bench/latest.md`; README claims link to it; launch post | **Gate C:** D1–D6 |
+
+**Phase 5 — the presentation layer (U1–U6) is docs/09**, written 31 Aug 2026 against the code at `v0.1.2`.
+It is a separate plan because it is separate scope: nothing in it is a D1–D6 gate, and none of D1–D6 needs
+it. It carries its own gates (T1–T7), its own risks and decisions 72–78, and its own session log.
 
 If D1 fails — not obviously better than a markdown folder + Claude Code — stop, fix primitives before v0.2 (06).
 
@@ -586,6 +596,28 @@ publishes, so nothing is injected into the page body: a `Refresh` response heade
 preview-only link strip to the Desk is added in the response path, with a test asserting that every
 `.snypd/preview/**/*.html` equals what `build()` writes to `dist/`. Preview-only behaviour lives in the
 response, never in the bytes.
+
+**Amended S18k: the rule keeps its reason and loses its letter.** A header is a poll, and a poll reloads a
+page that did not change — every two seconds, taking the scroll position with it, which is the one cost the
+S18e text named and accepted. It was the wrong one to accept: the watcher already knows when a rebuild is
+owed, so the page can be told instead of asked. `/_snypd/live` is server-sent events, and a ~200-byte
+`EventSource` listener goes into the response beside the Desk-link strip — three lines, because `onmessage`
+is an edit and `onerror` + `onopen` is a restart, and the platform's own reconnect is the rest. Announcements
+are debounced 80 ms, so one save is one reload however many events inotify reports for it.
+
+That listener is a `<script>`, so *"nothing is injected into the page body"* is no longer true as written.
+The sentence that gave it force still is. **What the rule protects is that the preview serves what publishes,
+and what proves that is a claim about disk** — the byte-equality test over `.snypd/preview` against `dist/`
+is untouched and still green, and a response-path injection cannot reach it, exactly as the strip could not.
+The other two guards hold unchanged: `page.js.kb` measures `dist/` over the static server and is still 0, and
+the Desk is still asserted script-free by the binary smoke test — it keeps its own meta refresh, because its
+status card moves on harness activity that no file watcher can see. The empty-state assertion in that smoke
+test became a count rather than an absence, which is the stronger claim: exactly one script, and it is ours.
+
+Worth naming what this is not: it is not a novel risk. Next.js, Vite, Hugo, Eleventy and browser-sync all
+inject a dev-only client and hold a socket, and none of them can point at a byte-equality test to say why it
+is safe. `--reload=N` keeps the header for anyone who wants the old mode, `--no-reload` turns everything off,
+and no library caller asks for either — the injection exists only on the two human-facing paths.
 
 52. **Onboarding state is derived from disk, never stored** (S18d/S18f — **landed S18f**, with the checklist, the three surface labels, the verbatim registration block, the `<details>` and the rendered empty state; the sixth fact reads `.snypd/activity.json` rather than a process's memory, per decision 70): the first-run Desk is a checklist of six
 facts — is this a git repo (`isRepoRoot`), does `snypd.yaml` load (`loadConfig().ok`), does `.mcp.json` name

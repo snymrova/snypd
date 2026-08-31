@@ -11,7 +11,7 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, renderDoc, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./theme";
 import { Html, escape } from "./jsx-runtime";
@@ -29,14 +29,24 @@ export interface PreviewOptions {
    */
   strictPort?: boolean;
   /**
-   * Seconds between browser reloads of a *content* page, via a `Refresh` response header; 0 or absent
-   * turns it off. A header rather than a script because of decision 51's hard rule — live reload may
-   * not change a published byte, and the preview's whole claim is that it serves what publishes. The
-   * cost is a poll's cost: scroll position resets, which is why only the two human-facing CLI verbs
-   * ask for it and no library caller does. A socket buys back the scroll position; it also buys a
-   * `<script>`, so it waits for a session that wants to pay that.
+   * How a *content* page learns it is out of date. Absent or 0 turns it off; no library caller asks for
+   * either mode, and both human-facing CLI verbs ask for `"watch"`.
+   *
+   *   `"watch"`  the change stream (S18k). The page holds an `EventSource` on `LIVE_ROUTE` and reloads
+   *              when the watcher says a rebuild is owed — so a quiet tree costs one idle connection
+   *              and nothing else, and the reload lands on the edit rather than up to N seconds after it.
+   *   `N`        the old fixed poll: a `Refresh: N` response header, kept because it is the only mode
+   *              that needs nothing from the client, and a page measured with a script in it is a page
+   *              nobody can compare to the S11 numbers.
+   *
+   * `"watch"` costs the `<script>` that decision 51 spent S18e refusing, and the amendment recorded there
+   * says why the refusal did not survive contact: the rule's *reason* is that the preview serves what
+   * publishes, and what proves that is `render.test.ts`'s byte-equality over `.snypd/preview` against
+   * `dist/` — a disk claim, which a response-path injection cannot touch, exactly as the Desk-link strip
+   * already does not. The poll it replaces was not free of a cost either; it was paid by the person, every
+   * two seconds, in a scroll position. Nothing enters `dist/`, and `page.js.kb` measures `dist/`.
    */
-  reload?: number;
+  reload?: number | "watch";
   /**
    * Add the preview-only strip linking back to the Desk. Response path only, never the file: `dist/`
    * has no Desk to link to, and the byte-equality test in `render.test.ts` is what holds that line.
@@ -75,6 +85,21 @@ const DESK = /^\/_snypd\/?$/;
 export const DEFAULT_PORT = 4321;
 
 /**
+ * How long the watcher waits for an edit to stop moving before it announces one (S18k). Saving one file
+ * in an editor is rarely one fs event — a write, a rename off a temp file, a mode change — and a theme
+ * edit touches several files at once. 80 ms is under the threshold where a person reads the reload as a
+ * response to what they just did, and long enough that the burst is one announcement.
+ */
+const SETTLE_MS = 80;
+
+/**
+ * A comment down an idle stream, often enough that nothing between the page and the server decides the
+ * connection is dead. SSE comments are not events, so this never reaches `onmessage` and never reloads
+ * anything; it exists so that a preview left open over lunch is still listening after it.
+ */
+const HEARTBEAT_MS = 25_000;
+
+/**
  * Bind, or take the next free port. `Bun.serve` throws `EADDRINUSE` synchronously, so this is a loop and
  * not a listener dance. `port: 0` means "the OS picks" and is never scanned — every bench and test uses
  * it, so none of them can be perturbed by a stray server on this box.
@@ -101,7 +126,26 @@ function bind(port: number, hostname: string | undefined, fetch: (req: Request) 
  * to reach the Desk except by knowing the path.
  */
 const STRIP = '<a href="/_snypd" style="position:fixed;left:0;bottom:0;z-index:2147483647;margin:.5rem;padding:.3rem .6rem;border-radius:.4rem;font:600 12px/1.4 ui-sans-serif,system-ui,sans-serif;background:#111;color:#fff;text-decoration:none;opacity:.85">Snypd Desk</a>';
-const withStrip = (html: string) => (html.includes("</body>") ? html.replace("</body>", `${STRIP}</body>`) : html + STRIP);
+
+/**
+ * The change listener, injected into the response and never into the file — the same rule, and the same
+ * seam, as the strip above (decision 51 as amended in S18k).
+ *
+ * Three lines, and each is one of the two things a dev reload has to get right. `onmessage` is the
+ * ordinary case: the watcher saw an edit, so reload. `onerror` + `onopen` is the case a poll got for free
+ * and a socket has to be told about — the server went away and came back, which is a restart, and the page
+ * in front of the person is from the build before it. `EventSource` reconnects on its own, so that pair is
+ * the whole of it; there is no retry loop here because the platform already has one.
+ *
+ * A full `location.reload()` and not a swap: the preview's claim is that it serves what publishes, and a
+ * page assembled by patching the DOM is a page nobody can hold to that. Browsers restore scroll on a
+ * reload, which is the cost the `Refresh` poll could not avoid and this one does not pay.
+ */
+const LIVE = `<script data-snypd-live>(()=>{let d=0;const e=new EventSource(${JSON.stringify(LIVE_ROUTE)});e.onmessage=()=>location.reload();e.onerror=()=>{d=1};e.onopen=()=>{if(d){d=0;location.reload()}}})()</script>`;
+
+/** Both preview-only additions go in before `</body>`, in one pass, or on the end if there is no body. */
+const inject = (html: string, snippet: string) =>
+  snippet === "" ? html : html.includes("</body>") ? html.replace("</body>", () => `${snippet}</body>`) : html + snippet;
 
 const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".json": "application/json", ".xml": "application/xml", ".txt": "text/plain; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml" };
 const mimeOf = (f: string) => MIME[f.slice(f.lastIndexOf("."))] ?? "application/octet-stream";
@@ -117,6 +161,19 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   let theme!: Theme;
   let dirty = false, building: Promise<BuildResult> | undefined;
   let lastBuild: { routes: number; ms: number; at: number } | undefined;   // S18b: the Desk's "did it work?"
+
+  /**
+   * The change stream's whole state (S18k). `generation` counts announced changes, not fs events: one save
+   * in an editor is a rename and two writes, and a page that reloaded three times per keystroke would be
+   * worse than the poll it replaces — so `touch` restarts a short timer and only the settled edge counts.
+   * The number goes over the wire because a stream that says *something* changed is easier to reason
+   * about in a log than one that only says something did, not because a client compares it.
+   */
+  const live = opts.reload === "watch";
+  let generation = 0;
+  const listeners = new Set<(gen: number) => void>();
+  let settling: ReturnType<typeof setTimeout> | undefined;
+  const announce = () => { settling = undefined; generation++; for (const l of [...listeners]) l(generation); };
 
   const rebuild = async (): Promise<BuildResult> => {
     if (building) return building;
@@ -139,7 +196,16 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   // Watch what a build reads: content, the theme, the config. Recursive where the platform allows it.
   const watchers: FSWatcher[] = [];
   if (opts.watch !== false) {
-    const touch = () => { dirty = true; };
+    // The flag is the build's business and the announcement is the browser's; a preview nobody is
+    // listening to sets the first and never starts a timer for the second. `unref` so a settling edit
+    // cannot be the reason the process outlives its last request.
+    const touch = () => {
+      dirty = true;
+      if (!live) return;
+      if (settling) clearTimeout(settling);
+      settling = setTimeout(announce, SETTLE_MS);
+      settling.unref?.();
+    };
     const add = (p: string, recursive = true) => { if (!existsSync(p)) return; try { watchers.push(watch(p, { recursive }, touch)); } catch { try { watchers.push(watch(p, touch)); } catch { /* watch is best-effort: a request can always force a rebuild */ } } };
     add(join(root, "content"));
     add(join(root, "snypd.yaml"), false);
@@ -256,7 +322,7 @@ Write something. There is no file to delete.
     // The strip says who can see it, in the response and never in a file — the same rule the Desk link
     // and the reload header live by.
     const note = new Html(`<p ${EMPTY_MARK} role="status"><strong>Only you can see this.</strong> The site has no content yet, so this page is being rendered by <code>snypd dev</code>. It is not in <code>dist/</code> and it will not publish.</p>`);
-    return new Response(shell(cfg.config.site.name, new Html(note.html + body.html), "/").html, { headers: pageHeaders() });
+    return new Response(inject(shell(cfg.config.site.name, new Html(note.html + body.html), "/").html, extras), { headers: pageHeaders() });
   };
 
   // ── the Desk ───────────────────────────────────────────────────────────────
@@ -338,9 +404,17 @@ Write something. There is no file to delete.
    * What a *content* page gets that its file does not: the reload instruction and the way back to the
    * Desk. Both live here and only here — `dist/` is the same bytes, and `render.test.ts` asserts it.
    */
+  /**
+   * The preview-only additions, in the response and never in the file: the way back to the Desk and the
+   * change listener. One string, so the injection is one pass over the HTML and `Bun.file` stays
+   * zero-copy for the caller that asks for neither — which is still every library caller and the
+   * `preview.ttfb` lane, so the number it has reported since S11 is measuring the same path it was.
+   */
+  const extras = (opts.deskLink ? STRIP : "") + (live ? LIVE : "");
+
   const pageHeaders = (): Record<string, string> => {
     const h: Record<string, string> = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" };
-    if (opts.reload) h.refresh = String(opts.reload);
+    if (typeof opts.reload === "number" && opts.reload > 0) h.refresh = String(opts.reload);
     return h;
   };
 
@@ -354,6 +428,41 @@ Write something. There is no file to delete.
       // more than starting one. It answers before `fresh()`, so a stale build cannot make it hang.
       if (path === ALIVE_ROUTE)
         return Response.json({ snypd: true, pid: process.pid, root: resolve(root), url: `http://${server.hostname ?? "localhost"}:${server.port}`, startedAt }, { headers: { "cache-control": "no-store" } });
+
+      /**
+       * The change stream (S18k). Answers before `fresh()` for the same reason `/_snypd/alive` does: this
+       * is the route that must never be the slow one, and a listener that had to wait out a rebuild to be
+       * *registered* would miss the change it was opened for.
+       *
+       * Registration is idempotent on both ends — Bun calls `cancel` when the socket drops, and the abort
+       * signal covers the shapes it does not — because the one thing this set may not do is grow by a
+       * listener every time a page is opened and closed.
+       */
+      if (path === LIVE_ROUTE) {
+        if (!live) return new Response("live reload is off", { status: 404 });
+        const enc = new TextEncoder();
+        let send: ((gen: number) => void) | undefined;
+        let beat: ReturnType<typeof setInterval> | undefined;
+        const done = () => {
+          if (send) { listeners.delete(send); send = undefined; }
+          if (beat) { clearInterval(beat); beat = undefined; }
+        };
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            const write = (text: string) => { try { controller.enqueue(enc.encode(text)) } catch { done() } };
+            // The opening comment flushes the headers, so `EventSource` fires `open` on connect rather
+            // than on the first change — which is what lets the page tell a reconnect from a first load.
+            write(`retry: 1000\n: snypd live, at generation ${generation}\n\n`);
+            send = (gen) => write(`data: ${gen}\n\n`);
+            listeners.add(send);
+            beat = setInterval(() => write(":\n\n"), HEARTBEAT_MS);
+            beat.unref?.();
+          },
+          cancel: done,
+        });
+        req.signal.addEventListener("abort", done);
+        return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive", "x-accel-buffering": "no" } });
+      }
 
       const approveM = APPROVE.exec(path);
       if (approveM) {
@@ -386,7 +495,7 @@ Write something. There is no file to delete.
       // whole point is that it is the same text the published site serves.
       // `Bun.file` stays zero-copy unless the strip is asked for — the `preview.ttfb` lane asks for
       // neither option, so the number it has reported since S11 is still measuring the same path.
-      if (file.endsWith(".html")) return new Response(opts.deskLink ? withStrip(await Bun.file(file).text()) : Bun.file(file), { headers: pageHeaders() });
+      if (file.endsWith(".html")) return new Response(extras ? inject(await Bun.file(file).text(), extras) : Bun.file(file), { headers: pageHeaders() });
       return new Response(Bun.file(file), { headers: { "content-type": mimeOf(file), "cache-control": "no-store" } });
   };
 
@@ -395,6 +504,11 @@ Write something. There is no file to delete.
 
   return {
     url: `http://${server.hostname ?? "localhost"}:${server.port}`, port: server.port ?? 0, hostname: server.hostname ?? "localhost", out, rebuild, dirty: () => dirty,
-    stop: () => { for (const w of watchers) w.close(); server.stop(true); index.close(); },
+    stop: () => {
+      for (const w of watchers) w.close();
+      if (settling) { clearTimeout(settling); settling = undefined; }
+      listeners.clear();
+      server.stop(true); index.close();
+    },
   };
 }

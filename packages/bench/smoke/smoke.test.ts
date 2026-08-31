@@ -284,7 +284,12 @@ describe("the compiled binary, in a directory it has never seen", () => {
       const home = await index.text();
       expect(home).toContain("data-snypd-empty-state");
       expect(home).toContain("Only you can see this");
-      expect(home).not.toContain("<script");
+      // Decision 26 still holds where it is about bytes: the page's own content carries 0 KB JS. What
+      // changed in S18k is the *response* envelope — `snypd dev` injects the live-reload listener, here
+      // and in no file (decision 51 as amended), so the count is the assertion. A theme or an empty
+      // state that started emitting a script of its own would put a second one in this list.
+      expect(home.match(/<script/g)).toEqual(["<script"]);
+      expect(home).toContain("data-snypd-live");
       expect(existsSync(join(empty, "content", "posts"))).toBe(true);
       // A `.gitkeep` and nothing else: no welcome post, so there is no file a new site has to delete
       // and none that ships to production when somebody forgets to (decision 52).
