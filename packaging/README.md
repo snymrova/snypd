@@ -88,8 +88,13 @@ Provenance is half of why `07` S18d′ chose npm over `curl | sh`, so this is th
 bun packaging/npm/build.ts --out=dist/release --formula
 cd dist/release/npm
 for d in @snypd/*; do (cd "$d" && npm publish --access public); done
-cd snypd && npm publish --access public
+cd launcher && npm publish --access public
 ```
+
+The launcher is staged at `npm/launcher`, not `npm/@snypd/cli`, so that the glob above cannot catch
+it — same reason `release.yml` spells the two paths separately. Keep it last for the same reason CI
+does: its `optionalDependencies` are exact pins, and publishing it first leaves a window in which
+`npm i @snypd/cli` resolves a launcher whose binary is not on the registry yet.
 
 **Not** `npm publish` in the repo root: that is the workspace, `"private": true`, and it is not the
 product — the product is generated into `dist/release/npm/` by the line above.
