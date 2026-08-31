@@ -1,1 +1,1 @@
-{ "name": "@snypd/cli", "version": "0.1.1", "type": "module", "main": "src/index.ts", "license": "MIT", "dependencies": { "@snypd/bench": "workspace:*", "@snypd/core": "workspace:*", "@snypd/mcp": "workspace:*", "@snypd/render": "workspace:*", "@snypd/runtime": "workspace:*" } }
+{ "name": "@snypd/cli", "version": "0.1.2", "type": "module", "main": "src/index.ts", "license": "MIT", "dependencies": { "@snypd/bench": "workspace:*", "@snypd/core": "workspace:*", "@snypd/mcp": "workspace:*", "@snypd/render": "workspace:*", "@snypd/runtime": "workspace:*" } }

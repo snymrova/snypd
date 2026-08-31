@@ -254,6 +254,31 @@ When the six are true, none of this renders and what remains is the ordinary Des
 | not a git repo | yes | reported, not fixed |
 | port 4321 occupied | yes | ✅ **fixed S18e** — the next free port, or the `dev` server already there |
 | two harnesses connected at once | yes | not surfaced |
+| **registration names `snypd`, which is not on `PATH`** | yes — doctor's registration row already stats it | ✅ **fixed 0.1.2**; sites scaffolded by 0.1.1 are repaired with `npm i -g @snypd/cli` (below) |
+
+**The one failure this document shipped rather than caught (0.1.1, fixed in 0.1.2).** `bunx @snypd/cli init`
+— §2 step 4, the majority path — committed `"command": "snypd"` into `.mcp.json`, and `snypd` is on
+`PATH` only for as long as the `bunx` cache that put it there. Every site scaffolded during those hours
+holds a registration that cannot start, and it arrives as this table's third row: the harness reports
+nothing an operator can act on. **The repair is one command:**
+
+```
+npm i -g @snypd/cli
+```
+
+That is a fix and not a workaround. The broken entry names `snypd`; a global install is precisely what
+puts a durable `snypd` on `PATH`, so the committed file becomes correct where it stands — and it is the
+same registration 0.1.2's `init` writes when a global install is already present. The alternative, for
+anyone who would rather not install globally, is to edit the file to what 0.1.2 writes unaided:
+
+```json
+{ "mcpServers": { "snypd": { "command": "bunx", "args": ["@snypd/cli", "serve"] } } }
+```
+
+Either way the harness must be restarted afterwards — §2 step 5, the one action the product cannot take
+for you. **`init` does not repair this on a re-run, by design:** it never overwrites a `snypd` entry an
+operator may have pointed somewhere on purpose (`site.ts:210`), and that invariant is worth more than
+automating an hour-wide population out of a hole one command deep.
 
 **Refinement to `07` decision 51's heartbeat file — landed S18f:** `startedAt` is recorded separately from `calls` in `.snypd/activity.json`. *Spawned but never called* (server up, harness misconfigured — its own log is where to look) is now a different sentence from *never spawned* (you did not restart) and from *stale* (a harness had this server and let it go), and all three are consumed by `site` › doctor as well as by the Desk, from one function.
 
