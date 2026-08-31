@@ -34,7 +34,7 @@ const S = (properties: Record<string, unknown>, required: string[] = []) => ({ t
 /** Words `find_tools` matches on beyond the name and description — what an agent would actually type. */
 export const KEYWORDS: Record<string, string[]> = {
   theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance"],
-  site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "name", "domain"],
+  site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "ship", "name", "domain", "host", "cloudflare", "vercel"],
   bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y"],
 };
 
@@ -50,9 +50,9 @@ export const CATALOG: Tool[] = [
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
   { name: "site",
-    description: "Change the site itself rather than a post: one config key, a redirect for a URL that moved, a health report, or a build. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from.",
+    description: "Change the site itself rather than a post: one config key, a redirect for a URL that moved, a health report, a build, or a request to put the site live. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_redirect` for a moved URL · `doctor` for a health report · `build` the site to dist/", { enum: ["init", "set_config", "explain_config", "set_redirect", "doctor", "build"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_redirect` for a moved URL · `doctor` for a health report · `build` the site to dist/ · `push` to ask a human to put it live", { enum: ["init", "set_config", "explain_config", "set_redirect", "doctor", "build", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       from: str("`set_redirect`: the old route, e.g. `/posts/old-slug`"),
@@ -312,8 +312,46 @@ tokens: {}
             `  ${r.rendered} rendered, ${r.cached} from cache, ${r.artefacts} artefacts, ${r.media} media${r.removed ? `, ${r.removed} removed` : ""}`,
           ].join("\n"), { ok: true, ...r });
         }
+        /**
+         * **`push` asks; it does not push** (S19a, decision 44).
+         *
+         * Every other action here is a write this tool performs. This one is the single act reserved for
+         * a person: sending the base branch to the host is when a site becomes visible to everybody, and
+         * a human clicking a button in a local browser is a stronger gate than a `destructiveHint` on a
+         * tool an agent can call. So what comes back is the state a push is in, what would go with it,
+         * and the URL of the button — phrased to be relayed, the same way `init`'s restart line is.
+         *
+         * The name is the request, not a promise: an agent that asked for a push and got back "here is
+         * where a person does that" has been answered, and `snypd://config` is not a better place for
+         * this because none of it is config. The escape hatch is `git push` in a terminal, which is
+         * nobody's to take away and is the right answer for CI.
+         */
+        if (action === "push") {
+          const st = c.pushState(root, cfgOf());
+          const dev = await c.liveDev(root);
+          const desk = dev ? `${dev.url}${c.PUSH_ROUTE.replace(/\/push$/, "")}` : undefined;
+          const where = desk
+            ? `The button is on the Desk: ${desk}`
+            : `The Desk is where that button lives, and no preview is running — start one with \`snypd dev\` (a person types that), then it is at http://localhost:4321/_snypd`;
+          if (!st.ok) {
+            const b = st.blockers[0]!;
+            return fail(`nothing to push yet — ${b.reason}`, b.hint);
+          }
+          const going = st.ahead === 0
+            ? st.known ? `\`${st.branch}\` is already on \`${st.remote!.name}\` as of the last fetch — there is nothing to send.` : `\`${st.branch}\` has never been pushed to \`${st.remote!.name}\`.`
+            : `${st.ahead} commit${st.ahead === 1 ? "" : "s"} would go:\n${st.commits.slice(0, 5).map((x) => `  ${x.sha.slice(0, 7)} ${x.subject}`).join("\n")}${st.ahead > 5 ? `\n  and ${st.ahead - 5} more` : ""}`;
+          return text([
+            `A push is a person's to make, so this call does not make one — it tells you where they make it.`,
+            ``,
+            `${st.branch} → ${st.remote!.name} (${st.origin ?? st.remote!.url})${st.deploy ? ` · ${st.deploy}` : ""}`,
+            going,
+            `${st.drafts} draft${st.drafts === 1 ? "" : "s"} in flight stay${st.drafts === 1 ? "s" : ""} local — a push sends ${st.branch}, and drafts are not on it.`,
+            ``,
+            where,
+          ].join("\n"), { ...st, ok: true, ready: st.ok, pushed: false, deskUrl: desk });
+        }
         if (action === "doctor") return await doctor(root);
-        return fail(`unknown action "${action}"`, "site takes: init, set_config, explain_config, set_redirect, doctor, build.");
+        return fail(`unknown action "${action}"`, "site takes: init, set_config, explain_config, set_redirect, doctor, build, push.");
       }
 
       case "bench": {
@@ -394,6 +432,20 @@ async function doctor(root: string): Promise<ToolResult> {
   if (!repo) bad("not a git repo", "`git init` here: writes are not versioned and nothing can be published without one.");
   else ok("git repo");
 
+  // Where the site goes, and whether anything is waiting to go there (S19a). A warning and never a
+  // problem: a site with no remote is a site somebody is still writing, which is most of them for most of
+  // their life — and the fix is a person's, not an agent's, in both directions.
+  const push = repo ? c.pushState(root, cfg) : undefined;
+  if (push) {
+    if (push.remote) ok(`remote \`${push.remote.name}\` → ${push.origin ?? push.remote.url}${push.deploy ? ` · ${push.deploy}` : ""}`);
+    else if (push.blockers.some((b) => /remote/.test(b.reason))) warn("no remote — this repo is not connected to a host, so nothing can go live yet");
+    if (push.remote && push.ok) {
+      if (!push.known) warn(`\`${push.branch}\` has never been pushed — a person does that from the Desk, and \`site\` › push says where`);
+      else if (push.ahead) warn(`${push.ahead} commit${push.ahead === 1 ? "" : "s"} on \`${push.branch}\` are not on \`${push.remote.name}\` — published items nobody has put live yet`);
+      else ok(`\`${push.branch}\` is up to date with \`${push.remote.name}\` as of the last fetch`);
+    }
+  }
+
   // ── The facts docs/08 decision 64 adds ───────────────────────────────────────────────────────────
   // Doctor is what the agent has instead of a page, and since S18f the two readings come from one
   // function: `onboardingFacts` in `@snypd/core` computes them, this turns them into sentences, and the
@@ -452,6 +504,7 @@ async function doctor(root: string): Promise<ToolResult> {
     : "\nnothing to fix";
   return text([...lines, tail].join("\n"),
     { ok: !problems.length, problems, lint: { errors: lint.errors, warnings: lint.warnings },
-      facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: harness === "connected", harnessState: harness, startedAt, client, dev: !!dev, deskUrl: dev ? `${dev.url}/_snypd` : undefined, items, placeholderUrl: facts.placeholderUrl } });
+      facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: harness === "connected", harnessState: harness, startedAt, client, dev: !!dev, deskUrl: dev ? `${dev.url}/_snypd` : undefined, items, placeholderUrl: facts.placeholderUrl,
+        push: push ? { remote: push.remote?.name, origin: push.origin, deploy: push.deploy, branch: push.branch, ahead: push.ahead, known: push.known, ready: push.ok } : undefined } });
 }
 

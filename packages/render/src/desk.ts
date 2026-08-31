@@ -12,6 +12,13 @@
  * every feature is built twice, and the MCP surface stops being the product the moment there is a
  * better way to use it.
  *
+ * **The one control** is S19a's push button (decision 79), and it is the exception decision 44 was
+ * written to allow rather than a hole in it: it writes nothing, it publishes nothing that was not
+ * already published, and what it does — send the base branch to the host — is the moment a site becomes
+ * visible to everybody, which is the second act besides approval that belongs to a person. `site` › push
+ * exists for an agent and returns this page's URL instead of pushing. Nothing else here is a control,
+ * and the test that used to assert *no `<form>` at all* now asserts which one.
+ *
  * Two consequences are structural rather than editorial:
  *
  * - **Approval lives on the review page, never here.** A row links to `/_snypd/review/…`; it carries
@@ -31,6 +38,12 @@
  *    of its own, so it may not shell out to git per request. This module is pure — it takes facts and
  *    returns HTML — and `preview.ts` gathers those facts from the index and the working tree. The test
  *    that renders a Desk in a directory which is not a git repo at all is what keeps it that way.
+ *
+ *    **That rule was broken before this session and nothing noticed** (S19a): S18f's checklist reaches
+ *    `onboardingFacts`, which calls `isRepoRoot`, which is a `git rev-parse` on every request. It was
+ *    asserted here and measured nowhere. So S19a adds `desk.ttfb` — report-only, on the same server and
+ *    tree as `preview.ttfb` — and the push card, which needs four git calls, is memoised behind a TTL in
+ *    `preview.ts` rather than becoming the second unmeasured spawn on this path.
  * 3. **Never on the `initialize` path.** Nothing here is reachable from `server.ts`; the listener
  *    binds after `initialize` has already answered.
  *
@@ -87,6 +100,32 @@ export interface DeskOnboarding {
   sentence: string;
 }
 
+/**
+ * The push card's facts (S19a) — `@snypd/core`'s `PushState` as this page needs it, plus whatever the
+ * button did last. A mirror rather than an import for the reason `DeskOnboarding` is one: this module is
+ * a pure function from facts to HTML, and `preview.ts` is the only thing here that touches a repo.
+ */
+export interface DeskPush {
+  /** The branch that goes. Never the drafts branch — `pushSite` refuses it, and this only reports. */
+  branch: string;
+  remote?: { name: string; url: string };
+  origin?: string;
+  /** `cloudflare` · `vercel` · absent, which is a host that needs no config file of ours. */
+  deploy?: string;
+  known: boolean;
+  ahead: number;
+  commits: { sha: string; subject: string }[];
+  /** In flight and staying local: a draft is not on the base branch, so a push cannot carry it. */
+  drafts: number;
+  dirty: number;
+  blockers: { reason: string; hint: string }[];
+  ok: boolean;
+  /** Where the button posts. Spelled by `@snypd/core` (`PUSH_ROUTE`) and passed in with the rest. */
+  route: string;
+  /** The last push this preview server made, so the page can say what happened rather than only what is. */
+  last?: { ok: boolean; at: number; sent: number; by?: string; reason?: string; hint?: string };
+}
+
 export interface DeskFacts {
   site: { name: string; url: string };
   theme: { name: string; chain: string[]; coverage: Theme["coverage"] };
@@ -99,6 +138,11 @@ export interface DeskFacts {
   css?: string;
   /** Seconds between self-refreshes. 0 disables it, which is how the bench measures a still page. */
   refresh?: number;
+  /**
+   * Absent when this preview has no repo to speak of — the Desk then has no push card, which is the
+   * honest rendering of a site that cannot go anywhere yet.
+   */
+  push?: DeskPush;
   /**
    * Absent on a site that is past its first run — and *nothing renders* when the six are true, which is
    * the whole of "no dismiss button and no stored flag" (decision 52). The checklist disappears because
@@ -156,6 +200,7 @@ body{margin:0;background:var(--color-bg,light-dark(#fdfcfa,#12110f));color:var(-
 .desk li{padding:.7rem 0;border-top:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26))}
 .desk li:first-child{border-top:0;padding-top:0}
 .desk .title{font-weight:600}
+.desk ul.plain{margin:0;padding:0;list-style:none;font-size:.875rem}
 .desk .meta{color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
 .desk .steps{counter-reset:step}
 .desk .steps li{display:grid;grid-template-columns:5.5rem 1fr;gap:0 1rem;align-items:baseline}
@@ -171,6 +216,10 @@ body{margin:0;background:var(--color-bg,light-dark(#fdfcfa,#12110f));color:var(-
 .desk summary{cursor:pointer;font-weight:600}
 .desk details p{margin:.5rem 0 0;color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
 @media (max-width:30rem){.desk .steps li{grid-template-columns:1fr}}
+.desk form{margin:.9rem 0 0}
+.desk button{font:inherit;font-weight:600;padding:.45rem .9rem;border-radius:.4rem;cursor:pointer;color:var(--color-bg,light-dark(#fdfcfa,#12110f));background:var(--color-text,light-dark(#1a1815,#e8e4dc));border:1px solid var(--color-text,light-dark(#1a1815,#e8e4dc))}
+.desk button:focus-visible{outline:2px solid var(--color-accent,light-dark(#0a6b2d,#7ee0a4));outline-offset:2px}
+.desk .fail{color:var(--color-fail,light-dark(#a3251b,#f2867a));font-weight:600}
 .desk footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
 @media (max-width:30rem){.desk th{white-space:normal}}
 `.trim();
@@ -281,6 +330,63 @@ function firstRun(o: DeskOnboarding | undefined): string {
   ].join("");
 }
 
+/**
+ * **The push card, and the one button on this page** (S19a, decision 44).
+ *
+ * Everything else on the Desk reads. This posts — and what it posts is not a write to the site but a
+ * `git push` of the branch publishes already land on, which is the moment a site becomes visible to
+ * anybody but its owner. Decision 44 put it here rather than on a tool for one reason: a human clicking
+ * in a local browser is a stronger gate than a `destructiveHint` on a tool an agent can call. `site` ›
+ * push exists and returns this same state; it does not push, and it hands the agent this URL instead.
+ *
+ * Three things the card is careful to say, because each is a way somebody could be surprised:
+ *
+ *  - **What is not going.** Drafts are on `snypd/drafts` and a push sends the base, so every item in
+ *    flight stays local. Uncommitted files in the tree are not in a commit and do not go either.
+ *  - **What "up to date" is measured against** — the tracking ref, which is as fresh as the last fetch.
+ *    A number that needed a network round trip is a number this page could not render inside its budget,
+ *    so it says which one it is rather than implying a live answer.
+ *  - **What happened last time**, including a refusal in git's own words. A credential error paraphrased
+ *    is a credential error nobody can act on.
+ *
+ * It renders no button at all while anything blocks a push: a button that answers "no" is worse than a
+ * sentence saying what would make it yes.
+ */
+function pushCard(p: DeskPush, now: number): string {
+  const rows: [string, string][] = [];
+  rows.push(["branch", `<code>${escape(p.branch)}</code>${p.remote ? ` → <code>${escape(p.remote.name)}</code>` : ""}${p.deploy ? ` · ${escape(p.deploy)}` : ""}`]);
+  if (p.remote) rows.push(["remote", p.origin ? `${escape(p.origin)} <span class="meta">(<code>${escape(p.remote.url)}</code>)</span>` : `<code>${escape(p.remote.url)}</code>`]);
+
+  const state = !p.ok ? `<span class="wait">${escape(p.blockers[0]!.reason)}</span>`
+    : !p.known ? `<span class="wait">never pushed</span> — <code>${escape(p.branch)}</code> is not on <code>${escape(p.remote?.name ?? "the remote")}</code> yet, so all ${p.ahead} commit${p.ahead === 1 ? "" : "s"} of it would go`
+    : p.ahead === 0 ? `<span class="ok">up to date</span> as of the last fetch`
+    : `<span class="wait">${p.ahead} commit${p.ahead === 1 ? "" : "s"}</span> the remote does not have`;
+  rows.push(["state", state]);
+  if (p.ok && p.commits.length)
+    rows.push([p.known ? "going" : "going (all of it)", `<ul class="plain">${p.commits.slice(0, 5).map((c) => `<li><code>${escape(c.sha.slice(0, 7))}</code> ${escape(c.subject)}</li>`).join("")}${p.ahead > 5 ? `<li class="meta">and ${p.ahead - 5} more</li>` : ""}</ul>`]);
+  rows.push(["staying here", `${p.drafts} draft${p.drafts === 1 ? "" : "s"} in flight${p.dirty ? ` · ${p.dirty} uncommitted file${p.dirty === 1 ? "" : "s"}` : ""} — a push sends <code>${escape(p.branch)}</code>, and neither of those is on it`]);
+
+  const last = p.last
+    ? p.last.ok
+      ? `<p class="note"><span class="ok">Pushed</span> ${escape(ago(p.last.at, now))}${p.last.sent ? ` — ${p.last.sent} commit${p.last.sent === 1 ? "" : "s"}` : " — the remote already had it"}${p.last.by ? ` · <code>${escape(p.last.by)}</code>` : ""}. The host builds from the branch; give it a minute.</p>`
+      : `<p class="note"><span class="fail">The last push failed</span> ${escape(ago(p.last.at, now))}.</p>${pre(p.last.reason ?? "")}${p.last.hint ? `<p class="note">${escape(p.last.hint)}</p>` : ""}`
+    : "";
+
+  const button = p.ok
+    ? `<form method="post" action="${escape(p.route)}"><button type="submit">Push <code>${escape(p.branch)}</code> to ${escape(p.remote?.name ?? "the remote")}</button></form>`
+    : `<p class="note">${escape(p.blockers[0]!.hint)}</p>`;
+
+  return [
+    `<section class="card"><h2>Push</h2><table>`,
+    ...rows.map(([k, v]) => `<tr><th scope="row">${escape(k)}</th><td>${v}</td></tr>`),
+    `</table>`,
+    last,
+    button,
+    `<p class="note">This is the only button on the Desk, and it publishes nothing that was not already published — it sends the branch your approved items land on. An agent can ask for a push (<code>site</code> › <code>push</code>) and cannot perform one; that asymmetry is the point.</p>`,
+    `</section>`,
+  ].join("");
+}
+
 /** The Desk as one document. `now` is a parameter so the page is deterministic under test. */
 export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
   const a = f.activity;
@@ -344,8 +450,12 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
     firstRun(f.onboarding),
     status,
     inFlight,
+    f.push ? pushCard(f.push, now) : "",
     theme,
-    `<footer>The Desk reads and approves; it never writes. There is no “New post” button, no theme switcher and no config editor here — a second way to write would mean every feature is built twice, and the MCP surface is the product.</footer>`,
+    // Rewritten in S19a, and narrowed rather than softened. “It never writes” was true for three
+    // sessions and stopped being true the moment decision 44's button landed, so the sentence now says
+    // what the button is — the one act reserved for a person — and repeats the refusal it does not touch.
+    `<footer>The Desk reads, approves, and pushes. Those are the three things that are a person’s: publishing is approving words an agent wrote, and a push is the moment they become public. There is no “New post” button, no theme switcher and no config editor here — a second way to write would mean every feature is built twice, and the MCP surface is the product.</footer>`,
     `</main>`,
   ].join("\n");
 

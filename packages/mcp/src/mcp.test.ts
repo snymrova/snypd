@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeAll, setDefaultTimeout } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { createServer } from "./server";
 import { PROTOCOL_VERSIONS, activitySnapshot } from "./protocol";
 
@@ -599,7 +600,38 @@ describe("the first run, from the agent's side", () => {
     // S18e adds the fifth derived fact — is a preview already serving this site (decision 64's rule:
     // nothing on the Desk that doctor cannot answer). Nothing is running in a test, so it is a ⚠.
     expect(s).toContain("no preview server");
-    expect(s).toContain("nothing broken — 3 things still unfinished");
+    // S19a adds the sixth: where does this site go when it goes live. A repo with no remote is the
+    // ordinary state of a site somebody is still writing, so it is a ⚠ and never a problem — and it is
+    // the fourth unfinished thing on a two-minute-old scaffold.
+    expect(s).toContain("no remote");
+    expect(structured(doc).facts.push).toMatchObject({ branch: "main", ahead: 0, known: false, ready: false });
+    expect(s).toContain("nothing broken — 4 things still unfinished");
+  });
+
+  /**
+   * S19a, decision 44: the asymmetry is the feature. An agent can ask for a push and cannot make one, so
+   * what this asserts is a *refusal that is useful* — the state, what would go, and the URL of the button
+   * a person clicks — and that nothing left the machine.
+   */
+  test("`site` › push tells the agent where the button is and does not press it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "snypd-push-"));
+    const remote = mkdtempSync(join(tmpdir(), "snypd-push-remote-"));
+    const c = await import("@snypd/core");
+    c.initSite(dir, { name: "Pushable", url: "https://pushable.example" });
+    c.initRepo(dir, { name: "T", email: "t@example.com" });
+    c.git(dir, "add", "-A"); c.git(dir, "commit", "-q", "-m", "init");
+    c.git(remote, "init", "-q", "--bare", "-b", "main");
+    c.git(dir, "remote", "add", "origin", remote);
+
+    const [, asked] = await session([req(1, "initialize"), call(2, "site", { action: "push" })], dir);
+    const s = asked.result.content[0].text as string;
+    expect(asked.result.isError).toBeUndefined();
+    expect(structured(asked)).toMatchObject({ ok: true, pushed: false, ready: true, branch: "main", known: false });
+    expect(s).toContain("a person's to make");
+    expect(s).toContain("_snypd");                       // where the button is
+    expect(s).toContain("main → origin");
+    // The remote heard nothing: this tool has no push in it, only the sentence that says who does.
+    expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("");
   });
 
   test("the placeholder comes due exactly once, at publish, and the refusal changes when it is fixed", async () => {

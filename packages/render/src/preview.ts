@@ -11,11 +11,11 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, renderDoc, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./theme";
 import { Html, escape } from "./jsx-runtime";
-import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts, type DeskOnboarding } from "./desk";
+import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts, type DeskOnboarding, type DeskPush } from "./desk";
 import { resolveTokens, tokensCss } from "./tokens";
 
 export interface PreviewOptions {
@@ -80,6 +80,17 @@ export interface PreviewServer { url: string; port: number; hostname: string; st
 const REVIEW = /^\/_snypd\/review\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
 const APPROVE = /^\/_snypd\/approve\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
 const DESK = /^\/_snypd\/?$/;
+
+/**
+ * How long the push card's git facts stand before they are read again (S19a).
+ *
+ * The Desk inherits `preview.ttfb ≤ 50 ms` and `pushState` is four `git` spawns, so it may not run per
+ * request. It does not need to: what it reports — a remote, a tracking ref, a commit count — moves when
+ * *this* process pushes, which invalidates the cache directly, or when something outside it does, which
+ * is a person at a terminal and can wait three seconds. The Desk's own meta refresh is 10 s, so the
+ * steady-state cost of the card is one read per page a person is actually looking at.
+ */
+const PUSH_TTL_MS = 3_000;
 
 /** The default nobody chose and everybody collided on until S18e gave it somewhere else to go. */
 export const DEFAULT_PORT = 4321;
@@ -150,8 +161,8 @@ const inject = (html: string, snippet: string) =>
 const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".json": "application/json", ".xml": "application/xml", ".txt": "text/plain; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml" };
 const mimeOf = (f: string) => MIME[f.slice(f.lastIndexOf("."))] ?? "application/octet-stream";
 
-/** Who approved, when asked from a browser. Not an identity system: the audit trail is the git trailer. */
-const reviewerOf = (req: Request) => req.headers.get("x-snypd-reviewer") || process.env.SNYPD_REVIEWER || "a human at the review page";
+/** Who did it, when asked from a browser. Not an identity system: the audit trail is the git trailer. */
+const reviewerOf = (req: Request, where = "the review page") => req.headers.get("x-snypd-reviewer") || process.env.SNYPD_REVIEWER || `a human at ${where}`;
 
 export async function preview(root: string, opts: PreviewOptions = {}): Promise<PreviewServer> {
   const out = opts.out ?? join(root, INDEX_DIR, "preview");
@@ -161,6 +172,11 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   let theme!: Theme;
   let dirty = false, building: Promise<BuildResult> | undefined;
   let lastBuild: { routes: number; ms: number; at: number } | undefined;   // S18b: the Desk's "did it work?"
+  // S19a: the push card. `cached` is the git half (see PUSH_TTL_MS); `last` is what the button did, kept
+  // in memory because it is a fact about this session rather than about the repo — a restarted preview
+  // has nothing to say about a push it did not make.
+  let pushCache: { at: number; state: PushState } | undefined;
+  let lastPush: DeskPush["last"] | undefined;
 
   /**
    * The change stream's whole state (S18k). `generation` counts announced changes, not fs events: one save
@@ -340,6 +356,23 @@ Write something. There is no file to delete.
    * an MCP server are two processes over one store, and a cache that made this page fast would make it
    * wrong the first time the other process approved something.
    */
+  /**
+   * The push card's facts, or nothing at all (S19a).
+   *
+   * `existsSync(.git)` is the gate rather than `Repo.open`, which spawns: a directory with no repo has
+   * no push card and pays nothing for it, which is the same shape the S18b test pins — the Desk renders
+   * in a directory that is not a repo, and now also proves it asks git nothing there.
+   */
+  const pushFacts = (drafts: number): DeskPush | undefined => {
+    if (!existsSync(join(root, ".git"))) return undefined;
+    const now = Date.now();
+    if (!pushCache || now - pushCache.at > PUSH_TTL_MS) pushCache = { at: now, state: pushState(root, cfg) };
+    const st = pushCache.state;
+    // `drafts` is the one number that must never be cached: it is the index's, it is free, and a card
+    // saying "2 drafts stay local" while three are in flight would be wrong in the direction that matters.
+    return { ...st, deploy: st.deploy, drafts, route: PUSH_ROUTE, last: lastPush };
+  };
+
   const deskFacts = (): DeskFacts => {
     const statuses = cfg.config.statuses as Record<string, { public?: boolean }> | undefined;
     const inFlight = index.files().filter((f) => f.status !== "trashed" && statuses?.[f.status]?.public !== true);
@@ -369,6 +402,7 @@ Write something. There is no file to delete.
       previewUrl: `http://${server.hostname ?? "localhost"}:${server.port}`,
       css: css ? "/assets/theme.css" : undefined,
       refresh: opts.deskRefresh,
+      push: pushFacts(drafts.length),
     };
   };
 
@@ -474,6 +508,29 @@ Write something. There is no file to delete.
         // a version nobody read just because another item's draft is the one checked out.
         approve(store, { type: type!, slug: slug!, hash: contentHash(approving), by: reviewerOf(req), at: new Date().toISOString() });
         return new Response(null, { status: 303, headers: { location: `/_snypd/review/${type}/${slug}?approved=1` } });
+      }
+      /**
+       * **The push** (S19a, decision 44) — the one request in this server that reaches the internet.
+       *
+       * Three guards, in the order they are cheap:
+       *
+       *  - `POST` only, so a link, a prefetch or a crawler cannot deploy a site.
+       *  - **Same-origin only.** A form on any page in the same browser can POST here, and this one has a
+       *    consequence outside the machine, so a cross-site `Sec-Fetch-Site` is refused. The header is
+       *    absent in `curl` and in every non-browser client, which is deliberately allowed: the threat
+       *    being closed is a page the person did not write, not a terminal they typed in.
+       *  - `pushSite` re-checks every blocker itself. The card decides whether to draw a button; it does
+       *    not decide whether a push is allowed, because the state can move between a render and a click.
+       */
+      if (path === PUSH_ROUTE) {
+        if (req.method !== "POST") return new Response("method not allowed", { status: 405, headers: { allow: "POST" } });
+        const site = req.headers.get("sec-fetch-site");
+        if (site && site !== "same-origin" && site !== "none")
+          return new Response("cross-site push refused", { status: 403 });
+        const r = pushSite(root, cfg, { who: reviewerOf(req, "the Desk") });
+        lastPush = { ok: r.ok, at: Date.now(), sent: r.sent, by: r.by, reason: r.reason, hint: r.hint };
+        pushCache = undefined;   // the tracking ref moved, or git just told us why it did not
+        return new Response(null, { status: 303, headers: { location: "/_snypd" } });
       }
       // The two `/_snypd` pages take neither: they are the Desk, so a strip pointing at it is noise, and
       // the Desk already carries its own meta refresh (`deskRefresh`) which a header would double.

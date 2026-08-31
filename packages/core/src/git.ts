@@ -62,8 +62,24 @@ export function git(root: string, ...args: string[]): GitResult { return gitEnv(
 
 /** `git()` plus environment — `land()` needs `GIT_INDEX_FILE`, and nothing else may inherit it. */
 function gitEnv(root: string, extra: Record<string, string>, ...args: string[]): GitResult {
-  const r = spawnSync("git", args, { cwd: root, encoding: "utf8", env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...extra } });
-  return { ok: r.status === 0, code: r.status ?? -1, stdout: (r.stdout ?? "").trim(), stderr: (r.stderr ?? "").trim() };
+  return gitSpawn(root, extra, args);
+}
+
+/**
+ * The one call that reaches the network gets a wall clock, so `gitSpawn` takes its argv as an array and a
+ * timeout beside it. Everything else is local plumbing on a repo we just proved exists, and has never
+ * needed one — a `rev-parse` that hangs is a broken machine, not a state to design for.
+ */
+function gitSpawn(root: string, extra: Record<string, string>, args: string[], timeout?: number): GitResult {
+  const r = spawnSync("git", args, { cwd: root, encoding: "utf8", timeout, env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...extra } });
+  const timedOut = (r as { error?: NodeJS.ErrnoException }).error?.code === "ETIMEDOUT" || r.signal === "SIGTERM";
+  const stderr = (r.stderr ?? "").trim();
+  return {
+    ok: r.status === 0,
+    code: r.status ?? -1,
+    stdout: (r.stdout ?? "").trim(),
+    stderr: timedOut && !stderr ? `git ${args[0]} gave up after ${(timeout ?? 0) / 1000} s with no answer from the remote` : stderr,
+  };
 }
 
 /**
@@ -247,6 +263,74 @@ export class Repo {
       if (record.ok) this.run("update-ref", `refs/heads/${from}`, record.stdout, head);
       return { ok: true, base, sha, changed: true };
     } finally { rmSync(join(this.root, index), { force: true }); }
+  }
+
+  // ── the remote (S19a) ──────────────────────────────────────────────────────────────────────────
+  /**
+   * Named remotes, in git's order. Empty is the ordinary state of a site nobody has connected to a host
+   * yet — `init` creates a repo and never a remote, because snypd does not know where anybody's code goes.
+   */
+  remotes(): { name: string; url: string }[] {
+    const r = this.run("remote", "-v");
+    if (!r.ok || !r.stdout) return [];
+    const seen = new Map<string, string>();
+    for (const line of r.stdout.split("\n")) {
+      const [name, rest] = line.split("\t");
+      if (!name || !rest) continue;
+      if (!rest.endsWith("(push)")) continue;          // the fetch URL is not where a push goes
+      seen.set(name, rest.replace(/\s*\(push\)$/, ""));
+    }
+    return [...seen].map(([name, url]) => ({ name, url }));
+  }
+
+  /** Where a push would go: `origin` if it exists, else the only remote, else nothing to be sure about. */
+  defaultRemote(): { name: string; url: string } | undefined {
+    const all = this.remotes();
+    return all.find((r) => r.name === "origin") ?? (all.length === 1 ? all[0] : undefined);
+  }
+
+  /**
+   * What `remote` does not have yet — **read from the tracking ref, which is as fresh as the last fetch**.
+   *
+   * `known: false` means there is no `refs/remotes/<remote>/<branch>` at all, which is both "never pushed"
+   * and "never fetched" and is not worth guessing between: the caller says "this branch is not on the
+   * remote yet, as far as this clone knows". Deliberately no fetch — a page render and a tool call may not
+   * make a network round trip, and a number that needed one would be a number the Desk could not show.
+   */
+  unpushed(remote: string, branch: string, limit = 10): { known: boolean; count: number; commits: { sha: string; subject: string }[] } {
+    const known = this.run("rev-parse", "--verify", "-q", `refs/remotes/${remote}/${branch}`).ok;
+    // No tracking ref means the remote has *none* of this branch, so the answer to "what does it not
+    // have" is the whole branch — not zero. Reporting zero was the first version of this and it made the
+    // card mute at the exact moment it matters most: a first push, where everything is about to go.
+    const range = known ? `${remote}/${branch}..${branch}` : branch;
+    const n = this.run("rev-list", "--count", range);
+    const log = this.run("log", `-n${limit}`, "--format=%H%x1f%s", range);
+    return {
+      known,
+      count: n.ok && n.stdout ? Number(n.stdout) : 0,
+      commits: log.ok && log.stdout ? log.stdout.split("\n").map((l) => { const [sha, subject] = l.split("\x1f"); return { sha: sha!, subject: subject ?? "" }; }) : [],
+    };
+  }
+
+  /**
+   * Send one branch to one remote — the only outward-facing call in this codebase, and the one place a
+   * snypd process can make something public.
+   *
+   * Three properties it must have, none of them optional:
+   *
+   *  - **Never forced, and one ref at a time.** `<branch>:<branch>` rather than `--all` or a configured
+   *    push refspec, so a repo whose `push.default` is `matching` cannot send `snypd/drafts` along with
+   *    the base because it happens to exist on the remote. What the caller named is what goes.
+   *  - **It may not hang.** This runs inside a request on a local web server and inside a tool call, and
+   *    git's default for a missing credential is to *ask* — on a stdin nobody is attached to. `GIT_TERMINAL_PROMPT=0`
+   *    and the two askpass vars turn that into an error with a message, and the timeout covers a network
+   *    that accepts the connection and then says nothing.
+   *  - **It says what happened.** `--porcelain` gives a parseable summary; the human-readable half of git
+   *    push goes to stderr either way, and that is what a refusal shows the person.
+   */
+  push(remote: string, branch: string, opts: { setUpstream?: boolean; timeoutMs?: number } = {}): GitResult {
+    return gitSpawn(this.root, { GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS: "" },
+      ["push", "--porcelain", ...(opts.setUpstream ? ["--set-upstream"] : []), remote, `${branch}:${branch}`], opts.timeoutMs ?? 60_000);
   }
 
   /** Commits touching one path, newest first (`snypd://history/{type}/{slug}`). */
