@@ -31,7 +31,9 @@
 **v1.0**: spec freeze at ~35 primitives; RFC process; Node-compatible build verified; hosted cloud optional.
 
 ## Naming
-**Snypd** — decided 27 Aug 2026. Domain `snypd.rocks` (owned; also the dogfood site and public benchmark page). npm scope `@snypd/*` (and the bare name `snypd`, verified unpublished in S18b′ and claimed by the launcher package in S18d′), binary `snypd`, config `snypd.yaml`, URI scheme `snypd://`. Earlier working name "Press" retired; parked alternatives dropped.
+**Snypd** — decided 27 Aug 2026. Domain `snypd.rocks` (owned; also the dogfood site and public benchmark page). npm scope `@snypd/*`, binary `snypd`, config `snypd.yaml`, URI scheme `snypd://`. Earlier working name "Press" retired; parked alternatives dropped.
+
+**The bare name `snypd` is not claimed yet.** This line said it was claimed by the launcher package in S18d′; that is wrong. The five platform packages are on the registry, the launcher's publish was refused, and `registry.npmjs.org/snypd` still answers 404 — so `bunx snypd init` does not resolve and docs/08 §2 step 4 stays a checkout until it does. `packaging/README.md` §2 has the diagnosis and the two ways to settle it.
 
 ## Open questions
 - Fenced-code alias (```` ```callout ````) for the top five primitives, for renderers that don't know directives (GitHub preview)?

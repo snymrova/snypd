@@ -71,6 +71,14 @@ switch (verb) {
       if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
       break;
     }
+    if (args[0] === "onboard") {   // S18g: first run, walked against the compiled binary (docs/08 F1)
+      const { report, walk } = await bench.onboard({ keep: flags.has("--keep") });
+      console.log(bench.toMarkdown(report));
+      console.log(`\n${bench.formatWalk(walk)}`);
+      const over = bench.breaches(report);
+      if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
+      break;
+    }
     if (args[0] === "visual") {   // D3 only: every visual primitive at its worst shape, no build (S10)
       const r = await bench.visual({ quick: flags.has("--quick") });
       console.log(bench.toMarkdown(r));
@@ -286,7 +294,7 @@ switch (verb) {
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--no-reload]      the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--verbose]                                        content → dist/",
-      "  snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd bench [agent|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",
       "",
       "Writing is over MCP and only over MCP: start with `snypd init`, restart your harness, then ask it.",

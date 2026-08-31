@@ -507,6 +507,14 @@ export { scoreSuggest, formatSuggestScore, suggestMetrics, factsReport, SUGGEST_
  */
 export { agent, runAgent, agentMetrics, transcript, writeTranscript, DRAFT_BUDGET, REFERENCE_CALLS, TOTAL_GATE, type AgentRun } from "../agent/run";
 export { assess, passed, UPGRADES, NEW_POST, THEME, type Check } from "../agent/scenario";
+
+/**
+ * First run (docs/07 S18g, docs/08 F1/F2/F4). Lives under `../smoke` rather than here for the reason
+ * decision 55 gives: it drives the **compiled binary** from an empty temp directory, and `smoke/` is
+ * already the one place in this repo that does that. Re-exported so `snypd bench onboard` and the CI
+ * lane reach it the same way as every other suite.
+ */
+export { onboard, runOnboard, onboardMetrics, formatWalk, freshMachine, HANDOFF_BUDGET, TTFV_BUDGET, TTFP_BUDGET, type OnboardWalk, type Action as OnboardAction } from "../smoke/onboard";
 export { scripted, type Driver, type Phase } from "../agent/scripted";
 export { Session, type Turn } from "../agent/session";
 

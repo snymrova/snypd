@@ -41,5 +41,12 @@ jobs:
       # `agent.goal` was "short of 1, on purpose" — true when it was written in S1, false since S17b.
       - run: bun run snypd bench agent
         continue-on-error: true
+      # S18g, and the same split for the same reason. `bun test` above enforces first run exactly
+      # (`smoke/onboard.test.ts`: six actions, not 5.2), so this step exists to produce
+      # `bench/onboard.md` — the breakdown decision 65 asks for, and the artefact F1 is read off.
+      # It is non-enforcing *and currently red*: `onboard.handoff` is 6 against F1's budget of 5, which
+      # is a finding rather than a drift, and the test is where it cannot move unnoticed.
+      - run: bun run snypd bench onboard
+        continue-on-error: true
       - uses: actions/upload-artifact@v4
         with: { name: "bench-${{ matrix.bun }}", path: bench/ }

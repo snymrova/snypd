@@ -66,15 +66,25 @@ First run is done when all seven are true, on Linux + macOS, from the compiled b
 
 | # | Gate | Evidence |
 |---|---|---|
-| **F1** | **Handoff cost.** The flow in §2 completes in **five human actions or fewer**, none of them typing a command, none of them opening an editor. | `onboard.handoff`, counted as actions rather than seconds (decision 65) |
-| **F2** | **Time to first post.** From the paste to a lint-clean draft with a review URL. | `onboard.ttfp`, driven by the S17 MCP client, model named beside the number |
-| **F3** | **No dead ends.** Every state in §6 names its own next action, *on the surface its actor is looking at* — stdout for an agent, the page for a person. A state that can be reached and cannot be left is a release blocker. | state-transition test, one case per row of §6 |
-| **F4** | **Survives the restart.** Onboarding state is derived from disk on every request and on every session start; killing and restarting any process loses nothing that is not re-derivable. | `rm -rf .snypd/` mid-flow changes no answer except the heartbeat |
+| **F1** | **Handoff cost.** The flow in §2 completes in **five human actions or fewer**, none of them typing a command, none of them opening an editor. | `onboard.handoff`, counted as actions rather than seconds (decision 65) — ❌ **measured at 6 in S18g**, the sixth being the origin at publish. See §5b |
+| **F2** | **Time to first post.** From the paste to a lint-clean draft with a review URL. | `onboard.ttfp`, driven by the S17 MCP client, model named beside the number — ✅ **S18g**, seconds rather than the tens the budget allows, with the reference driver named beside it |
+| **F3** | **No dead ends.** Every state in §6 names its own next action, *on the surface its actor is looking at* — stdout for an agent, the page for a person. A state that can be reached and cannot be left is a release blocker. | state-transition test, one case per row of §6 — ✅ **S18g**, `smoke/onboard.test.ts`; state 6 is a `todo` naming S19a rather than a silent gap |
+| **F4** | **Survives the restart.** Onboarding state is derived from disk on every request and on every session start; killing and restarting any process loses nothing that is not re-derivable. | `rm -rf .snypd/` mid-flow changes no answer except the heartbeat — ✅ **S18g**, 12 of doctor's structured facts diffed, 0 lost |
 | **F5** | **Three entry paths converge.** Agent-first (§2), terminal-first (`snypd init` typed by a person), and clone (`snypd.yaml` + `.mcp.json` already committed) reach the same state and are told the same next thing. | all three drive the same assertions |
-| **F6** | **Time to first visual.** For the terminal-first fallback: ≤ 2 commands from an empty directory to a painted Desk, no flags required. | `onboard.ttfv`, against the artefact — **true since S18e and painted since S18f** (`init` + `dev`, and the index those two produce is the theme rendering the vocabulary rather than an empty list); the number is S18g's |
+| **F6** | **Time to first visual.** For the terminal-first fallback: ≤ 2 commands from an empty directory to a painted Desk, no flags required. | `onboard.ttfv`, against the artefact — **true since S18e, painted since S18f, and numbered in S18g**: two seconds against a five-second budget on a box at load 16 |
 | **F7** | **The first-run surfaces are held to the Desk's budgets.** 0 KB JS, 0 axe violations, CLS 0 — on the *empty* and *first-run* states, not only the populated one. | ✅ **S18f** — `desk.first.*`, its own prefix rather than two more routes on `desk.*`, which would silently redefine a worst-of that has been comparable since S18b (`07` decision 48). Green on its first run: 0 KB JS, 0 violations over four route/viewport pairs, CLS 0 |
 
-**F1, F2 and F6 get budgets; the rest are boolean.** F1's budget is 5 and is the number this document exists to defend. `onboard.ttfp` ≤ 60 s including model latency and `onboard.ttfv` ≤ 5 s wall clock on a cold box are proposed, to be confirmed by the first measurement rather than argued now.
+**F1, F2 and F6 get budgets; the rest are boolean.** F1's budget is 5 and is the number this document exists to defend.
+`onboard.ttfp` ≤ 60 s including model latency and `onboard.ttfv` ≤ 5 s wall clock on a cold box were proposed here,
+to be confirmed by the first measurement rather than argued in advance.
+
+**S18g measured all three, and the two clocks are kept exactly where they were proposed.** Both came in an order of
+magnitude under — and both move with load by more than 2× on this hardware, so tightening them onto one busy box's
+noise would buy a flake and no signal. A loose gate is still a gate: it catches the regression that turns two seconds
+into forty, which is the failure that loses somebody, and it does not fire on a runner that happened to be busy.
+
+**F1 came in at 6, and is left red.** The sixth action is real, the budget is not being moved to meet it, and §5b is
+the whole argument.
 
 ---
 
@@ -98,6 +108,50 @@ First run is done when all seven are true, on Linux + macOS, from the compiled b
 The first draft noted this and wrote *"No work here; the note exists so S18b″ is scoped with this in mind."* That is not tenable once agent-first is the declared primary flow: **you cannot gate a funnel on a population that cannot arrive.** `curl | sh` does not rescue it either — an agent cannot run a pipe-to-shell without a human approving something that *should* alarm them, which is a bad first impression and a correct security prompt at the same time.
 
 So: **the npm platform-package publish moves ahead of the first-run Desk page.** *(Done in S18d′, up to the publish itself — `07` decisions 66 and 69.)* It was already the preferred shape on trust grounds (the esbuild/bun pattern, provenance, a Homebrew tap beside it — `07` S18b″); it is now load-bearing for onboarding as well. Until it lands, §2 step 4 reads `bun run snypd init` from a checkout, the flow is verifiable end to end for us and for nobody else, and F1 is measured but not claimed.
+
+---
+
+## 5b. The sixth action (S18g)
+
+F1 was written as five and stayed "measured rather than claimed" for six sessions. S18g measured it. It is **six**,
+and the extra one is not a defect anybody can fix without giving something else up.
+
+**What happens.** `publishCheck` refuses twice, in a fixed order. First for the origin — `site.url` is still the
+localhost placeholder, and the feed, sitemap and JSON-LD are absolute, so nothing can publish until a real one exists.
+Then for the approval — publishing needs a human on the exact version. Satisfying the first is a **value typed into
+the harness**; satisfying the second is a **click on the review page**. Two surfaces, two moments, two actions.
+
+**Why §2 counted five.** It assumed the URL is asked and answered inside step 12's approval, and said in as many words
+that whether that holds was a question for a measured walk. It does not hold. An agent can certainly *ask* for both in
+one message — it learns about the URL first, because that is the order the refusals come in — but the approval is not
+something a person can answer in that message. It is a page they have to open and a button they have to press, which
+is the entire point of it. The two cannot be merged from the agent's side, and merging them from the product's side
+means either approving on the same surface the URL is typed on (which is the browser-less approval S18b′ refused) or
+asking for the domain earlier.
+
+**Why not just ask earlier.** That is decision 63, and it is not a small one: asking for a production domain before
+somebody has seen a single pixel is the most common way a setup flow loses people. Folding the URL into step 2's one
+question would make F1 five again and would trade a measured cost at the end for an unmeasured drop-off at the start.
+Nothing in this document is worth that trade on a hunch.
+
+**So it is left at six, and the budget is left at five.** The lane is red, deliberately. Raising the budget to 6 is how
+a finding turns into a fact nobody re-reads, and `07` decision 48's rule about redefining a number applies here as much
+as it does to a benchmark. The exact count is pinned in `packages/bench/smoke/onboard.test.ts` with this argument above
+it, so the flow cannot be changed while the metric quietly says the same thing — the shape S17 used for the write model.
+
+**Three ways out, none of them a bench's call:**
+
+1. **Accept six.** F1 becomes six, the sixth is named as the origin, and the document says why. Cheapest, and honest.
+2. **Ask for the origin in step 2's one message.** Five again, at the cost of decision 63 — and worth doing only with
+   a number showing the drop-off is smaller than the paragraph fears, which nothing here measures.
+3. **Make the origin not required at publish.** Publish to a relative-URL build and rewrite the absolutes when a domain
+   arrives. That is real work in `render`, and it moves a correctness problem (a feed full of localhost) somewhere else.
+
+And on a machine with **no git author identity** — a CI runner, a container, a devcontainer, a fresh laptop — there is a
+**seventh**: `git config --global user.name` and `user.email`, which git demands before it will make the scaffold commit.
+That one was §12.11's open question and is now answered. The product half already worked: `init` prints the two lines,
+so an agent runs them with one approval instead of handing a person homework. It is reported as `onboard.handoff.fresh`
+and deliberately carries no budget — it is a property of the machine, not of the flow.
 
 ---
 
@@ -313,7 +367,11 @@ not commit under a name it invented, so what landed is the sentence instead — 
 `git config --global` lines that fix it, from `init`'s stdout and from `site` › init alike. It is a shell
 command, which means the agent can run it with the human's approval rather than handing the person
 homework. **This does not appear in §2's five human actions and may become a sixth on some machines**, and
-whether it does is a question for S18g's measured walk rather than for this paragraph.
+whether it does is a question for S18g's measured walk rather than for this paragraph. — **Answered, S18g: it does.**
+On a machine with no identity the walk pays one more action than on one with, reported as `onboard.handoff.fresh` and
+carrying no budget, because it is a property of the machine rather than of the flow. It is a *seventh* rather than a
+sixth, since §5b found an unrelated sixth in the origin at publish. The lane asserts that `init` **says** so — an
+unsaid one would be a dead end, and F3 calls those release blockers.
 
 9. ~~**The Desk's heartbeat is blind whenever the preview is its own process — which is always.**~~ **Fixed,
 S18f** (`07` decision 70). The walk drove a full MCP session and the Desk still read *"nothing has called this
@@ -347,7 +405,7 @@ Resequenced by the audit. The first draft ranked `snypd dev` first on the reason
 | ~~**S18d′**~~ | **done, up to the button.** Five platform packages generated from one list, a 20 KB launcher that resolves and spawns the one binary npm downloaded, `release.yml` publishing with provenance on a `v*` tag, a generated Homebrew formula, and the repo's own remote. Two riders: §12.8 closed (`07` decision 67) and `--deploy` writing a host build command that is an installed pinned command rather than a pipe to a shell (68). | ✅ built, tested against the artefact and rehearsed with `--dry-run`; **`bunx snypd init` resolves on the first publish, which is Sunny's** (69). F1 stays measured, not claimed |
 | ~~**S18e**~~ | **done: the human verb.** `snypd dev` — bind, open, watch, print — and `serve --preview` kept as an alias that is *the same code path*, not a second one to drift. The preview inverts owner: it exists before any tool call, survives the harness restarting, and `render_preview` finds it through `.snypd/dev.json` (proven over `/_snypd/alive`) rather than racing it for 4321. §12.3 closed. Decision 57's TTY split holds — the browser opens only when stdout is a terminal, so `packages/bench/smoke/` never sees a window. Live reload is a `Refresh` header and the Desk link a response-path strip, with a test that every item page in `.snypd/preview` is byte-identical to `dist/`. | ✅ `init` then `dev` from an empty directory paints the Desk, asserted against the compiled binary; item bytes equal `dist/` bytes; 277 tests |
 | ~~**S18f**~~ | **done: the page that meets you.** The checklist from doctor's facts, six rows by dependency with the unreachable ones shown as *later*; the three surface labels on every row; the prompts and the verbatim `.mcp.json` as selectable, keyboard-reachable text; "what is snypd" in a `<details>`; the placeholder URL flagged on the status card rather than presented as the address. `startedAt` and the whole record moved to `.snypd/activity.json` (`07` decision 70), which closes §12.9 and splits §10's two silences. The empty index is rendered by the dev server through the theme — nothing on disk to delete, and `build()` never emits it. | F7 ✅ on CI's quiet runner (`desk.first.*`: 0 KB JS, 0 violations over four route/viewport pairs, CLS 0) · F6 is now true and gets its number in S18g |
-| **S18g** | **The number.** The `onboard.*` lane in `packages/bench/smoke/`, driving the compiled binary from a temp directory: `handoff`, `ttfp`, `ttfv`, and the state-transition test that is F3. `sites/` + `bun run scratch` (decision 53) as the loop that dogfoods this by walking it. | F1, F2, F4; budgets set from the first measurement and gated thereafter |
+| ~~**S18g**~~ | **Done, and the number is 6.** The `onboard.*` lane walks §2 end to end against the compiled binary from a directory that does not exist when the run starts, and counts an action *where the walk is stopped* rather than where this table says one should be — three of the six are established by the product refusing or by the file being absent. The sixth is the origin at publish (§5b); a machine with no git identity pays a seventh (§12.11, now closed). F3 is one case per row of §6, F4 is doctor's structured facts diffed across `rm -rf .snypd/`. `sites/` + `bun run scratch` landed with it. | **F1 ❌ 6 / 5**, left red on purpose · F2 ✅ · F3 ✅ · F4 ✅ 12 facts, 0 lost · 286 → 300 tests |
 
 **S18f has landed. The button was pressed and the publish is half done.** `v0.1.0` ran on 31 Aug and the five platform packages are on npm — `@snypd/darwin-arm64`, `@snypd/darwin-x64`, `@snypd/linux-arm64`, `@snypd/linux-x64`, `@snypd/windows-x64`, all 0.1.0, all signed with provenance. **The launcher is not.** `snypd` itself failed with `E403 … You may not perform that action with these credentials` — the token had write on the scope and not the right to create a new *unscoped* package, which is a different permission and one the dry run cannot exercise, for the reason `packaging/README.md` already gives about the first failure. So `bunx snypd init` still 404s and §2 step 4 is still a checkout. The retry is cheap and needs no version bump — S18d′'s publish step skips what the registry already has, and the run's log shows it doing exactly that for all five before it reached the sixth — but it needs a token with permission to create the package, which is Sunny's to issue.
 
@@ -355,7 +413,7 @@ Resequenced by the audit. The first draft ranked `snypd dev` first on the reason
 
 **One thing S18d′ added to the list rather than removing.** A release cut from one Linux runner ships one binary on Bun 1.4.0 and four on 1.3.14, because `--compile --target=` downloads a published runtime for a foreign platform (`07` §6, new row). Both are lanes CI runs green, so it is tolerable; it is also the kind of fact that, unrecorded, costs somebody a day when a number differs across platforms.
 
-**What S18d could not close, and why.** F1's five human actions are still *designed* rather than measured — that is S18g, and decision 55 is right that a number from inside the workspace would not count. Two things the walk surfaced belong on that list when it is counted. The URL now comes due at publish, which is correct and is also a sixth action for anyone who reaches step 13 without having set one; the flow assumes it is asked and answered inside step 12's approval, and whether that holds is a question for a measured walk rather than for this paragraph. And the state-transition test that is F3 is asserted here per surface — `initialize`, the prompt, init's text, doctor, the publish refusal — rather than as one case per row of §6, which is the form S18g gives it.
+**What S18d could not close, and why.** *(Closed in S18g — the walk exists, the number is 6, and §5b is the argument. The paragraph is kept because it names what was outstanding and why.)* F1's five human actions are still *designed* rather than measured — that is S18g, and decision 55 is right that a number from inside the workspace would not count. Two things the walk surfaced belong on that list when it is counted. The URL now comes due at publish, which is correct and is also a sixth action for anyone who reaches step 13 without having set one; the flow assumes it is asked and answered inside step 12's approval, and whether that holds is a question for a measured walk rather than for this paragraph. And the state-transition test that is F3 is asserted here per surface — `initialize`, the prompt, init's text, doctor, the publish refusal — rather than as one case per row of §6, which is the form S18g gives it.
 
 ---
 

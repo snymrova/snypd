@@ -44,7 +44,12 @@ export class Session {
   private id = 0;
   private readonly decoder = new TextDecoder();
 
-  constructor(readonly root: string, readonly serverPath = "packages/mcp/src/server.ts") {}
+  /**
+   * `server` is either an entry this checkout can run (the default, and what the kill test uses) or a
+   * full argv. S18g needs the second form: `onboard.*` measures the **compiled binary** (decision 55),
+   * and `[BIN, "serve"]` is not `[process.execPath, <entry>]` with a different string in it.
+   */
+  constructor(readonly root: string, readonly server: string | string[] = "packages/mcp/src/server.ts") {}
 
   /** `tools/call` count — the number D1 is written about. */
   get calls() { return this.turns.filter((t) => t.kind === "call").length; }
@@ -53,7 +58,8 @@ export class Session {
   get tokensOut() { return this.turns.reduce((a, t) => a + t.tokensOut, 0); }
 
   async start(): Promise<InitializeResult> {
-    this.proc = Bun.spawn([process.execPath, this.serverPath], {
+    const argv = typeof this.server === "string" ? [process.execPath, this.server] : this.server;
+    this.proc = Bun.spawn(argv, {
       stdin: "pipe", stdout: "pipe", stderr: "ignore",
       env: { ...process.env, SNYPD_ROOT: this.root },
     });

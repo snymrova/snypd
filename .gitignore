@@ -15,3 +15,8 @@ corpora/*/dist-*/
 # release assets and their sha256s, so a copy checked in here is wrong between releases. The workflow
 # attaches the real one to the release it describes (packaging/homebrew/README.md).
 packaging/homebrew/snypd.rb
+
+# Decision 53 (S18g): working copies for dogfooding. Every directory in here is its own git repo —
+# snypd.rocks is *cloned* into it, not tracked here, because S19a builds it from its own remote and a
+# site the host builds from git cannot also be a subdirectory of this one. `bun run scratch` makes one.
+sites/
