@@ -1,4 +1,9 @@
 name: test + bench
+# `${{ … }}` inside a YAML *flow* mapping has to be quoted: `{` and `}` are structural there, so
+# `{ bun-version: ${{ matrix.bun }} }` is a parse error and the run fails in 0 s with "workflow file
+# issue" and no log. This file carried that from S1 and nobody saw it, because the repo had no remote
+# until S18d′ — the first push is what ran it. Quoted, and both workflows are parsed in `packaging`'s
+# test now so a third one cannot arrive broken.
 on: { push: { branches: [main] }, pull_request: {} }
 jobs:
   bench:
@@ -9,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-        with: { bun-version: ${{ matrix.bun }} }
+        with: { bun-version: "${{ matrix.bun }}" }
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun test
@@ -21,4 +26,4 @@ jobs:
       - run: bun run snypd bench agent
         continue-on-error: true
       - uses: actions/upload-artifact@v4
-        with: { name: bench-${{ matrix.bun }}, path: bench/ }
+        with: { name: "bench-${{ matrix.bun }}", path: bench/ }

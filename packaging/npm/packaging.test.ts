@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { readdirSync } from "node:fs";
 import { buildLauncher, buildTarget, formula, TARGETS, version } from "./build";
 import { REPO } from "../../packages/bench/src/compile";
 
@@ -49,6 +50,32 @@ describe("the release manifest", () => {
       expect(f).toContain(`releases/download/v9.9.9/snypd-${t.os}-${t.cpu}.tar.gz`);
     expect(f).not.toContain("SHA256_PENDING");
     expect(f).toContain('assert_match "usage: snypd"');
+  });
+});
+
+describe("the workflows", () => {
+  // Found the hard way in S18d′: `bench.yml` carried `with: { bun-version: ${{ matrix.bun }} }` from S1,
+  // which is a YAML parse error — `{` and `}` are structural inside a flow mapping — and GitHub fails such
+  // a run in 0 s with "workflow file issue" and no log to read. It went unseen for eighteen sessions
+  // because the repo had no remote until this one. A workflow is code that only ever runs somewhere else,
+  // so the one check that can be run here is the one that catches this.
+  test("every workflow file parses", () => {
+    const dir = join(REPO, ".github", "workflows");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"));
+    expect(files.length).toBeGreaterThan(1);
+    // `Bun.YAML` rather than the `yaml` package: this file is outside the workspace, so it has no
+    // `node_modules` of its own, and a release script that needed one would be a release script that
+    // cannot run from a clean checkout.
+    for (const f of files) expect(() => Bun.YAML.parse(readFileSync(join(dir, f), "utf8"))).not.toThrow();
+  });
+
+  test("the release publishes platform packages before the launcher", () => {
+    // The launcher's `optionalDependencies` are exact pins. Publishing it first leaves a window in which
+    // `npm i snypd` resolves a launcher whose binary does not exist yet.
+    const y = readFileSync(join(REPO, ".github", "workflows", "release.yml"), "utf8");
+    expect(y.indexOf("dist/release/npm/@snypd/*")).toBeLessThan(y.indexOf("cd dist/release/npm/snypd"));
+    expect(y).toContain("--provenance");
+    expect(y).toContain("id-token: write");   // provenance is signed with the run's OIDC identity or not at all
   });
 });
 
