@@ -371,7 +371,7 @@ function pushCard(p: DeskPush, now: number): string {
     p.dirty ? `${p.dirty} uncommitted file${p.dirty === 1 ? "" : "s"}` : "",
   ].filter(Boolean);
   rows.push(["staying here", parts.length
-    ? `${parts.join(" · ")} — a push sends <code>${escape(p.branch)}</code>, and ${parts.length > 1 ? "none of that is" : p.drafts === 1 || p.dirty === 1 ? "it is" : "they are"} on it`
+    ? `${parts.join(" · ")} — a push sends <code>${escape(p.branch)}</code>, and ${parts.length > 1 ? "none of that is on it" : p.drafts === 1 || p.dirty === 1 ? "it is not on it" : "they are not on it"}`
     : `nothing — no drafts in flight, nothing uncommitted. <code>${escape(p.branch)}</code> is the whole site`]);
 
   const last = p.last

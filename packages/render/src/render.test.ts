@@ -401,7 +401,12 @@ describe("the push card (S19a)", () => {
     expect(page).toContain("origin");
     expect(page).toContain("never pushed");
     expect(page).toContain("content: publish post/live-one");     // the commit that would go, by subject
-    expect(page).toContain("1 draft in flight");                  // and the one that would not
+    expect(page).toContain("1 draft in flight");                  // and the one that would not…
+    // …including the word that carries the whole meaning. The first fix of this sentence rendered
+    // "3 drafts in flight — a push sends main, and they are on it" on the real site: the negation was
+    // dropped, so the row said the exact opposite of what it exists to say.
+    expect(page).toContain("it is not on it");
+    expect(page).not.toMatch(/and (they are|it is) on it/);
     expect(page).toContain("<form");
     expect(page).toContain("<button");
     expect(page).toContain('action="/_snypd/push"');
