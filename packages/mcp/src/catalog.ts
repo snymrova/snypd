@@ -175,7 +175,9 @@ export async function call(root: string, name: string, args: Record<string, unkn
     if (!repo) return "not a git repo: written, not committed";
     repo.useDrafts(paths);
     const r = repo.commit(paths, subject);
-    if (!r.committed) return `no commit: ${r.reason}`;
+    // The hint is the whole value of this branch for a first-timer: git with no author identity is a
+    // state a fresh machine starts in, and "no commit: …" alone sends the agent looking at snypd (S18d′).
+    if (!r.committed) return `no commit: ${r.reason}${r.hint ? `\n${r.hint}` : ""}`;
     const landed = repo.land(paths, subject);
     return landed.ok
       ? `committed ${r.sha!.slice(0, 8)}${landed.changed ? ` → ${landed.base} ${landed.sha!.slice(0, 8)}` : ""}`

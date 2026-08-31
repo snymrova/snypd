@@ -29,6 +29,12 @@ jobs:
         with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
 
       - run: bun install --frozen-lockfile
+      # `init` commits the scaffold, and a runner has no git author identity (S18d′). Same step as
+      # `bench.yml`: the suite tests the happy path, `site.test.ts` tests the machine that has none.
+      - name: git identity
+        run: |
+          git config --global user.email "ci@snypd.rocks"
+          git config --global user.name "snypd CI"
       - run: bun run typecheck
       - run: bun test
 

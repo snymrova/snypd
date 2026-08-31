@@ -303,6 +303,18 @@ directory; three of them are unreachable from `bun test`, which always takes the
 now resolves what the file names on `PATH` as well as on disk, and reports the difference between "not a
 file" and "nothing by that name on this shell's PATH — the harness's PATH may differ".
 
+11. **A machine with no git author identity cannot be onboarded, and was not told so.** — *Found by the
+first CI run this repo ever had (S18d′); the product half is **fixed**, the state itself is a state.* A
+GitHub runner has no `user.email`, and neither does a fresh laptop, a container or a devcontainer. `init`
+wrote the scaffold, created the repo, and the commit silently did not happen — the CLI printed nothing at
+all in that branch — so the failure surfaced two steps later as a refused `content.create`, on a tree it
+was never told about. That is §10's shape again: the symptom and the cause in different places. Snypd will
+not commit under a name it invented, so what landed is the sentence instead — the failure, and the two
+`git config --global` lines that fix it, from `init`'s stdout and from `site` › init alike. It is a shell
+command, which means the agent can run it with the human's approval rather than handing the person
+homework. **This does not appear in §2's five human actions and may become a sixth on some machines**, and
+whether it does is a question for S18g's measured walk rather than for this paragraph.
+
 9. **The Desk's heartbeat is blind whenever the preview is its own process — which is always.** The walk drove a
 full MCP session and the Desk still read *"nothing has called this server yet"*, because activity lives in a
 module-scoped record (`protocol.ts`) and `snypd serve --preview` is a different process from the one the harness
