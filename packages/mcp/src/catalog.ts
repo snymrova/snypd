@@ -61,6 +61,7 @@ export const CATALOG: Tool[] = [
       url: str("`init`: the absolute origin it will be served from, e.g. https://example.com. Optional — defaults to a localhost placeholder, because the feed, sitemap and JSON-LD need a real one at publish and not before"),
       description: str("`init`: one sentence about the site"),
       theme: str("`init`: the theme to start on. Default `editorial`"),
+      deploy: str("`init`: also write the host's half — a build command and `dist/` as the output dir, committed with the scaffold. Optional: snypd never talks to a host, so anything that can run a binary and serve a folder needs none of this", { enum: ["cloudflare", "vercel"] }),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
@@ -267,7 +268,7 @@ tokens: {}
           // here until this session, which meant the *clone* path demanded a production origin from an
           // agent that had no way to know one — the same defect as the CLI's exit-2, and fixing one and
           // not the other would leave decision 52's placeholder fact reachable from one caller only.
-          const r = c.initSite(root, { name: typeof args.name === "string" ? args.name : undefined, url: typeof args.url === "string" ? args.url : undefined, description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined });
+          const r = c.initSite(root, { name: typeof args.name === "string" ? args.name : undefined, url: typeof args.url === "string" ? args.url : undefined, description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined, deploy: args.deploy as "cloudflare" | "vercel" | undefined });
           // An empty directory gets its repo from `initSite` itself (S18d): the scaffold has to be
           // committed, or the agent's very next `content.create` refuses on a tree carrying it.
           const git = r.git
@@ -277,6 +278,7 @@ tokens: {}
           // `snypd init`'s stdout: the tools are already loaded here, so there is no restart to relay —
           // what has to be said instead is what is still unknown, and when it stops being optional.
           return text([`initialised \`${r.name}\` — ${r.created.join(", ")}`, git,
+            ...(r.deploy ? [`${r.deploy}: the host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/. Nothing here holds a credential or calls a deploy API — a push is what triggers it.`] : []),
             ...(r.placeholderUrl ? [`site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — content.publish refuses until then, and says so. Do not ask for it yet.`] : []),
             "Next: read snypd://spec/primitives, then content.create a post and content.render_preview to look at it."].join("\n"), { ok: true, ...r });
         }
@@ -396,11 +398,13 @@ async function doctor(root: string): Promise<ToolResult> {
   // computed once, in this function, and returned in `facts` as well as in prose.
   // The fifth — is a `snypd dev` server running — waits for S18e, which is the session that creates the
   // `.snypd/dev.json` it would read. A row that reads a file nothing writes is a row that always says no.
-  const reg = registration(root);
+  const reg = registration(root, c);
   if (!reg.present) bad(`no ${c.MCP_FILE}`, `Nothing registers this server with a harness. \`site\` › init writes it; without it the next session has no snypd tools.`);
   else if (!reg.names) bad(`${c.MCP_FILE} does not name a \`snypd\` server`, `It exists but registers something else. Add a \`snypd\` entry to \`mcpServers\`, then restart the harness.`);
-  else if (reg.missingCommand) bad(`${c.MCP_FILE} names a command that is not on this machine: ${reg.command}`, `An absolute path from whoever ran \`init\` — on a clone it fails inside the harness, which renders identically to nobody having restarted. Point it at a snypd this machine has.`);
-  else ok(`registered in ${c.MCP_FILE} as \`${reg.command}\``);
+  else if (reg.missingCommand) bad(`${c.MCP_FILE} names a command that is not on this machine: ${reg.command}`, reg.absolute
+    ? `An absolute path from whoever ran \`init\` — on a clone it fails inside the harness, which renders identically to nobody having restarted. Install snypd here (\`npm i -g snypd\`) and rewrite the command as \`snypd\`, or point it at a snypd this machine has.`
+    : `Nothing by that name is on this shell's PATH. The harness's PATH may differ, so this is a warning about a likely cause and not a proof; \`npm i -g snypd\` or \`brew install snymrova/tap/snypd\` settles it.`);
+  else ok(`registered in ${c.MCP_FILE} as \`${reg.command}\`${reg.resolved && reg.resolved !== reg.command ? ` → ${reg.resolved}` : ""}`);
 
   // Process-local and true by construction when an agent asks — if this call arrived, a harness is
   // connected. It earns its place for the *other* reader: the Desk, and a person asking why their
@@ -437,17 +441,21 @@ async function doctor(root: string): Promise<ToolResult> {
  * that (S18d′ supplies the portable command), but it can name it, which is the difference between a
  * five-minute puzzle and a five-hour one.
  */
-function registration(root: string): { present: boolean; names: boolean; command?: string; missingCommand: boolean } {
+function registration(root: string, c: Core): { present: boolean; names: boolean; command?: string; resolved?: string; absolute: boolean; missingCommand: boolean } {
   const file = join(root, ".mcp.json");
-  if (!existsSync(file)) return { present: false, names: false, missingCommand: false };
+  const none = { present: false, names: false, absolute: false, missingCommand: false };
+  if (!existsSync(file)) return none;
   try {
     const j = JSON.parse(readFileSync(file, "utf8")) as { mcpServers?: Record<string, { command?: string }> };
     const entry = j.mcpServers?.snypd;
-    if (!entry) return { present: true, names: false, missingCommand: false };
+    if (!entry) return { ...none, present: true };
     const command = entry.command;
-    // Only an absolute path can be checked: a bare `snypd` is resolved against the harness's PATH, which
-    // is not ours to guess from in here.
-    const missingCommand = !!command && (command.startsWith("/") || /^[A-Za-z]:[\\/]/.test(command)) && !existsSync(command);
-    return { present: true, names: true, command, missingCommand };
-  } catch { return { present: true, names: false, missingCommand: false } }
+    const absolute = !!command && (command.startsWith("/") || /^[A-Za-z]:[\\/]/.test(command));
+    // An absolute path is checked as a file; a bare command is looked for on *this* process's PATH
+    // (S18d′). The harness's PATH is not ours to know, so a miss is reported as a likely cause rather
+    // than a verdict — but "nothing by that name exists anywhere I can see" is still the single most
+    // useful sentence available when the tools did not load.
+    const resolved = command ? (absolute ? (existsSync(command) ? command : undefined) : c.onPath(command) ?? undefined) : undefined;
+    return { present: true, names: true, command, resolved, absolute, missingCommand: !!command && !resolved };
+  } catch { return { ...none, present: true } }
 }

@@ -51,7 +51,12 @@ A person arrives at the repo, or at snypd.rocks. They do not open a terminal. Th
 
 **The URL is absent from this table on purpose.** The feed, sitemap and JSON-LD are all absolute, so a real origin is genuinely required — at step 12, not step 4. Asking for a production domain before a person has seen one pixel is the single most common way a setup flow loses somebody (decision 63).
 
-**Steps 1 and 4 are not yet possible.** The sentence has no home until the README carries it, and `bunx snypd` has no home until snypd is on npm — which `07` S18b″ has parked. §5 says what that costs.
+**Step 4 is built and waiting on one decision** (S18d′). The README carries the sentence, and everything `bunx snypd`
+needs is written: a launcher on npm whose binary arrives as one platform-gated optional dependency, a release workflow
+that publishes it with provenance on a `v*` tag, and a test that builds the host package, links it the way an installer
+would and runs it under `node`. What has not happened is the publish — `07` decision 69 keeps that with Sunny, because a
+scoped unpublish window is 72 hours and the name is claimed permanently. Until it is pressed, step 4 reads
+`bun run snypd init` from a checkout, and F1 stays measured rather than claimed.
 
 ---
 
@@ -92,7 +97,7 @@ First run is done when all seven are true, on Linux + macOS, from the compiled b
 
 The first draft noted this and wrote *"No work here; the note exists so S18b″ is scoped with this in mind."* That is not tenable once agent-first is the declared primary flow: **you cannot gate a funnel on a population that cannot arrive.** `curl | sh` does not rescue it either — an agent cannot run a pipe-to-shell without a human approving something that *should* alarm them, which is a bad first impression and a correct security prompt at the same time.
 
-So: **the npm platform-package publish moves ahead of the first-run Desk page.** It was already the preferred shape on trust grounds (the esbuild/bun pattern, provenance, a Homebrew tap beside it — `07` S18b″); it is now load-bearing for onboarding as well. Until it lands, §2 step 4 reads `bun run snypd init` from a checkout, the flow is verifiable end to end for us and for nobody else, and F1 is measured but not claimed.
+So: **the npm platform-package publish moves ahead of the first-run Desk page.** *(Done in S18d′, up to the publish itself — `07` decisions 66 and 69.)* It was already the preferred shape on trust grounds (the esbuild/bun pattern, provenance, a Homebrew tap beside it — `07` S18b″); it is now load-bearing for onboarding as well. Until it lands, §2 step 4 reads `bun run snypd init` from a checkout, the flow is verifiable end to end for us and for nobody else, and F1 is measured but not claimed.
 
 ---
 
@@ -282,18 +287,21 @@ in the smoke lane, against the artefact, per decision 48.
 
 ### Found by the audit, still open
 
-8. **`.mcp.json` is committed carrying an absolute, machine-local path** — *unfixed; named by doctor as of S18d.*, which makes §4's claim that the *second
-person on a site* is "already served — registration is committed, restart and go" false on any machine but the
-author's. S18a made `command: process.execPath` correct — a registration naming `snypd` fails when `snypd` is not
-on `PATH` — but that is correct for the *author's checkout* and wrong for the *repo*, and the two were never
-separated. The clone's harness spawns a path that does not exist and fails as §10's undiagnosable case: *spawned
-but crashed*, rendered identically to *you did not restart*. It also commits a local home-directory path into a
-repo S19a pushes to public GitHub. **S18d′ supplies the portable answer** (`bunx snypd serve` once the package
-resolves); until then the two readers of that file want different bytes, and the audit's recommendation is that
-the committed registration name the published command and the local one name the binary. S18d does the one
-thing available before that: `site` › doctor reads the command out of `.mcp.json` and, when it is an absolute
-path, reports whether it exists on *this* machine — so the clone's failure names itself instead of arriving as
-silence.
+8. ~~**`.mcp.json` is committed carrying an absolute, machine-local path.**~~ **Fixed, S18d′** (`07`
+decision 67). The file is committed, so its second reader is the clone — and an absolute path under
+someone else's home directory fails there as §10's undiagnosable case, *spawned but crashed*, rendered
+identically to *you did not restart*. It also committed a local home-directory path into a repo S19a
+pushes to public GitHub. The audit's recommendation was that the committed registration name the
+published command and the local one name the binary; what landed instead is one rule that produces both,
+because the file cannot be two files: **name the most portable command that is demonstrably present.**
+`snypd` on `PATH` → `snypd serve`. A binary in a `bunx`/`npx` cache — which is what `bunx snypd init`,
+§2 step 4, leaves behind — → `bunx snypd serve`, because that directory is collected and the path would
+expire on *this* machine, not merely on somebody else's. A Bun checkout → `bun <entry> serve`. Otherwise
+the running binary, which is S18a's answer and remains right for an installer that dropped it in
+`~/.local/bin` without a shell restart. All four walked against the compiled artefact from an empty
+directory; three of them are unreachable from `bun test`, which always takes the checkout branch. Doctor
+now resolves what the file names on `PATH` as well as on disk, and reports the difference between "not a
+file" and "nothing by that name on this shell's PATH — the harness's PATH may differ".
 
 9. **The Desk's heartbeat is blind whenever the preview is its own process — which is always.** The walk drove a
 full MCP session and the Desk still read *"nothing has called this server yet"*, because activity lives in a
@@ -320,12 +328,14 @@ Resequenced by the audit. The first draft ranked `snypd dev` first on the reason
 | S | Deliverable | Exit |
 |---|---|---|
 | ~~**S18d**~~ | **done.** The agent's path, decisions 60–64 — every one of them a string or a branch rather than a surface. `init` stdout and `site` › init text written for the reader they have; `get-started`'s three branches; `initialize` › `instructions` naming the prompt; argument-free `init` with the placeholder URL on **both** paths, and `publishCheck` as where that debt comes due; `git init` in an empty dir; `site` › doctor extended to eight of the nine derived facts and returning them as data. Four defects closed (§12.1, 2, 4, 10). Walked end to end against the compiled binary from an empty directory. | ✅ §2 completes agent-driven; 250 pass / 0 fail; F3 and F5 for the agent path |
-| **S18d′** | **Distribution** (`07` S18b″, unparked by decision 56). npm platform packages with provenance + a Homebrew tap; `bunx snypd init` resolves. | §2 step 4 works for somebody who is not us; F1 claimable |
+| ~~**S18d′**~~ | **done, up to the button.** Five platform packages generated from one list, a 20 KB launcher that resolves and spawns the one binary npm downloaded, `release.yml` publishing with provenance on a `v*` tag, a generated Homebrew formula, and the repo's own remote. Two riders: §12.8 closed (`07` decision 67) and `--deploy` writing a host build command that is an installed pinned command rather than a pipe to a shell (68). | ✅ built, tested against the artefact and rehearsed with `--dry-run`; **`bunx snypd init` resolves on the first publish, which is Sunny's** (69). F1 stays measured, not claimed |
 | **S18e** | **The human verb.** `snypd dev` (decision 51) — bind, open, watch, print; discovered by `serve` through `.snypd/dev.json`; the EADDRINUSE fix (§12.3); decision 57's TTY split; live reload that changes no published byte. | `snypd init && snypd dev` from an empty directory paints the Desk; `.snypd/preview` bytes equal `dist/` bytes |
 | **S18f** | **The page that meets you.** The first-run checklist rendered from doctor's facts (§9), three surface labels, prompts as text, the verbatim `.mcp.json`, the rendered empty state, `startedAt` in the heartbeat. | F6, F7 |
 | **S18g** | **The number.** The `onboard.*` lane in `packages/bench/smoke/`, driving the compiled binary from a temp directory: `handoff`, `ttfp`, `ttfv`, and the state-transition test that is F3. `sites/` + `bun run scratch` (decision 53) as the loop that dogfoods this by walking it. | F1, F2, F4; budgets set from the first measurement and gated thereafter |
 
-**S18d has landed.** It was the entire agent-first path and the cheapest of the five, and it closed four defects. **S18d′ is next, and it is the one that is not ours alone**: a flow only we can run is not a funnel, and the first npm publish is a release decision rather than a session deliverable (§14). S18e and S18f serve a real but secondary arrival; S18g is what keeps any of it from rotting, which matters on a different timescale.
+**S18d′ has landed, up to the button.** The machinery is done and the decision is not: publishing claims a name permanently, unpublishes for 72 hours, and cannot be rehearsed here — `07` decision 69 leaves it with Sunny, and until it is pressed §2 step 4 is a checkout. **S18e is next**, and it is the first session in this list that serves the *secondary* arrival: `snypd dev`, the EADDRINUSE fix (§12.3), and the TTY split. S18f then makes the page meet the person who got there, and closes §12.9 — the heartbeat that is blind for every user with a preview open, which is every user at step 12. S18g is the number, and is what keeps the rest from rotting.
+
+**One thing S18d′ added to the list rather than removing.** A release cut from one Linux runner ships one binary on Bun 1.4.0 and four on 1.3.14, because `--compile --target=` downloads a published runtime for a foreign platform (`07` §6, new row). Both are lanes CI runs green, so it is tolerable; it is also the kind of fact that, unrecorded, costs somebody a day when a number differs across platforms.
 
 **What S18d could not close, and why.** F1's five human actions are still *designed* rather than measured — that is S18g, and decision 55 is right that a number from inside the workspace would not count. Two things the walk surfaced belong on that list when it is counted. The URL now comes due at publish, which is correct and is also a sixth action for anyone who reaches step 13 without having set one; the flow assumes it is asked and answered inside step 12's approval, and whether that holds is a question for a measured walk rather than for this paragraph. And the state-transition test that is F3 is asserted here per surface — `initialize`, the prompt, init's text, doctor, the publish refusal — rather than as one case per row of §6, which is the form S18g gives it.
 
@@ -349,7 +359,7 @@ Resequenced by the audit. The first draft ranked `snypd dev` first on the reason
 
 Not to be rebuilt. Each is a piece of the first run that shipped for another reason:
 
-- **`snypd init` writes `.mcp.json`** and commits the scaffold — S18a, `core/src/site.ts:181`. `command` is `process.execPath`, so the registration names the binary that actually ran. The registration risk in `07` §6 is closed.
+- **`snypd init` writes `.mcp.json`** and commits the scaffold — S18a, `core/src/site.ts:181`. `command` is the most portable command demonstrably present — `snypd` on `PATH`, else the launcher a `bunx`/`npx` cache implies, else the binary that actually ran (S18d′, `07` decision 67). The registration risk in `07` §6 is closed.
 - **`initialize` returns an `instructions` string** on every session start, before any tool call — `mcp/src/protocol.ts:52`. The best agent-facing surface in the product, currently under-used by one line.
 - **The prompts are written** and are a leaf module (`mcp/src/prompts.ts`, one `import type`) — importable at no cost, from the CLI as easily as from the server.
 - **`site` › doctor exists** and answers four of the facts it needs to answer — `catalog.ts:335`.
@@ -358,4 +368,4 @@ Not to be rebuilt. Each is a piece of the first run that shipped for another rea
 - **`desk.*` measures a live server** rather than only `dist/` — S18b′ — so the first-run states can be gated by extending a lane rather than writing one.
 - **The smoke lane drives the compiled binary from a temp directory** — S18a, `packages/bench/smoke/` — the only place decision 55 can live. Its comment at line 48 already calls the registration *"the step that is the whole of onboarding"*.
 
-The first run is not a greenfield. It is eight shipped pieces that have never been walked in order, by one agent, from an empty directory.
+The first run is not a greenfield. It is eight shipped pieces that had never been walked in order, by one agent, from an empty directory — S18d walked them, and S18d′ made the one step that only worked for us into one that will work for anybody, on the first publish.

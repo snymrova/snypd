@@ -7,7 +7,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl } from "./index";
+import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -87,6 +87,41 @@ describe("initSite", () => {
     // away — and a registration naming a command the harness cannot spawn fails where nobody looks.
     expect(e.command).toBe(process.execPath);
     expect(existsSync(e.command)).toBe(true);
+  });
+
+  // S18d′, docs/08 §12.8: the file is committed, so the *clone* is its second reader, and an absolute
+  // path is a guaranteed failure there — one that arrives as a harness that spawned something and
+  // crashed, which the Desk cannot tell apart from a harness nobody restarted. Every branch below is
+  // unreachable under `bun test`, which always takes the first: hence a function of its inputs.
+  describe("the command a committed registration names", () => {
+    const bin = "/opt/snypd/bin/snypd";
+    const noPath = { PATH: "/nonexistent-a:/nonexistent-b" };
+
+    test("a checkout is `bun <entry> serve`", () => {
+      expect(mcpCommand("/home/x/.bun/bin/bun", "/repo/packages/cli/src/index.ts", noPath))
+        .toEqual({ command: "/home/x/.bun/bin/bun", args: ["/repo/packages/cli/src/index.ts", "serve"] });
+    });
+
+    test("an installed `snypd` on PATH wins — portable, and verified rather than assumed", () => {
+      const dir = mkdtempSync(join(tmpdir(), "snypd-path-"));
+      writeFileSync(join(dir, "snypd"), "#!/bin/sh\n", { mode: 0o755 });
+      expect(mcpCommand(bin, undefined, { PATH: `${dir}:/nonexistent` })).toEqual({ command: "snypd", args: ["serve"] });
+    });
+
+    test("a binary living in a bunx or npx cache names the launcher, not the cache", () => {
+      // `bunx snypd init` is docs/08 §2 step 4 — the majority path — and its binary sits in a directory
+      // that is collected. Writing that path produces a registration with an expiry date.
+      expect(mcpCommand("/tmp/bunx-1000-snypd@0.1.0/node_modules/@snypd/linux-x64/bin/snypd", undefined, noPath))
+        .toEqual({ command: "bunx", args: ["snypd", "serve"] });
+      expect(mcpCommand("/home/x/.npm/_npx/9f2/node_modules/@snypd/linux-x64/bin/snypd", undefined, noPath))
+        .toEqual({ command: "npx", args: ["-y", "snypd", "serve"] });
+    });
+
+    test("otherwise the running binary, which is S18a's answer and still the right fallback", () => {
+      // An installer that dropped it in ~/.local/bin is one shell restart from being on PATH, and until
+      // that restart the only command demonstrably here is this one.
+      expect(mcpCommand(bin, undefined, noPath)).toEqual({ command: bin, args: ["serve"] });
+    });
   });
 
   test("never overwrites an .mcp.json that already names servers", () => {

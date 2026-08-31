@@ -8,5 +8,6 @@ export { themeFile, themeHas, themeFiles, themeBytes, themeModule, themeSignatur
 export * from "./content";
 export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
 export { Repo, git, initRepo, isRepoRoot, principal, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
-export { setConfig, setRedirect, redirects, normalizeRoute, themeTokens, installedThemes, initSite, registerMcp, MCP_FILE, renderThemeSummary, CONFIG_FILE, type ConfigWrite, type TokenInfo, type InitResult } from "./site";
+export { writeDeploy, buildCommand, DEPLOY_TARGETS, VERSION, type DeployTarget } from "./deploy";
+export { setConfig, setRedirect, redirects, normalizeRoute, themeTokens, installedThemes, initSite, registerMcp, onPath, mcpCommand, MCP_FILE, renderThemeSummary, CONFIG_FILE, type ConfigWrite, type TokenInfo, type InitResult } from "./site";
 export { createContent, updateContent, setStatus, trashContent, restoreContent, target, typeDef, writePolicy, transitions, splitFrontmatter, slugify as slugifyTitle, draftSource, approve, approvalOf, clearApproval, approvalKey, approvals, contentHash, publishCheck, reviewPath, WriteError, TRASH_DIR, type WriteResult, type WriteTarget, type CreateInput, type UpdateInput, type StatusInput, type Approval, type ApprovalStore } from "./write";

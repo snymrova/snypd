@@ -120,17 +120,20 @@ switch (cmd) {
     process.exit(s.errors ? 1 : 0);
   }
   case "init": {   // S16: the same `initSite` the `site` tool calls, for someone who reached for a terminal first
-    const { initSite, Repo, MCP_FILE, DEFAULT_BASE, PLACEHOLDER_URL } = await import("@snypd/core");
+    const { initSite, Repo, MCP_FILE, DEFAULT_BASE, PLACEHOLDER_URL, buildCommand, VERSION } = await import("@snypd/core");
     const flag = (n: string) => [...flags].find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
     const root = args[0] ?? ".";
     try {
       // No required flags (S18d, docs/08 decision 63): name falls back to the directory, url to a
       // placeholder that comes due at publish. The person running this has not seen a pixel yet.
-      const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme") });
+      const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme"), deploy: flag("deploy") as "cloudflare" | "vercel" | undefined });
       const say: string[] = [`initialised ${r.created.join(", ")}`];
       // An empty directory gets its repo here rather than as homework (S18d): without one the scaffold
       // cannot be committed, and the first `content.create` refuses on a tree it was never told about.
       if (r.gitInit) say.push(`git init — new repository on ${DEFAULT_BASE}`);
+      // The one line a host runs is now an installed command rather than a shell script piped from a
+      // URL (S18d′) — worth printing, because it is the whole of what the host has to be told.
+      if (r.deploy) say.push(`${r.deploy}: build with \`${buildCommand(VERSION)}\`, serve dist/ — snypd never talks to a host`);
       // Commit the scaffold on the branch the site deploys from. Leaving it uncommitted would make the
       // agent's first write refuse — `useDrafts` will not carry work it did not do onto the drafts branch
       // — and would leave `main` without a `snypd.yaml` for the host to build after the first publish.
@@ -166,8 +169,16 @@ switch (cmd) {
     }
     break;
   }
+  // S18d′: a distributed binary is asked "which one is this?" by bug reports, package managers and
+  // agents alike, and until now nothing answered. The import is lazy for the same reason every other one
+  // here is (decision 49): `--version` must not put a module on the path `initialize` pays for.
+  case "--version": case "-v": case "version": {
+    const { version } = await import("../package.json");
+    console.log(version);
+    break;
+  }
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd init [root] [--name=…] [--url=…] | snypd serve [root] --preview|--static [--port=N] | snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> [--version] | snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel] | snypd serve [root] --preview|--static [--port=N] | snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 }
 main();
