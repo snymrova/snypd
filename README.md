@@ -12,9 +12,11 @@ That is the whole front door. The agent asks what the site is called, runs `init
 thing it cannot do — restart the harness, so the tools load. On the far side it picks up from
 `initialize` and writes the post. Five human actions, one of them friction ([docs/08](docs/08-first-run.md)).
 
-**The sentence reads `bunx snypd init` from the first published release.** The package is built —
+**The sentence reads `bunx @snypd/cli init` from the first published release.** The package is built —
 a launcher whose binary arrives as one platform-gated optional dependency, published from CI with
 provenance ([`packaging/`](packaging/)) — and until that first publish the line above is a checkout.
+The package is scoped and the command is not: npm declined the bare `snypd` as too close to `snyk`
+(S18h), and `npm i -g @snypd/cli` still puts **`snypd`** on your `PATH`.
 
 ```
 bun install

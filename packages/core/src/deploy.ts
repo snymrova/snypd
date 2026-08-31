@@ -5,10 +5,11 @@
  * `snypd build`, serve `dist/`. That contract fits in a config file, and this writes it — which is worth
  * a module rather than an inline string for one reason: **the build command is where distribution shows
  * up**. `07` §3b specified `curl -fsSL https://snypd.rocks/install | sh && snypd build`, and S18d′
- * refused pipe-to-shell on two counts, so the line a host actually runs is now `npx -y snypd@<version>
- * build` — installed from the registry, provenance attested, no shell script in the middle.
+ * refused pipe-to-shell on two counts, so the line a host actually runs is now
+ * `npx -y @snypd/cli@<version> build` — installed from the registry, provenance attested, no shell
+ * script in the middle.
  *
- * Pinned, deliberately. A deploy config is a reproducible-build artefact: an unpinned `snypd` would mean
+ * Pinned, deliberately. A deploy config is a reproducible-build artefact: an unpinned launcher would mean
  * a release of ours rebuilding somebody's live site without them asking. The pin is one number in a file
  * they own, and `site` › doctor is where a stale one gets noticed.
  */
@@ -25,11 +26,24 @@ import pkg from "../package.json";
  */
 export const VERSION: string = pkg.version;
 
+/**
+ * **The launcher's package name is not the binary's name, and S18h is why.** npm refused the bare
+ * `snypd` with *"Package name too similar to existing package snyk"* — a registry-side rule no token
+ * and no retry gets past, and one whose documented remedy is a scope. So the thing you `bunx` is
+ * `@snypd/cli` and the thing that lands on `PATH` is still `snypd`: the launcher's `bin` maps the one
+ * to the other, and every surface below this line except an install command is unaffected.
+ *
+ * Named once, here beside `VERSION`, because it appears in a generated build command, in a committed
+ * `.mcp.json` and in the sentence a person pastes — three files that must agree or the majority path
+ * breaks in a way only a stranger discovers.
+ */
+export const LAUNCHER = "@snypd/cli";
+
 export const DEPLOY_TARGETS = ["cloudflare", "vercel"] as const;
 export type DeployTarget = (typeof DEPLOY_TARGETS)[number];
 
 /** The one line a host runs. Overridable in the signature below so the test does not chase releases. */
-export const buildCommand = (version: string): string => `npx -y snypd@${version} build`;
+export const buildCommand = (version: string): string => `npx -y ${LAUNCHER}@${version} build`;
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 54) || "site";
 
@@ -49,11 +63,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       # Rules 0–11: a broken link, a moved URL with no redirect, a chart that will not render.
-      - run: npx -y snypd@${version} lint
+      - run: npx -y ${LAUNCHER}@${version} lint
       # The build the host will run, run here first — a red PR instead of a red deploy.
-      - run: npx -y snypd@${version} build
+      - run: npx -y ${LAUNCHER}@${version} build
       # Report-only: budgets are snypd's to enforce, not a content repo's to fail on.
-      - run: npx -y snypd@${version} bench --quick
+      - run: npx -y ${LAUNCHER}@${version} bench --quick
         continue-on-error: true
 `;
 }

@@ -108,13 +108,15 @@ describe("initSite", () => {
       expect(mcpCommand(bin, undefined, { PATH: `${dir}:/nonexistent` })).toEqual({ command: "snypd", args: ["serve"] });
     });
 
-    test("a binary living in a bunx or npx cache names the launcher, not the cache", () => {
-      // `bunx snypd init` is docs/08 §2 step 4 — the majority path — and its binary sits in a directory
-      // that is collected. Writing that path produces a registration with an expiry date.
-      expect(mcpCommand("/tmp/bunx-1000-snypd@0.1.0/node_modules/@snypd/linux-x64/bin/snypd", undefined, noPath))
-        .toEqual({ command: "bunx", args: ["snypd", "serve"] });
+    test("a binary living in a bunx or npx cache names the launcher package, not the cache", () => {
+      // `bunx @snypd/cli init` is docs/08 §2 step 4 — the majority path — and its binary sits in a
+      // directory the package manager is entitled to delete. What gets written is the *package* name,
+      // which since S18h is scoped: npm refused the bare `snypd` against `snyk`, and the binary keeps
+      // that name only because the launcher's `bin` maps it (`deploy.ts` › `LAUNCHER`).
+      expect(mcpCommand("/tmp/bunx-1000-@snypd/cli@0.1.0/node_modules/@snypd/linux-x64/bin/snypd", undefined, noPath))
+        .toEqual({ command: "bunx", args: ["@snypd/cli", "serve"] });
       expect(mcpCommand("/home/x/.npm/_npx/9f2/node_modules/@snypd/linux-x64/bin/snypd", undefined, noPath))
-        .toEqual({ command: "npx", args: ["-y", "snypd", "serve"] });
+        .toEqual({ command: "npx", args: ["-y", "@snypd/cli", "serve"] });
     });
 
     test("otherwise the running binary, which is S18a's answer and still the right fallback", () => {

@@ -51,13 +51,16 @@ jobs:
 
       - name: what is about to be published
         run: |
-          for d in dist/release/npm/@snypd/* dist/release/npm/snypd; do
+          for d in dist/release/npm/@snypd/* dist/release/npm/launcher; do
             (cd "$d" && npm publish --dry-run --access public 2>&1 | tail -20)
           done
 
-      # Platform packages first — the glob expands before `snypd`, and the order is the point: the
+      # Platform packages first — the glob expands before the launcher, and the order is the point: the
       # launcher's `optionalDependencies` are exact pins, so publishing it ahead of the binaries leaves a
-      # window in which `npm i snypd` resolves a launcher with nothing to run.
+      # window in which `npm i @snypd/cli` resolves a launcher with nothing to run. The launcher is
+      # staged at `npm/launcher` rather than `npm/@snypd/cli` precisely so this glob cannot catch it
+      # (S18h): it is `@snypd/cli` on the registry, and a role-named directory is what keeps the order
+      # in the shell rather than in a comment.
       #
       # Skipping what is already on the registry makes a retry safe. Publishing is six calls and any one
       # of them can fail for a reason that has nothing to do with the artefact — a token without
@@ -68,7 +71,7 @@ jobs:
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
         run: |
-          for d in dist/release/npm/@snypd/* dist/release/npm/snypd; do
+          for d in dist/release/npm/@snypd/* dist/release/npm/launcher; do
             name=$(node -p "require('$PWD/$d/package.json').name")
             version=$(node -p "require('$PWD/$d/package.json').version")
             if npm view "$name@$version" version >/dev/null 2>&1; then

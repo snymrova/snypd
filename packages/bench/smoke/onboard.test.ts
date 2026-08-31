@@ -119,10 +119,12 @@ describe("F3 — the seven states, each naming its own next action", () => {
   test("0 · no binary → the README sentence names what to run", () => {
     const readme = readFileSync("README.md", "utf8");
     expect(readme).toContain("snypd init");
-    // docs/08 §5 and `07` decision 69: the sentence reads `bunx snypd init` from the first published
-    // release, and until then it is a checkout. Whichever it currently is, it must be *a runnable
-    // command in the README*, not a promise — this asserts the row is not empty, not that it is npm.
-    expect(readme).toMatch(/`(bunx|bun run) snypd init/);
+    // docs/08 §5 and `07` decision 69: the sentence reads `bunx @snypd/cli init` from the first
+    // published release, and until then it is a checkout. Whichever it currently is, it must be *a
+    // runnable command in the README*, not a promise — this asserts the row is not empty, not that it
+    // is npm. The launcher is scoped since S18h and the binary is not, so both spellings are live: what
+    // you `bunx` is the package, what a checkout runs is the verb.
+    expect(readme).toMatch(/`(bunx @snypd\/cli|bun run snypd) init/);
   });
 
   /** State 1: a binary, no site. The surface is the usage line, and it must not exit 0. */
