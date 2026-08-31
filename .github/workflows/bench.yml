@@ -34,9 +34,11 @@ jobs:
       - run: bun test
       - run: bun run snypd bench --ci
         continue-on-error: ${{ matrix.bun != '1.4.0' }}   # fallback lane reports, primary lane enforces
-      # D1's evidence. `bun test` above already gates the kill test at its known state (agent.test.ts);
-      # this runs it for the transcript, and exits non-zero while `agent.goal` is short of 1 — which it is,
-      # on purpose, until the write model is fixed (docs/07 §6). Flip this to enforcing in the same PR.
+      # D1's evidence, and an artefact rather than a gate. `bun test` above already enforces the kill test
+      # (`agent.test.ts`, green at 11/11 since S17b closed the write model), so this step exists to produce
+      # `bench/agent.md` and the transcript for the upload below. It stays non-enforcing because failing
+      # every PR on a duplicate of a gate that already ran buys nothing. The line this replaces said
+      # `agent.goal` was "short of 1, on purpose" — true when it was written in S1, false since S17b.
       - run: bun run snypd bench agent
         continue-on-error: true
       - uses: actions/upload-artifact@v4

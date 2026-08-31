@@ -1,5 +1,5 @@
 /**
- * `snypd serve --preview` (docs/03 "no UI", docs/04 "SSR / preview"), S11 — the site as it will look
+ * `snypd dev` (docs/03 "no UI", docs/04 "SSR / preview"), S11 and S18e — the site as it will look
  * *with the drafts in it*, plus the one page a human needs that the public site must never have:
  * `/_snypd/review/{type}/{slug}`, where a person reads the draft's diff and approves that exact version.
  * Approval is what unlocks `content.publish` for a `draft`-policy type; an agent cannot grant it.
@@ -10,8 +10,8 @@
  * only a flagged request rebuilds (one route ≈ 20 ms). That is what keeps TTFB at the static floor.
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
-import { join } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { join, resolve } from "node:path";
+import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page } from "./theme";
 import { Html, escape } from "./jsx-runtime";
@@ -21,9 +21,31 @@ import { resolveTokens, tokensCss } from "./tokens";
 export interface PreviewOptions {
   port?: number; out?: string; hostname?: string; watch?: boolean;
   /**
+   * Refuse to bind anywhere but `port`. Off by default, which is the S18e fix for docs/08 §12.3: two
+   * callers both defaulted to 4321 with no fallback, so a human with a preview open made every
+   * `content.render_preview` in the harness return no URL at all — a port collision failing D1. A
+   * scanning default is right because neither caller has an opinion about *which* port; someone who
+   * types `--port=` does, and gets the error instead of a silent second address to be confused by.
+   */
+  strictPort?: boolean;
+  /**
+   * Seconds between browser reloads of a *content* page, via a `Refresh` response header; 0 or absent
+   * turns it off. A header rather than a script because of decision 51's hard rule — live reload may
+   * not change a published byte, and the preview's whole claim is that it serves what publishes. The
+   * cost is a poll's cost: scroll position resets, which is why only the two human-facing CLI verbs
+   * ask for it and no library caller does. A socket buys back the scroll position; it also buys a
+   * `<script>`, so it waits for a session that wants to pay that.
+   */
+  reload?: number;
+  /**
+   * Add the preview-only strip linking back to the Desk. Response path only, never the file: `dist/`
+   * has no Desk to link to, and the byte-equality test in `render.test.ts` is what holds that line.
+   */
+  deskLink?: boolean;
+  /**
    * Where the Desk's status card gets "is a harness connected" from (S18b). A function rather than a
    * value because the answer changes under the page: `@snypd/mcp` passes its `activitySnapshot`, and a
-   * standalone `snypd serve --preview` passes nothing, which is itself the honest answer — a preview
+   * standalone `snypd dev` passes nothing, which is itself the honest answer — a preview
    * nobody started from a tool call has no harness attached to it.
    */
   activity?: () => DeskActivity | undefined;
@@ -34,11 +56,43 @@ export interface PreviewOptions {
    */
   deskRefresh?: number;
 }
-export interface PreviewServer { url: string; port: number; stop: () => void; rebuild: () => Promise<BuildResult>; out: string; dirty: () => boolean }
+export interface PreviewServer { url: string; port: number; hostname: string; stop: () => void; rebuild: () => Promise<BuildResult>; out: string; dirty: () => boolean }
 
 const REVIEW = /^\/_snypd\/review\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
 const APPROVE = /^\/_snypd\/approve\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
 const DESK = /^\/_snypd\/?$/;
+
+/** The default nobody chose and everybody collided on until S18e gave it somewhere else to go. */
+export const DEFAULT_PORT = 4321;
+
+/**
+ * Bind, or take the next free port. `Bun.serve` throws `EADDRINUSE` synchronously, so this is a loop and
+ * not a listener dance. `port: 0` means "the OS picks" and is never scanned — every bench and test uses
+ * it, so none of them can be perturbed by a stray server on this box.
+ */
+function bind(port: number, hostname: string | undefined, fetch: (req: Request) => Promise<Response>, strict = false, span = 20): ReturnType<typeof Bun.serve> {
+  for (let p = port; p <= (strict || port === 0 ? port : port + span); p++) {
+    try { return Bun.serve({ port: p, hostname, fetch }) }
+    catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "EADDRINUSE" && !/EADDRINUSE|address already in use/i.test(String((e as Error).message))) throw e;
+      if (p === port + span) break;
+    }
+  }
+  const err = new Error(strict ? `port ${port} is in use` : `ports ${port}\u2013${port + span} are all in use`) as Error & { hint?: string };
+  err.hint = strict ? "Drop --port to let snypd take the next free one." : "Something is holding twenty consecutive ports; pass --port=N to choose another range.";
+  throw err;
+}
+
+/**
+ * The strip, injected into the response and never into the file (decision 51).
+ *
+ * It exists because the front door was invisible: three sessions after `/_snypd` became a page, the only
+ * thing that ever named it was a tool result. A person looking at their own post in a browser had no way
+ * to reach the Desk except by knowing the path.
+ */
+const STRIP = '<a href="/_snypd" style="position:fixed;left:0;bottom:0;z-index:2147483647;margin:.5rem;padding:.3rem .6rem;border-radius:.4rem;font:600 12px/1.4 ui-sans-serif,system-ui,sans-serif;background:#111;color:#fff;text-decoration:none;opacity:.85">Snypd Desk</a>';
+const withStrip = (html: string) => (html.includes("</body>") ? html.replace("</body>", `${STRIP}</body>`) : html + STRIP);
 
 const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".json": "application/json", ".xml": "application/xml", ".txt": "text/plain; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml" };
 const mimeOf = (f: string) => MIME[f.slice(f.lastIndexOf("."))] ?? "application/octet-stream";
@@ -147,7 +201,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
    * repo at all, so the day somebody adds a `git status` here the suite says so.
    *
    * `approvals.json` is re-read once per draft rather than cached. It is a sub-kilobyte file and the
-   * draft count is small, but the real reason is correctness: a standalone `snypd serve --preview` and
+   * draft count is small, but the real reason is correctness: a standalone `snypd dev` and
    * an MCP server are two processes over one store, and a cache that made this page fast would make it
    * wrong the first time the other process approved something.
    */
@@ -177,13 +231,26 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     };
   };
 
-  const server = Bun.serve({
-    port: opts.port ?? 4321,
-    hostname: opts.hostname,
-    async fetch(req) {
+  /**
+   * What a *content* page gets that its file does not: the reload instruction and the way back to the
+   * Desk. Both live here and only here — `dist/` is the same bytes, and `render.test.ts` asserts it.
+   */
+  const pageHeaders = (): Record<string, string> => {
+    const h: Record<string, string> = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" };
+    if (opts.reload) h.refresh = String(opts.reload);
+    return h;
+  };
+
+  const handler = async (req: Request): Promise<Response> => {
       const url = new URL(req.url);
       const path = decodeURIComponent(url.pathname);
       if (path.includes("..")) return new Response("bad path", { status: 400 });
+
+      // Cheap on purpose: `liveDev` calls this to prove that whatever holds this port is a snypd
+      // preview *for this root*, and a probe that had to build a page would make finding a server cost
+      // more than starting one. It answers before `fresh()`, so a stale build cannot make it hang.
+      if (path === ALIVE_ROUTE)
+        return Response.json({ snypd: true, pid: process.pid, root: resolve(root), url: `http://${server.hostname ?? "localhost"}:${server.port}`, startedAt }, { headers: { "cache-control": "no-store" } });
 
       const approveM = APPROVE.exec(path);
       if (approveM) {
@@ -196,6 +263,8 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
         approve(store, { type: type!, slug: slug!, hash: contentHash(approving), by: reviewerOf(req), at: new Date().toISOString() });
         return new Response(null, { status: 303, headers: { location: `/_snypd/review/${type}/${slug}?approved=1` } });
       }
+      // The two `/_snypd` pages take neither: they are the Desk, so a strip pointing at it is noise, and
+      // the Desk already carries its own meta refresh (`deskRefresh`) which a header would double.
       if (DESK.test(path)) { await fresh(); return new Response(deskPage(deskFacts()).html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }); }
       const reviewM = REVIEW.exec(path);
       if (reviewM) { await fresh(); return reviewPage(reviewM[1]!, reviewM[2]!, url.searchParams.has("approved") ? "Approved. The agent can call content.publish now." : undefined); }
@@ -205,12 +274,20 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       let file = join(out, path);
       if (existsSync(file) && statSync(file).isDirectory()) file = join(file, wantsMd ? "index.md" : "index.html");
       if (!existsSync(file)) return new Response("not found", { status: 404 });
+      // Only HTML is decorated. The markdown twin is what an agent reads and the JSON API is what a
+      // program reads; a strip in either would be a preview-only difference in the one surface whose
+      // whole point is that it is the same text the published site serves.
+      // `Bun.file` stays zero-copy unless the strip is asked for — the `preview.ttfb` lane asks for
+      // neither option, so the number it has reported since S11 is still measuring the same path.
+      if (file.endsWith(".html")) return new Response(opts.deskLink ? withStrip(await Bun.file(file).text()) : Bun.file(file), { headers: pageHeaders() });
       return new Response(Bun.file(file), { headers: { "content-type": mimeOf(file), "cache-control": "no-store" } });
-    },
-  });
+  };
+
+  const startedAt = new Date().toISOString();
+  const server = bind(opts.port ?? DEFAULT_PORT, opts.hostname, handler, opts.strictPort);
 
   return {
-    url: `http://${server.hostname ?? "localhost"}:${server.port}`, port: server.port ?? 0, out, rebuild, dirty: () => dirty,
+    url: `http://${server.hostname ?? "localhost"}:${server.port}`, port: server.port ?? 0, hostname: server.hostname ?? "localhost", out, rebuild, dirty: () => dirty,
     stop: () => { for (const w of watchers) w.close(); server.stop(true); index.close(); },
   };
 }

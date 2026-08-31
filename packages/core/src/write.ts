@@ -18,7 +18,7 @@ import { Repo, DRAFTS_BRANCH } from "./git";
 import type { Config, TypeDef } from "./schema";
 
 export const TRASH_DIR = "content/.trash";
-/** Where a human approves one item — a page in the site served by `snypd serve --preview`, not an admin app. */
+/** Where a human approves one item — a page in the site served by `snypd dev`, not an admin app. */
 export const reviewPath = (type: string, slug: string) => `/_snypd/review/${type}/${slug}`;
 
 export interface WriteTarget { type: string; slug: string; path: string; file: string; route: string }
@@ -275,7 +275,7 @@ export function publishCheck(root: string, cfg: LoadedConfig, store: ApprovalSto
   if (policy === "publish") return { ok: true, policy };
   const approval = approvalOf(store, type, slug);
   const hash = contentHash(source);
-  if (!approval) return { ok: false, policy, reason: `publishing ${type}/${slug} needs a human`, hint: `Open ${reviewPath(type, slug)} on \`snypd serve --preview\` and approve it, then call content.publish again.` };
-  if (approval.hash !== hash) return { ok: false, policy, reason: `${type}/${slug} changed after it was approved`, hint: `The approval covers the version ${approval.by} read at ${approval.at}. Re-open ${reviewPath(type, slug)} and approve the current draft.`, approval };
+  if (!approval) return { ok: false, policy, reason: `publishing ${type}/${slug} needs a human`, hint: `Call content.render_preview for ${type}/${slug}: it returns ${reviewPath(type, slug)} as a URL on a running preview, which is the page a human approves this exact version on. Give them that URL, then call content.publish again.` };
+  if (approval.hash !== hash) return { ok: false, policy, reason: `${type}/${slug} changed after it was approved`, hint: `The approval covers the version ${approval.by} read at ${approval.at}. Send them ${reviewPath(type, slug)} again — content.render_preview returns it as an absolute URL — and ask them to approve the current draft.`, approval };
   return { ok: true, policy, approval };
 }

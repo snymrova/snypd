@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeAll, setDefaultTimeout } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createServer } from "./server";
 import { PROTOCOL_VERSIONS, activitySnapshot } from "./protocol";
 
@@ -146,6 +147,10 @@ describe("content.* tools", () => {
 
     expect(refused.result.isError).toBe(true);
     expect(structured(refused).hint).toContain("/_snypd/review/post/why-mcp-only");
+    // S18e: the hint names the call that turns that path into a URL a person can open. It used to name
+    // `snypd serve --preview`, a command the agent cannot run and the human no longer needs to type.
+    expect(structured(refused).hint).toContain("content.render_preview");
+    expect(structured(refused).hint).not.toContain("--preview");
 
     // the human approves the exact version on the review page (the preview server calls the same function)
     const c = await import("@snypd/core");
@@ -238,8 +243,41 @@ describe("content.* tools", () => {
     expect(p.url).toMatch(/^http:\/\/[^/]+\/posts\/measured$/);
     expect(p.markdownUrl).toEndWith("/posts/measured/index.md");
     expect(p.reviewUrl).toEndWith("/_snypd/review/post/measured");
+    expect(p.startedBy).toBe("session");   // no `snypd dev` here, so this one is the session's own
+    expect(r.result.content[0].text).toContain("Started for this session");
     const missing = await session([req(1, "initialize"), call(2, "content.render_preview", { type: "post", slug: "nope", port: 0 })], site);
     expect(missing[1]!.result.isError).toBe(true);
+  });
+
+  /**
+   * S18e, `07` decision 51 — ownership inverts. A preview the person started is theirs: it existed
+   * before this session and it is very likely the tab they are already looking at, so the agent is
+   * handed *that* URL rather than binding a second server beside it. Which is also docs/08 §12.3's fix,
+   * from the other end: two callers defaulting to 4321 with no fallback used to make a human with a
+   * preview open turn every `render_preview` in the harness into an EADDRINUSE and no URL at all.
+   */
+  test("render_preview hands back the `snypd dev` server when the person already started one", async () => {
+    const c = await import("@snypd/core");
+    const { preview } = await import("@snypd/render/preview");
+    const dev = await preview(site, { port: 0, watch: false });
+    try {
+      c.writeDev(site, { url: dev.url, port: dev.port, hostname: dev.hostname, root: resolve(site), pid: process.pid, startedAt: new Date().toISOString() });
+      const [, r] = await session([req(1, "initialize"), call(2, "content.render_preview", { type: "post", slug: "measured" })], site);
+      const p = structured(r);
+      expect(p.server).toBe(dev.url);
+      expect(p.url).toBe(`${dev.url}/posts/measured`);
+      expect(p.startedBy).toBe("dev");
+      expect(r.result.content[0].text).toContain("already running");
+    } finally { dev.stop(); c.clearDev(site) }
+  });
+
+  test("a record nobody is answering is not handed to an agent as a URL", async () => {
+    const c = await import("@snypd/core");
+    c.writeDev(site, { url: "http://localhost:9", port: 9, hostname: "localhost", root: resolve(site), pid: process.pid, startedAt: "" });
+    const [, r] = await session([req(1, "initialize"), call(2, "content.render_preview", { type: "post", slug: "measured", port: 0 })], site);
+    expect(structured(r).server).not.toContain(":9/");
+    expect(structured(r).startedBy).toBe("session");   // it fell back to starting its own
+    c.clearDev(site);
   });
 
   test("a bad status transition and an unknown tool come back as fixable text", async () => {
@@ -517,7 +555,10 @@ describe("the first run, from the agent's side", () => {
     expect(s).toContain("a placeholder");
     // Broken and unfinished are different things: a scaffold with no content and no origin yet is the
     // product working, two minutes in. "nothing to fix" under two ⚠ rows read as though they did not count.
-    expect(s).toContain("nothing broken — 2 things still unfinished");
+    // S18e adds the fifth derived fact — is a preview already serving this site (decision 64's rule:
+    // nothing on the Desk that doctor cannot answer). Nothing is running in a test, so it is a ⚠.
+    expect(s).toContain("no preview server");
+    expect(s).toContain("nothing broken — 3 things still unfinished");
   });
 
   test("the placeholder comes due exactly once, at publish, and the refusal changes when it is fixed", async () => {

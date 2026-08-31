@@ -147,7 +147,7 @@ function pinExternals(code: string): string {
  * route with the old component and say nothing. A bundle has no static imports left to cache: `Bun.build`
  * inlines the theme's own graph and leaves `@snypd/*` external, and the output path carries the theme hash,
  * so a changed theme is a different module URL all the way down.
- * Only `snypd serve --preview` asks for this. `snypd build` is one process per run and never needs it.
+ * Only the preview server (`snypd dev`) asks for this. `snypd build` is one process per run and never needs it.
  */
 async function bundleTheme(files: string[], outRoot: string): Promise<Map<string, string>> {
   mkdirSync(outRoot, { recursive: true });
@@ -168,7 +168,7 @@ async function bundleTheme(files: string[], outRoot: string): Promise<Map<string
 export interface LoadThemeOptions {
   /**
    * Bundle the theme's entry files before importing them, so an edit to a file the entries import
-   * statically is picked up without restarting the process. `snypd serve --preview` sets it; a one-shot
+   * statically is picked up without restarting the process. `snypd dev` sets it; a one-shot
    * `snypd build` does not, and pays nothing.
    */
   bundle?: boolean;
@@ -193,7 +193,7 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   // The module cache is by URL, so a changed theme re-imports its entry files under a new query. Static
   // imports *inside* the theme (`./shell`) still resolve to the cached module: within one process a theme
   // edit is only fully picked up by a fresh process (`snypd build` always is). In-process hot reload of the
-  // whole theme graph is part of `snypd serve --preview` (S11) — bundle the theme dir with Bun.build then.
+  // whole theme graph is part of `snypd dev` (S11) — bundle the theme dir with Bun.build then.
   const bust = `?v=${hash.slice(0, 8)}`;
   let bundled: Map<string, string> | undefined;
   // `p` is theme-relative and carries the link it came from, because a chain resolves each slot against

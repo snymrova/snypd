@@ -10,7 +10,7 @@
 | CSS per page | emit stats; `page.bytes.kb` reports it per route beside the HTML and the images, **uncompressed** — no host serves it that way, so read it as a ceiling. The emitted sheet is minified (S14): `editorial` is 12.6 KB of readable source and 10.2 KB on disk, 3.9 → 2.7 KB gzipped. Not inlined into the HTML: that would triple the token cost of every page to save one cacheable request (docs/07 decision 31) | ≤ 30 KB |
 | Build, cold / incremental | `snypd bench build` on 100 / 1k / 10k | ≤ 2 s / 100 cold; ≤ 300 ms incremental single-post |
 | Markdown engines | remark vs `Bun.markdown` on 10k | report only |
-| TTFB, preview/SSR | curl loop against `snypd serve --preview` | ≤ 50 ms local |
+| TTFB, preview/SSR | curl loop against the preview server (`snypd dev` since S18e) | ≤ 50 ms local |
 | MCP server cold start | spawn → `initialize` response | ≤ 50 ms |
 | Chart render / bytes (D3) | `snypd bench` renders every type on the worst shape the spec allows (12 points, long labels, grouped 2-series); worst type reported, not the mean | ≤ 3 ms · ≤ 12 KB per chart |
 | Diagram / flow render / bytes (D3) | `snypd bench` lays out three 40-node shapes — a deep chain, a wide bipartite layer, a graph with feedback edges — with the layout cache defeated; worst shape reported (flow joins in S10) | ≤ 15 ms · ≤ 25 KB each |

@@ -53,7 +53,7 @@ export const TOOLS: Tool[] = [
     inputSchema: S({ type: TYPE, slug: SLUG, status: str("Target status") }, ["type", "slug", "status"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.publish",
-    description: "Publish a draft: set it published, then land that one item on the branch the site deploys from — every other draft stays a draft. When the type's `mcp.write` policy is `draft` (the default) an agent cannot do this alone — a human approves the exact version on /_snypd/review/{type}/{slug} under `snypd serve --preview`, and editing after approval invalidates it. The refusal tells you which of the two it is.",
+    description: "Publish a draft: set it published, then land that one item on the branch the site deploys from — every other draft stays a draft. When the type's `mcp.write` policy is `draft` (the default) an agent cannot do this alone — a human approves the exact version on /_snypd/review/{type}/{slug} under `snypd dev`, and editing after approval invalidates it. The refusal tells you which of the two it is.",
     inputSchema: S({ type: TYPE, slug: SLUG }, ["type", "slug"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.suggest_blocks",
@@ -65,8 +65,8 @@ export const TOOLS: Tool[] = [
       minConfidence: { type: "number", description: "Override every detector's floor, 0–1. Below it shows what was nearly suggested" } }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.render_preview",
-    description: "Get a URL for looking at an item as it will actually render, drafts included. Starts the preview server for this session if it is not already up, and returns the page, its markdown twin (which you can read yourself) and the review page a human approves on. The preview is the same incremental build as `snypd build`, not a second renderer, so what you see is what publishes.",
-    inputSchema: S({ type: TYPE, slug: SLUG, port: { type: "number", description: "Port to serve on; default 4321" } }, ["type", "slug"]),
+    description: "Get a URL for looking at an item as it will actually render, drafts included. Uses the `snypd dev` server if the human has one running, else starts one for this session, and returns the page, its markdown twin (which you can read yourself) and the review page a human approves on. The preview is the same incremental build as `snypd build`, not a second renderer, so what you see is what publishes.",
+    inputSchema: S({ type: TYPE, slug: SLUG, port: { type: "number", description: "Port, if one has to be started; default 4321 or the next free" } }, ["type", "slug"]),
     annotations: { readOnlyHint: true, idempotentHint: true } },
   { name: "content.trash",
     description: "Move an item to content/.trash and mark it trashed: it leaves the build and every list. Reversible with content.restore until the 30-day sweep. Not a delete — nothing is removed from git history.",
@@ -106,22 +106,40 @@ const diag = (r: { file?: string; diagnostics: { rule: string; n: number; severi
 const lintLine = (r: { errors: number; warnings: number }) => `lint: ${r.errors} error${r.errors === 1 ? "" : "s"}, ${r.warnings} warning${r.warnings === 1 ? "" : "s"}`;
 
 /**
- * One preview server per MCP session, started by the first `render_preview` and living as long as the
- * agent does. Starting it from a tool call rather than telling a human to run a command is the whole
- * point: the kill test says "never opening an editor", and a URL nobody can reach fails that. The
- * import is lazy like every other write-path import, so `initialize` still answers at the spawn floor.
+ * Where a preview URL comes from, in the order that respects who owns what (S18e, decision 51).
+ *
+ * 1. A `snypd dev` the person started. It is *theirs*: it existed before this session, it survives the
+ *    harness restarting, and it is very likely the tab they are already looking at. Handing back its
+ *    URL is both the friendlier answer and the fix for docs/08 §12.3 — both callers used to default to
+ *    4321 with no fallback, so a human with a preview open turned every `render_preview` in the harness
+ *    into an `EADDRINUSE` and no URL at all, which can fail the kill test outright.
+ * 2. Otherwise one server per MCP session, started by the first `render_preview` and living as long as
+ *    the agent does. Starting it from a tool call rather than telling a human to run a command is the
+ *    whole point: the kill test says "never opening an editor", and a URL nobody can reach fails that.
+ *
+ * The import is lazy like every other write-path import, so `initialize` still answers at the spawn floor.
  */
 let previewing: Promise<{ url: string; stop: () => void }> | undefined;
-async function previewServer(root: string, port?: number) {
+async function previewServer(root: string, port?: number): Promise<{ url: string; stop: () => void; ours: boolean }> {
+  // Proven over HTTP, not read from the file: a record is a claim, and handing an agent a URL served by
+  // whatever else happens to hold that port is worse than binding a second one.
+  const c = await loadCore();
+  const dev = previewing ? undefined : await c.liveDev(root);
+  if (dev) return { url: dev.url, stop: () => {}, ours: false };
   // `activitySnapshot` is what turns the Desk's status card green (S18b): the preview is started by a
-  // tool call, so by the time anyone can load the page a harness has demonstrably called us.
-  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot }));
-  return previewing;
+  // tool call, so by the time anyone can load the page a harness has demonstrably called us. A `dev`
+  // server gets no such function and so reads as unconnected — docs/08 §12.9, which S18f closes by
+  // moving the record to a file both processes can read.
+  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot, deskLink: true, reload: 2 }));
+  return { ...(await previewing), ours: true };
 }
 /**
  * Release everything a tool call started. `Bun.serve` holds the event loop open, so without this a
  * session that ever asked for a preview would never exit when its stdin closed — a stdio server that
  * survives the harness closing the pipe is a hung session, not a running one.
+ *
+ * A `dev` server is never stopped here. It is not ours: the person started it, and a harness exiting is
+ * not a reason to close the browser tab they have open.
  */
 export async function dispose(): Promise<void> {
   const p = previewing;
@@ -331,8 +349,10 @@ export function handlers(root: string, notify?: (method: string, params?: Record
             const md = `${url.replace(/\/$/, "")}/index.md`;
             const review = `${p.url}${c.reviewPath(type, slug)}`;
             return text([`${url}`, `markdown twin: ${md}`, `review + approve: ${review}`,
-              "The preview rebuilds on change and includes drafts; it is the same build that publishes."].join("\n"),
-              { ok: true, url, markdownUrl: md, reviewUrl: review, route: t.route, server: p.url });
+              "The preview rebuilds on change and includes drafts; it is the same build that publishes.",
+              p.ours ? "Started for this session — it stops when the harness does. `snypd dev` gives it to the person instead."
+                     : "This is the `snypd dev` server already running here, so the tab they have open is the one that updates."].join("\n"),
+              { ok: true, url, markdownUrl: md, reviewUrl: review, route: t.route, server: p.url, startedBy: p.ours ? "session" : "dev" });
           }
           case "content.query": {
             const cfg = await cfgOf();

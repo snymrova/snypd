@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig, initRepo } from "@snypd/core";
@@ -598,6 +598,122 @@ describe("media (S13): copied verbatim, sized from its header, reserved in the m
     const r2 = await build(root);
     expect(r2.rendered).toBeGreaterThan(0);
     expect(readFileSync(join(dist, "posts/p/index.html"), "utf8")).toContain('width="10" height="10"');
+  });
+});
+
+/**
+ * S18e — the preview stops belonging to the agent's session and starts belonging to the person
+ * (`07` decision 51). Three claims are testable and all three are here: nobody collides on a port any
+ * more, a second process can *find* the server rather than guess at it, and the preview-only behaviour
+ * lives in the response and never in the bytes.
+ */
+describe("snypd dev (S18e): one preview, findable, and the same bytes as dist/", () => {
+  const site = "corpora/_test/dev";
+  let server: Awaited<ReturnType<typeof preview>>;
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(`${site}/content/posts`, { recursive: true });
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: dev, url: https://d.example }\n");
+    const c = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    c.git(site, "add", "-A"); c.git(site, "commit", "-q", "-m", "init");
+    const cfg = c.loadConfig(site);
+    c.createContent(site, { type: "post", slug: "out", frontmatter: { title: "Out", date: "2026-08-01" }, body: "Published words.", cfg });
+    c.setStatus(site, { type: "post", slug: "out", status: "published", cfg });
+    c.createContent(site, { type: "post", slug: "wip", frontmatter: { title: "Wip", date: "2026-08-02" }, body: "Draft words.", cfg });
+    server = await preview(site, { port: 0, watch: false, reload: 2, deskLink: true });
+  });
+  afterAll(() => { server?.stop(); rmSync(site, { recursive: true, force: true }); });
+
+  // docs/08 §12.3: the defect decision 51 predicted, live and red since S11. Both callers defaulted to
+  // 4321 with no fallback, so a human with a preview open made every `render_preview` return no URL.
+  test("a second server takes the next free port, and an explicitly typed one refuses to move", async () => {
+    const a = await preview(site, { port: 0, watch: false });
+    try {
+      const b = await preview(site, { port: a.port, watch: false });
+      try {
+        expect(b.port).toBe(a.port + 1);
+        expect((await fetch(`${b.url}/posts/out/`)).status).toBe(200);
+      } finally { b.stop() }
+      // Someone who types `--port=` has an opinion about which port; they get the error, not a second
+      // address to be confused by. This is the shape `snypd dev --port=N` passes.
+      await expect(preview(site, { port: a.port, watch: false, strictPort: true })).rejects.toThrow(/in use/);
+    } finally { a.stop() }
+  });
+
+  test("/_snypd/alive says which snypd holds this port, and for which site", async () => {
+    const j = await (await fetch(`${server.url}/_snypd/alive`)).json() as { snypd: boolean; pid: number; root: string };
+    expect(j.snypd).toBe(true);
+    expect(j.pid).toBe(process.pid);
+    expect(j.root).toBe(resolve(site));
+    // It answers without building anything: proving a server is there must cost less than starting one.
+    expect(server.dirty()).toBe(false);
+  });
+
+  test("liveDev finds a running server, and refuses a record it cannot prove", async () => {
+    const c = await import("@snypd/core");
+    c.writeDev(site, { url: server.url, port: server.port, hostname: server.hostname, root: resolve(site), pid: process.pid, startedAt: new Date().toISOString() });
+    expect((await c.liveDev(site))?.url).toBe(server.url);
+
+    // A record is a claim. A port nobody is holding is the ordinary stale case — a `dev` that was killed
+    // — and it is cleaned up on the way out rather than handed to an agent as a URL.
+    c.writeDev(site, { url: "http://localhost:9", port: 9, hostname: "localhost", root: resolve(site), pid: process.pid, startedAt: new Date().toISOString() });
+    expect(await c.liveDev(site)).toBeUndefined();
+    expect(c.readDev(site)).toBeUndefined();
+
+    // …and a record naming another site is not ours to use, however alive it is: two checkouts on one
+    // box would otherwise hand each other's previews out.
+    c.writeDev(site, { url: server.url, port: server.port, hostname: server.hostname, root: resolve(site, "..", "elsewhere"), pid: process.pid, startedAt: "" });
+    expect(await c.liveDev(site)).toBeUndefined();
+    c.clearDev(site);
+  });
+
+  test("clearDev leaves a record that is not ours alone", async () => {
+    const c = await import("@snypd/core");
+    c.writeDev(site, { url: server.url, port: server.port, hostname: server.hostname, root: resolve(site), pid: process.pid + 1, startedAt: "" });
+    c.clearDev(site);                       // running as `process.pid`, so this record belongs to someone else
+    expect(c.readDev(site)?.pid).toBe(process.pid + 1);
+    c.clearDev(site, process.pid + 1);
+    expect(c.readDev(site)).toBeUndefined();
+  });
+
+  // Decision 51's hard rule: live reload may not change a published byte. The whole claim of the preview
+  // is that it is the same build that publishes, so everything preview-only lives in the response.
+  test("the reload header and the Desk strip are in the response and never in the file", async () => {
+    const res = await fetch(`${server.url}/posts/out/`);
+    expect(res.headers.get("refresh")).toBe("2");
+    const body = await res.text();
+    expect(body).toContain('href="/_snypd"');
+    expect(readFileSync(`${site}/.snypd/preview/posts/out/index.html`, "utf8")).not.toContain('href="/_snypd"');
+
+    // Only HTML is decorated: the markdown twin is what an agent reads and the JSON API what a program
+    // reads, and a strip in either would be a preview-only difference in the one surface that must not have any.
+    const md = await fetch(`${server.url}/posts/out/`, { headers: { accept: "text/markdown" } });
+    expect(await md.text()).not.toContain("_snypd");
+    expect((await fetch(`${server.url}/api/site.json`)).headers.get("refresh")).toBeNull();
+
+    // The Desk is not decorated either — a strip pointing at the page you are on is noise, and it
+    // carries its own meta refresh, which a header would double.
+    const desk = await fetch(`${server.url}/_snypd`);
+    expect(desk.headers.get("refresh")).toBeNull();
+  });
+
+  test("every page the preview serves from disk is byte-identical to the one dist/ publishes", async () => {
+    await build(site);
+    const dist = join(site, "dist"), prev = join(site, ".snypd", "preview");
+    const walk = (dir: string, base = dir): string[] => readdirSync(dir, { withFileTypes: true })
+      .flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name), base) : [relative(base, join(dir, e.name))]));
+    const files = walk(dist);
+    expect(files.length).toBeGreaterThan(5);
+    // Index and feed pages legitimately differ — the preview has a draft in them, which is what it is
+    // for. Every *item* page must not: that is the sentence "what you see is what publishes".
+    const items = files.filter((f) => f.startsWith("posts/out/"));
+    expect(items.length).toBeGreaterThan(1);          // index.html and its .md twin at least
+    for (const f of items) {
+      expect(existsSync(join(prev, f))).toBe(true);
+      expect(readFileSync(join(prev, f))).toEqual(readFileSync(join(dist, f)));
+    }
   });
 });
 

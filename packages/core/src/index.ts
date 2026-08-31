@@ -6,6 +6,8 @@ export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "
 // The theme filesystem seam (decision 46): every theme read on the runtime path, disk or binary.
 export { themeFile, themeHas, themeFiles, themeBytes, themeModule, themeSignature, bundledDir, bundledNames, isBundledDir } from "./themefs";
 export * from "./content";
+// S18e: the `.snypd/dev.json` seam — one running preview, findable by the other process (decision 51).
+export { readDev, writeDev, clearDev, liveDev, devPath, devProcessAlive, ALIVE_ROUTE, type DevRecord } from "./dev";
 export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
 export { Repo, git, initRepo, isRepoRoot, principal, commitHint, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
 export { writeDeploy, buildCommand, DEPLOY_TARGETS, VERSION, type DeployTarget } from "./deploy";

@@ -227,6 +227,69 @@ describe("the compiled binary, in a directory it has never seen", () => {
     expect(s).toBeLessThan(2_000);      // a floor, not the budget: this catches a hang, not slowness
   }, 60_000);
 
+  /**
+   * S18e's exit criterion, and docs/08 F6 in its testable half: **two commands from an empty directory
+   * to a painted Desk, no flags required.** The number that goes with it (`onboard.ttfv`) is S18g's;
+   * what is asserted here is that the path exists at all, against the artefact, from a directory the
+   * binary has never seen — which is the only configuration where it is visible (decision 55).
+   *
+   * Three things this can only find here. The Desk is rendered by a theme that lives inside the binary,
+   * so `$bunfs` is on this path exactly as it was in S18a. `.snypd/dev.json` is written by a process
+   * whose working directory is not ours. And the browser stays shut: stdout is a pipe, so `isTTY` is
+   * false and decision 57's check holds — a window opening in CI would be the failure this asserts against.
+   */
+  test("`init` then `dev`: two commands from an empty directory to a painted Desk", async () => {
+    const empty = mkdtempSync(join(tmpdir(), "snypd-empty-"));
+    // Named so the pipes are in the type: `dev.stdout` has to be a stream for the banner read below,
+    // and `ReturnType<typeof Bun.spawn>` widens it back to `number | ReadableStream`.
+    const spawnDev = () => Bun.spawn([BIN, "dev", "."], { cwd: empty, stdout: "pipe", stderr: "pipe", env: { ...process.env, NO_COLOR: "1" } });
+    let dev: ReturnType<typeof spawnDev> | undefined;
+    try {
+      expect(run(["init", "."], empty).code).toBe(0);
+      dev = spawnDev();
+
+      // The record is the handshake: it appears when the server has bound and knows its real port, so
+      // waiting for it is waiting for the thing under test rather than for a fixed number of seconds.
+      const rec = join(empty, ".snypd", "dev.json");
+      const deadline = Date.now() + 30_000;
+      while (!existsSync(rec) && Date.now() < deadline) await Bun.sleep(50);
+      expect(existsSync(rec)).toBe(true);
+      const j = JSON.parse(readFileSync(rec, "utf8")) as { url: string; port: number; pid: number; root: string };
+      expect(j.pid).toBe(dev.pid);
+      expect(j.port).toBeGreaterThan(0);
+
+      const desk = await fetch(`${j.url}/_snypd`);
+      expect(desk.status).toBe(200);
+      const page = await desk.text();
+      expect(page).toContain("Snypd Desk");
+      expect(page).toContain("<style");                 // the theme's stylesheet, read out of $bunfs
+      expect(page).not.toContain("<script");            // decision 26: 0 KB JS, on the empty state too
+
+      // Nothing has been written yet, so this is the state every new site is in for its first minutes,
+      // and the page has to be legible in it rather than only once there is a draft to list.
+      expect((await fetch(`${j.url}/_snypd/alive`)).status).toBe(200);
+
+      // The banner names the Desk. Three sessions of `serve --preview` printed the S11 review path with
+      // `<type>/<slug>` placeholders in it and never once said `/_snypd` (decision 51). Read chunk by
+      // chunk against a deadline, never `new Response(stdout).text()` — this process does not exit, so
+      // waiting for its stdout to close is waiting forever.
+      const reader = dev.stdout.getReader();
+      let banner = "";
+      while (!banner.includes("/_snypd") && Date.now() < deadline) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        banner += new TextDecoder().decode(value);
+      }
+      reader.releaseLock();
+      expect(banner).toContain("snypd dev → http://");
+      expect(banner).toContain("/_snypd");
+      expect(banner).toContain("Ctrl-C to stop.");
+    } finally {
+      if (dev) { dev.kill("SIGTERM"); await dev.exited.catch(() => {}) }
+      rmSync(empty, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   test("failure is a non-zero exit, not a stack trace and a 0", () => {
     const empty = mkdtempSync(join(tmpdir(), "snypd-empty-"));
     // Before S18a this built a site from spec defaults and reported success: `snypd build` in the wrong

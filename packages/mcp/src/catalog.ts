@@ -398,8 +398,6 @@ async function doctor(root: string): Promise<ToolResult> {
   // Doctor is what the agent has instead of a page: the Desk renders these same facts for a person
   // (S18f) and the rule is that nothing appears there which cannot be asked for here. So they are
   // computed once, in this function, and returned in `facts` as well as in prose.
-  // The fifth — is a `snypd dev` server running — waits for S18e, which is the session that creates the
-  // `.snypd/dev.json` it would read. A row that reads a file nothing writes is a row that always says no.
   const reg = registration(root, c);
   if (!reg.present) bad(`no ${c.MCP_FILE}`, `Nothing registers this server with a harness. \`site\` › init writes it; without it the next session has no snypd tools.`);
   else if (!reg.names) bad(`${c.MCP_FILE} does not name a \`snypd\` server`, `It exists but registers something else. Add a \`snypd\` entry to \`mcpServers\`, then restart the harness.`);
@@ -411,10 +409,18 @@ async function doctor(root: string): Promise<ToolResult> {
   // Process-local and true by construction when an agent asks — if this call arrived, a harness is
   // connected. It earns its place for the *other* reader: the Desk, and a person asking why their
   // editor sees no tools. S18f moves the record to `.snypd/activity.json` so a preview in its own
-  // process can answer it too; today a preview is blind to it (docs/08 §12.9).
+  // process can answer it too; today a preview is blind to it (docs/08 §12.9) — and since S18e a preview
+  // in its own process is the normal case rather than the odd one, which is what makes that row urgent.
   const act = activitySnapshot();
   if (act.calls) ok(`a harness is connected${act.client ? ` — ${act.client}` : ""}, ${act.calls} call${act.calls === 1 ? "" : "s"} this session`);
   else warn("no harness has called this server yet — if an editor is open, it has not been restarted since `.mcp.json` was written");
+
+  // The fifth fact (S18e): is a preview already serving this site? It is the difference between "tell
+  // them to open a URL" and "tell them to look at the tab they already have open", and it is proven over
+  // HTTP rather than read from `.snypd/dev.json` — a record outlives the process that wrote it.
+  const dev = await c.liveDev(root);
+  if (dev) ok(`a \`snypd dev\` server is running — Desk at ${dev.url}/_snypd`);
+  else warn("no preview server — `snypd dev` starts one, or `content.render_preview` starts a session-scoped one when you ask for a URL");
 
   const items = stored.length;
   if (items) ok(`${items} item${items === 1 ? "" : "s"}`);
@@ -431,7 +437,7 @@ async function doctor(root: string): Promise<ToolResult> {
     : "\nnothing to fix";
   return text([...lines, tail].join("\n"),
     { ok: !problems.length, problems, lint: { errors: lint.errors, warnings: lint.warnings },
-      facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: act.calls > 0, client: act.client, items, placeholderUrl: c.isPlaceholderUrl(cfg.config.site.url) } });
+      facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: act.calls > 0, client: act.client, dev: !!dev, deskUrl: dev ? `${dev.url}/_snypd` : undefined, items, placeholderUrl: c.isPlaceholderUrl(cfg.config.site.url) } });
 }
 
 /**
