@@ -1,6 +1,6 @@
 {
   "name": "@snypd/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "An open-source CMS whose only interface is MCP \u2014 write, edit, theme and publish a site from the harness you already live in",
   "keywords": [
     "mcp",
@@ -30,10 +30,10 @@
     "node": ">=18"
   },
   "optionalDependencies": {
-    "@snypd/darwin-arm64": "0.1.1",
-    "@snypd/darwin-x64": "0.1.1",
-    "@snypd/linux-arm64": "0.1.1",
-    "@snypd/linux-x64": "0.1.1",
-    "@snypd/windows-x64": "0.1.1"
+    "@snypd/darwin-arm64": "0.1.2",
+    "@snypd/darwin-x64": "0.1.2",
+    "@snypd/linux-arm64": "0.1.2",
+    "@snypd/linux-x64": "0.1.2",
+    "@snypd/windows-x64": "0.1.2"
   }
 }
