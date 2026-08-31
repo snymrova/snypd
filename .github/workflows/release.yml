@@ -55,16 +55,29 @@ jobs:
             (cd "$d" && npm publish --dry-run --access public 2>&1 | tail -20)
           done
 
-      # Platform packages first: the launcher's `optionalDependencies` are exact pins, so publishing it
-      # ahead of them leaves a window in which `npm i snypd` resolves nothing to run.
+      # Platform packages first — the glob expands before `snypd`, and the order is the point: the
+      # launcher's `optionalDependencies` are exact pins, so publishing it ahead of the binaries leaves a
+      # window in which `npm i snypd` resolves a launcher with nothing to run.
+      #
+      # Skipping what is already on the registry makes a retry safe. Publishing is six calls and any one
+      # of them can fail for a reason that has nothing to do with the artefact — a token without
+      # `bypass 2fa`, which is how v0.1.0's first attempt failed, or a network blip on the fourth of six.
+      # Without this, the retry after a partial run dies on EPUBLISHCONFLICT for the packages that did
+      # land, and the only way forward is a version bump nobody's code needed.
       - name: publish
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
         run: |
-          for d in dist/release/npm/@snypd/*; do
+          for d in dist/release/npm/@snypd/* dist/release/npm/snypd; do
+            name=$(node -p "require('$PWD/$d/package.json').name")
+            version=$(node -p "require('$PWD/$d/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already on the registry — skipping"
+              continue
+            fi
+            echo "publishing $name@$version"
             (cd "$d" && npm publish --provenance --access public)
           done
-          (cd dist/release/npm/snypd && npm publish --provenance --access public)
 
       - name: github release
         if: ${{ github.event_name == 'push' }}

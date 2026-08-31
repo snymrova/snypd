@@ -73,7 +73,12 @@ describe("the workflows", () => {
     // The launcher's `optionalDependencies` are exact pins. Publishing it first leaves a window in which
     // `npm i snypd` resolves a launcher whose binary does not exist yet.
     const y = readFileSync(join(REPO, ".github", "workflows", "release.yml"), "utf8");
-    expect(y.indexOf("dist/release/npm/@snypd/*")).toBeLessThan(y.indexOf("cd dist/release/npm/snypd"));
+    // One loop, and the glob expands before the launcher's own path — so the order is in the shell
+    // word list rather than in two statements that could be reordered without anything noticing.
+    const loop = y.slice(y.indexOf("for d in dist/release/npm/"));
+    expect(loop.indexOf("@snypd/*")).toBeLessThan(loop.indexOf("dist/release/npm/snypd"));
+    // A retry after a partial publish must not die on EPUBLISHCONFLICT (v0.1.0's first attempt).
+    expect(y).toContain("already on the registry — skipping");
     expect(y).toContain("--provenance");
     expect(y).toContain("id-token: write");   // provenance is signed with the run's OIDC identity or not at all
   });

@@ -12,9 +12,20 @@ Two artefacts, one build: the npm packages and the GitHub release the Homebrew f
    *Alternative if you would rather not:* change the scope in `packaging/npm/build.ts`'s `TARGETS` and the
    matching map in `snypd/bin/snypd.js` — `packaging.test.ts` fails if the two disagree, which is the
    point of that test.
-2. **A token.** A granular access token on npmjs.com with **write** on `snypd` and `@snypd/*`, then
-   `gh secret set NPM_TOKEN`. (Once the packages exist, npm's trusted publishing can replace it and the
-   secret can be deleted.)
+2. **A token CI can actually use.** Write access on `snypd` **and** `@snypd/*` is necessary and not
+   sufficient: if the account requires 2FA for writes, the registry refuses a token that cannot answer an
+   OTP, and a workflow cannot —
+
+   > `E403 … Two-factor authentication or granular access token with bypass 2fa enabled is required`
+
+   which is how v0.1.0's first attempt failed, on the first of six packages. Either a **classic
+   Automation** token (that type exists for CI and bypasses 2FA by design) or a **granular** token with
+   *bypass 2FA* enabled. Then `gh secret set NPM_TOKEN`. Once the packages exist, npm's trusted
+   publishing can replace the token entirely and the secret can be deleted.
+
+   The dry run cannot catch this: `npm publish --dry-run` never contacts the registry, so the token is
+   first exercised by the real publish. That is why the publish step skips what is already there — a
+   retry after a partial run is safe, and no version has to be burned to get past it.
 3. **Decide it.** The name is claimed permanently and a scoped unpublish window is 72 hours. `07`
    decision 69 keeps this with a person on purpose.
 
