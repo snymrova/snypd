@@ -19,6 +19,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isPlaceholderUrl, type LoadedConfig } from "./config";
+import { LAUNCHER } from "./deploy";
 import { isRepoRoot } from "./git";
 import { harnessState, type HarnessState, type HeartbeatRecord } from "./heartbeat";
 import { MCP_FILE, onPath } from "./site";
@@ -29,10 +30,12 @@ import { MCP_FILE, onPath } from "./site";
  * Named here rather than retyped because it is used in four places — the README, snypd.rocks, the
  * first-run Desk and the `onboard.*` lane — and a funnel whose first step is spelled differently in
  * each of them is measuring four different funnels. It names its first command on purpose: an agent
- * that has never heard of snypd cannot infer `bunx snypd init`, and a sentence whose first step is a
- * web search has a nondeterministic first step.
+ * that has never heard of snypd cannot infer `bunx @snypd/cli init`, and a sentence whose first step is
+ * a web search has a nondeterministic first step. The package is scoped and the binary is not — see
+ * `deploy.ts` › `LAUNCHER`, and note that it is the *package* that has to appear here, because this
+ * sentence is read before anything is installed.
  */
-export const ONE_SENTENCE = "Set up snypd here and write me a first post. Ask me what the site is called, then run `bunx snypd init`.";
+export const ONE_SENTENCE = `Set up snypd here and write me a first post. Ask me what the site is called, then run \`bunx ${LAUNCHER} init\`.`;
 
 /** What `.mcp.json` says, and whether what it says exists on this machine. */
 export interface Registration {

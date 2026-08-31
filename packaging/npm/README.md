@@ -1,4 +1,4 @@
-# snypd
+# @snypd/cli
 
 An open-source CMS whose **only interface is MCP**. Write, edit, theme and publish a site from the harness
 you already live in. Markdown + YAML in a git repo you own; one binary; static HTML with zero JS by
@@ -6,7 +6,7 @@ default; charts, diagrams and flows rendered to SVG at build time.
 
 **Start here — paste this into the harness you already have open** (Claude Code, Cursor, Codex):
 
-> Set up snypd here and write me a first post. Ask me what the site is called, then run `bunx snypd init`.
+> Set up snypd here and write me a first post. Ask me what the site is called, then run `bunx @snypd/cli init`.
 
 That is the whole front door. The agent asks what the site is called, runs `init`, and relays the one
 thing it cannot do — restart the harness, so the tools load. On the far side it picks up from the
@@ -34,12 +34,16 @@ benchmarks when you ask for them.
 
 ## Install
 
-`bunx snypd init` needs no install. Otherwise:
+`bunx @snypd/cli init` needs no install. Otherwise:
 
 ```
-npm install -g snypd            # or: bun add -g snypd
+npm install -g @snypd/cli       # or: bun add -g @snypd/cli
 brew install snymrova/tap/snypd
 ```
+
+Either of those puts **`snypd`** on your `PATH` — the package is scoped, the command is not. npm declined
+the bare `snypd` as too close to `snyk`, which is a rule about registry names and not about this program;
+the `bin` map is what keeps every command below unchanged.
 
 The package carries no code — the binary arrives as one platform-gated optional dependency
 (`@snypd/darwin-arm64`, `@snypd/linux-x64`, …), which is why the install downloads one binary and not

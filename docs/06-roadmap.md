@@ -31,9 +31,15 @@
 **v1.0**: spec freeze at ~35 primitives; RFC process; Node-compatible build verified; hosted cloud optional.
 
 ## Naming
-**Snypd** — decided 27 Aug 2026. Domain `snypd.rocks` (owned; also the dogfood site and public benchmark page). npm scope `@snypd/*`, binary `snypd`, config `snypd.yaml`, URI scheme `snypd://`. Earlier working name "Press" retired; parked alternatives dropped.
+**Snypd** — decided 27 Aug 2026. Domain `snypd.rocks` (owned; also the dogfood site and public benchmark page). npm scope `@snypd/*`, launcher package `@snypd/cli`, binary `snypd`, config `snypd.yaml`, URI scheme `snypd://`. Earlier working name "Press" retired; parked alternatives dropped.
 
-**The bare name `snypd` is not claimed yet.** This line said it was claimed by the launcher package in S18d′; that is wrong. The five platform packages are on the registry, the launcher's publish was refused, and `registry.npmjs.org/snypd` still answers 404 — so `bunx snypd init` does not resolve and docs/08 §2 step 4 stays a checkout until it does. `packaging/README.md` §2 has the diagnosis and the two ways to settle it.
+**The bare name `snypd` is not ours and is not going to be.** Two different refusals, settled in S18h. The first was a permission — a granular token can write inside a scope it names and cannot *create* a new top-level package, which is why the same run published all five `@snypd/*` and 403'd on the sixth. The second survived fixing that, and is a registry rule rather than a credential:
+
+> `E403 … Package name too similar to existing package snyk; try renaming your package to '@snymrova/snypd'`
+
+No token and no retry gets past it, and npm's own suggested remedy is a scope. **So the launcher is `@snypd/cli`, and the binary it installs is still `snypd`** — a two-line `bin` map is the whole of the difference, and nothing but an install command changes: the domain, the config file, the URI scheme and the command you type are untouched. What you paste is `bunx @snypd/cli init`; what lands on `PATH` is `snypd`.
+
+An appeal to npm support for the bare name costs one email and is worth sending; it is not worth blocking a release on, and if it is ever granted, `snypd` becomes a second name pointing at the same artefact rather than a rename. `packaging/README.md` §2 carries both refusals with the evidence for each.
 
 ## Open questions
 - Fenced-code alias (```` ```callout ````) for the top five primitives, for renderers that don't know directives (GitHub preview)?

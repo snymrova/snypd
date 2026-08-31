@@ -1,13 +1,13 @@
 /**
  * The host's half of the contract (S18d′). What is worth asserting here is not the file format — it is
  * that the generated build command names something a host can actually install, which is the sentence
- * `07` §3b could not write before npm answered `bunx snypd`.
+ * `07` §3b could not write before npm answered `bunx @snypd/cli`.
  */
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildCommand, initSite, VERSION, writeDeploy } from "./index";
+import { buildCommand, initSite, LAUNCHER, VERSION, writeDeploy } from "./index";
 
 const fresh = () => mkdtempSync(join(tmpdir(), "snypd-deploy-"));
 
@@ -26,11 +26,14 @@ describe("--deploy", () => {
     // `07` §3b specified `curl -fsSL … | sh && snypd build`. S18d′ refused it on two counts, and this is
     // where that refusal has to hold: the host's build line is the one place the install story is load-bearing.
     const cmd = buildCommand(VERSION);
-    expect(cmd).toBe(`npx -y snypd@${VERSION} build`);
+    expect(cmd).toBe(`npx -y ${LAUNCHER}@${VERSION} build`);
+    // S18h: the *package* is scoped and the *binary* is not. A build command naming the bare `snypd`
+    // is the pre-S18h string and would install nothing — npm refused that name against `snyk`.
+    expect(cmd).not.toMatch(/npx -y snypd@/);
     for (const f of ["wrangler.toml", ".github/workflows/snypd.yml"]) {
       const dir = fresh(); writeDeploy(dir, "cloudflare", { name: "x" });
       const body = readFileSync(join(dir, f), "utf8");
-      expect(body).toContain(`snypd@${VERSION}`);
+      expect(body).toContain(`${LAUNCHER}@${VERSION}`);
       expect(body).not.toContain("curl");
       expect(body).not.toContain("| sh");
     }
