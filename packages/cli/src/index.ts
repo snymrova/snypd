@@ -120,26 +120,45 @@ switch (cmd) {
     process.exit(s.errors ? 1 : 0);
   }
   case "init": {   // S16: the same `initSite` the `site` tool calls, for someone who reached for a terminal first
-    const { initSite, Repo, MCP_FILE } = await import("@snypd/core");
+    const { initSite, Repo, MCP_FILE, DEFAULT_BASE, PLACEHOLDER_URL } = await import("@snypd/core");
     const flag = (n: string) => [...flags].find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
     const root = args[0] ?? ".";
-    const name = flag("name"), url = flag("url");
-    if (!name || !url) { console.error("usage: snypd init [root] --name=\"My Site\" --url=https://example.com [--description=…] [--theme=editorial]"); process.exit(2); }
     try {
-      const r = initSite(root, { name, url, description: flag("description"), theme: flag("theme") });
-      console.log(`initialised ${r.created.join(", ")}`);
+      // No required flags (S18d, docs/08 decision 63): name falls back to the directory, url to a
+      // placeholder that comes due at publish. The person running this has not seen a pixel yet.
+      const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme") });
+      const say: string[] = [`initialised ${r.created.join(", ")}`];
+      // An empty directory gets its repo here rather than as homework (S18d): without one the scaffold
+      // cannot be committed, and the first `content.create` refuses on a tree it was never told about.
+      if (r.gitInit) say.push(`git init — new repository on ${DEFAULT_BASE}`);
       // Commit the scaffold on the branch the site deploys from. Leaving it uncommitted would make the
       // agent's first write refuse — `useDrafts` will not carry work it did not do onto the drafts branch
       // — and would leave `main` without a `snypd.yaml` for the host to build after the first publish.
       const repo = Repo.open(root);
-      const committed = repo?.commit(r.paths, `site: init ${name}`);
-      if (committed?.committed) console.log(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
-      // The registration is written but not loaded: a harness reads `.mcp.json` when it starts. Saying
-      // so here is the whole of onboarding — the step no prompt of ours can deliver, because a harness
-      // that has not loaded the server cannot run the server's prompts (S18a).
+      const committed = repo?.commit(r.paths, `site: init ${r.name}`);
+      if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
+      else if (!repo) say.push(`not a git repo, and this directory already has files in it — \`git init\` here, then re-run; nothing can be versioned or published without one`);
+      console.log(say.join("\n"));
+
+      // ── Everything below is addressed to an agent (S18d, docs/08 decision 60) ────────────────────
+      // Under docs/08 §2 the reader of this output is the agent that just ran the command, not a person
+      // at a screen: it pastes one sentence, this runs, and what it prints is the only briefing that
+      // reader gets. Until this session these were three human-facing lines ending in an instruction the
+      // agent cannot execute — so the one step that needs a human was written as though the human were
+      // already reading it. It says four things, in the order they are acted on: what exists, what is
+      // still unknown and when it comes due, the one thing only a person can do (phrased to be relayed
+      // verbatim), and where the far side picks up — because there is no far side to hand anything to.
+      const out: string[] = ["", `\`${r.name}\` is a snypd site. There is no admin UI: content is written over MCP, by you.`];
+      if (r.placeholderUrl)
+        out.push(`Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — and not before. Do not ask for it yet.`);
       const registered = r.created.includes(MCP_FILE);
-      if (registered) console.log(`registered snypd in ${MCP_FILE} — restart your harness (Claude Code, Cursor, Codex) to load it`);
-      console.log(repo ? "next: restart the harness, then write through the MCP — that is the only interface" : "next: git init here, then restart the harness");
+      out.push("",
+        registered
+          ? `One thing here needs a person, and it is not something you can do: a harness reads ${MCP_FILE} when it starts, so the snypd tools are not loaded in this session. Ask for it in these words:`
+          : `${MCP_FILE} already existed and was left alone. If it does not name a \`snypd\` server, the tools will not load — check it, then ask for this in these words:`,
+        "", "    Restart your harness (Claude Code, Cursor or Codex) so the snypd tools load.", "",
+        `That restart ends this conversation, and nothing needs to be carried across it. The next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — run it and it will read the site, learn the vocabulary and write the first post.`);
+      console.log(out.join("\n"));
     } catch (e) {
       const err = e as Error & { hint?: string };
       console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
@@ -148,7 +167,7 @@ switch (cmd) {
     break;
   }
   default:
-    console.log("usage: snypd <serve|build|bench|init> | snypd init [root] --name=… --url=… | snypd serve [root] --preview|--static [--port=N] | snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log("usage: snypd <serve|build|bench|init> | snypd init [root] [--name=…] [--url=…] | snypd serve [root] --preview|--static [--port=N] | snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
 }
 }
 main();

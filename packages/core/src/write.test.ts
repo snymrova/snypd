@@ -106,6 +106,23 @@ describe("write (S11)", () => {
     expect(check.reason).toContain("changed after it was approved");
   });
 
+  // S18d, docs/08 decision 63. `init` no longer demands an origin from somebody who has not seen a
+  // pixel — which is only safe because the debt comes due here, before the first absolute link is
+  // written into a feed, a sitemap or a JSON-LD block. Checked ahead of the approval on purpose: asking
+  // a human to approve a version that cannot publish either way wastes the one action the product
+  // genuinely needs from them.
+  test("a placeholder origin refuses the publish, whatever the policy and whoever approved", async () => {
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: http://localhost:4321 }\ntypes: { post: { mcp: { write: publish } } }\n");
+    const cfg = loadConfig(root);
+    createContent(root, { type: "post", slug: "p", frontmatter: { title: "P" }, cfg });
+    const check = publishCheck(root, cfg, approvals(root), "post", "p");
+    expect(check.ok).toBe(false);
+    expect(check.reason).toContain("placeholder");
+    expect(check.hint).toContain("site.url");            // the one line that fixes it, in the refusal
+    // …and nothing about drafting is blocked, which is the half of the bargain that makes it tolerable.
+    expect(() => updateContent(root, { type: "post", slug: "p", body: "Still writable.", cfg })).not.toThrow();
+  });
+
   test("a type whose policy is publish needs no approval", async () => {
     writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntypes: { post: { mcp: { write: publish } } }\n");
     const cfg = loadConfig(root);

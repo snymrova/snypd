@@ -146,6 +146,28 @@ export function handlers(root: string, notify?: (method: string, params?: Record
     return cfg;
   };
 
+  /**
+   * Enter the drafts branch *before* a byte is written (S18d).
+   *
+   * `useDrafts` refuses when the tree carries work this write did not do, and until this session that
+   * guard ran after the content was already on disk — so a refusal came back as `isError` over a write
+   * that had happened, leaving the item on the working branch, uncommitted, and listed by
+   * `content.query` as something the agent had just been told it failed to create. An agent that
+   * believes its own error report then retries, or reports a failure to a person who can see the file.
+   *
+   * Every empty-directory first run hit it, because `init` in a directory that was not yet a repo could
+   * not commit its own scaffold — so the first `content.create` was always the call that discovered the
+   * tree was dirty. `shouldInitRepo` (core/site.ts) removes that cause; this removes the class.
+   *
+   * Called first, the guard is also *more* accurate than it was: nothing of ours is dirty yet, so every
+   * dirty path is genuinely foreign and there is nothing for `ours` to exclude. Switching a clean tree
+   * to the drafts branch and then failing to write is harmless — that is where writes live anyway.
+   */
+  const enterDrafts = async (): Promise<void> => {
+    const c = await loadCore();
+    c.Repo.open(root)?.useDrafts();
+  };
+
   /** Put the write on the site's drafts branch and commit exactly the paths it touched (docs/02 §6). */
   const commitWrite = async (r: { paths: string[] }, subject: string) => {
     const c = await loadCore();
@@ -194,21 +216,25 @@ export function handlers(root: string, notify?: (method: string, params?: Record
         switch (name) {
           case "content.create": {
             const cfg = await cfgOf();
+            await enterDrafts();
             const r = c.createContent(root, { type: need(args, "type"), slug: typeof args.slug === "string" ? args.slug : undefined, frontmatter: asObject(args.frontmatter, "frontmatter"), body: typeof args.body === "string" ? args.body : undefined, cfg });
             return await wrote(r, `content: create ${r.type}/${r.slug}`);
           }
           case "content.update": {
             const cfg = await cfgOf();
+            await enterDrafts();
             const r = c.updateContent(root, { type: need(args, "type"), slug: need(args, "slug"), patch: asObject(args.patch, "patch"), body: typeof args.body === "string" ? args.body : undefined, cfg });
             return await wrote(r, `content: update ${r.type}/${r.slug}`);
           }
           case "content.set_status": {
             const cfg = await cfgOf();
+            await enterDrafts();
             const r = c.setStatus(root, { type: need(args, "type"), slug: need(args, "slug"), status: need(args, "status"), cfg });
             return await wrote(r, `content: ${r.status} ${r.type}/${r.slug}`);
           }
           case "content.trash": {
             const cfg = await cfgOf();
+            await enterDrafts();
             const r = c.trashContent(root, { type: need(args, "type"), slug: need(args, "slug"), cfg });
             const g = await commitWrite(r, `content: trash ${r.type}/${r.slug}`);
             // Trashing an item that is *on the site* has to take it off the site. The approval gate exists
@@ -225,6 +251,7 @@ export function handlers(root: string, notify?: (method: string, params?: Record
           }
           case "content.restore": {
             const cfg = await cfgOf();
+            await enterDrafts();
             const r = c.restoreContent(root, { type: need(args, "type"), slug: need(args, "slug"), cfg });
             return await wrote(r, `content: restore ${r.type}/${r.slug}`);
           }
@@ -240,6 +267,7 @@ export function handlers(root: string, notify?: (method: string, params?: Record
             const current = String(c.readFrontmatter(readFileSync(t.file, "utf8")).status ?? cfg.config.initialStatus);
             let status = current, g: Awaited<ReturnType<typeof commitWrite>> = { enabled: false };
             if (current !== "published") {
+              await enterDrafts();
               const r = c.setStatus(root, { type, slug, status: "published", cfg });
               status = r.status;
               g = await commitWrite(r, `content: publish ${type}/${slug}`);
@@ -276,6 +304,7 @@ export function handlers(root: string, notify?: (method: string, params?: Record
 
             const ids = Array.isArray(args.apply) ? args.apply.filter((x): x is string => typeof x === "string") : undefined;
             const fill = asObject(args.fill, "fill") as Record<string, Record<string, string>> | undefined;
+            await enterDrafts();
             const r = c.applySuggestions(source, list, { ids, fill });
             if (!r.applied.length)
               return text([`no suggestions applied of ${list.length} found`, ...r.skipped.map((s) => `  ${s.id}: ${s.why}`)].join("\n"),

@@ -43,10 +43,25 @@ export interface Handlers {
   connect?(notify: Notify): void;
 }
 
+/**
+ * The one surface that reaches the agent on every session start, before any tool call (S18d, decision 61).
+ *
+ * It is the far side of the restart, and it is the only thing there: a `snypd init` in a previous session
+ * printed a briefing to an agent whose context is now gone, so nothing was handed across and nothing could
+ * be. Until this session this string named resources but not the prompt that would carry a new site to its
+ * first post — a site could be scaffolded, registered, restarted into, and still have no route to turn one.
+ * It also named `snypd serve --preview` three sessions after `/_snypd` became the page a person reviews on.
+ *
+ * **Static, and it must stay static.** Decision 45 forbids `initialize` touching disk and D2's budget is
+ * 50 ms, so this may not become "…and this site has no content yet". A pointer costs nothing to write and
+ * nothing to read; `get-started` is the thing that branches on state, because by then a tool call is cheap.
+ */
+const INSTRUCTIONS = "Start with the `get-started` prompt: it branches on what this site already is — empty, scaffolded, or established — and names the calls in the order that works. Otherwise: read snypd://config, then snypd://spec/primitives, before writing content — a post that is only prose wastes the vocabulary this CMS exists for. Writes go to a draft branch; publishing a draft-policy type needs a human to approve that exact version on /_snypd, the page this server serves for them.";
+
 export function initializeResult(params: Record<string, unknown> | undefined): InitializeResult {
   const asked = String(params?.protocolVersion ?? "");
   const protocolVersion = (PROTOCOL_VERSIONS as readonly string[]).includes(asked) ? asked : PROTOCOL_VERSIONS[0];
-  return { protocolVersion, capabilities: { resources: {}, tools: { listChanged: true }, prompts: {} }, serverInfo: SERVER, instructions: "Read snypd://config, then snypd://spec (and snypd://spec/primitives) before writing content. Writes go to a draft branch; publishing a draft-policy type needs a human to approve it on `snypd serve --preview`." };
+  return { protocolVersion, capabilities: { resources: {}, tools: { listChanged: true }, prompts: {} }, serverInfo: SERVER, instructions: INSTRUCTIONS };
 }
 
 /**

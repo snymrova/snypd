@@ -4,8 +4,10 @@
  * and a token left behind by a theme switch is still visible.
  */
 import { describe, expect, test, beforeEach } from "bun:test";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas } from "./index";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -105,6 +107,69 @@ describe("initSite", () => {
   test("refuses a url that is not one, before anything is written", () => {
     expect(() => initSite(fresh, { name: "New", url: "example.com" })).toThrow(/is not a URL/);
     expect(loadConfig(fresh).ok).toBe(false);
+  });
+
+  // S18d, docs/08 decision 63. `snypd init` exited 2 without `--name` and `--url`, and `site` › init
+  // called `need(args, "url")` — so a first-timer was asked for a production origin before seeing one
+  // pixel, and the agent trying to help could not route around it either. The URL is genuinely required,
+  // because the feed, sitemap and JSON-LD are absolute; it is required *at publish*, which is where
+  // `publishCheck` now asks for it. Note what stays: a url that is *passed* and is wrong still throws —
+  // an omission and a typo are different things and only one of them has a sensible default.
+  test("with no arguments at all: named after the directory, on a placeholder origin", () => {
+    const outside = mkdtempSync(join(tmpdir(), "snypd-unnamed-"));
+    try {
+      const r = initSite(outside, {});
+      expect(r.name).toBe(basename(outside));
+      expect(r.url).toBe(PLACEHOLDER_URL);
+      expect(r.placeholderUrl).toBe(true);
+      const cfg = loadConfig(outside);
+      expect(cfg.ok).toBe(true);                                  // the whole point: a scaffold that loads
+      expect(cfg.config.site.name).toBe(basename(outside));
+      expect(isPlaceholderUrl(cfg.config.site.url)).toBe(true);
+      // The placeholder says it is one, in the file a person opens — a config that looks finished and is
+      // not is worse than one that is visibly unfinished.
+      expect(readFileSync(`${outside}/snypd.yaml`, "utf8")).toContain("# placeholder");
+    } finally { rmSync(outside, { recursive: true, force: true }); }
+  });
+
+  test("a url that was given and is real is not a placeholder", () => {
+    const r = initSite(fresh, { name: "New", url: "https://new.example/" });
+    expect(r.url).toBe("https://new.example");   // trailing slash still stripped
+    expect(r.placeholderUrl).toBe(false);
+  });
+
+  // S18d, docs/08 §7 · 1 → 2. The empty-directory first run failed one step *after* this one: no repo
+  // meant the scaffold could not be committed, which meant the agent's first `content.create` refused on
+  // a tree carrying it. These two tests are the whole rule — create the repo where it is unambiguously
+  // ours to create, and nowhere else.
+  test("an empty directory outside any repo gets one, on the branch a publish lands on", () => {
+    const outside = mkdtempSync(join(tmpdir(), "snypd-init-"));
+    try {
+      const r = initSite(outside, { name: "New", url: "https://new.example" });
+      expect(r.gitInit).toBe(true);
+      expect(r.git).toBe(true);
+      expect(isRepoRoot(outside)).toBe(true);
+      expect(git(outside, "symbolic-ref", "--short", "HEAD").stdout).toBe(DEFAULT_BASE);   // unborn, so `rev-parse` would say "HEAD"
+      // The point of the repo is that the scaffold can be committed into it — the step the first
+      // `content.create` used to discover was missing.
+      expect(Repo.open(outside)!.commit(r.paths, "site: init New").committed).toBe(true);
+    } finally { rmSync(outside, { recursive: true, force: true }); }
+  });
+
+  test("never creates a repo inside somebody else's, and never around files it did not write", () => {
+    // `corpora/_test` is inside this repo: empty, but a `git init` here would nest a repo in a checkout,
+    // which is invisible until it has swallowed a directory of somebody's work.
+    expect(initSite(fresh, { name: "New", url: "https://new.example" }).gitInit).toBe(false);
+    expect(isRepoRoot(fresh)).toBe(false);
+
+    const outside = mkdtempSync(join(tmpdir(), "snypd-init-"));
+    try {
+      writeFileSync(join(outside, "somebody-elses.md"), "# not ours\n");
+      const r = initSite(outside, { name: "New", url: "https://new.example" });
+      expect(r.gitInit).toBe(false);   // files here already — creating a repo around them is not ours to assume
+      expect(r.git).toBe(false);
+      expect(isRepoRoot(outside)).toBe(false);
+    } finally { rmSync(outside, { recursive: true, force: true }); }
   });
 });
 

@@ -20,9 +20,9 @@
  * This module is imported only when `find_tools` runs or one of its tools is called, so nothing here is on
  * the path `mcp.coldStart` measures.
  */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Tool, ToolResult } from "./protocol";
+import { activitySnapshot, type Tool, type ToolResult } from "./protocol";
 
 type Core = typeof import("@snypd/core");
 let core: Core | undefined;
@@ -57,8 +57,8 @@ export const CATALOG: Tool[] = [
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       from: str("`set_redirect`: the old route, e.g. `/posts/old-slug`"),
       to: str("`set_redirect`: the route it moved to. `null` removes the redirect instead"),
-      name: str("`init`: the site's name, as a reader sees it"),
-      url: str("`init`: the absolute origin it will be served from, e.g. https://example.com — the feed, sitemap and JSON-LD all need it"),
+      name: str("`init`: the site's name, as a reader sees it. Optional — defaults to the directory's name"),
+      url: str("`init`: the absolute origin it will be served from, e.g. https://example.com. Optional — defaults to a localhost placeholder, because the feed, sitemap and JSON-LD need a real one at publish and not before"),
       description: str("`init`: one sentence about the site"),
       theme: str("`init`: the theme to start on. Default `editorial`"),
     }, ["action"]),
@@ -263,9 +263,22 @@ tokens: {}
       case "site": {
         const action = need(args, "action");
         if (action === "init") {
-          const r = c.initSite(root, { name: need(args, "name"), url: need(args, "url"), description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined });
-          const git = r.git ? await commit(r.paths, "site: init") : "not a git repo yet — `git init` here so writes can be versioned and published";
-          return text([`initialised ${r.created.join(", ")}`, git, "Next: content.create a post, then content.render_preview to look at it."].join("\n"), { ok: true, ...r });
+          // Neither `name` nor `url` is required (S18d, docs/08 decision 63). `need(args, "url")` stood
+          // here until this session, which meant the *clone* path demanded a production origin from an
+          // agent that had no way to know one — the same defect as the CLI's exit-2, and fixing one and
+          // not the other would leave decision 52's placeholder fact reachable from one caller only.
+          const r = c.initSite(root, { name: typeof args.name === "string" ? args.name : undefined, url: typeof args.url === "string" ? args.url : undefined, description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined });
+          // An empty directory gets its repo from `initSite` itself (S18d): the scaffold has to be
+          // committed, or the agent's very next `content.create` refuses on a tree carrying it.
+          const git = r.git
+            ? `${r.gitInit ? "git init — new repository. " : ""}${await commit(r.paths, `site: init ${r.name}`)}`
+            : "not a git repo, and this directory already has files in it — run `git init` here yourself, then retry; writes cannot be versioned or published without one";
+          // Written for the agent that called it (decision 60). This is the clone case's equivalent of
+          // `snypd init`'s stdout: the tools are already loaded here, so there is no restart to relay —
+          // what has to be said instead is what is still unknown, and when it stops being optional.
+          return text([`initialised \`${r.name}\` — ${r.created.join(", ")}`, git,
+            ...(r.placeholderUrl ? [`site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — content.publish refuses until then, and says so. Do not ask for it yet.`] : []),
+            "Next: read snypd://spec/primitives, then content.create a post and content.render_preview to look at it."].join("\n"), { ok: true, ...r });
         }
         if (action === "explain_config") return text(cfgOf().explain(need(args, "path")), { ok: true });
         if (action === "set_config") {
@@ -338,7 +351,8 @@ async function doctor(root: string): Promise<ToolResult> {
   const lines: string[] = [], problems: string[] = [];
   const ok = (s: string) => lines.push(`✅ ${s}`);
   const bad = (s: string, why: string) => { lines.push(`❌ ${s}`); problems.push(why); };
-  const warn = (s: string) => lines.push(`⚠  ${s}`);
+  const warnings: string[] = [];
+  const warn = (s: string) => { lines.push(`⚠  ${s}`); warnings.push(s); };
 
   if (cfg.ok) ok(`config loads — ${cfg.layers.filter((l) => l.found).length} layers, theme \`${cfg.config.theme.use}\``);
   else bad(`config does not load`, c.formatDiagnostics(cfg.diagnostics));
@@ -354,9 +368,11 @@ async function doctor(root: string): Promise<ToolResult> {
 
   const index = await c.SiteIndex.open(root);
   let lint: Awaited<ReturnType<Core["lintSite"]>>;
+  let stored: { slug: string }[] = [];
   try {
     index.sync(cfg);
     lint = c.lintSite(root, { cfg, moves: index.moves(), cache: new c.MdastCache(index.mdastStore()) });
+    stored = index.files({});   // the item count, from the index that is already open and synced
   } finally { index.close(); }
   if (lint.errors) bad(`${lint.errors} lint error${lint.errors === 1 ? "" : "s"}`, lint.files.flatMap((f) => f.diagnostics.map((d) => `${f.file}:${d.line} ${d.message}`)).slice(0, 5).join("\n"));
   else if (lint.warnings) warn(`${lint.warnings} lint warning${lint.warnings === 1 ? "" : "s"} — content.lint lists them`);
@@ -367,9 +383,71 @@ async function doctor(root: string): Promise<ToolResult> {
   if (n) ok(`${n} redirect${n === 1 ? "" : "s"} declared`);
 
   const repo = c.Repo.open(root);
-  if (!repo) warn("not a git repo — writes are not versioned and nothing can be published");
+  // A problem rather than a warning since S18d: writes land on a drafts branch and publishing lands one
+  // path onto the base, so without a repo a draft is never versioned and `content.publish` has nothing to
+  // land onto. `init` now creates one wherever that is unambiguously ours to do, so reaching this line at
+  // all means somebody scaffolded into a directory that already had files in it.
+  if (!repo) bad("not a git repo", "`git init` here: writes are not versioned and nothing can be published without one.");
   else ok("git repo");
 
-  return text([...lines, problems.length ? `\n${problems.length} problem${problems.length === 1 ? "" : "s"} to fix:\n${problems.join("\n")}` : "\nnothing to fix"].join("\n"),
-    { ok: !problems.length, problems, lint: { errors: lint.errors, warnings: lint.warnings } });
+  // ── The four facts docs/08 decision 64 adds ──────────────────────────────────────────────────────
+  // Doctor is what the agent has instead of a page: the Desk renders these same facts for a person
+  // (S18f) and the rule is that nothing appears there which cannot be asked for here. So they are
+  // computed once, in this function, and returned in `facts` as well as in prose.
+  // The fifth — is a `snypd dev` server running — waits for S18e, which is the session that creates the
+  // `.snypd/dev.json` it would read. A row that reads a file nothing writes is a row that always says no.
+  const reg = registration(root);
+  if (!reg.present) bad(`no ${c.MCP_FILE}`, `Nothing registers this server with a harness. \`site\` › init writes it; without it the next session has no snypd tools.`);
+  else if (!reg.names) bad(`${c.MCP_FILE} does not name a \`snypd\` server`, `It exists but registers something else. Add a \`snypd\` entry to \`mcpServers\`, then restart the harness.`);
+  else if (reg.missingCommand) bad(`${c.MCP_FILE} names a command that is not on this machine: ${reg.command}`, `An absolute path from whoever ran \`init\` — on a clone it fails inside the harness, which renders identically to nobody having restarted. Point it at a snypd this machine has.`);
+  else ok(`registered in ${c.MCP_FILE} as \`${reg.command}\``);
+
+  // Process-local and true by construction when an agent asks — if this call arrived, a harness is
+  // connected. It earns its place for the *other* reader: the Desk, and a person asking why their
+  // editor sees no tools. S18f moves the record to `.snypd/activity.json` so a preview in its own
+  // process can answer it too; today a preview is blind to it (docs/08 §12.9).
+  const act = activitySnapshot();
+  if (act.calls) ok(`a harness is connected${act.client ? ` — ${act.client}` : ""}, ${act.calls} call${act.calls === 1 ? "" : "s"} this session`);
+  else warn("no harness has called this server yet — if an editor is open, it has not been restarted since `.mcp.json` was written");
+
+  const items = stored.length;
+  if (items) ok(`${items} item${items === 1 ? "" : "s"}`);
+  else warn("no content yet — the `get-started` prompt writes the first post");
+
+  if (c.isPlaceholderUrl(cfg.config.site.url))
+    warn(`site.url is ${cfg.config.site.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before anything publishes (content.publish refuses until then)`);
+
+  // Broken and unfinished are different things, and a first run is full of the second kind (S18d): a
+  // scaffold with no content and a placeholder URL is a site working exactly as intended two minutes in.
+  // Saying "nothing to fix" under two ⚠ rows reads as though the rows did not count.
+  const tail = problems.length ? `\n${problems.length} problem${problems.length === 1 ? "" : "s"} to fix:\n${problems.join("\n")}`
+    : warnings.length ? `\nnothing broken — ${warnings.length} thing${warnings.length === 1 ? "" : "s"} still unfinished, above`
+    : "\nnothing to fix";
+  return text([...lines, tail].join("\n"),
+    { ok: !problems.length, problems, lint: { errors: lint.errors, warnings: lint.warnings },
+      facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: act.calls > 0, client: act.client, items, placeholderUrl: c.isPlaceholderUrl(cfg.config.site.url) } });
+}
+
+/**
+ * Is this repo registered with a harness, and does the registration name something that exists?
+ *
+ * The last of those three questions is docs/08 §12.8: `.mcp.json` is committed carrying whatever
+ * absolute path `init` ran from, so a clone's harness spawns a command that is not on that machine and
+ * fails in its own logs — which the Desk renders identically to *you did not restart*. Doctor cannot fix
+ * that (S18d′ supplies the portable command), but it can name it, which is the difference between a
+ * five-minute puzzle and a five-hour one.
+ */
+function registration(root: string): { present: boolean; names: boolean; command?: string; missingCommand: boolean } {
+  const file = join(root, ".mcp.json");
+  if (!existsSync(file)) return { present: false, names: false, missingCommand: false };
+  try {
+    const j = JSON.parse(readFileSync(file, "utf8")) as { mcpServers?: Record<string, { command?: string }> };
+    const entry = j.mcpServers?.snypd;
+    if (!entry) return { present: true, names: false, missingCommand: false };
+    const command = entry.command;
+    // Only an absolute path can be checked: a bare `snypd` is resolved against the harness's PATH, which
+    // is not ours to guess from in here.
+    const missingCommand = !!command && (command.startsWith("/") || /^[A-Za-z]:[\\/]/.test(command)) && !existsSync(command);
+    return { present: true, names: true, command, missingCommand };
+  } catch { return { present: true, names: false, missingCommand: false } }
 }

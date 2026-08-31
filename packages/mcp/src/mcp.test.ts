@@ -1,7 +1,19 @@
-import { describe, expect, test, beforeAll } from "bun:test";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { describe, expect, test, beforeAll, setDefaultTimeout } from "bun:test";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "./server";
 import { PROTOCOL_VERSIONS, activitySnapshot } from "./protocol";
+
+/**
+ * Every test here drives a whole MCP session — a server, an `initialize`, and up to eleven tool calls,
+ * several of which reload and revalidate the entire config or open the index. Against `bun test`'s 5 s
+ * default that is close enough to the line that two of them failed on roughly one run in three on a
+ * loaded box (docs/08 §12.10), at HEAD, with no change of anyone's to blame. A suite that fails a third
+ * of the time trains its reader to re-run rather than to look — which is how a real failure gets waved
+ * through. Raised file-wide rather than per test, because the cause is what these tests *are*: the
+ * timeout is a hang detector here, not an assertion about speed. Speed is `snypd bench`'s job, where it
+ * is measured against a budget instead of a stopwatch that only fires when the box is busy.
+ */
+setDefaultTimeout(30_000);
 
 /** Drive the real stdio process end to end, the way a harness would. */
 async function session(msgs: (object | string)[], root = "corpora/100") {
@@ -247,6 +259,62 @@ describe("content.* tools", () => {
  * S16: the deferred surface. What is being tested is the *bargain* — a small list every turn, the rest
  * reachable — so the assertions are about what `tools/list` costs before and after, not just that a tool works.
  */
+/**
+ * S18d — a refused write leaves nothing behind.
+ *
+ * `useDrafts` refuses to switch branches when the tree carries work this write did not do, and that
+ * guard used to run *after* the content was on disk: the tool answered `isError` over a write that had
+ * happened, and `content.query` then listed the item the agent had just been told it failed to create.
+ * The first run in an empty directory hit it every time, because an `init` that could not create a repo
+ * could not commit its own scaffold either — so the dirty tree the guard tripped on was `init`'s.
+ *
+ * The assertion that matters is not the refusal. It is the two lines after it: nothing on disk, nothing
+ * in the index.
+ */
+describe("a refused write is not a half-done one", () => {
+  const site = "corpora/_test/mcp-dirty";
+  const call = (id: number, name: string, args: object = {}) => req(id, "tools/call", { name, arguments: args });
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(`${site}/content/posts`, { recursive: true });
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
+    const { git, initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });   // guarded: never inits into the enclosing repo
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
+    // Somebody else's uncommitted work, sitting in the tree — exactly what `init` used to leave behind.
+    writeFileSync(`${site}/notes.md`, "half-written, not ours to carry onto a draft branch\n");
+  });
+
+  test("a dirty tree refuses the create, and writes no file and no index row", async () => {
+    const [, created, queried] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", frontmatter: { title: "Stranded" }, body: "Nothing should survive this call.\n" }),
+      call(3, "content.query", { type: "post" }),
+    ], site);
+
+    expect(created.result.isError).toBe(true);
+    expect(created.result.content[0].text).toContain("refusing to switch");
+    expect(existsSync(`${site}/content/posts/stranded.md`)).toBe(false);
+    expect(queried.result.structuredContent).toMatchObject({ ok: true, total: 0 });   // the index never saw it either
+    // Still on the branch it started on: a refusal that moved the tree would be its own surprise.
+    const { git } = await import("@snypd/core");
+    expect(git(site, "symbolic-ref", "--short", "HEAD").stdout).toBe("main");
+  });
+
+  test("committing the foreign work unblocks the same call, unchanged", async () => {
+    const { git } = await import("@snypd/core");
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "notes");
+    const [, created] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", frontmatter: { title: "Stranded" }, body: "Now it lands.\n" }),
+    ], site);
+    expect(created.result.isError).toBeUndefined();
+    expect(created.result.structuredContent).toMatchObject({ ok: true, slug: "stranded" });
+    expect(created.result.structuredContent.git).toMatchObject({ committed: true, branch: "snypd/drafts", base: "main" });
+  });
+});
+
 describe("find_tools + the catalogue", () => {
   const site = "corpora/_test/mcp-s16";
   const call = (id: number, name: string, args: object = {}) => req(id, "tools/call", { name, arguments: args });
@@ -369,5 +437,113 @@ describe("find_tools + the catalogue", () => {
     expect(post.result.messages[0].content.text).toContain("benchmarks");
     expect(post.result.messages[0].content.text).toContain("content.suggest_blocks");
     expect(badPrompt.error).toBeDefined();
+  });
+});
+
+/**
+ * The first run, from the side the agent is standing on (S18d, docs/08 §8).
+ *
+ * Four surfaces carry onboarding and three of them are strings: `initialize`'s `instructions`, `site` ›
+ * init's return text, the `get-started` prompt, and `site` › doctor. A string is exactly the kind of
+ * thing that rots silently — `instructions` named `snypd serve --preview` three sessions after the Desk
+ * became the page a person reviews on, and `get-started` told everyone who had run `snypd init` to stop.
+ * Neither could fail a test, because nothing read them.
+ *
+ * These run against a directory with no config, which is the state `bun test` otherwise never enters
+ * (docs/08 §1). It is not the binary and it is not empty of a workspace — decision 55 is right that only
+ * `packages/bench/smoke/` can make the full claim — but the surfaces asserted here are strings and
+ * branches, and this is where they are cheap to hold still.
+ */
+describe("the first run, from the agent's side", () => {
+  const site = "corpora/_test/mcp-first-run";
+  const call = (id: number, name: string, args: object = {}) => req(id, "tools/call", { name, arguments: args });
+  const structured = (m: any) => m.result.structuredContent;
+
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(site, { recursive: true });
+    const { initRepo, git } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });   // the enclosing repo is a checkout: never `git init` into it
+    writeFileSync(`${site}/.gitkeep`, "");
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
+  });
+
+  test("`initialize` names the prompt that carries a new site to its first post", async () => {
+    const [init] = await session([req(1, "initialize")], site);
+    const s = init.result.instructions as string;
+    // The one surface guaranteed to reach the agent on every session start, before any tool call — and
+    // the only thing on the far side of a restart that destroyed the context `init` printed into.
+    expect(s).toContain("get-started");
+    expect(s).toContain("snypd://spec/primitives");
+    expect(s).toContain("/_snypd");
+    expect(s).not.toContain("--preview");   // the review page has a name; this used to point past it
+  });
+
+  test("`get-started` branches on what the site already is, and never tells a scaffolded one to stop", async () => {
+    const [, p] = await session([req(1, "initialize"), req(2, "prompts/get", { name: "get-started" })], site);
+    const s = p.result.messages[0].content.text as string;
+    // Branch B is the majority path — restarted harness, config that loads, nothing written — and the
+    // version before this session ended it at step 1 with the word "stop".
+    expect(s).toContain("content.query");
+    expect(s).toContain("zero items");
+    expect(s).toContain("Do not run init");
+    expect(s).toContain("content.render_preview");
+    // …and it does not ask for a URL up front on the branch that creates a site, because init no longer
+    // needs one (decision 63) and asking for a production domain before the first pixel is the defect.
+    expect(s).toContain("Do **not** ask for the URL");
+  });
+
+  test("`site` › init takes no arguments, and the text it returns is addressed to the agent", async () => {
+    const [, init] = await session([req(1, "initialize"), call(2, "site", { action: "init" })], site);
+    expect(init.result.isError).toBeUndefined();
+    expect(structured(init)).toMatchObject({ ok: true, git: true, placeholderUrl: true, name: "mcp-first-run" });
+    const s = init.result.content[0].text as string;
+    expect(s).toContain("placeholder");
+    expect(s).toContain("Do not ask for it yet.");           // the URL is due at publish, and only there
+    expect(s).toContain("snypd://spec/primitives");          // what to do next, not what was done
+  });
+
+  test("`doctor` answers the facts the Desk renders, including the ones nothing could reach before", async () => {
+    const [, doc] = await session([req(1, "initialize", { clientInfo: { name: "an-editor", version: "0" } }), call(2, "site", { action: "doctor" })], site);
+    const s = doc.result.content[0].text as string;
+    // Decision 64: one implementation of the derived facts, two renderings. The structured half is what
+    // S18f's checklist reads, so it is asserted as data rather than as prose.
+    expect(structured(doc).facts).toMatchObject({ config: true, theme: true, git: true, registered: true, harness: true, items: 0, placeholderUrl: true });
+    expect(structured(doc).facts.client).toBe("an-editor");   // `initialize` said who it was; doctor says so back
+    expect(s).toContain("an-editor");                        // two editors on one repo is the ordinary case
+    expect(s).toContain("registered in .mcp.json");
+    expect(s).toContain("a harness is connected");
+    expect(s).toContain("no content yet");
+    expect(s).toContain("a placeholder");
+    // Broken and unfinished are different things: a scaffold with no content and no origin yet is the
+    // product working, two minutes in. "nothing to fix" under two ⚠ rows read as though they did not count.
+    expect(s).toContain("nothing broken — 2 things still unfinished");
+  });
+
+  test("the placeholder comes due exactly once, at publish, and the refusal changes when it is fixed", async () => {
+    const [, , created, refused] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", frontmatter: { title: "First" }, body: "Words enough to be a post.\n" }),
+      call(3, "content.query", { type: "post" }),
+      call(4, "content.publish", { type: "post", slug: "first" }),
+    ], site);
+    // Drafting is not blocked by the placeholder — that is the half of the bargain that makes deferring
+    // the question tolerable at all.
+    expect(created.result.isError).toBeUndefined();
+    expect(refused.result.isError).toBe(true);
+    expect(refused.result.content[0].text).toContain("placeholder");
+    expect(refused.result.content[0].text).toContain("site.url");
+
+    const [, set, stillRefused] = await session([
+      req(1, "initialize"),
+      call(2, "site", { action: "set_config", path: "site.url", value: "https://first-run.example" }),
+      call(3, "content.publish", { type: "post", slug: "first" }),
+    ], site);
+    expect(set.result.isError).toBeUndefined();
+    // Now the refusal is the *other* one — the approval a human owes, which is the product working
+    // rather than a setup step. A single message that changes from one to the other is the whole test.
+    expect(stillRefused.result.isError).toBe(true);
+    expect(stillRefused.result.content[0].text).not.toContain("placeholder");
+    expect(stillRefused.result.content[0].text).toContain("needs a human");
   });
 });

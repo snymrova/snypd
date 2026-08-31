@@ -13,7 +13,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { compile } from "./build";
 
 let BIN = "", dir = "";
@@ -49,7 +49,11 @@ describe("the compiled binary, in a directory it has never seen", () => {
     const reg = JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf8")) as { mcpServers: { snypd: { command: string; args: string[] } } };
     expect(reg.mcpServers.snypd.command).toBe(BIN);   // the binary that ran, not the string "snypd"
     expect(reg.mcpServers.snypd.args).toEqual(["serve"]);
-    expect(r.out).toContain("restart your harness");
+    // Decision 60: this output is addressed to the agent that ran the command, and the one thing it
+    // cannot do is phrased to be relayed verbatim — so the assertion is the sentence, not a keyword.
+    expect(r.out).toContain("Restart your harness (Claude Code, Cursor or Codex) so the snypd tools load.");
+    // …and it names where the far side picks up, because the restart destroys the context this printed into.
+    expect(r.out).toContain("get-started");
   });
 
   test("`build` renders the site from themes that exist only inside the binary", () => {
@@ -94,6 +98,41 @@ describe("the compiled binary, in a directory it has never seen", () => {
     rmSync(join(dir, "content/posts/bad.md"));
   });
 
+  /**
+   * S18d — the empty-directory first run, which is the one state no other suite can enter.
+   *
+   * `dir` above is `git init`ed in `beforeAll`, because every test after it needs a repo; that makes it a
+   * fine proxy for a checkout and a useless one for the state docs/08 §2 actually starts in. So this gets
+   * its own directory with nothing in it at all, and asserts the three things that only happen there: the
+   * repo is created (on `main`, not on whatever `init.defaultBranch` says), the scaffold is *committed*
+   * into it, and neither a name nor a URL was required to get any of that.
+   *
+   * The commit is the assertion that matters. Until S18d `init` wrote seven files, reported `git: false`
+   * and printed "next: git init here" — so the scaffold sat uncommitted and the agent's very first
+   * `content.create` refused on a dirty tree it had never been told about. Every empty-directory first
+   * run hit it, and no test could: `bun test` starts in a repo, by construction.
+   */
+  test("`init` with no arguments at all, in a directory with nothing in it", () => {
+    const empty = mkdtempSync(join(tmpdir(), "snypd-empty-"));
+    try {
+      const r = run(["init", "."], empty);
+      expect(r.code, r.err).toBe(0);
+      // The repo is init's own job here, and it lands on the branch a publish lands on.
+      const head = Bun.spawnSync(["git", "symbolic-ref", "--short", "HEAD"], { cwd: empty }).stdout.toString().trim();
+      expect(head).toBe("main");
+      const log = Bun.spawnSync(["git", "log", "--oneline"], { cwd: empty }).stdout.toString();
+      expect(log).toContain("site: init");
+      const status = Bun.spawnSync(["git", "status", "--porcelain"], { cwd: empty }).stdout.toString();
+      expect(status).toBe("");                                    // nothing left uncommitted for the first write to trip on
+      // Named after the directory, on a placeholder origin, and the config says so in the file itself.
+      const yaml = readFileSync(join(empty, "snypd.yaml"), "utf8");
+      expect(yaml).toContain(`name: "${basename(empty)}"`);
+      expect(yaml).toContain("# placeholder");
+      expect(r.out).toContain("git init — new repository on main");
+      expect(r.out).toContain("Do not ask for it yet.");          // the URL is due at publish, and only there
+    } finally { rmSync(empty, { recursive: true, force: true }); }
+  }, 30_000);
+
   test("`serve` answers MCP `initialize` on stdio", async () => {
     const p = Bun.spawn([BIN, "serve", dir], { cwd: dir, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
     const req = { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke", version: "0" } } };
@@ -110,6 +149,45 @@ describe("the compiled binary, in a directory it has never seen", () => {
     const res = JSON.parse(buf.split("\n")[0]!) as { result?: { serverInfo?: { name: string } }; error?: unknown };
     expect(res.error).toBeUndefined();
     expect(res.result?.serverInfo?.name).toBeString();
+  }, 30_000);
+
+  /**
+   * S18d — the health report the binary gives is the one the checkout gives.
+   *
+   * `site` › doctor is what an agent has instead of a page (docs/08 decision 64), so a fact it invents is
+   * onboarding damage: the first health check a new site ever runs. In the binary it reported **38 token
+   * overrides the theme does not declare** on a scaffold `init` had just written, because `themeTokens`
+   * read `theme.yaml` with `readFileSync` on a `snypd:theme/…` name rather than through the `themefs`
+   * seam, and swallowed the failure — undeclared tokens are counted as stranded overrides, so a read that
+   * returned nothing became 38 problems rather than an error.
+   *
+   * This is S18a's bug again (one path on disk, another in `$bunfs`) and it survived S18a for the same
+   * reason: `bun test` runs from a checkout where `themes/editorial` is a real directory. Asserting on the
+   * *count* rather than the wording is deliberate — the defect was a number that should have been zero.
+   */
+  test("`doctor` reports the site's problems and none of the binary's own", async () => {
+    const p = Bun.spawn([BIN, "serve", dir], { cwd: dir, stdin: "pipe", stdout: "pipe", stderr: "ignore" });
+    const send = (id: number, method: string, params?: object) =>
+      p.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) }) + "\n");
+    send(1, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke", version: "0" } });
+    send(2, "tools/call", { name: "site", arguments: { action: "doctor" } });
+    await p.stdin.flush();
+    const reader = p.stdout.getReader();
+    let buf = "";
+    const deadline = Date.now() + 20_000;
+    while (buf.split("\n").filter(Boolean).length < 2 && Date.now() < deadline) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += new TextDecoder().decode(value);
+    }
+    p.kill();
+    const doc = JSON.parse(buf.split("\n").filter(Boolean)[1]!) as { result: { content: { text: string }[] } };
+    const report = doc.result.content.map((c) => c.text).join("\n");
+
+    expect(report).toContain("config loads");
+    expect(report).toContain("theme `editorial` resolves");
+    // The whole assertion: the themes are inside the binary, and doctor knows what they declare.
+    expect(report).not.toContain("the theme does not declare");
   }, 30_000);
 
   /**

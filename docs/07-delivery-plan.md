@@ -68,7 +68,7 @@ Claude Code ──MCP──▶ snypd serve (local, incremental builds, instant p
 
 ## 4. Schedule — Claude Code sessions, not calendar weeks
 
-Unit of work = one autonomous session (~2–4 h wall clock, one PR, bench diff attached). Sunny reviews PRs and runs the gates. Estimated **24 sessions** (S19 split in the S18 audit; S18 split by the compile spike that opened S18a — §6); at 2 sessions/day that is **~12 working days**, at 1/day ~4.5 weeks. Gates don't move; the calendar does.
+Unit of work = one autonomous session (~2–4 h wall clock, one PR, bench diff attached). Sunny reviews PRs and runs the gates. Estimated **29 sessions** (S19 split in the S18 audit; S18 split by the compile spike that opened S18a, and again by the first run — S18d–S18g, docs/08, which also unparks S18b″ as S18d′); at 2 sessions/day that is **~15 working days**, at 1/day ~6 weeks. Gates don't move; the calendar does.
 
 Each session opens with: read `docs/*.md` + `bench/latest.md`, run `bun test && snypd bench --quick`, then work. Each session closes with: tests green, bench diff in PR body, `07` §5 log updated.
 
@@ -105,13 +105,18 @@ If Gate B is red, S13–S14 become speed sessions and the editorial theme slips.
 | ~~S17b~~ | **done, and D1 is green.** The write model (§6, decision 42): one drafts branch that stays checked out, `Repo.land()` instead of checkout-and-merge, config writes that land as they are made (decision 43). `useDraft`/`merge` are gone; `draftSource` is one line again | **`agent.goal` 11/11 ✅ · `agent.calls.draft` 2 / 8 ✅ · `agent.calls` 18 / 19 ✅** |
 | ~~S18a~~ | **done.** The binary ran, and D5's premise went from assumed to true. `bun build --compile` produced an 88 MB artefact that wrote `snypd.yaml` and died on `ENOENT: scandir '/$bunfs/defaults'` — 31 spec YAMLs and 20 theme `.tsx` reached by `readdirSync` and computed-path `import()`, neither of which a bundler can see or `$bunfs` can list. Decision 46 is the fix: a generated static barrel per asset root, used on disk *and* in the binary, so there is one path and not two. Plus the two things a first run needs that nobody owned — `snypd init` writes `.mcp.json`, and `packages/bench/smoke/` runs the **compiled** binary in a fresh directory, because `bun test` runs from a checkout and can never fail on any of this (decisions 47–48) | D5 met: `snypd init && snypd build` green from a binary in an empty repo with no `node_modules` |
 | ~~S18b′~~ | **done: the Desk.** `/_snypd` was two loose routes and is now a page — decisions 44–45 built rather than argued. A status card that answers *did it work?* (is a harness connected, what did it last call, what was built), the drafts in flight with what stands between each and publishing, and a read-only theme card. No authoring, no button, no `<form>`, no `<script>` — the constraints are asserted, because "we decided not to" is not a constraint until something checks. The status card reads a five-field record in `protocol.ts`, the one funnel every message crosses and already on the cold path, so the Desk costs `initialize` nothing. New `desk.*` bench lane: `pageSuite` can now measure a live server rather than only `dist/`, and it found two real defects on its first two runs — see §5 | **`desk.js.kb` 0 ✅ · `desk.a11y.violations` 0 ✅ · `desk.cls` 0 ✅**, gated; `preview.ttfb` and `mcp.coldStart.binary` unmoved |
-| S18b″ | **parked — going public.** `curl \| sh` installer, `snypd init --deploy cloudflare\|vercel`, host config + PR bench workflow. Deferred deliberately: none of it can be verified on this box, and `curl \| sh` is the weakest available trust story — npm platform packages with provenance (the esbuild/bun pattern; `@oven/bun-linux-x64` is 80.7 MB and ships this way) plus a Homebrew tap is the shape to take, with `site.push` and the Desk's one button landing beside it in S19a | three commands to a repo an agent can write to — install, `snypd init --deploy`, restart the harness |
+| ~~S18b″~~ | **unparked as S18d′** — docs/08 decision 56: agent-first was declared the primary flow and the one thing that unblocks it was left parked, which makes it a preference rather than a priority. `bunx snypd init` is step 4 of the first-run flow and nothing on npm answers it | superseded by S18d′ below |
 | ~~S18c~~ | **done, and the gate moved.** The budget was on `bun packages/mcp/src/server.ts`, a command no user runs; the artefact answered the same `initialize` in 224 ms. The cause was neither `--compile` nor our code but the single 5.5 MB module a bundle is: JSC parses all of it before `main()`, which is why the old binary spent **277 ms printing its usage line**. `--splitting` gives the lazy `import()` chain its boundary back (decision 49) — **224 → 60 ms median, interleaved, on a box where the source lane read 69.9** — and `mcp.coldStart.binary` now carries D2's budget with the source lane reporting beside it | `mcp.coldStart.binary` gated in CI on the binary a release ships; the two lanes are measured in the same interleaved rounds, so the delta cannot drift unnoticed |
+| ~~S18d~~ | **done: the agent's path** (docs/08 §13, decisions 59–65). Every gap on that path was a string delivered to the wrong reader, so nothing here is a new surface or a new verb. `init`'s stdout and `site` › init's return text are addressed to an agent, with the restart phrased to be relayed verbatim; `get-started` branches three ways instead of telling the majority path to *stop*; `initialize` › `instructions` names the prompt and the Desk; `init` takes no required arguments on **either** path, the URL falling to a placeholder whose debt comes due in `publishCheck` and nowhere else; `git init` in an empty dir; `site` › doctor answers eight of the nine derived facts and returns them as data, so S18f's checklist renders one computation rather than a second. Four defects closed — docs/08 §12.1, 2, 4 and 10 — and the last of those was a suite failing one run in three, which is the kind that trains its reader to re-run rather than look. Walked end to end against the compiled artefact from an empty directory, because decision 55 says a first-run claim made from inside the workspace is a claim about a state no user is in | **250 pass / 0 fail**; docs/08 §2 completes agent-driven; F3 + F5 for the agent path; `mcp.coldStart` unmoved — no module joins the cold path |
+| S18d′ | **distribution** (was S18b″). npm platform packages with provenance — the esbuild/bun shape, `@oven/bun-linux-x64` is 80.7 MB and ships this way — plus a Homebrew tap. `curl \| sh` is refused on two counts now: the weakest trust story available, and unrunnable by an agent without a human approving a pipe-to-shell. `snypd init --deploy cloudflare\|vercel` and the PR bench workflow ride along | `bunx snypd init` resolves for somebody who is not us; docs/08 F1 claimable rather than merely measured |
+| S18e | **the human verb.** `snypd dev` (decision 51) — bind, open, watch, print; discovered by `serve` through `.snypd/dev.json`; the EADDRINUSE fix that is live and red today; decision 57's TTY split; live reload that changes no published byte. Serves the terminal-first arrival, which docs/08 §4 keeps as a real but secondary path | `snypd init && snypd dev` from an empty directory paints the Desk; `.snypd/preview` bytes equal `dist/` bytes |
+| S18f | **the page that meets you.** The first-run checklist rendered from doctor's facts (decision 64), three surface labels, the prompts as selectable text, the verbatim `.mcp.json` block, the rendered empty state, `startedAt` in the heartbeat | docs/08 F6 + F7; `desk.*` extended to the empty and first-run states |
+| S18g | **the number.** The `onboard.*` lane in `packages/bench/smoke/`, driving the compiled binary from a temp directory: `handoff` (human actions, decision 65), `ttfp`, `ttfv`, and the state-transition test. `sites/` + `bun run scratch` (decision 53) as the loop that dogfoods this by walking it | docs/08 F1, F2, F4; budgets set from the first measurement and gated thereafter |
 
 ### Phase 4 — one binary, one real site (S19–S22) · **Gate C = release**
 | S | Deliverable | Exit |
 |---|---|---|
-| S19a | **snypd.rocks is live**: `snypd init --deploy cloudflare`, repo → GitHub → Cloudflare Pages (Vercel as the second verified target), custom domain, branch previews on; the `site.push` tool, whose home is the Desk's one button (decision 44) — a human clicking in a local browser is a stronger gate than a `destructiveHint` on a tool an agent can call; the rest of the Desk (drafts in flight, theme + coverage read-only, push status) | site live, edited only via MCP; draft branch shows a preview URL; nothing reaches the internet without a person |
+| S19a | **snypd.rocks is live**: `snypd init --deploy cloudflare`, repo → GitHub → Cloudflare Pages (Vercel as the second verified target), custom domain, branch previews on; the `site.push` tool, whose home is the Desk's one button (decision 44) — a human clicking in a local browser is a stronger gate than a `destructiveHint` on a tool an agent can call; the push card that button lives on (drafts in flight and theme + coverage landed in S18b′, the front door in S18d–S18f) | site live, edited only via MCP; draft branch shows a preview URL; nothing reaches the internet without a person |
 | S19b | 3 launch posts written via MCP ("why MCP-only", "the vocabulary", "the benchmarks"), each with a chart + a flow — and written *through the Desk*, which is the first real dogfood of the review loop rather than a scripted one | 3 posts on snypd.rocks, each approved on the Desk; the loop survives a human using it |
 | S20 | remark vs `Bun.markdown` report; final speed pass | all D2/D3 ≥ 20 % under budget |
 | S21 | kill test × 3 models; 20-topic `write-post` first-attempt lint pass | D1, D4; pass rate published (target ≥ 80 %, no budget yet) |
@@ -502,6 +507,114 @@ with a `<pre>` a keyboard cannot reach — not a regression the gate missed, a r
 loaded. Hence `desk.*` as its own namespace over its own routes rather than more routes folded into
 `page.*`: a lane that covers a second surface under the first one's name is how a number stops meaning
 what its history says it means.
+
+
+51. **A fifth verb, because `serve` has two audiences and only one of them is a person** (S18e; written for S18d, moved by the docs/08 audit): docs/00 §1
+says three verbs and 06 §1 says four; this makes five, six counting `config` and `lint`, which have been
+debugging aids since S5. The principle that is load-bearing is *MCP is the only way to write*, and `dev`
+writes nothing — it serves what a build already produced. This amends the count in both, and nothing else
+in either.
+
+The reason is audience, not features. `serve` is spawned by the harness from `.mcp.json` (`site.ts:197`):
+no TTY, and stdout carries JSON-RPC, so a human-facing line printed there is a protocol violation and a
+browser opened there is a window per session start. `--preview` bolted the second audience onto the first
+verb, which is why the front door is invisible — `cli/index.ts:87` prints the S11 review path with
+`<type>/<slug>` placeholders and has never named `/_snypd`, three sessions after the Desk became a page.
+`snypd dev` gives the person their own verb with their own defaults: bind, open, watch, print. `serve
+--preview` stays as an alias, and the strings that name it (`tools.ts:56` and the publish refusal hints)
+move with it.
+
+**The transport question, decided rather than left open.** A single `snypd start` that both speaks MCP and
+owns the browser requires HTTP transport: stdio means the *client* spawns the server and owns its pipes, so
+a server started in a terminal cannot be attached to. Three costs keep it in v0.3 where 06 already had it.
+It needs a localhost auth story in v0.1 — a token file, `127.0.0.1` binding, Origin checks — because
+otherwise any process on the box, including an npm postinstall, can publish to your site, and any page you
+visit can try DNS rebinding. Harness support for URL-registered servers is less uniform than for spawned
+ones. And the failure mode is worse in the case that matters: a spawned server always works because starting
+it is not the human's job, while a URL registration for a server nobody remembered to start leaves the agent
+with no CMS at all.
+
+**Two processes are not a compromise, because of principle 3.** Files are truth, so the working tree already
+*is* the shared state: the agent writes, the watcher sees. The single fact that is not a file is "is a
+harness connected", today a function handed in-process (`preview.ts` `opts.activity`, `tools.ts:115-120`).
+It becomes `.snypd/activity.json`, re-read per request and never cached, for exactly the reason
+`approvals.json` is — two processes over one store make a cache wrong the first time the other one writes.
+That file is the entire seam, and it is designed to be **deleted**: the day `dev` also serves an MCP
+endpoint, one process holds both again and the heartbeat goes away. Build toward a future that arrives as a
+deletion rather than a rewrite.
+
+**Ownership inverts, and that is the point.** The preview stops belonging to the agent's session and starts
+belonging to the person: it exists before any tool call, survives the harness restarting, and is already
+open when the post lands. `render_preview` probes `.snypd/dev.json` and returns that URL instead of binding
+a second server — which also closes a live defect, since both paths default to 4321 (`preview.ts`
+`opts.port ?? 4321`) with no fallback, so a human running `snypd serve --preview` while an agent calls
+`render_preview` gets `EADDRINUSE`. With no `dev` running the current session-scoped behaviour is unchanged,
+so the kill test, which drives `preview()` as a library, does not notice any of this.
+
+**Live reload may not change a published byte.** S11's claim is that the preview is the same build that
+publishes, so nothing is injected into the page body: a `Refresh` response header does the reloading and the
+preview-only link strip to the Desk is added in the response path, with a test asserting that every
+`.snypd/preview/**/*.html` equals what `build()` writes to `dist/`. Preview-only behaviour lives in the
+response, never in the bytes.
+
+52. **Onboarding state is derived from disk, never stored** (S18d/S18f): the first-run Desk is a checklist of six
+facts — is this a git repo (`isRepoRoot`), does `snypd.yaml` load (`loadConfig().ok`), does `.mcp.json` name
+snypd, has a harness ever called (the heartbeat), is there one item (the index), and is `site.url` still a
+localhost placeholder. None of it is written down. A progress file is wrong the first time somebody clones
+the repo, deletes the only post, or starts over, and it would be a second source of truth in a project whose
+third principle is that there is one. The same six facts are what `site` › doctor answers, so there is one
+implementation and not two.
+
+Two details carry more weight than they look. **Every row is labelled *type this* or *say this to your
+agent*** — half of onboarding is a shell command and half is a sentence to a harness, and people stall
+precisely where nothing says which of the two they are looking at. And there is **no dismiss button and no
+stored flag**: when the six are true the checklist is not rendered, and what remains is the ordinary Desk.
+The "what is MCP" copy sits inline in `<details>`, which is progressive disclosure at zero JS, so it costs
+the reader who already knows nothing and `desk.js.kb` stays 0.
+
+**The empty state is rendered, not scaffolded.** `initSite` writes a config and empty directories and no
+content (`site.ts:216-252`), so the first visual today is an empty index — the weakest possible first
+impression of a themed CMS. The fix is not a welcome post: a file every new site must delete is a file that
+ships to production when somebody forgets, and WordPress's "Hello world!" is the demonstration rather than
+the counterexample. Instead the dev server synthesises the index route while the site has zero items — the
+theme rendering the vocabulary, marked as visible only to you and gone on the first real post — and a test
+asserts `build()` never emits it. Nothing exists that must be deleted, and nothing can leak into `dist/`.
+
+53. **`sites/` holds working copies, and this repo tracks none of them** (S18g): S1 listed
+`sites/snypd.rocks/` inside the monorepo and S19a pushes snypd.rocks to its own GitHub repo wired to
+Cloudflare Pages. Both cannot be true — a site the host builds from git is its own repo. Resolved in favour
+of S19a: `sites/` is git-ignored wholesale, every directory in it is its own repo, and snypd.rocks is
+*cloned* into it. Beside the code for dogfooding, tracked only by its own remote. One rule, no exceptions.
+
+In-repo rather than `/tmp` for a specific reason: `.mcp.json` written from a checkout names `bun <entry>`
+(`site.ts` `mcpEntry`), so a scratch site is wired to the working tree — change the code, restart the
+harness, the change is live. Not `corpora/`, because those are bench inputs and must stay deterministic; a
+hand-played site among them is how a number stops meaning what its history says (decision 48). And this does
+not replace `packages/bench/smoke/`: a site under `sites/` resolves `@snypd/*` through the workspace
+`node_modules` and a real user's site does not, so `sites/` dogfoods the *experience* while the smoke test
+dogfoods the *distribution*. Collapsing that distinction is how S18a's bug survived all the way to the
+binary. `bun run scratch` creates one and starts `dev` — zero to first visual in one command, and since it
+is the same path a new user walks, using it is testing it.
+
+
+**Decisions 51–53, as amended by the docs/08 audit (29 Aug).** Three corrections, made because that
+document declared *agent-first* and then designed every deliverable for a person at a screen.
+
+*51* stands as a verb and as a defect fix — the EADDRINUSE collision it predicted is live, and a preview
+that outlives the agent's session is worth having. What does not stand is the reasoning that made it the
+**front door**: the argument was that a browser tab is the only surface surviving the harness restart,
+which is true of a human and false of an agent, whose continuous surface is the repo. Files are truth, so
+the thing that crosses the restart is a disk read, not a tab. `dev` therefore serves the terminal-first
+arrival and the review moment, and the first run does not depend on it.
+
+*52* is right and generalises further than it claimed: the same derived facts are what `site` › doctor
+answers, and doctor — not the Desk — is the surface the agent-first user actually has. docs/08 decision 64
+makes that the rule in both directions: no fact appears on the Desk that doctor cannot answer.
+
+*53* is unchanged.
+
+Decisions 54–65 live in `docs/08-first-run.md`, which owns the first run end to end and overrides this
+file where they conflict — as this file overrides `06`.
 
 ## 8. Ready to start
 Code lives in this repo (`snypd/`), docs in `docs/`. S1 starts now.

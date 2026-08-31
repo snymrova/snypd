@@ -272,6 +272,33 @@ export function formatDiagnostics(d: Diagnostic[]): string {
 }
 
 /** Routes are stored leading-slashed and un-trailing-slashed (`/posts/x`); `/` is itself. */
+/**
+ * The origin `init` writes when nobody has said where the site will live (S18d, docs/08 decision 63).
+ *
+ * The feed, the sitemap and the JSON-LD are all absolute, so a real origin is genuinely required — and
+ * it is required *at publish*, not at `init`. Asking a person for a production domain before they have
+ * seen one pixel is the single most reliable way to lose them, and an agent that hits a required flag it
+ * cannot infer has nowhere to go but back to the human. So `init` writes this, `site` › doctor says it is
+ * still unfinished, and `publishCheck` refuses over it with the one line that fixes it.
+ *
+ * It is the preview's own origin rather than a fake domain, so it is also *true* for as long as it is
+ * there: everything a placeholder site renders locally points at the server that rendered it.
+ */
+export const PLACEHOLDER_URL = "http://localhost:4321";
+
+/**
+ * Whether `site.url` still names somewhere only this machine can reach.
+ *
+ * Deliberately every loopback host rather than an exact match on `PLACEHOLDER_URL`: a site configured
+ * for `http://localhost:3000` has not been left unfinished by us, but its feed and sitemap are just as
+ * unreachable, and this predicate is asked at exactly the two moments where that is what matters.
+ */
+export function isPlaceholderUrl(url: string): boolean {
+  let host: string;
+  try { host = new URL(url).hostname; } catch { return false; }
+  return host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
 export function normalizeRoute(route: string): string {
   const r = `/${String(route).trim().replace(/^\/+/, "").replace(/\/+$/, "")}`;
   return r === "/" ? "/" : r;

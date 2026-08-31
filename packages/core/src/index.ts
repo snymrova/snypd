@@ -1,5 +1,5 @@
 /** @snypd/core — YAML layering → validated Config with provenance (docs/02 §1–§2). */
-export { loadConfig, renderConfig, formatDiagnostics, resolveThemeChain, type Diagnostic, type LoadedConfig, type LoadOptions, type LayerInfo, type ThemeLink } from "./config";
+export { loadConfig, renderConfig, formatDiagnostics, resolveThemeChain, PLACEHOLDER_URL, isPlaceholderUrl, type Diagnostic, type LoadedConfig, type LoadOptions, type LayerInfo, type ThemeLink } from "./config";
 export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ROLES, type TokenDecl, type Config, type TypeDef, type TaxonomyDef } from "./schema";
 export { describeSource, type Source, type Provenance, type LayerName } from "./merge";
 export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "./yaml";

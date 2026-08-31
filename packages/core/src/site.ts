@@ -13,13 +13,13 @@
  *    it works on a host that reads neither), and rule 10 goes quiet for a route that is covered.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parseDocument } from "yaml";
-import { loadConfig, formatDiagnostics, normalizeRoute, redirects, type LoadedConfig } from "./config";
+import { loadConfig, formatDiagnostics, isPlaceholderUrl, normalizeRoute, redirects, PLACEHOLDER_URL, type LoadedConfig } from "./config";
 import { bundledDir, bundledNames, themeFile } from "./themefs";
 import { parsePath, parseYaml, pathKey } from "./yaml";
 import { WriteError } from "./write";
-import { isRepoRoot } from "./git";
+import { git, initRepo, isRepoRoot } from "./git";
 
 export const CONFIG_FILE = "snypd.yaml";
 export { normalizeRoute, redirects } from "./config";
@@ -101,8 +101,16 @@ export function themeTokens(cfg: LoadedConfig): TokenInfo[] {
   const decls = new Map<string, { decl: unknown; by: string }>();
   for (const link of [...chain].reverse()) {
     if (!link.yamlFile) continue;
+    // Through the `themefs` seam, not `fs` (S18d). A bundled theme's `yamlFile` is `snypd:theme/<name>/…`,
+    // which is a name and not a path — so inside a `--compile` binary this read threw, the `catch` below
+    // swallowed it, and every declaration was lost. Nothing crashed: `overridden` treats an undeclared
+    // token as a stranded override, so `site` › doctor told every new site it had 38 problems it did not
+    // have. This is S18a's bug in its quietest form — one path on disk and another in `$bunfs` — and the
+    // reason decision 46 says there is one seam. `config.ts:79` already reads this file through it.
+    const text = themeFile(link.dir, "theme.yaml");
+    if (text === undefined) continue;
     let raw: unknown;
-    try { raw = parseYaml(readFileSync(link.yamlFile, "utf8"), link.yamlFile).value; } catch { continue; }
+    try { raw = parseYaml(text, link.yamlFile).value; } catch { continue; }   // malformed: config.ts already has the diagnostic
     const t = (raw as Record<string, unknown> | undefined)?.tokens;
     if (!t || typeof t !== "object" || Array.isArray(t)) continue;
     for (const [k, v] of Object.entries(t as Record<string, unknown>)) decls.set(k, { decl: v, by: link.name });
@@ -205,8 +213,40 @@ function mcpEntry(root: string, opts: { command?: string; args?: string[] }) {
 }
 
 
-export interface InitInput { name: string; url: string; description?: string; theme?: string }
-export interface InitResult { file: string; paths: string[]; created: string[]; git: boolean }
+/**
+ * Both fields are optional (S18d, docs/08 decision 63), and that is the whole of the change.
+ *
+ * `snypd init` exited 2 without `--name` and `--url`, and `site` › init called `need(args, "url")` — so a
+ * person who had just met a CMS was asked for a production origin before seeing one pixel, and the agent
+ * trying to help them could not route around it either. Name falls back to the directory, which is what
+ * the person called it; URL falls back to `PLACEHOLDER_URL`, which comes due at publish (`publishCheck`).
+ *
+ * A URL that is *passed* and is not a URL still throws: a typo is a different thing from an omission.
+ */
+export interface InitInput { name?: string; url?: string; description?: string; theme?: string }
+export interface InitResult { file: string; paths: string[]; created: string[]; git: boolean; gitInit: boolean; name: string; url: string; placeholderUrl: boolean }
+
+/**
+ * Whether `init` should create the repository itself (S18d, docs/08 §7 · 1 → 2).
+ *
+ * Nothing in this product works without git: writes land on a drafts branch, publishing lands one path
+ * onto the base, and `content.create` refuses outright without a repo to commit into. An `init` that
+ * writes a scaffold and then tells a first-timer to go and run `git init` themselves leaves the scaffold
+ * uncommitted, which makes their *first write* refuse — the whole of the empty-directory first run,
+ * failing on the step after the one that could have prevented it.
+ *
+ * Two conditions, and the second is the one that matters. **Empty**, because creating a repo around
+ * files somebody else put here is not ours to assume — that case is reported and left alone. And **not
+ * already inside a work tree**: `git init` in a subdirectory of an existing repo silently creates a
+ * nested one, and a nested repo is invisible until it has swallowed a directory of somebody's work.
+ * `isRepoRoot` alone cannot tell those apart — it is false both for a virgin directory and for a
+ * subdirectory of a repo — so the enclosing-tree question is asked separately.
+ */
+function shouldInitRepo(root: string): boolean {
+  if (isRepoRoot(root)) return false;
+  if (git(root, "rev-parse", "--show-toplevel").ok) return false;   // inside somebody else's repo
+  try { return readdirSync(root).length === 0; } catch { return false; }
+}
 
 /**
  * Write the smallest `snypd.yaml` that loads, plus the directories content lives in (S16). This is what the
@@ -217,20 +257,28 @@ export interface InitResult { file: string; paths: string[]; created: string[]; 
 export function initSite(root: string, input: InitInput): InitResult {
   const file = join(root, CONFIG_FILE);
   if (existsSync(file)) throw new WriteError(`${CONFIG_FILE} already exists`, "This site is already initialised — `site` › set_config changes one key, `site` › doctor says whether it is sound.");
-  if (!input.name?.trim()) throw new WriteError("name required", "The site's name, as a reader would see it.");
-  try { new URL(input.url); } catch { throw new WriteError(`"${input.url}" is not a URL`, "An absolute origin the site will be served from, e.g. https://example.com — the feed, sitemap and JSON-LD all need it."); }
-  const url = input.url.replace(/\/+$/, "");
-  const yaml = `# ${input.name} — the whole site config. Every key not named here comes from @snypd/spec;
+  // Named after the directory when nobody said otherwise — which is what the person called it, and is
+  // one `site` › set_config away from whatever they meant. `resolve` first, so `.` is not a site called ".".
+  const name = input.name?.trim() || basename(resolve(root)) || "site";
+  if (input.url !== undefined) { try { new URL(input.url); } catch { throw new WriteError(`"${input.url}" is not a URL`, "An absolute origin the site will be served from, e.g. https://example.com — the feed, sitemap and JSON-LD all need it."); } }
+  const url = (input.url ?? PLACEHOLDER_URL).replace(/\/+$/, "");
+  const placeholderUrl = isPlaceholderUrl(url);
+  const yaml = `# ${name} — the whole site config. Every key not named here comes from @snypd/spec;
 # \`snypd://config\` is the merged result with a comment saying where each value came from.
 snypd: 1
 
 site:
-  name: ${JSON.stringify(input.name)}
-  url: ${JSON.stringify(url)}${input.description ? `\n  description: ${JSON.stringify(input.description)}` : ""}
+  name: ${JSON.stringify(name)}
+  url: ${JSON.stringify(url)}${placeholderUrl ? "   # placeholder — the feed, sitemap and JSON-LD are absolute, so publishing needs the real one" : ""}${input.description ? `\n  description: ${JSON.stringify(input.description)}` : ""}
 
 theme:
   use: ${input.theme ?? "editorial"}
 `;
+  // Asked before a byte is written, because the answer is "is this directory empty" and one line from now
+  // it will not be. `initRepo` uses `-b main`, which is `DEFAULT_BASE` — so the branch a publish lands on
+  // is the branch the site was born on, rather than whatever `init.defaultBranch` happens to be set to.
+  const gitInit = shouldInitRepo(root);
+  if (gitInit) initRepo(root);
   const created: string[] = [];
   writeFileSync(file, yaml);
   created.push(CONFIG_FILE);
@@ -251,7 +299,7 @@ theme:
   if (registerMcp(root)) created.push(MCP_FILE);
   const cfg = loadConfig(root);
   if (!cfg.ok) throw new WriteError(`the config just written does not load`, formatDiagnostics(cfg.diagnostics));
-  return { file: CONFIG_FILE, paths: created.filter((p) => !p.endsWith("/")).concat(created.filter((p) => p.endsWith("/")).map((p) => `${p}.gitkeep`)), created, git: isRepoRoot(root) };
+  return { file: CONFIG_FILE, paths: created.filter((p) => !p.endsWith("/")).concat(created.filter((p) => p.endsWith("/")).map((p) => `${p}.gitkeep`)), created, git: isRepoRoot(root), gitInit, name, url, placeholderUrl };
 }
 
 /**

@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { parseDocument, stringify as yamlStringify, isMap, type Document } from "yaml";
-import { loadConfig, type LoadedConfig } from "./config";
+import { isPlaceholderUrl, loadConfig, type LoadedConfig } from "./config";
 import { lintMarkdown, type LintResult } from "./content";
 import { readFrontmatter, sha1 } from "./store";
 import { Repo, DRAFTS_BRANCH } from "./git";
@@ -264,6 +264,12 @@ export function draftSource(root: string, cfg: LoadedConfig, type: string, slug:
 export function publishCheck(root: string, cfg: LoadedConfig, store: ApprovalStore, type: string, slug: string): { ok: boolean; policy: string; reason?: string; hint?: string; approval?: Approval } {
   const policy = writePolicy(cfg, type);
   if (policy === "false") return { ok: false, policy, reason: `type "${type}" is not writable over MCP` };
+  // The URL question, asked at the one moment it blocks anything (S18d, docs/08 decision 63). `init` no
+  // longer demands an origin from somebody who has not seen a pixel; this is where that debt comes due,
+  // before the first absolute link is written into a feed, a sitemap or a JSON-LD block. Checked ahead of
+  // the approval so the human is not asked to approve a version that cannot publish either way.
+  if (isPlaceholderUrl(cfg.config.site.url))
+    return { ok: false, policy, reason: `site.url is still ${cfg.config.site.url} — a placeholder`, hint: `The feed, sitemap and JSON-LD are absolute, so publishing needs the real origin: \`site\` › set_config \`site.url\` to where this site will be served, then publish again. Drafting and previewing need nothing.` };
   const source = draftSource(root, cfg, type, slug);
   if (source === undefined) return { ok: false, policy, reason: `no ${type} with slug "${slug}"` };
   if (policy === "publish") return { ok: true, policy };
