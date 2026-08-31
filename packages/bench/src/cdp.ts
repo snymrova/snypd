@@ -34,8 +34,34 @@ export interface Page {
 
 export interface Browser { page(): Promise<Page>; close(): void; version: string }
 
-/** Launch headless Chrome and connect. Throws with an actionable message when Chrome is not installed. */
-export async function launch(opts: { timeoutMs?: number } = {}): Promise<Browser> {
+/**
+ * Launch headless Chrome and connect. Throws with an actionable message when Chrome is not installed.
+ *
+ * **Retried, because the first CI run this repo ever had died here.** *"Chrome did not print a DevTools
+ * URL in 15 s"* on a GitHub runner, on a commit that touched three files and none of them this lane —
+ * and it took the whole `test + bench` job with it, leaving orphan `chrome` processes for the runner to
+ * reap. A cold Chrome on a shared runner occasionally takes longer than a fixed window, and since S18d′
+ * CI is where this project's comparable numbers come from: a gate that cannot start is not a gate. S18f
+ * adds a second browser lane to the same job (`desk.first.*`), which doubles the exposure.
+ *
+ * The retry is bounded at three and each attempt cleans up after itself. A failure that survives three
+ * attempts is a real one and still says so.
+ */
+export async function launch(opts: { timeoutMs?: number; attempts?: number } = {}): Promise<Browser> {
+  const attempts = opts.attempts ?? 3;
+  let last: Error | undefined;
+  for (let i = 0; i < attempts; i++) {
+    try { return await launchOnce(opts) }
+    catch (e) {
+      last = e as Error;
+      if (/no Chrome found/.test(last.message)) throw last;   // not a race; retrying cannot help
+      if (i < attempts - 1) await Bun.sleep(500 * (i + 1));
+    }
+  }
+  throw new Error(`${last?.message ?? "Chrome would not start"} (${attempts} attempts)`);
+}
+
+async function launchOnce(opts: { timeoutMs?: number } = {}): Promise<Browser> {
   const bin = findChrome();
   if (!bin) throw new Error(`no Chrome found (looked in ${CHROME_PATHS.join(", ")}) — install one or set SNYPD_CHROME`);
   const profile = mkdtempSync(join(tmpdir(), "snypd-cdp-"));
@@ -47,18 +73,28 @@ export async function launch(opts: { timeoutMs?: number } = {}): Promise<Browser
   ], { stdout: "ignore", stderr: "pipe" });
 
   // Chrome prints `DevTools listening on ws://…` to stderr once the debugging socket is up.
-  const wsUrl = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Chrome did not print a DevTools URL in 15 s")), opts.timeoutMs ?? 15_000);
-    (async () => {
-      let buf = "";
-      for await (const chunk of proc.stderr as ReadableStream<Uint8Array>) {
-        buf += new TextDecoder().decode(chunk);
-        const m = buf.match(/ws:\/\/[^\s]+/);
-        if (m) { clearTimeout(timer); resolve(m[0]); return; }
-      }
-      clearTimeout(timer); reject(new Error("Chrome exited before printing a DevTools URL"));
-    })().catch(reject);
-  });
+  const ms = opts.timeoutMs ?? 30_000;
+  let wsUrl: string;
+  try {
+    wsUrl = await new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Chrome did not print a DevTools URL in ${Math.round(ms / 1000)} s`)), ms);
+      (async () => {
+        let buf = "";
+        for await (const chunk of proc.stderr as ReadableStream<Uint8Array>) {
+          buf += new TextDecoder().decode(chunk);
+          const m = buf.match(/ws:\/\/[^\s]+/);
+          if (m) { clearTimeout(timer); resolve(m[0]); return; }
+        }
+        clearTimeout(timer); reject(new Error("Chrome exited before printing a DevTools URL"));
+      })().catch(reject);
+    });
+  } catch (e) {
+    // The runner logged "Terminate orphan process: pid (…) (chrome)" after the failure that prompted the
+    // retry above — a launch that gives up owes it to the next attempt to leave no browser behind.
+    try { proc.kill() } catch { /* already gone */ }
+    rmSync(profile, { recursive: true, force: true });
+    throw e;
+  }
 
   const ws = new WebSocket(wsUrl);
   await new Promise<void>((res, rej) => { ws.onopen = () => res(); ws.onerror = () => rej(new Error(`cannot connect to ${wsUrl}`)); });

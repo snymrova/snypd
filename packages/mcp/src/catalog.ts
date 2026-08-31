@@ -420,7 +420,9 @@ async function doctor(root: string): Promise<ToolResult> {
   // harness that calls doctor inside its first turn is asking before the file exists. Memory is exact
   // here and the file is what the *other* process has; neither is a substitute for the other.
   const act = activitySnapshot();
-  const harness = facts.harness === "never" && act.calls > 0 ? "connected" : facts.harness;
+  // If this call arrived, a harness is connected — no file can outrank that, including a stale record
+  // from a server this root had earlier whose pid is now gone.
+  const harness = act.calls > 0 ? "connected" : facts.harness;
   const client = act.client ?? facts.heartbeat?.client;
   const calls = Math.max(act.calls, facts.heartbeat?.calls ?? 0);
   const startedAt = act.startedAt ?? facts.heartbeat?.startedAt;
