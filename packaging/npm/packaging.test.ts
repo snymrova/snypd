@@ -145,4 +145,32 @@ describe.if(!!host)("the host package, installed the way npm installs it", () =>
     const bad = spawnSync(node, [join(launcher, "bin", "snypd.js"), "nonsense-verb"], { encoding: "utf8" });
     expect(bad.status).toBe(1);
   }, 120_000);
+
+  // S18j. `mcpCommand` is unit-tested over all four branches and every one of those tests passed while
+  // the majority path was broken, because a unit test chooses its own PATH and the bug *is* the PATH:
+  // `bunx` links `node_modules/.bin/snypd` at the launcher and puts that directory on the child's env,
+  // so branch 1 ("a `snypd` is demonstrably here") was satisfied by the cache that branch 2 exists to
+  // avoid naming. Nothing short of running the artefact in that layout sees it — decision 48, again, and
+  // this time it is the registration rather than the shim that only breaks in distribution.
+  test("run from a bunx cache, the registration names the launcher — not the shim on PATH", async () => {
+    const out = mkdtempSync(join(tmpdir(), "bunx-1000-@snypd-"));
+    const t = host!;
+    const built = await buildTarget(t, out);
+
+    // The shape `bunx` actually leaves on disk, verified against a real run in S18j.
+    const dotbin = join(out, "node_modules", ".bin");
+    mkdirSync(dotbin, { recursive: true });
+    symlinkSync(join(built.dir, "bin", t.exe), join(dotbin, "snypd"));
+
+    const site = mkdtempSync(join(tmpdir(), "snypd-site-"));
+    const r = spawnSync(join(built.dir, "bin", t.exe), ["init"], {
+      cwd: site, encoding: "utf8", env: { ...process.env, PATH: `${dotbin}:${process.env.PATH ?? ""}` },
+    });
+    expect(r.status).toBe(0);
+
+    const reg = JSON.parse(readFileSync(join(site, ".mcp.json"), "utf8")) as
+      { mcpServers: { snypd: { command: string; args: string[] } } };
+    // Not `snypd`: that command exists only while the cache does.
+    expect(reg.mcpServers.snypd).toEqual({ command: "bunx", args: ["@snypd/cli", "serve"] });
+  }, 120_000);
 });

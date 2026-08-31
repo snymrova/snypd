@@ -184,9 +184,12 @@ export const MCP_FILE = ".mcp.json";
  * absolute path is a guaranteed failure — and a failure that arrives as §10's undiagnosable case, a
  * server that was spawned and crashed, rendered identically to one nobody restarted.
  *
- *   1. `snypd` on `PATH` → `snypd serve`. Portable, committed safely, and verified on this machine
- *      rather than assumed: S18a was right that naming a command the harness cannot spawn fails in a log
- *      nobody reads, and the fix for that is to look before naming it, not to give up on the name.
+ *   1. `snypd` on `PATH`, *and not itself in a package-manager cache* → `snypd serve`. Portable,
+ *      committed safely, and verified on this machine rather than assumed: S18a was right that naming a
+ *      command the harness cannot spawn fails in a log nobody reads, and the fix for that is to look
+ *      before naming it, not to give up on the name. The cache exclusion is S18j: `bunx` puts its own
+ *      `.bin` on `PATH`, so "verified" was satisfied by the very install branch 2 exists to avoid
+ *      naming, and the majority path committed a command that vanished with the cache.
  *   2. run through `bunx`/`npx`, i.e. `process.execPath` sits in a package-manager cache that may be
  *      collected → name the launcher the same way they reached it. `bunx @snypd/cli init` is docs/08 §2
  *      step 4, so this is the majority path's registration, and writing the cache path there would
@@ -233,7 +236,13 @@ function mcpEntry(root: string, opts: { command?: string; args?: string[] }) {
 export function mcpCommand(exec: string, argv1?: string, env: Record<string, string | undefined> = process.env): { command: string; args: string[] } {
   // A compiled binary is its own command; a checkout is `bun <entry>` — argv[1] is the script Bun ran.
   if (/(^|[\\/])bun(\.exe)?$/.test(exec)) return { command: exec, args: [argv1 ?? "packages/cli/src/index.ts", "serve"] };
-  if (onPath("snypd", env)) return { command: "snypd", args: ["serve"] };
+  // A `snypd` on `PATH` is only worth committing if it will still be there tomorrow, and under
+  // `bunx`/`npx` it will not: the runner links its own `node_modules/.bin/snypd` at the package and puts
+  // that directory on the child's `PATH`, so this branch finds the *ephemeral shim* and wins — and
+  // branch 2, which exists for precisely this path, never runs. `onPath` returns where it found it, so
+  // the hit is checked the same way the running binary is (S18j, found by walking `bunx @snypd/cli init`
+  // against the published package rather than a checkout).
+  if (onPath("snypd", env, (p) => !ephemeralRunner(p))) return { command: "snypd", args: ["serve"] };
   const runner = ephemeralRunner(exec);
   if (runner === "bunx") return { command: "bunx", args: [LAUNCHER, "serve"] };
   if (runner === "npx") return { command: "npx", args: ["-y", LAUNCHER, "serve"] };
@@ -244,12 +253,15 @@ export function mcpCommand(exec: string, argv1?: string, env: Record<string, str
  * `which`, without shelling out or reaching for a `Bun.*` the runtime seam does not carry (docs/04).
  * Exported because `site` › doctor answers "does the command in `.mcp.json` exist here?" with it.
  */
-export function onPath(cmd: string, env = process.env): string | null {
+export function onPath(cmd: string, env = process.env, accept?: (p: string) => boolean): string | null {
   const parts = (env.PATH ?? "").split(process.platform === "win32" ? ";" : ":").filter(Boolean);
   const names = process.platform === "win32" ? [`${cmd}.exe`, `${cmd}.cmd`, `${cmd}.bat`, cmd] : [cmd];
   for (const dir of parts) for (const n of names) {
     const p = join(dir, n);
-    try { if (statSync(p).isFile()) return p; } catch { /* not here */ }
+    // `accept` skips a hit and keeps scanning rather than stopping at it: a cache shim early on PATH
+    // must not hide a durable install later on it (S18j). Doctor passes nothing and asks the plain
+    // question — "is there a `snypd` here at all?" — which is still the right one for a diagnostic.
+    try { if (statSync(p).isFile() && (!accept || accept(p))) return p; } catch { /* not here */ }
   }
   return null;
 }
