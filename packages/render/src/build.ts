@@ -133,31 +133,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       markdown: `${url(e.route)}index.md`, json: `${site.url}/api/${e.type}/${e.slug}.json` };
   };
 
-  const renderBody = (source: string, page: Entry): { body: Html; cover?: Html; root: Root; blocks: Block[] } => {
-    const { doc, tree } = cache.get(source);
-    const blocks = new Map<Node, Block>(tree.all.map((b) => [b.node, b]));
-    const renderBlock = (b: Block): Html => onBlock(b, () => toHtml({ type: "root", children: (b.node as { children?: Node[] }).children ?? [] } as Root, { blocks, onBlock, headingIds: false }));
-    const onBlock = (b: Block, body: () => Html): Html => {
-      const comp = theme.primitives[b.name];
-      if (!comp) return new Html("");
-      const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx, page };
-      return comp(p);
-    };
-    // A leading `cover` is the page's header, not its first paragraph (spec: "at most one, first in the
-    // body"), so it is rendered on its own and lifted out of the body. Without this a post that declares
-    // one gets two title blocks: the layout's, built from frontmatter, and then the author's. Only a
-    // *leading* cover is lifted — one further down is the author's mistake, and lint says so, but moving
-    // it to the top of the page would silently rewrite what they wrote.
-    // "First in the body" is the first node of the document, not the first *directive* in it: `tree.blocks`
-    // skips the prose, so a post that opens with a paragraph and puts its cover three screens down would
-    // otherwise have it hoisted into the header — silently moving what the author wrote.
-    const first = doc.tree.children.find((n) => n.type !== "yaml");   // only yaml frontmatter is enabled (parse.ts)
-    const lead = first ? blocks.get(first) : undefined;
-    const coverBlock = lead?.name === "cover" ? lead : undefined;
-    const cover = coverBlock ? renderBlock(coverBlock) : undefined;
-    const root = coverBlock ? { ...doc.tree, children: doc.tree.children.filter((n) => n !== coverBlock.node) } as Root : doc.tree;
-    return { body: toHtml(root, { blocks, onBlock }), cover, root: doc.tree, blocks: tree.all };
-  };
+  const renderBody = (source: string, page: Entry) => renderDoc(source, { theme, ctx, page, cache });
 
   const plan: Planned[] = [];
   const contentRoutes = new Set<string>();
@@ -290,4 +266,39 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
   return { routes, artefacts: plan.length - routes - media, media, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage } };
+}
+
+/**
+ * One markdown document through the theme — the block machinery lifted out of `build()` in S18f.
+ *
+ * It moved because it acquired a second caller and not because it wanted a home of its own: the preview
+ * synthesises an index route while a site has zero items (`07` decision 52), and that page has to be
+ * *the theme rendering the vocabulary* or it demonstrates nothing. A second implementation of directive
+ * dispatch would have been a second answer to "what does this theme do with a `stat-row`", which is the
+ * one question the empty state exists to answer honestly.
+ */
+export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: MdastCache }): { body: Html; cover?: Html; root: Root; blocks: Block[] } {
+  const { doc, tree } = o.cache.get(source);
+  const blocks = new Map<Node, Block>(tree.all.map((b) => [b.node, b]));
+  const renderBlock = (b: Block): Html => onBlock(b, () => toHtml({ type: "root", children: (b.node as { children?: Node[] }).children ?? [] } as Root, { blocks, onBlock, headingIds: false }));
+  const onBlock = (b: Block, body: () => Html): Html => {
+    const comp = o.theme.primitives[b.name];
+    if (!comp) return new Html("");
+    const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx: o.ctx, page: o.page };
+    return comp(p);
+  };
+  // A leading `cover` is the page's header, not its first paragraph (spec: "at most one, first in the
+  // body"), so it is rendered on its own and lifted out of the body. Without this a post that declares
+  // one gets two title blocks: the layout's, built from frontmatter, and then the author's. Only a
+  // *leading* cover is lifted — one further down is the author's mistake, and lint says so, but moving
+  // it to the top of the page would silently rewrite what they wrote.
+  // "First in the body" is the first node of the document, not the first *directive* in it: `tree.blocks`
+  // skips the prose, so a post that opens with a paragraph and puts its cover three screens down would
+  // otherwise have it hoisted into the header — silently moving what the author wrote.
+  const first = doc.tree.children.find((n) => n.type !== "yaml");   // only yaml frontmatter is enabled (parse.ts)
+  const lead = first ? blocks.get(first) : undefined;
+  const coverBlock = lead?.name === "cover" ? lead : undefined;
+  const cover = coverBlock ? renderBlock(coverBlock) : undefined;
+  const root = coverBlock ? { ...doc.tree, children: doc.tree.children.filter((n) => n !== coverBlock.node) } as Root : doc.tree;
+  return { body: toHtml(root, { blocks, onBlock }), cover, root: doc.tree, blocks: tree.all };
 }

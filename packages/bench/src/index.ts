@@ -410,6 +410,7 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   await build(root);
   const { metrics, browser } = await pageSuite({ root, label: "editorial" });
   metrics.push(...(await deskLane(root)));
+  metrics.push(...(await firstRunLane()));
   const report: Report = { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
   writeFileSync("bench/page.json", JSON.stringify({ ...report, browser }, null, 2));
@@ -439,6 +440,34 @@ async function deskLane(root: string): Promise<Metric[]> {
 }
 /** Generated into the fixture by `generateTheme`, not created here — the bench does not edit a corpus. */
 const DESK_DRAFT = "a-draft-in-flight";
+
+/**
+ * The two surfaces every user sees exactly once, under the same browser as the rest (S18f, docs/08 F7).
+ *
+ * `deskLane` measures the Desk of a *working* site — a draft in flight, a harness stubbed connected —
+ * because that is the page somebody comes back to. It is not the page anybody starts on. The first-run
+ * Desk carries a checklist, three `pre` blocks, a `<details>` and a verbatim `.mcp.json`; the empty
+ * index is a route that does not exist on disk at all. Neither had ever been in front of axe-core, and
+ * decision 54's rule is that a surface no suite visits has no gates at all.
+ *
+ * **A second prefix rather than more routes on the first.** `desk.*` reports the worst of its pages and
+ * has been comparable since S18b; adding two pages to it would silently redefine that number — the
+ * failure decision 48 names. `desk.first.*` inherits the same budgets (0 KB JS, 0 violations, CLS
+ * ≤ 0.05) from `pageSuite` and is its own worst-of.
+ *
+ * The site is scaffolded into a temp directory and thrown away, which is also the only honest way to get
+ * this state: every one of the six facts is false there, so the checklist renders in full.
+ */
+async function firstRunLane(): Promise<Metric[]> {
+  const { initSite } = await import("@snypd/core");
+  const { PROMPTS } = await import("@snypd/mcp/prompts");
+  const dir = mkdtempSync(join(tmpdir(), "snypd-first-run-"));
+  initSite(dir, { name: "A new site" });
+  const s = await preview(dir, { port: 0, watch: false, deskRefresh: 0, prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })) });
+  try {
+    return (await pageSuite({ root: dir, url: s.url, routes: ["/_snypd", "/"], label: "first run", prefix: "desk.first" })).metrics;
+  } finally { s.stop(); rmSync(dir, { recursive: true, force: true }) }
+}
 
 /**
  * `snypd bench visual` (docs/07 S10, gate D3): the per-primitive suite on its own — every visual primitive
@@ -578,6 +607,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
     await build(fixture);
     metrics.push(...(await pageSuite({ root: fixture, label: "editorial" })).metrics);
     metrics.push(...(await deskLane(fixture)));   // S18b: the Desk under the same browser as the public routes
+    metrics.push(...(await firstRunLane()));      // S18f: the two states every user meets exactly once
   }
   const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });

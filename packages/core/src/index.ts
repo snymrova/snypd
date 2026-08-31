@@ -7,6 +7,9 @@ export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "
 export { themeFile, themeHas, themeFiles, themeBytes, themeModule, themeSignature, bundledDir, bundledNames, isBundledDir } from "./themefs";
 export * from "./content";
 // S18e: the `.snypd/dev.json` seam — one running preview, findable by the other process (decision 51).
+// S18f: the heartbeat on disk, and the six derived facts doctor and the Desk both render (decision 64).
+export { readHeartbeat, writeHeartbeat, clearHeartbeat, heartbeatPath, heartbeatProcessAlive, harnessState, type HeartbeatRecord, type HarnessState } from "./heartbeat";
+export { onboardingFacts, onboarded, registration, ONE_SENTENCE, type OnboardingFacts, type Registration } from "./onboard";
 export { readDev, writeDev, clearDev, liveDev, devPath, devProcessAlive, ALIVE_ROUTE, type DevRecord } from "./dev";
 export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
 export { Repo, git, initRepo, isRepoRoot, principal, commitHint, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";

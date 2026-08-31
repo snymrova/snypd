@@ -11,11 +11,11 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
-import { build, type BuildResult } from "./build";
-import { loadTheme, type Theme, type SiteCtx, type Page } from "./theme";
+import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { build, renderDoc, type BuildResult } from "./build";
+import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./theme";
 import { Html, escape } from "./jsx-runtime";
-import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts } from "./desk";
+import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts, type DeskOnboarding } from "./desk";
 import { resolveTokens, tokensCss } from "./tokens";
 
 export interface PreviewOptions {
@@ -55,6 +55,15 @@ export interface PreviewOptions {
    * race. Nothing else sets it, so a person always gets the live card.
    */
   deskRefresh?: number;
+  /**
+   * `PROMPTS` from `@snypd/mcp`, for the first-run Desk to list (S18f, docs/08 §9.3).
+   *
+   * Passed rather than imported for the reason `activity` is: `@snypd/mcp` depends on this package, so
+   * this package may not depend on it. Both callers that have prompts hand them over — the CLI's `dev`
+   * and the tool that starts a session-scoped preview — and a preview started by anything else lists
+   * none, which is honest rather than lossy.
+   */
+  prompts?: { name: string; description: string }[];
 }
 export interface PreviewServer { url: string; port: number; hostname: string; stop: () => void; rebuild: () => Promise<BuildResult>; out: string; dirty: () => boolean }
 
@@ -138,10 +147,14 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   }
 
   // ── the review page ────────────────────────────────────────────────────────
-  const shell = (title: string, body: Html, route: string) => {
+  const siteCtx = (): SiteCtx => {
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
     const css = tokensCss(tokens) + (theme.css ?? "");
-    const ctx: SiteCtx = { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {} };
+    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {} };
+  };
+
+  const shell = (title: string, body: Html, route: string) => {
+    const ctx = siteCtx();
     const layout = theme.layouts.page ?? theme.layouts.post;
     if (!layout) return new Html(`<!doctype html><meta charset="utf-8"><title>${escape(title)}</title>${body.html}`);
     const page: Page = { route, type: "page", slug: "review", title, status: "draft", frontmatter: {}, body, terms: [], layout: "page", markdownUrl: "" };
@@ -190,6 +203,62 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     return new Response(shell(`Review: ${t.type}/${t.slug}`, body, reviewPath(type, slug)).html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
   };
 
+  // ── the empty state ────────────────────────────────────────────────────────
+  /**
+   * The index route while the site has zero items (`07` decision 52, S18f).
+   *
+   * `initSite` writes a config and empty directories and no content, so the first thing a new site
+   * showed a person was an empty list — the weakest possible first impression of a themed CMS, at the
+   * exact moment they are deciding whether this was worth installing.
+   *
+   * **Rendered, never scaffolded.** The obvious fix is a welcome post, and it is wrong: a file every new
+   * site must delete is a file that ships to production when somebody forgets, and WordPress's "Hello
+   * world!" is the demonstration of that rather than the counterexample. This page is a *response*. It
+   * exists nowhere on disk, `build()` never emits it, and it disappears the moment there is one real
+   * item — nothing to delete, and nothing that can leak into `dist/`.
+   *
+   * It goes through `renderDoc` and the theme's own layout for the same reason: a hand-written HTML
+   * splash would demonstrate snypd's taste in splashes. This demonstrates the installed theme rendering
+   * five of the thirteen primitives, which is the claim the product actually makes.
+   */
+  const EMPTY_MARK = "data-snypd-empty-state";
+  const emptySource = (): string => `:::tldr
+This site works. It has no content yet — so this page is being **rendered for you now** rather than read from a file, and it disappears the moment the first post exists.
+:::
+
+Everything here is written through MCP, from the harness you already have open. There is no editor on this site and no button that writes.
+
+:::steps
+1. **Say what you want.** Ask your agent for a post. It reads the vocabulary first — thirteen primitives — then writes.
+2. **Read it here.** The draft appears on the Desk with a review link. The preview serves exactly what would publish.
+3. **Approve the version you read.** Publishing is yours; an approval is bound to those bytes and lapses if they change.
+:::
+
+:::callout{kind="note" title="What you are looking at"}
+The blocks on this page are the theme rendering the vocabulary — a \`tldr\`, a \`steps\`, this \`callout\`, and the questions below. Your posts get the same components, because a theme implements the vocabulary rather than a stylesheet implementing your posts.
+:::
+
+:::faq
+### Where does the content live?
+Markdown files under \`content/\`, in git. The database in \`.snypd/\` is a disposable index — delete it and the site is unchanged.
+
+### Can I edit a post by hand?
+Yes, they are files. But the tools lint what they write, and the lint is most of what makes a theme able to render it.
+
+### How do I get rid of this page?
+Write something. There is no file to delete.
+:::`;
+
+  const emptyIndex = (): Response => {
+    const ctx = siteCtx();
+    const page: Entry = { route: "/", type: "page", slug: "index", title: cfg.config.site.name, status: "draft", frontmatter: {} };
+    const { body } = renderDoc(emptySource(), { theme, ctx, page, cache: new MdastCache(index.mdastStore()) });
+    // The strip says who can see it, in the response and never in a file — the same rule the Desk link
+    // and the reload header live by.
+    const note = new Html(`<p ${EMPTY_MARK} role="status"><strong>Only you can see this.</strong> The site has no content yet, so this page is being rendered by <code>snypd dev</code>. It is not in <code>dist/</code> and it will not publish.</p>`);
+    return new Response(shell(cfg.config.site.name, new Html(note.html + body.html), "/").html, { headers: pageHeaders() });
+  };
+
   // ── the Desk ───────────────────────────────────────────────────────────────
   /**
    * Everything the Desk shows, gathered without touching git (S18b, decision 45).
@@ -219,16 +288,50 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       });
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
     const css = tokensCss(tokens) + (theme.css ?? "");
+    const facts = onboardingFacts(root, { cfg, items: index.files({}).filter((f) => f.status !== "trashed").length });
     return {
+      onboarding: onboarding(facts),
       site: { name: cfg.config.site.name, url: cfg.config.site.url },
       theme: { name: theme.name, chain: theme.chain.map((l) => l.name), coverage: theme.coverage },
       drafts,
-      activity: opts.activity?.(),
+      // In-process first, then the file. A preview started by a tool call has the live record and is
+      // exact; a `snypd dev` in its own process has only what the server wrote, and before S18f it had
+      // nothing at all — which is why the status card said "nothing has called this server yet" through
+      // a full MCP session, on the page whose one job is to answer that (docs/08 §12.9).
+      activity: opts.activity?.() ?? fromHeartbeat(facts),
       build: lastBuild,
       previewUrl: `http://${server.hostname ?? "localhost"}:${server.port}`,
       css: css ? "/assets/theme.css" : undefined,
       refresh: opts.deskRefresh,
     };
+  };
+
+  /**
+   * The six derived facts, from `@snypd/core` (S18f, `07` decision 52 and docs/08 decision 64).
+   *
+   * Gathered here and rendered in `desk.ts`, so the page stays a pure function and this stays the only
+   * place that touches disk for it. `onboardingFacts` costs four `existsSync`, one small `JSON.parse`
+   * and a `process.kill(pid, 0)`; the item count and the config it is handed are already in hand. The
+   * `.mcp.json` block is read only when there is a reason to show it, which on a working site is never.
+   */
+  const onboarding = (f: ReturnType<typeof onboardingFacts>): DeskOnboarding => {
+    const sound = f.registration.present && f.registration.names && !f.registration.missingCommand;
+    let mcpJson: string | undefined;
+    if (!sound || f.harness !== "connected") {
+      try { mcpJson = readFileSync(join(root, MCP_FILE), "utf8").trimEnd() } catch { mcpJson = undefined }
+    }
+    return {
+      config: f.config, git: f.git, harness: f.harness, items: f.items, placeholderUrl: f.placeholderUrl,
+      registration: { present: f.registration.present, names: f.registration.names, missingCommand: f.registration.missingCommand, command: f.registration.command },
+      mcpJson, prompts: opts.prompts, sentence: ONE_SENTENCE,
+    };
+  };
+
+  /** The disk record as the status card's shape — and only while the process that wrote it is alive. */
+  const fromHeartbeat = (f: ReturnType<typeof onboardingFacts>): DeskActivity | undefined => {
+    const rec = f.heartbeat;
+    if (!rec || f.harness === "stale" || f.harness === "never") return undefined;
+    return { calls: rec.calls, lastMethod: rec.lastMethod, lastAt: rec.lastAt, since: rec.since ?? rec.startedAt, client: rec.client };
   };
 
   /**
@@ -270,7 +373,11 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       if (reviewM) { await fresh(); return reviewPage(reviewM[1]!, reviewM[2]!, url.searchParams.has("approved") ? "Approved. The agent can call content.publish now." : undefined); }
 
       await fresh();
+      // Before the file, and only while there is nothing: an index with zero items is the one route
+      // whose file is a worse answer than a rendered one. `wantsMd` is checked first, because an agent
+      // asking for the twin wants the real (empty) index and not a page written at it.
       const wantsMd = req.headers.get("accept")?.includes("text/markdown");
+      if (!wantsMd && (path === "/" || path === "/index.html") && index.files({}).every((f) => f.status === "trashed")) return emptyIndex();
       let file = join(out, path);
       if (existsSync(file) && statSync(file).isDirectory()) file = join(file, wantsMd ? "index.md" : "index.html");
       if (!existsSync(file)) return new Response("not found", { status: 404 });

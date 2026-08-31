@@ -26,6 +26,16 @@ Two artefacts, one build: the npm packages and the GitHub release the Homebrew f
    The dry run cannot catch this: `npm publish --dry-run` never contacts the registry, so the token is
    first exercised by the real publish. That is why the publish step skips what is already there — a
    retry after a partial run is safe, and no version has to be burned to get past it.
+
+   **And a scope is not a package.** v0.1.0's *second* attempt got all five platform packages onto the
+   registry and then failed on the sixth:
+
+   > `E403 … You may not perform that action with these credentials` — `PUT https://registry.npmjs.org/snypd`
+
+   A granular token scoped to `@snypd/*`, or to a list of existing packages, can write those five and
+   cannot *create* the unscoped `snypd`. Creating a new top-level package needs a token with **all
+   packages** write access (or a classic Automation token). The retry is one re-run of the workflow at
+   the same tag: the five are skipped as already present, and only the launcher publishes.
 3. **Decide it.** The name is claimed permanently and a scoped unpublish window is 72 hours. `07`
    decision 69 keeps this with a person on purpose.
 

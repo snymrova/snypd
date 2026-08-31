@@ -77,10 +77,72 @@ export function initializeResult(params: Record<string, unknown> | undefined): I
  * three. It is process-local and dies with the server, which is correct: "connected" is a claim about
  * now, and a `connected` flag that outlived its process would be the one thing worse than no flag.
  */
-export interface Activity { calls: number; lastMethod?: string; lastAt?: number; since?: number; client?: string }
+export interface Activity { calls: number; lastMethod?: string; lastAt?: number; since?: number; client?: string; startedAt?: number }
 const activity: Activity = { calls: 0 };
 /** A copy: a page rendering this cannot observe a field change halfway down. */
 export const activitySnapshot = (): Activity => ({ ...activity });
+
+/**
+ * ...and the same record on disk, for the reader that is not in this process (S18f, docs/08 §12.9).
+ *
+ * The paragraph above was true and incomplete. "Process-local and dies with the server" is right about
+ * what *connected* means and wrong about who needs to know: since S18e the Desk is normally served by
+ * `snypd dev`, a different process entirely, so the card built to answer "is a harness connected?" read
+ * *nothing has called this server yet* through a full MCP session. The record still dies with the
+ * server — a pid that no longer exists is how the reader knows — it is now merely legible from outside.
+ *
+ * `startedAt` is the second fact and the one that pays for the file: written when the transport comes up,
+ * before any message, so *spawned and silent* stops being indistinguishable from *never spawned*
+ * (docs/08 §10). Those are two very different instructions to give a person.
+ *
+ * The writer is injected rather than imported. This module is the whole of the cold-start path that D2
+ * budgets at 50 ms, and it will not grow a dependency on the filesystem to serve a page it never renders.
+ */
+let persist: ((a: Activity) => void) | undefined;
+let lastPersist = 0;
+let trailing: ReturnType<typeof setTimeout> | undefined;
+const PERSIST_MS = 1_000;
+
+/**
+ * Start recording to disk. Called by `server.ts`, which knows the root.
+ *
+ * `startedAt` is stamped now; the write that carries it is scheduled a quarter of a second out, and
+ * **nothing at all happens before then**. That number is not caution, it is the answer to a measurement.
+ *
+ * The first three attempts all wrote inside the window between spawn and the harness receiving its
+ * `initialize` reply — a zero timer at `listen()`, then a lazy module import, then a zero timer on the
+ * first call — and all three cost the compiled binary 5–10 ms of best-case cold start, interleaved
+ * against S18e's binary over 31 rounds a side with a same-binary control at ±2 ms. "After the reply is
+ * on the wire" was true of the source order and false of the clock: `output.write` to a pipe buffers,
+ * the timer phase gets there first, and a module parse plus a `writeFileSync` land ahead of the flush
+ * being measured. Moving every write past 250 ms put the delta back inside the control's noise.
+ *
+ * A harness sends `initialize` immediately, so by 250 ms this write is either redundant — the record it
+ * lands carries `calls: 1` and the client's name — or it is the only evidence that a server was spawned
+ * and never spoken to, which is the state it exists to make visible (docs/08 §10).
+ */
+const FIRST_WRITE_MS = 250;
+
+export function persistActivity(write: (a: Activity) => void): void {
+  persist = write;
+  activity.startedAt = lastPersist = Date.now();
+  setTimeout(() => write({ ...activity }), FIRST_WRITE_MS).unref?.();
+}
+
+/**
+ * Throttled to a second, scheduled rather than executed, and never sooner than `FIRST_WRITE_MS` after the
+ * server came up — `lastPersist` is stamped by `persistActivity`, so the earliest this can fire is the
+ * same tick as the initial write, which already carries the first call.
+ *
+ * One timer at a time: a busy session flushes once a second and no faster. The page it feeds refreshes
+ * every ten.
+ */
+function flushActivity(): void {
+  if (!persist || trailing) return;
+  const wait = Math.max(0, PERSIST_MS - (Date.now() - lastPersist));
+  trailing = setTimeout(() => { trailing = undefined; lastPersist = Date.now(); persist?.({ ...activity }) }, wait);
+  trailing.unref?.();
+}
 
 /** One message in → zero or one response out. Notifications (no id) never produce output. */
 export async function dispatch(msg: Request, h: Handlers): Promise<Response | undefined> {
@@ -146,7 +208,9 @@ export function serveStdio(h: Handlers, input?: NodeJS.ReadableStream, output: N
   // would otherwise both start, and the second could finish first (S11 — a create raced its own
   // duplicate check). `dispatch` is called by the chain, never before it.
   let queue: Promise<unknown> = Promise.resolve();
-  const send = (r: Response | undefined) => { if (r) output.write(JSON.stringify(r) + "\n"); };
+  // The heartbeat is flushed *after* the reply is on the wire, never before it: a disk write that
+  // delayed a response would be a page's convenience charged to the protocol's budget.
+  const send = (r: Response | undefined) => { if (r) output.write(JSON.stringify(r) + "\n"); flushActivity(); };
   // Notifications are written straight out rather than queued: they answer no request, and a
   // `tools/list_changed` that waited behind the call which caused it would arrive after the agent had
   // already decided what to do next.

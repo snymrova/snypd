@@ -2,6 +2,11 @@
   "name": "@snypd/core",
   "version": "0.1.0",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./heartbeat": "./src/heartbeat.ts",
+    "./paths": "./src/paths.ts"
+  },
   "dependencies": {
     "@snypd/spec": "workspace:*",
     "@types/mdast": "^4.0.4",

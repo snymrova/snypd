@@ -20,6 +20,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { activitySnapshot, type Handlers, type Tool, type ToolResult } from "./protocol";
+import { PROMPTS } from "./prompts";   // S18f: names and descriptions only — the first-run Desk lists them
 
 type Core = typeof import("@snypd/core");
 let core: Core | undefined;
@@ -127,10 +128,10 @@ async function previewServer(root: string, port?: number): Promise<{ url: string
   const dev = previewing ? undefined : await c.liveDev(root);
   if (dev) return { url: dev.url, stop: () => {}, ours: false };
   // `activitySnapshot` is what turns the Desk's status card green (S18b): the preview is started by a
-  // tool call, so by the time anyone can load the page a harness has demonstrably called us. A `dev`
-  // server gets no such function and so reads as unconnected — docs/08 §12.9, which S18f closes by
-  // moving the record to a file both processes can read.
-  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot, deskLink: true, reload: 2 }));
+  // tool call, so by the time anyone can load the page a harness has demonstrably called us. S18f gives
+  // the *other* configuration the same answer — `.snypd/activity.json`, which a `snypd dev` in its own
+  // process can read (docs/08 §12.9) — and this stays the in-process fast path.
+  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot, prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })), deskLink: true, reload: 2 }));
   return { ...(await previewing), ours: true };
 }
 /**

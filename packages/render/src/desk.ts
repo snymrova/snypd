@@ -62,6 +62,31 @@ export interface DeskDraft {
   updated?: number;
 }
 
+/**
+ * The six derived facts of `07` decision 52, as the Desk needs them (S18f).
+ *
+ * A mirror of `@snypd/core`'s `OnboardingFacts` and deliberately not an import of it: `desk.ts` is a
+ * pure function from facts to HTML — that is what lets `render.test.ts` render a Desk in a directory
+ * which is not a git repo at all — and a module that reached for the filesystem to draw a checklist
+ * would be the end of `preview.ttfb ≤ 50 ms` as a claim about this page. `preview.ts` gathers, this
+ * renders.
+ */
+export interface DeskOnboarding {
+  config: boolean;
+  git: boolean;
+  registration: { present: boolean; names: boolean; missingCommand: boolean; command?: string };
+  /** `connected` · `silent` (spawned, never spoke to) · `stale` (it was here) · `never`. docs/08 §10. */
+  harness: "connected" | "silent" | "stale" | "never";
+  items: number;
+  placeholderUrl: boolean;
+  /** The registration block, verbatim, for the most predictable failure in the flow (docs/08 §9.4). */
+  mcpJson?: string;
+  /** `PROMPTS` from `@snypd/mcp`, passed in — `@snypd/render` may not import it, and does not need to. */
+  prompts?: { name: string; description: string }[];
+  /** docs/08 decision 58, from `@snypd/core`. Passed rather than repeated, so there is one of it. */
+  sentence: string;
+}
+
 export interface DeskFacts {
   site: { name: string; url: string };
   theme: { name: string; chain: string[]; coverage: Theme["coverage"] };
@@ -74,6 +99,12 @@ export interface DeskFacts {
   css?: string;
   /** Seconds between self-refreshes. 0 disables it, which is how the bench measures a still page. */
   refresh?: number;
+  /**
+   * Absent on a site that is past its first run — and *nothing renders* when the six are true, which is
+   * the whole of "no dismiss button and no stored flag" (decision 52). The checklist disappears because
+   * it has nothing left to say, not because somebody clicked something we wrote down.
+   */
+  onboarding?: DeskOnboarding;
 }
 
 const ago = (at: number | undefined, now: number): string => {
@@ -126,9 +157,129 @@ body{margin:0;background:var(--color-bg,light-dark(#fdfcfa,#12110f));color:var(-
 .desk li:first-child{border-top:0;padding-top:0}
 .desk .title{font-weight:600}
 .desk .meta{color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
+.desk .steps{counter-reset:step}
+.desk .steps li{display:grid;grid-template-columns:5.5rem 1fr;gap:0 1rem;align-items:baseline}
+.desk .steps li>div{min-width:0}
+.desk .state{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.desk .state.done{color:var(--color-ok,light-dark(#0a6b2d,#7ee0a4))}
+.desk .state.now{color:var(--color-wait,light-dark(#8a5a00,#f0b74e))}
+.desk .state.later{color:var(--color-muted,light-dark(#5a5a5a,#9a9287))}
+.desk .surface{display:inline-block;margin:.35rem .5rem .1rem 0;padding:.05rem .4rem;border:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));border-radius:.25rem;font-size:.6875rem;letter-spacing:.04em;text-transform:uppercase;color:var(--color-muted,light-dark(#5a5a5a,#9a9287));vertical-align:.05rem}
+.desk pre{margin:.35rem 0 0;padding:.6rem .75rem;overflow-x:auto;border:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));border-radius:.4rem;background:var(--color-surface,light-dark(#f4f2ee,#1b1916));font-size:.8125rem;line-height:1.45}
+.desk pre:focus-visible{outline:2px solid var(--color-accent,light-dark(#0a6b2d,#7ee0a4));outline-offset:2px}
+.desk details{margin:.75rem 0 0}
+.desk summary{cursor:pointer;font-weight:600}
+.desk details p{margin:.5rem 0 0;color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
+@media (max-width:30rem){.desk .steps li{grid-template-columns:1fr}}
 .desk footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
 @media (max-width:30rem){.desk th{white-space:normal}}
 `.trim();
+
+/**
+ * The first-run checklist (`07` decision 52, docs/08 §9).
+ *
+ * Six rows, ordered by dependency, and **rows that cannot be reached yet are shown as *later* rather
+ * than hidden**. Hiding them would make the page shorter and the flow longer: somebody who cannot get
+ * past step 1 deserves to see that steps 2–6 exist and are small, rather than discovering each one as it
+ * appears. It is the same argument as showing a progress bar you are at the start of.
+ *
+ * **Every row names its surface.** *type this* is a shell, *say this to your agent* is a sentence into a
+ * harness, *do this in your harness* is neither — it is a menu somewhere in Claude Code or Cursor. The
+ * entire confusion of onboarding is not knowing which of the three you are looking at, and three words
+ * of label are cheaper than any amount of copy explaining it.
+ */
+type Surface = "type" | "say" | "harness";
+interface Step { done: boolean; label: string; surface?: Surface; action?: string; note?: string }
+
+const SURFACE: Record<Surface, string> = { type: "type this", say: "say this to your agent", harness: "do this in your harness" };
+
+/** A `pre` that can scroll is a scrollable region, and one a keyboard cannot reach is an axe violation
+ *  (`scrollable-region-focusable`) — the defect decision 50 caught on the review page. `tabindex="0"`
+ *  is also what makes the block selectable by keyboard, which is the point of putting it here at all. */
+const pre = (text: string) => `<pre tabindex="0"><code>${escape(text)}</code></pre>`;
+
+function steps(o: DeskOnboarding): Step[] {
+  const reg = o.registration;
+  const registered = reg.present && reg.names && !reg.missingCommand;
+  return [
+    { done: o.config, label: "A site here", surface: "say", action: o.sentence,
+      note: "<code>snypd.yaml</code>, the content directories and <code>.mcp.json</code>, written by <code>site</code> › <code>init</code>." },
+    { done: o.git, label: "Under git", surface: "type", action: "git init",
+      note: "Writes land on a drafts branch and publishing lands one path onto the base — without a repo a draft is never versioned and nothing can be published." },
+    { done: registered, label: "Registered with your harness",
+      surface: registered ? undefined : "type", action: registered ? undefined : "snypd init",
+      note: !reg.present ? `No <code>.mcp.json</code>. Nothing tells an editor this server exists.`
+        : !reg.names ? `<code>.mcp.json</code> exists but registers something else — it needs a <code>snypd</code> entry under <code>mcpServers</code>.`
+        : reg.missingCommand ? `<code>.mcp.json</code> names <code>${escape(reg.command ?? "")}</code>, which is not on this shell's PATH. The harness's PATH may differ, so this is a likely cause rather than a verdict.`
+        : `Registered as <code>${escape(reg.command ?? "snypd")}</code>.` },
+    { done: o.harness === "connected", label: "Your harness has connected",
+      surface: o.harness === "connected" ? undefined : "harness",
+      action: o.harness === "connected" ? undefined : o.harness === "silent" ? undefined : "Restart Claude Code, Cursor or Codex",
+      note: o.harness === "connected" ? "This line went green on its first call."
+        : o.harness === "silent" ? "A server is running and nothing has spoken to it — it was spawned and then went unused. That is a harness-side problem, so its own MCP log is the place to look; restarting again will not say anything new."
+        : o.harness === "stale" ? "A harness had this server and let it go. Nothing is connected right now; the next restart spawns a new one."
+        : "A harness reads <code>.mcp.json</code> when it starts, so a file written after it opened is a file it has not seen." },
+    { done: o.items > 0, label: "One post written", surface: o.items > 0 ? undefined : "say",
+      action: o.items > 0 ? undefined : "Write the first post — use the get-started prompt.",
+      note: o.items > 0 ? `${o.items} item${o.items === 1 ? "" : "s"} in the index.` : "An agent drafts; you approve the exact version on the review page. Nothing here writes." },
+    { done: !o.placeholderUrl, label: "A real site URL", surface: o.placeholderUrl ? "say" : undefined,
+      action: o.placeholderUrl ? "Set site.url to where this will be served from." : undefined,
+      note: o.placeholderUrl ? "The feed, the sitemap and the JSON-LD are absolute, so this is needed before anything publishes — and not before. <code>content.publish</code> refuses until it is set." : undefined },
+  ];
+}
+
+/**
+ * The card, or nothing at all. There is no dismiss button and no stored flag anywhere in this codebase:
+ * when the six are true this returns the empty string, and what remains is the ordinary Desk.
+ */
+function firstRun(o: DeskOnboarding | undefined): string {
+  if (!o) return "";
+  const rows = steps(o);
+  const done = rows.filter((r) => r.done).length;
+  if (done === rows.length) return "";
+  // "Now" is the first unfinished row; everything after it is *later* rather than a second instruction
+  // competing for the same attention. A checklist with two live rows is a checklist nobody starts.
+  const next = rows.findIndex((r) => !r.done);
+  const items = rows.map((r, i) => {
+    const state = r.done ? "done" : i === next ? "now" : "later";
+    return [
+      `<li>`,
+      `<div class="state ${state}">${state === "done" ? "done" : state === "now" ? "next" : "later"}</div>`,
+      `<div>`,
+      `<div class="title">${escape(r.label)}</div>`,
+      r.note ? `<div class="meta">${r.note}</div>` : "",
+      r.action && !r.done ? `${r.surface ? `<span class="surface">${escape(SURFACE[r.surface])}</span>` : ""}${pre(r.action)}` : "",
+      `</div>`,
+      `</li>`,
+    ].join("");
+  }).join("");
+
+  // Shown whenever the harness is not connected, because "my editor didn't pick it up" is the most
+  // predictable failure in the flow (docs/08 §9.4) and the fix is always *paste this into that file*.
+  const block = o.mcpJson && o.harness !== "connected"
+    ? `<h3>${escape(".mcp.json")}</h3><p class="note">What <code>init</code> wrote, verbatim. If your harness keeps its own registration file, this is the entry to copy into it.</p>${pre(o.mcpJson)}`
+    : "";
+
+  const prompts = o.prompts?.length
+    ? `<h3>Prompts</h3><p class="note">Loaded with the server; your harness lists them by name once it has connected.</p><ul>${o.prompts.map((pr) => `<li><code>${escape(pr.name)}</code> — ${escape(pr.description)}</li>`).join("")}</ul>`
+    : "";
+
+  return [
+    `<section class="card">`,
+    `<h2>First run — ${done} of ${rows.length}</h2>`,
+    `<ol class="steps">${items}</ol>`,
+    block,
+    prompts,
+    // Inline `<details>` rather than a link: progressive disclosure at zero JS, so it costs the reader
+    // who already knows nothing and `desk.js.kb` stays 0.
+    `<details><summary>What is snypd?</summary>`,
+    `<p>A CMS whose only interface is MCP. Your agent writes and edits through tools; this page is the half that needs a person — it reads, and it approves. There is no editor here and no button that writes.</p>`,
+    `<p>Content is markdown files in git, and the vocabulary is a closed set of primitives a theme knows how to render. The database in <code>.snypd/</code> is a disposable index; delete it and the site is unchanged.</p>`,
+    `</details>`,
+    `<p class="note">Nothing on this list is stored. Every row is read from disk each time you load this page, so there is nothing to dismiss and nothing to reset — when all ${rows.length} are done this card stops rendering.</p>`,
+    `</section>`,
+  ].join("");
+}
 
 /** The Desk as one document. `now` is a parameter so the page is deterministic under test. */
 export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
@@ -149,7 +300,10 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
     ["build", f.build
       ? `${f.build.routes} route${f.build.routes === 1 ? "" : "s"} in ${Math.round(f.build.ms)} ms · ${escape(ago(f.build.at, now))}`
       : "not built yet"],
-    ["site", `${escape(f.site.name)} — <code>${escape(f.site.url)}</code>`],
+    // Flagged as unfinished rather than presented as fact (docs/08 §9.6): the placeholder is a working
+    // default two minutes into a site and a broken feed the moment anything publishes, and the card that
+    // reports state should not be the one place that reads it as settled.
+    ["site", `${escape(f.site.name)} — <code>${escape(f.site.url)}</code>${f.onboarding?.placeholderUrl ? ` <span class="wait">placeholder — needed before publish</span>` : ""}`],
   ], connected
     ? undefined
     // The one instruction no prompt of ours can deliver: a harness that has not loaded the server
@@ -187,6 +341,7 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
     `<main class="desk">`,
     `<h1>Snypd Desk</h1>`,
     `<p class="sub">${escape(f.site.name)} — local preview. Nothing on this page is public.</p>`,
+    firstRun(f.onboarding),
     status,
     inFlight,
     theme,
