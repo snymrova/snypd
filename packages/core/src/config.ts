@@ -29,7 +29,26 @@ export interface LoadedConfig {
 export interface LoadOptions { env?: string; /** extra dirs searched for `themes/<name>` and `plugins/<name>` (the monorepo adds its own) */ searchPaths?: string[] }
 
 const REPO = join(import.meta.dir, "..", "..", "..");
-const rel = (root: string, f: string) => { const r = relative(root, f); return r.startsWith("..") ? f : r; };
+/**
+ * A provenance path an agent reads, and a *stable* one (S18d′).
+ *
+ * A file inside the site is written relative to it. A file outside — which is every theme, since themes
+ * live beside the site rather than in it, and every bundled theme, which lives in `/$bunfs` — used to be
+ * written absolute, and that made `snypd://config` different bytes on every machine: this repo's own CI
+ * measured `tokens.learn.editorial` at 4,807 against a checkout at `/home/runner/work/snypd/snypd` where
+ * the author's box read 4,777, breaching a budget by seven tokens for a reason that had nothing to do
+ * with the surface. A budget that moves with a directory name is not a budget. It also put the author's
+ * home directory into a resource a model reads.
+ *
+ * The last two segments instead — `editorial/theme.yaml` — which is stable, shorter (absolute paths are
+ * expensive in tokens), and the part a reader can act on: the theme's own name and the file in it.
+ */
+const rel = (root: string, f: string) => {
+  const r = relative(root, f);
+  if (!r.startsWith("..")) return r;
+  const parts = f.split(/[\\/]/).filter(Boolean);
+  return parts.slice(-2).join("/");
+};
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 type Parsed = ReturnType<typeof parseYaml>;
