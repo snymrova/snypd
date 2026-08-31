@@ -85,6 +85,20 @@ describe("the workflows", () => {
     expect(y).toContain("--provenance");
     expect(y).toContain("id-token: write");   // provenance is signed with the run's OIDC identity or not at all
   });
+
+  // The same drift, one file over. `release.yml` was updated when S18h moved the launcher to
+  // `npm/launcher`; the hand-publish fallback in `packaging/README.md` still said `cd snypd`, naming a
+  // directory `build.ts` had stopped producing — so the documented fallback would have died on `cd` at
+  // the exact moment it is reached, which is when CI is the thing that is broken. A runbook is only
+  // load-bearing under pressure, so the paths it names are checked against the build like any other seam.
+  test("the hand-publish runbook names directories the build actually produces", () => {
+    const md = readFileSync(join(REPO, "packaging", "README.md"), "utf8");
+    const block = md.slice(md.indexOf("bun packaging/npm/build.ts --out="));
+    const run = block.slice(0, block.indexOf("```"));
+    expect(run).toContain("cd launcher");
+    // Ordering, for the reason the workflow test states: the glob first, the launcher last.
+    expect(run.indexOf("@snypd/*")).toBeLessThan(run.indexOf("cd launcher"));
+  });
 });
 
 describe("the launcher, under node, with no snypd anywhere", () => {
