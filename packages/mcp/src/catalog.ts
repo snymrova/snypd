@@ -339,7 +339,7 @@ tokens: {}
             `${targetName}: wrote ${created.join(", ")}`,
             `The host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/. Nothing here holds a credential or calls a deploy API — a push is what triggers it.`,
             git,
-            `Connect the repo to ${targetName === "cloudflare" ? "Cloudflare Pages" : "Vercel"} once, in their dashboard; after that every push builds. \`site\` › push says what would go and where a person presses it.`,
+            `Connect the repo to ${targetName === "cloudflare" ? "Cloudflare (Workers, the option their dashboard gives you for a repo)" : "Vercel"} once, in their dashboard; after that every push builds. \`site\` › push says what would go and where a person presses it.`,
           ].join("\n"), { ok: true, deploy: targetName, created, changed: true });
         }
         /**

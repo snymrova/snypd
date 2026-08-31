@@ -626,7 +626,7 @@ describe("the first run, from the agent's side", () => {
     const [, added] = await session([req(1, "initialize"), call(2, "site", { action: "set_deploy", deploy: "cloudflare" })], dir);
     expect(added.result.isError).toBeUndefined();
     expect(structured(added)).toMatchObject({ ok: true, deploy: "cloudflare", changed: true });
-    expect(readFileSync(join(dir, "wrangler.toml"), "utf8")).toContain('pages_build_output_dir = "dist"');
+    expect(readFileSync(join(dir, "wrangler.toml"), "utf8")).toContain('directory = "./dist"');
     expect(existsSync(join(dir, ".github/workflows/snypd.yml"))).toBe(true);
     // It lands on the base rather than sitting on the drafts branch (decision 43): a host config is not
     // a draft, and a push that did not carry it would build the site with no build command.

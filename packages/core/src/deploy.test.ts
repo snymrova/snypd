@@ -22,6 +22,27 @@ describe("--deploy", () => {
     expect(v.cleanUrls).toBe(true);   // `/about` and `/about/` must not be two pages with one canonical URL
   });
 
+  /**
+   * S19a′, found by the first real deploy: Cloudflare's dashboard gives a connected repo a **Workers**
+   * project, and Workers Builds deploys with `wrangler deploy`, which needs `[assets]` and refuses a
+   * config carrying `pages_build_output_dir`. The build ran clean and the deploy failed on the step
+   * after it, which is the one shape a fixture cannot catch.
+   */
+  test("cloudflare is a Workers static-assets config, not a Pages one", () => {
+    const dir = fresh();
+    writeDeploy(dir, "cloudflare", { name: "Snypd Rocks" });
+    const toml = readFileSync(join(dir, "wrangler.toml"), "utf8");
+    expect(toml).toContain("[assets]");
+    expect(toml).toContain('directory = "./dist"');
+    expect(toml).toContain('name = "snypd-rocks"');
+    // The two things that made the real deploy fail, asserted as absences.
+    expect(toml).not.toContain("pages_build_output_dir");
+    // No `[build]`: Workers Builds runs the dashboard's command, and this one would run it again.
+    expect(toml).not.toContain("[build]");
+    // …but the command is still in the file, so the repo says what the dashboard should be set to.
+    expect(toml).toContain(buildCommand(VERSION));
+  });
+
   test("the build command names a published, pinned version — not a pipe to a shell", () => {
     // `07` §3b specified `curl -fsSL … | sh && snypd build`. S18d′ refused it on two counts, and this is
     // where that refusal has to hold: the host's build line is the one place the install story is load-bearing.
