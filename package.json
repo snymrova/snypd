@@ -12,6 +12,7 @@
     "bench": "bun packages/cli/src/index.ts bench",
     "bench:quick": "bun packages/cli/src/index.ts bench --quick",
     "corpus": "bun packages/bench/src/corpus.ts",
+    "scratch": "bun scripts/scratch.ts",
     "release": "bun packaging/npm/build.ts",
     "typecheck": "bunx tsc --noEmit"
   },
