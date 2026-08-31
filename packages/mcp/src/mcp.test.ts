@@ -609,6 +609,38 @@ describe("the first run, from the agent's side", () => {
   });
 
   /**
+   * S19a′: the gap the majority path had. `bunx @snypd/cli init` with no flags is docs/08 §2's first run,
+   * and it produces a site with no host config — which `init` can then never add, because it refuses a
+   * directory that already has a `snypd.yaml`. That refusal is right; the missing verb was the defect.
+   */
+  test("`site` › set_deploy gives an already-initialised site a host, and never overwrites one", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "snypd-deploy-"));
+    const c = await import("@snypd/core");
+    c.initSite(dir, { name: "No Host Yet", url: "https://nohost.example" });      // exactly the no-flags first run
+    c.initRepo(dir, { name: "T", email: "t@example.com" });
+    c.git(dir, "add", "-A"); c.git(dir, "commit", "-q", "-m", "init");
+    expect(existsSync(join(dir, "wrangler.toml"))).toBe(false);
+    // And the only other way in is shut: this is the refusal that made the verb necessary.
+    expect(() => c.initSite(dir, { name: "x", deploy: "cloudflare" })).toThrow(/already exists/);
+
+    const [, added] = await session([req(1, "initialize"), call(2, "site", { action: "set_deploy", deploy: "cloudflare" })], dir);
+    expect(added.result.isError).toBeUndefined();
+    expect(structured(added)).toMatchObject({ ok: true, deploy: "cloudflare", changed: true });
+    expect(readFileSync(join(dir, "wrangler.toml"), "utf8")).toContain('pages_build_output_dir = "dist"');
+    expect(existsSync(join(dir, ".github/workflows/snypd.yml"))).toBe(true);
+    // It lands on the base rather than sitting on the drafts branch (decision 43): a host config is not
+    // a draft, and a push that did not carry it would build the site with no build command.
+    expect(c.git(dir, "log", "-1", "--format=%s", "main").stdout).toBe("site: deploy cloudflare");
+    expect(c.git(dir, "ls-tree", "main", "--name-only", "wrangler.toml").stdout).toBe("wrangler.toml");
+
+    // Second call: a `wrangler.toml` in a repo is somebody's, so this reports rather than resets.
+    writeFileSync(join(dir, "wrangler.toml"), "# hand-tuned\n");
+    const [, again] = await session([req(1, "initialize"), call(2, "site", { action: "set_deploy", deploy: "cloudflare" })], dir);
+    expect(structured(again)).toMatchObject({ ok: true, changed: false });
+    expect(readFileSync(join(dir, "wrangler.toml"), "utf8")).toBe("# hand-tuned\n");
+  });
+
+  /**
    * S19a, decision 44: the asymmetry is the feature. An agent can ask for a push and cannot make one, so
    * what this asserts is a *refusal that is useful* — the state, what would go, and the URL of the button
    * a person clicks — and that nothing left the machine.
@@ -630,6 +662,13 @@ describe("the first run, from the agent's side", () => {
     expect(s).toContain("a person's to make");
     expect(s).toContain("_snypd");                       // where the button is
     expect(s).toContain("main → origin");
+    // The number that was wrong the first time this ran against a real site: the tool said "0 drafts in
+    // flight stay local" while three sat in the tree. A sentence about what does *not* go public may not
+    // be wrong in the reassuring direction.
+    c.createContent(dir, { type: "post", slug: "not-going", frontmatter: { title: "Not going" }, body: "Words." });
+    const [, withDraft] = await session([req(1, "initialize"), call(2, "site", { action: "push" })], dir);
+    expect(structured(withDraft).drafts).toBe(1);
+    expect(withDraft.result.content[0].text as string).toContain("1 draft in flight stays local");
     // The remote heard nothing: this tool has no push in it, only the sentence that says who does.
     expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("");
   });

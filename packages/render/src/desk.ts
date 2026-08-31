@@ -364,7 +364,15 @@ function pushCard(p: DeskPush, now: number): string {
   rows.push(["state", state]);
   if (p.ok && p.commits.length)
     rows.push([p.known ? "going" : "going (all of it)", `<ul class="plain">${p.commits.slice(0, 5).map((c) => `<li><code>${escape(c.sha.slice(0, 7))}</code> ${escape(c.subject)}</li>`).join("")}${p.ahead > 5 ? `<li class="meta">and ${p.ahead - 5} more</li>` : ""}</ul>`]);
-  rows.push(["staying here", `${p.drafts} draft${p.drafts === 1 ? "" : "s"} in flight${p.dirty ? ` · ${p.dirty} uncommitted file${p.dirty === 1 ? "" : "s"}` : ""} — a push sends <code>${escape(p.branch)}</code>, and neither of those is on it`]);
+  // Worded from what is actually there. "neither of those" read as a bug on the first real site, which
+  // had three drafts and a clean tree: there was one kind of thing, not two.
+  const parts = [
+    p.drafts ? `${p.drafts} draft${p.drafts === 1 ? "" : "s"} in flight` : "",
+    p.dirty ? `${p.dirty} uncommitted file${p.dirty === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  rows.push(["staying here", parts.length
+    ? `${parts.join(" · ")} — a push sends <code>${escape(p.branch)}</code>, and ${parts.length > 1 ? "none of that is" : p.drafts === 1 || p.dirty === 1 ? "it is" : "they are"} on it`
+    : `nothing — no drafts in flight, nothing uncommitted. <code>${escape(p.branch)}</code> is the whole site`]);
 
   const last = p.last
     ? p.last.ok
