@@ -22,7 +22,7 @@ import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite,
 
 export interface BuildOptions {
   out?: string; cfg?: LoadedConfig; index?: SiteIndex; cache?: MdastCache;
-  /** Render drafts too (everything but trashed). `snypd serve --preview` builds this way; `dist/` never does. */
+  /** Render drafts too (everything but trashed). `snypd dev` builds this way; `dist/` never does. */
   drafts?: boolean;
 }
 export interface BuildResult {

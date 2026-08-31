@@ -1,7 +1,7 @@
 # 06 — Roadmap, MVP test, open questions
 
 ## Locked decisions
-1. MCP is the only interface; `snypd` = `serve | build | bench | init`.
+1. MCP is the only interface; `snypd` = `init | dev | serve | build | bench` (`dev` added in S18e, `07` decision 51 — it serves, it does not write). None of the verbs touch content.
 2. YAML is the only authoring-facing config; foundation + layered extension.
 3. Files in git are truth; SQLite is a disposable index.
 4. Closed primitive vocabulary, ~35, versioned; themes implement it.

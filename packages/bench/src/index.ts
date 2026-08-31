@@ -183,7 +183,7 @@ export async function runColdStarts(runs: number): Promise<Metric[]> {
 }
 
 /**
- * Time-to-first-byte against `snypd serve --preview` (S11) — the server the budget is written for
+ * Time-to-first-byte against the preview server (S11; `snypd dev` since S18e) — the server the budget is written for
  * (docs/05: preview/SSR), median of `requests` after 5 warm-ups, on an unchanged tree. A changed tree
  * costs one incremental build on the first request after the change; that is `build.incremental`,
  * measured separately, and pretending otherwise would hide which of the two moved.
@@ -202,7 +202,7 @@ export async function runPreviewTtfb(n: number, requests: number): Promise<Metri
       await res.text();
     }
     const draft = await fetch(`${s.url}/_snypd/review/post/post-00001`);
-    return { name: "preview.ttfb", value: +median(xs).toFixed(2), unit: "ms", budget: ACTIVE.ttfb, note: `serve --preview, unchanged tree, drafts included; review page ${draft.status === 200 ? "served" : `HTTP ${draft.status}`}` };
+    return { name: "preview.ttfb", value: +median(xs).toFixed(2), unit: "ms", budget: ACTIVE.ttfb, note: `the preview server (\`snypd dev\`), unchanged tree, drafts included; review page ${draft.status === 200 ? "served" : `HTTP ${draft.status}`}` };
   } finally { s.stop(); }
 }
 

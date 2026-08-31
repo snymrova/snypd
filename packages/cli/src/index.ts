@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 /**
- * `snypd serve | build | bench | init` — the four verbs (docs/00 §principles 1).
+ * `snypd init | dev | serve | build | bench` — five verbs since S18e (docs/00 §1, docs/06 §1, decision
+ * 51), of which `serve` is the only one a person does not type: it is what `.mcp.json` spawns.
  *
  * The body is a function rather than top-level code for one reason: `bun build --compile --bytecode`
  * cannot compile a module with top-level `await`, and every verb here begins with one — the lazy
@@ -13,7 +14,11 @@ const flags = new Set(rest.filter((a) => a.startsWith("--")));
 const args = rest.filter((a) => !a.startsWith("--"));
 
 async function main(): Promise<void> {
-switch (cmd) {
+// `serve --preview` is kept as an alias for `dev` (S18e, decision 51) — and as *the same code path*
+// rather than a second one that drifts. It is the spelling three sessions of docs and one bench lane
+// already use, and the whole point of the new verb is that there is one preview, not two.
+const verb = cmd === "serve" && flags.has("--preview") ? "dev" : cmd;
+switch (verb) {
   case "build": {
     const { build } = await import("@snypd/render");
     let r;
@@ -81,12 +86,6 @@ switch (cmd) {
   }
   case "serve": {
     const port = Number(rest.find((a) => a.startsWith("--port="))?.slice(7) ?? 4321);
-    if (flags.has("--preview")) {   // S11: drafts rendered, review pages served, rebuild on change
-      const { preview } = await import("@snypd/render/preview");
-      const s = await preview(args[0] ?? ".", { port });
-      console.log(`snypd serve --preview → ${s.url}  (drafts included; approve at ${s.url}/_snypd/review/<type>/<slug>)`);
-      break;
-    }
     if (flags.has("--static")) {   // the S2 static stub: dist/ exactly as built, no drafts
       const { serve } = await import("@snypd/runtime");
       const s = serve(args[0] ?? ".", { port });
@@ -95,6 +94,100 @@ switch (cmd) {
     }
     const { createServer } = await import("@snypd/mcp");   // MCP on stdio (docs/03); stdout is the protocol
     createServer(args[0] ?? process.env.SNYPD_ROOT ?? process.cwd()).listen();
+    break;
+  }
+  /**
+   * S18e, decision 51 — the human verb.
+   *
+   * `serve` has two audiences and only one of them is a person. It is spawned by the harness from
+   * `.mcp.json`: no TTY, and stdout carries JSON-RPC, so a human-facing line printed there is a
+   * protocol violation and a browser opened there is a window per session start. `--preview` bolted the
+   * second audience onto the first verb, which is why the front door was invisible — the line this file
+   * printed named the S11 review path with `<type>/<slug>` placeholders and had never once said
+   * `/_snypd`, three sessions after the Desk became a page.
+   *
+   * `dev` writes nothing. It serves what a build already produced, so *MCP is the only way to write*
+   * survives a fifth verb intact. What it does own is the preview: it exists before any tool call,
+   * survives the harness restarting, and is already open when the post lands — and `.snypd/dev.json` is
+   * how the agent finds it instead of racing it for port 4321 (docs/08 §12.3).
+   */
+  case "dev": {
+    const { preview } = await import("@snypd/render/preview");
+    const { liveDev, writeDev, clearDev, VERSION } = await import("@snypd/core");
+    const root = args[0] ?? ".";
+    const val = (n: string) => rest.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
+    const { resolve } = await import("node:path");
+
+    // Two dev servers in one directory is the collision this session exists to end, so it is not one of
+    // the shapes we ship. Re-running the command answers with the URL of the server that is already
+    // there — the postcondition the caller wanted either way — rather than binding 4322 and leaving two
+    // Desks disagreeing about which one `render_preview` will hand out.
+    const running = await liveDev(root);
+    if (running) {
+      console.log([`a snypd dev server is already serving this site`, ``, `  Desk     ${running.url}/_snypd`, `  started  ${running.startedAt || "unknown"} (pid ${running.pid})`, ``, `Stop that one first, or just use it — the agent finds it through .snypd/dev.json either way.`].join("\n"));
+      break;
+    }
+
+    // `Number("abc")` is NaN, which `Bun.serve` takes as "pick one for me" and `reload > 0` reads as
+    // "off" — both of which turn a typo into behaviour the person did not ask for and cannot see.
+    const num = (n: string, fallback?: number): number | undefined => {
+      const raw = val(n);
+      if (raw === undefined) return fallback;
+      const v = Number(raw);
+      if (!Number.isFinite(v)) { console.error(`--${n}=${raw} is not a number`); process.exit(1); }
+      return v;
+    };
+    const reload = flags.has("--no-reload") ? 0 : num("reload", 2)!;
+    const port = num("port");
+    let s;
+    try {
+      s = await preview(root, {
+        port,
+        hostname: val("host"),
+        strictPort: port !== undefined,   // a typed port is a choice; the default is not
+        watch: !flags.has("--no-watch"),
+        reload: reload > 0 ? reload : undefined,
+        deskLink: true,
+      });
+    } catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
+      process.exit(1);
+    }
+    writeDev(root, { url: s.url, port: s.port, hostname: s.hostname, root: resolve(root), pid: process.pid, startedAt: new Date().toISOString(), version: VERSION });
+
+    // The record is the only state this verb leaves behind, and a stale one is worse than none: it
+    // sends `render_preview` at a port nobody is holding. `liveDev` proves the claim over HTTP for
+    // exactly that reason, but clearing it on the way out is what keeps the proof from being needed.
+    let stopping = false;
+    const shutdown = (code?: number) => {
+      if (stopping) return; stopping = true;
+      clearDev(root); try { s!.stop() } catch { /* already down */ }
+      if (code !== undefined) process.exit(code);
+    };
+    process.on("SIGINT", () => shutdown(0));
+    process.on("SIGTERM", () => shutdown(0));
+    process.on("exit", () => shutdown());
+
+    console.log([
+      `snypd dev → ${s.url}`,
+      ``,
+      `  Desk   ${s.url}/_snypd          drafts in flight, what to approve, what was built`,
+      `  Site   ${s.url}/                drafts included — this is the build that publishes`,
+      ``,
+      `Writing happens over MCP, from your harness — there is no editor here and no button that writes.`,
+      reload > 0 ? `Pages reload every ${reload}s while this runs; --no-reload turns that off.` : `Reload is off; refresh the page to see a change.`,
+      `Ctrl-C to stop.`,
+    ].join("\n"));
+
+    // Decision 57: `init` and `dev` may open a browser; the library functions they call may not. A TTY
+    // is the test because it is the only evidence available that a person is present — `packages/bench/
+    // smoke/` drives this binary with no display at all, and an agent calling it would get a window on
+    // somebody's screen for no reason.
+    if (!flags.has("--no-open") && process.stdout.isTTY) {
+      const cmd = process.platform === "darwin" ? ["open"] : process.platform === "win32" ? ["cmd", "/c", "start", ""] : ["xdg-open"];
+      try { Bun.spawn([...cmd, `${s.url}/_snypd`], { stdout: "ignore", stderr: "ignore", stdin: "ignore" }).unref() } catch { /* no browser is not an error */ }
+    }
     break;
   }
   case "config": {   // debugging aid: `snypd config [root] [path]` prints snypd://config or explains one path
@@ -182,7 +275,18 @@ switch (cmd) {
     break;
   }
   default:
-    console.log("usage: snypd <serve|build|bench|init> [--version] | snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel] | snypd serve [root] --preview|--static [--port=N] | snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare] | snypd config [root] [path] | snypd lint [root|file.md]"); process.exit(cmd ? 1 : 0);
+    console.log([
+      "usage: snypd <init|dev|serve|build|bench> [--version]",
+      "",
+      "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
+      "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--no-reload]      the Desk and the site with drafts in it, for a person",
+      "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
+      "  snypd build [root] [--verbose]                                        content → dist/",
+      "  snypd bench [agent|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",
+      "",
+      "Writing is over MCP and only over MCP: start with `snypd init`, restart your harness, then ask it.",
+    ].join("\n")); process.exit(cmd ? 1 : 0);
 }
 }
 main();

@@ -54,7 +54,7 @@ Descriptions are written for agents: purpose, intent, anti-intent, example. `too
 
 ## The "no UI" consequences, made explicit
 
-- **Approval:** `/_snypd/review/<id>` is a theme-rendered page in the site (diff + preview + approve), served by `snypd serve --preview`. No admin app.
+- **Approval:** `/_snypd/review/<id>` is a theme-rendered page in the site (diff + preview + approve), served by `snypd dev`. No admin app.
 - **Onboarding:** the `get-started` prompt, which calls `site` › init itself — nothing has to be run in a terminal first. `snypd init --name=… --url=…` is the same call for someone who reached for a shell anyway (S16); `--deploy` joins it in S18.
 - **Media:** the harness already has file tools; `media.upload` takes a path.
 - **Public read-only MCP** for every built site (`/.well-known/mcp.json`: `search`, `get_page`, `ask`) — the site itself is queryable by other agents.

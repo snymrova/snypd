@@ -98,6 +98,7 @@ describe("write (S11)", () => {
     let check = publishCheck(root, cfg, ix, "post", "p");
     expect(check.ok).toBe(false);
     expect(check.hint).toContain("/_snypd/review/post/p");
+    expect(check.hint).toContain("content.render_preview");   // S18e: the call that makes that path reachable
     approve(ix, { type: "post", slug: "p", hash: contentHash(readFileSync(c.file, "utf8")), by: "sunny", at: "2026-08-27T10:00:00Z" });
     expect(publishCheck(root, cfg, ix, "post", "p").ok).toBe(true);
     updateContent(root, { type: "post", slug: "p", body: "Different words entirely.", cfg });

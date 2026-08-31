@@ -1,6 +1,6 @@
 /**
  * S1/S2 STUB static server: serves `<root>/dist` with Bun.serve so the TTFB benchmark has a floor.
- * Real `snypd serve --preview` (SSR of drafts, route cache) lands in S11 (docs/07).
+ * The real preview (`snypd dev`: SSR of drafts, route cache) landed in S11 (docs/07).
  * Only Bun APIs used: Bun.serve, Bun.file (docs/04 runtime interface).
  */
 import { join } from "node:path";
