@@ -19,6 +19,7 @@ import { loadConfig, lintSite, MdastCache, SiteIndex, renderThemeSummary, INDEX_
 import { pageSuite } from "./page";
 import { suggestMetrics, scoreSuggest, formatSuggestScore, SUGGEST_CORPUS } from "./suggest";
 import { renderChart, renderDiagram, renderFlow, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
+import pkg from "../package.json";
 
 export const BUDGETS = {
   buildPer100: 2000, incremental: 300, mcpColdStart: 50, ttfb: 50,   // ms
@@ -30,7 +31,14 @@ export const BUDGETS = {
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
 };
 export const CI_FACTOR = 0.8;
-export const VERSION = "0.1.0-s18c";
+/**
+ * What a report stamps itself with. Read from this package rather than typed, since S19a: the literal
+ * here said `0.1.0-s18c` and the product shipped 0.1.1 and 0.1.2 past it, so every report of record for
+ * three sessions has named a version that was never released. A report's identity is its commit and its
+ * runner; the version is how a reader finds that commit, and one that is wrong sends them to the wrong
+ * place. `deploy.ts` › `VERSION` is read the same way and for the same reason.
+ */
+export const VERSION: string = pkg.version;
 
 /** Effective budgets for a site: BUDGETS ← its merged `bench.budgets` (spec defaults + snypd.yaml). */
 let ACTIVE = BUDGETS;   // set by run() from the corpus root's merged config
