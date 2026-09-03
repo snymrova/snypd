@@ -160,14 +160,20 @@ describe("content.* tools", () => {
     git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");
   });
 
-  test("create → query → lint → publish: refused without a human, then merged after approval", async () => {
-    const [, created, dupe, queried, linted, refused] = await session([
+  /**
+   * The default path since S19c (decision 80): an agent writes a post and publishes it, and no part of
+   * that waits for a person. The approval flow is not gone — it is opt-in, and the test below this one
+   * is it, declaring `mcp.write: draft` the way a site that wants a reviewer would.
+   */
+  test("create → query → lint → publish: an agent takes a post all the way, alone", async () => {
+    const [, created, dupe, queried, linted, published, again] = await session([
       req(1, "initialize"),
       call(2, "content.create", { type: "post", frontmatter: { title: "Why MCP only", description: "A short answer." }, body: "## Why\n\nBecause the surface is the product.\n" }),
       call(3, "content.create", { type: "post", slug: "why-mcp-only", frontmatter: { title: "Again" } }),
       call(4, "content.query", { type: "post" }),
       call(5, "content.lint", { type: "post", slug: "why-mcp-only" }),
       call(6, "content.publish", { type: "post", slug: "why-mcp-only" }),
+      call(7, "content.publish", { type: "post", slug: "why-mcp-only" }),
     ], site);
 
     expect(structured(created)).toMatchObject({ ok: true, type: "post", slug: "why-mcp-only", route: "/posts/why-mcp-only", status: "draft" });
@@ -182,27 +188,51 @@ describe("content.* tools", () => {
     expect(structured(queried).items[0]).toMatchObject({ slug: "why-mcp-only", status: "draft" });
     expect(structured(linted)).toMatchObject({ ok: true, files: 1 });
 
+    // No approval, no refusal, no URL to hand anybody.
+    expect(published.result.isError).toBeUndefined();
+    expect(structured(published)).toMatchObject({ ok: true, status: "published" });
+    expect(structured(published).git).toMatchObject({ landed: true, base: "main" });
+    const c = await import("@snypd/core");
+    const t = c.target(site, c.loadConfig(site), "post", "why-mcp-only");
+    expect(readFileSync(t.file, "utf8")).toContain("status: published");
+    // S17b: publishing lands a path on `main` and leaves the tree on the drafts branch, where the next
+    // write goes and where every other draft still is. A checkout here is what used to make them vanish.
+    expect(c.git(site, "rev-parse", "--abbrev-ref", "HEAD").stdout).toBe("snypd/drafts");
+    expect(c.git(site, "ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("content/posts/why-mcp-only.md");
+    // Publishing twice is a no-op rather than an error: under `draft` policy the second call failed
+    // because the approval was spent, and there is no approval to spend here.
+    expect(again.result.isError).toBeUndefined();
+  });
+
+  test("a type whose policy is `draft` still refuses without a human, and merges after approval", async () => {
+    const reviewed = "corpora/_test/mcp-site-draft";
+    rmSync(reviewed, { recursive: true, force: true });
+    mkdirSync(`${reviewed}/content/posts`, { recursive: true });
+    writeFileSync(`${reviewed}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntypes: { post: { mcp: { write: draft } } }\n");
+    const c = await import("@snypd/core");
+    c.initRepo(reviewed, { name: "T", email: "t@example.com" });
+    c.git(reviewed, "add", "-A"); c.git(reviewed, "commit", "-q", "-m", "init");
+
+    const [, , refused] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", slug: "needs-a-read", frontmatter: { title: "Needs a read" }, body: "Words enough to be a post.\n" }),
+      call(3, "content.publish", { type: "post", slug: "needs-a-read" }),
+    ], reviewed);
     expect(refused.result.isError).toBe(true);
-    expect(structured(refused).hint).toContain("/_snypd/review/post/why-mcp-only");
+    expect(structured(refused).hint).toContain("/_snypd/review/post/needs-a-read");
     // S18e: the hint names the call that turns that path into a URL a person can open. It used to name
     // `snypd serve --preview`, a command the agent cannot run and the human no longer needs to type.
     expect(structured(refused).hint).toContain("content.render_preview");
     expect(structured(refused).hint).not.toContain("--preview");
 
     // the human approves the exact version on the review page (the preview server calls the same function)
-    const c = await import("@snypd/core");
-    const cfg = c.loadConfig(site);
-    const t = c.target(site, cfg, "post", "why-mcp-only");
-    c.approve(c.approvals(site), { type: "post", slug: "why-mcp-only", hash: c.contentHash(readFileSync(t.file, "utf8")), by: "sunny", at: new Date().toISOString() });
+    const cfg = c.loadConfig(reviewed);
+    const t = c.target(reviewed, cfg, "post", "needs-a-read");
+    c.approve(c.approvals(reviewed), { type: "post", slug: "needs-a-read", hash: c.contentHash(readFileSync(t.file, "utf8")), by: "sunny", at: new Date().toISOString() });
 
-    const [, published, again] = await session([req(1, "initialize"), call(2, "content.publish", { type: "post", slug: "why-mcp-only" }), call(3, "content.publish", { type: "post", slug: "why-mcp-only" })], site);
+    const [, published, again] = await session([req(1, "initialize"), call(2, "content.publish", { type: "post", slug: "needs-a-read" }), call(3, "content.publish", { type: "post", slug: "needs-a-read" })], reviewed);
     expect(structured(published)).toMatchObject({ ok: true, status: "published" });
     expect(structured(published).git).toMatchObject({ landed: true, base: "main" });
-    expect(readFileSync(t.file, "utf8")).toContain("status: published");
-    // S17b: publishing lands a path on `main` and leaves the tree on the drafts branch, where the next
-    // write goes and where every other draft still is. A checkout here is what used to make them vanish.
-    expect(c.git(site, "rev-parse", "--abbrev-ref", "HEAD").stdout).toBe("snypd/drafts");
-    expect(c.git(site, "ls-tree", "main", "--name-only", "content/posts/").stdout).toBe("content/posts/why-mcp-only.md");
     expect(again.result.isError).toBe(true);                                   // the approval was spent
   });
 
@@ -641,11 +671,11 @@ describe("the first run, from the agent's side", () => {
   });
 
   /**
-   * S19a, decision 44: the asymmetry is the feature. An agent can ask for a push and cannot make one, so
-   * what this asserts is a *refusal that is useful* — the state, what would go, and the URL of the button
-   * a person clicks — and that nothing left the machine.
+   * S19c, decision 80: `deploy.push` decides, and `agent` is the default. Both halves are asserted here
+   * against a bare repo standing in for a host, because the difference between them is whether bytes
+   * left the machine — which is not a thing to take a return value's word for.
    */
-  test("`site` › push tells the agent where the button is and does not press it", async () => {
+  test("`site` › push pushes by default, and hands over to a person when the site says `human`", async () => {
     const dir = mkdtempSync(join(tmpdir(), "snypd-push-"));
     const remote = mkdtempSync(join(tmpdir(), "snypd-push-remote-"));
     const c = await import("@snypd/core");
@@ -655,11 +685,22 @@ describe("the first run, from the agent's side", () => {
     c.git(remote, "init", "-q", "--bare", "-b", "main");
     c.git(dir, "remote", "add", "origin", remote);
 
-    const [, asked] = await session([req(1, "initialize"), call(2, "site", { action: "push" })], dir);
+    // The default: it pushes, and the remote has `main` and nothing else afterwards.
+    const [, pushed] = await session([req(1, "initialize"), call(2, "site", { action: "push" })], dir);
+    expect(pushed.result.isError).toBeUndefined();
+    expect(structured(pushed)).toMatchObject({ ok: true, pushed: true, policy: "agent", branch: "main" });
+    expect(pushed.result.content[0].text as string).toContain("pushed main → origin");
+    expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("refs/heads/main");
+
+    // …and the opt-in: a site that wants a person in the loop gets the S19a shape back.
+    const [, , asked] = await session([
+      req(1, "initialize"),
+      call(2, "site", { action: "set_config", path: "deploy.push", value: "human" }),
+      call(3, "site", { action: "push" }),
+    ], dir);
     const s = asked.result.content[0].text as string;
-    expect(asked.result.isError).toBeUndefined();
-    expect(structured(asked)).toMatchObject({ ok: true, pushed: false, ready: true, branch: "main", known: false });
-    expect(s).toContain("a person's to make");
+    expect(structured(asked)).toMatchObject({ ok: true, pushed: false, policy: "human", ready: true });
+    expect(s).toContain("does not push");
     expect(s).toContain("_snypd");                       // where the button is
     expect(s).toContain("main → origin");
     // The number that was wrong the first time this ran against a real site: the tool said "0 drafts in
@@ -669,8 +710,9 @@ describe("the first run, from the agent's side", () => {
     const [, withDraft] = await session([req(1, "initialize"), call(2, "site", { action: "push" })], dir);
     expect(structured(withDraft).drafts).toBe(1);
     expect(withDraft.result.content[0].text as string).toContain("1 draft in flight stays local");
-    // The remote heard nothing: this tool has no push in it, only the sentence that says who does.
-    expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("");
+    expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("refs/heads/main");
+    // Nothing new left the machine on the refused call — the drafts branch in particular.
+    expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("refs/heads/main");
   });
 
   test("the placeholder comes due exactly once, at publish, and the refusal changes when it is fixed", async () => {
@@ -693,10 +735,13 @@ describe("the first run, from the agent's side", () => {
       call(3, "content.publish", { type: "post", slug: "first" }),
     ], site);
     expect(set.result.isError).toBeUndefined();
-    // Now the refusal is the *other* one — the approval a human owes, which is the product working
-    // rather than a setup step. A single message that changes from one to the other is the whole test.
-    expect(stillRefused.result.isError).toBe(true);
-    expect(stillRefused.result.content[0].text).not.toContain("placeholder");
-    expect(stillRefused.result.content[0].text).toContain("needs a human");
+    // Setting it was the whole debt. Until S19c a second refusal waited behind this one — the approval a
+    // human owed — and the test's point was that the message changed from one to the other. Under
+    // decision 80 the default type publishes, so the URL is the only thing that was ever owed, and the
+    // same call that refused now goes all the way. The renamed variable is the assertion.
+    const published = stillRefused;
+    expect(published.result.isError).toBeUndefined();
+    expect(published.result.content[0].text).not.toContain("placeholder");
+    expect(structured(published)).toMatchObject({ ok: true, status: "published" });
   });
 });

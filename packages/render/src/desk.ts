@@ -12,19 +12,19 @@
  * every feature is built twice, and the MCP surface stops being the product the moment there is a
  * better way to use it.
  *
- * **The one control** is S19a's push button (decision 79), and it is the exception decision 44 was
- * written to allow rather than a hole in it: it writes nothing, it publishes nothing that was not
- * already published, and what it does — send the base branch to the host — is the moment a site becomes
- * visible to everybody, which is the second act besides approval that belongs to a person. `site` › push
- * exists for an agent and returns this page's URL instead of pushing. Nothing else here is a control,
- * and the test that used to assert *no `<form>` at all* now asserts which one.
+ * **The one control** is S19a's push button, and since S19c (decision 80) it is a convenience rather
+ * than a gate: `deploy.push` defaults to `agent`, so `site` › push does the same thing from a harness.
+ * A site that sets `human` gets the S19a shape back and this button becomes the only way. Either way it
+ * writes nothing and publishes nothing that was not already published — it sends a branch. Nothing else
+ * here is a control, and the test that used to assert *no `<form>` at all* now asserts which one.
  *
  * Two consequences are structural rather than editorial:
  *
  * - **Approval lives on the review page, never here.** A row links to `/_snypd/review/…`; it carries
  *   no approve button of its own. An approval is bound to the bytes a human *read* (`contentHash` of
  *   the source the review page rendered), and a button next to a one-line summary would quietly sever
- *   that — the reviewer would be signing a title, not a post.
+ *   that — the reviewer would be signing a title, not a post. Since S19c that page only offers the
+ *   button for a type whose policy is `draft`, because that is the only policy anything reads it under.
  * - **The theme card is read-only and says which MCP call changes it.** A control here would be the
  *   first brick of the admin app.
  *
@@ -120,6 +120,8 @@ export interface DeskPush {
   dirty: number;
   blockers: { reason: string; hint: string }[];
   ok: boolean;
+  /** `deploy.push`. `agent` (the default) means the tool pushes too and this button is a convenience. */
+  policy: "agent" | "human";
   /** Where the button posts. Spelled by `@snypd/core` (`PUSH_ROUTE`) and passed in with the rest. */
   route: string;
   /** The last push this preview server made, so the page can say what happened rather than only what is. */
@@ -270,7 +272,7 @@ function steps(o: DeskOnboarding): Step[] {
         : "A harness reads <code>.mcp.json</code> when it starts, so a file written after it opened is a file it has not seen." },
     { done: o.items > 0, label: "One post written", surface: o.items > 0 ? undefined : "say",
       action: o.items > 0 ? undefined : "Write the first post — use the get-started prompt.",
-      note: o.items > 0 ? `${o.items} item${o.items === 1 ? "" : "s"} in the index.` : "An agent drafts; you approve the exact version on the review page. Nothing here writes." },
+      note: o.items > 0 ? `${o.items} item${o.items === 1 ? "" : "s"} in the index.` : "An agent writes it and can publish it. Set a type's <code>mcp.write</code> to <code>draft</code> if you would rather approve each one on the review page first. Nothing here writes." },
     { done: !o.placeholderUrl, label: "A real site URL", surface: o.placeholderUrl ? "say" : undefined,
       action: o.placeholderUrl ? "Set site.url to where this will be served from." : undefined,
       note: o.placeholderUrl ? "The feed, the sitemap and the JSON-LD are absolute, so this is needed before anything publishes — and not before. <code>content.publish</code> refuses until it is set." : undefined },
@@ -322,7 +324,7 @@ function firstRun(o: DeskOnboarding | undefined): string {
     // Inline `<details>` rather than a link: progressive disclosure at zero JS, so it costs the reader
     // who already knows nothing and `desk.js.kb` stays 0.
     `<details><summary>What is snypd?</summary>`,
-    `<p>A CMS whose only interface is MCP. Your agent writes and edits through tools; this page is the half that needs a person — it reads, and it approves. There is no editor here and no button that writes.</p>`,
+    `<p>A CMS whose only interface is MCP. Your agent writes, edits, publishes and puts the site live through tools; this page is where a person watches that happen, and takes over any part of it they want to. There is no editor here and no button that writes.</p>`,
     `<p>Content is markdown files in git, and the vocabulary is a closed set of primitives a theme knows how to render. The database in <code>.snypd/</code> is a disposable index; delete it and the site is unchanged.</p>`,
     `</details>`,
     `<p class="note">Nothing on this list is stored. Every row is read from disk each time you load this page, so there is nothing to dismiss and nothing to reset — when all ${rows.length} are done this card stops rendering.</p>`,
@@ -390,7 +392,9 @@ function pushCard(p: DeskPush, now: number): string {
     `</table>`,
     last,
     button,
-    `<p class="note">This is the only button on the Desk, and it publishes nothing that was not already published — it sends the branch your approved items land on. An agent can ask for a push (<code>site</code> › <code>push</code>) and cannot perform one; that asymmetry is the point.</p>`,
+    p.policy === "human"
+      ? `<p class="note">This is the only button on the Desk, and on this site it is the only way: <code>deploy.push</code> is <code>human</code>, so <code>site</code> › <code>push</code> reports and refuses. It publishes nothing that was not already published — it sends the branch your published items land on.</p>`
+      : `<p class="note">This is the only button on the Desk, and it is a convenience rather than a gate: <code>site</code> › <code>push</code> does the same thing from your harness. It publishes nothing that was not already published — it sends the branch your published items land on. A site that wants a person in that loop sets <code>deploy.push</code> to <code>human</code>.</p>`,
     `</section>`,
   ].join("");
 }
@@ -460,10 +464,10 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
     inFlight,
     f.push ? pushCard(f.push, now) : "",
     theme,
-    // Rewritten in S19a, and narrowed rather than softened. “It never writes” was true for three
-    // sessions and stopped being true the moment decision 44's button landed, so the sentence now says
-    // what the button is — the one act reserved for a person — and repeats the refusal it does not touch.
-    `<footer>The Desk reads, approves, and pushes. Those are the three things that are a person’s: publishing is approving words an agent wrote, and a push is the moment they become public. There is no “New post” button, no theme switcher and no config editor here — a second way to write would mean every feature is built twice, and the MCP surface is the product.</footer>`,
+    // Rewritten twice: S19a added the button, S19c took away the claim that it was a gate. What is left
+    // is the line that has never moved — this page does not write words — and it is the only one the
+    // product actually needs, because it is the one that keeps MCP the single way to author.
+    `<footer>The Desk reads. It can also approve and push, which are the two acts a site may choose to keep for a person — this one ${f.push?.policy === "human" ? "keeps the push" : "keeps neither, so both are also an agent's"}. What it never does is write words: no “New post” button, no theme switcher and no config editor, because a second way to write would mean every feature is built twice, and the MCP surface is the product.</footer>`,
     `</main>`,
   ].join("\n");
 

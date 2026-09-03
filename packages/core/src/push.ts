@@ -9,17 +9,19 @@
  * credential, calls no deploy API and knows nothing about Cloudflare or Vercel beyond the config file
  * `writeDeploy` wrote for them (`07` §3b). The host is watching the branch; the push is the event.
  *
- * **Who is allowed to press it is the whole design.** `pushState` is a read and anybody may call it;
- * `pushSite` is the act, and exactly one caller in the product performs it — the POST handler behind the
- * Desk's button, where a person is looking at a browser on their own machine. The MCP tool
- * (`site` › push) returns this state and the URL of that button, and does not push. That is decision
- * 44's argument taken literally: a human clicking is a stronger gate than a `destructiveHint` on a tool
- * an agent can call, and it is the difference between D6's "edited only via MCP" and a product where an
- * agent can put words on the internet on its own initiative.
+ * **Who is allowed to press it is a declared policy, not a hardcoded refusal** (S19c, decision 80).
+ * `deploy.push` is `agent` by default: the tool pushes. A site that sets `human` gets the S19a shape
+ * back — `site` › push returns this state and the URL of the Desk's button, and does not push.
  *
- * It is not a lock, and it does not pretend to be one. Anybody with the repo can type `git push`, and
- * that is the correct escape hatch for CI, for a headless box and for somebody who disagrees with us —
- * the point is that snypd's *own* surfaces do not do it for them.
+ * S19a built the second of those as the only shape, on decision 44's argument that a human clicking is a
+ * stronger gate than a `destructiveHint`. That argument is still true and is no longer the one that
+ * decides: an interface that stops at the last mile and waits for a mouse is not "the only interface",
+ * and the cases it breaks are not edge cases — CI, a headless box, a scheduled post, and D1's own kill
+ * test, which cannot finish a site it is not allowed to publish. The gate that remains is the one that
+ * was always doing the work: `publishCheck`, per type, in config a person owns.
+ *
+ * The Desk's button stays exactly where it was. It is a convenience now rather than a gate, and it is
+ * still the only control on that page.
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -53,6 +55,8 @@ export interface PushState {
   /** Uncommitted paths in the working tree — also not carried, and worth saying rather than implying. */
   dirty: number;
   blockers: PushBlocker[];
+  /** `deploy.push`: who may perform it. `agent` (the default) means this tool pushes. */
+  policy: "agent" | "human";
   /** Nothing stands in the way. `ahead === 0` with `ok` is a site that is already live and current. */
   ok: boolean;
 }
@@ -81,7 +85,7 @@ export function pushState(root: string, cfg: LoadedConfig, opts: { drafts?: numb
   const repo = Repo.open(root);
   const branch = repo?.publishBase() ?? "main";
   const state = (extra: Partial<PushState> = {}): PushState => {
-    const s: PushState = { branch, known: false, ahead: 0, commits: [], drafts: opts.drafts ?? 0, dirty: 0, deploy: deployTarget(root), blockers, ok: false, ...extra };
+    const s: PushState = { branch, known: false, ahead: 0, commits: [], drafts: opts.drafts ?? 0, dirty: 0, deploy: deployTarget(root), policy: (cfg.config as { deploy?: { push?: "agent" | "human" } }).deploy?.push ?? "agent", blockers, ok: false, ...extra };
     s.ok = s.blockers.length === 0;
     return s;
   };
@@ -158,9 +162,13 @@ export interface PushResult {
  * the privilege. Branch previews are `07` S19a's second half and they need the host's build command to
  * be branch-aware first; until that exists and is verified against a real project, this sends one branch.
  */
-export function pushSite(root: string, cfg: LoadedConfig, opts: { who?: string; timeoutMs?: number } = {}): PushResult {
+export function pushSite(root: string, cfg: LoadedConfig, opts: { who?: string; timeoutMs?: number; as?: "agent" | "human" } = {}): PushResult {
   const st = pushState(root, cfg);
   if (!st.ok) return { ok: false, branch: st.branch, remote: st.remote?.name, sent: 0, reason: st.blockers[0]!.reason, hint: st.blockers[0]!.hint };
+  // The one refusal the policy adds, and it never applies to the Desk: a person at a browser is the
+  // thing `human` was asking for, so a button press is not something to send back to a button.
+  if (st.policy === "human" && (opts.as ?? "agent") !== "human")
+    return { ok: false, branch: st.branch, remote: st.remote?.name, sent: 0, reason: "`deploy.push` is `human` on this site", hint: "A person pushes it, from the button on the Desk under `snypd dev`. `site` › set_config `deploy.push` `agent` changes that, and is the default for a new site." };
   const repo = Repo.open(root)!;
   const remote = st.remote!;
   if (st.branch === DRAFTS_BRANCH)

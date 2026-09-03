@@ -343,18 +343,18 @@ tokens: {}
           ].join("\n"), { ok: true, deploy: targetName, created, changed: true });
         }
         /**
-         * **`push` asks; it does not push** (S19a, decision 44).
+         * **`push` pushes** (S19c, decision 80), unless `deploy.push` is `human` — in which case it does
+         * what it did for the whole of S19a: reports the state and hands back the URL of the Desk's
+         * button.
          *
-         * Every other action here is a write this tool performs. This one is the single act reserved for
-         * a person: sending the base branch to the host is when a site becomes visible to everybody, and
-         * a human clicking a button in a local browser is a stronger gate than a `destructiveHint` on a
-         * tool an agent can call. So what comes back is the state a push is in, what would go with it,
-         * and the URL of the button — phrased to be relayed, the same way `init`'s restart line is.
+         * S19a shipped the second behaviour as the only one, on decision 44's argument that a human
+         * clicking beats a `destructiveHint`. What changed is not that argument but its scope: "MCP is
+         * the only interface" was false at the last mile, and the cases that broke are not edge cases —
+         * CI, a headless box, a scheduled post, and D1's kill test, which cannot finish a site it may
+         * not publish. The gate that does the real work is `publishCheck`, per type, in config.
          *
-         * The name is the request, not a promise: an agent that asked for a push and got back "here is
-         * where a person does that" has been answered, and `snypd://config` is not a better place for
-         * this because none of it is config. The escape hatch is `git push` in a terminal, which is
-         * nobody's to take away and is the right answer for CI.
+         * The result says which of the two happened in its first line, because an agent relaying "I have
+         * put your site live" when it has not is worse than either behaviour on its own.
          */
         if (action === "push") {
           const cfgPush = cfgOf();
@@ -380,11 +380,21 @@ tokens: {}
             const b = st.blockers[0]!;
             return fail(`nothing to push yet — ${b.reason}`, b.hint);
           }
+          if (st.policy === "agent") {
+            const r = c.pushSite(root, cfgPush, { as: "agent" });
+            if (!r.ok) return fail(`push failed: ${r.reason}`, r.hint);
+            return text([
+              r.sent ? `pushed ${st.branch} → ${st.remote!.name}: ${r.sent} commit${r.sent === 1 ? "" : "s"}` : `${st.branch} → ${st.remote!.name}: the remote already had it`,
+              st.deploy ? `${st.deploy} builds from the branch; give it a minute, then read ${cfgPush.config.site.url}.` : `Whatever watches that branch builds next; there is no deploy API here to poll.`,
+              `${st.drafts} draft${st.drafts === 1 ? "" : "s"} in flight stay${st.drafts === 1 ? "s" : ""} local — a push sends ${st.branch}, and drafts are not on it.`,
+              ...(desk ? [`The Desk shows what went and when: ${desk}`] : []),
+            ].join("\n"), { ...st, ok: true, ready: true, pushed: true, sent: r.sent, deskUrl: desk });
+          }
           const going = st.ahead === 0
             ? st.known ? `\`${st.branch}\` is already on \`${st.remote!.name}\` as of the last fetch — there is nothing to send.` : `\`${st.branch}\` has never been pushed to \`${st.remote!.name}\`.`
             : `${st.ahead} commit${st.ahead === 1 ? "" : "s"} would go:\n${st.commits.slice(0, 5).map((x) => `  ${x.sha.slice(0, 7)} ${x.subject}`).join("\n")}${st.ahead > 5 ? `\n  and ${st.ahead - 5} more` : ""}`;
           return text([
-            `A push is a person's to make, so this call does not make one — it tells you where they make it.`,
+            `\`deploy.push\` is \`human\` on this site, so this call does not push — it tells you where a person does.`,
             ``,
             `${st.branch} → ${st.remote!.name} (${st.origin ?? st.remote!.url})${st.deploy ? ` · ${st.deploy}` : ""}`,
             going,

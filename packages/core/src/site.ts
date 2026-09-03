@@ -46,6 +46,20 @@ export function setConfig(root: string, path: string, value: unknown): ConfigWri
   const same = value === null ? from === undefined : JSON.stringify(from) === JSON.stringify(value);
   if (same) return { path, from, to: value, file: CONFIG_FILE, paths: [] };
   if (value === null) doc.deleteIn(keys); else doc.setIn(keys, value);
+  // **The one comment this file is allowed to delete** (S19c, found on snypd.rocks' own config).
+  //
+  // `initSite` writes `url: "http://localhost:4321"   # placeholder — …` so that a person opening the
+  // file learns why the value is wrong. `setIn` replaces the value and leaves the comment attached to
+  // the node, so the moment somebody sets a real origin the file reads
+  // `url: "https://snypd.rocks" # placeholder — … publishing needs the real one`, which is now false and
+  // is being asserted by the product about its own state. Scoped as tightly as it can be: this key only,
+  // this sentence only, and only when the new value is not a placeholder — a comment somebody wrote
+  // themselves is never ours to remove.
+  if (pathKey(keys) === "site.url" && typeof value === "string" && !isPlaceholderUrl(value)) {
+    const node = doc.getIn(["site"], true) as { items?: { key?: { value?: unknown }; value?: { comment?: string | null } }[] } | undefined;
+    const pair = node?.items?.find((i) => i.key?.value === "url");
+    if (pair?.value?.comment && /placeholder/i.test(pair.value.comment)) pair.value.comment = null;
+  }
   const after = `${doc.toString({ lineWidth: 0 }).replace(/\n+$/, "")}\n`;
   if (after === before) return { path, from, to: value, file: CONFIG_FILE, paths: [] };
   writeFileSync(file, after);

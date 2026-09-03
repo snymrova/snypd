@@ -477,7 +477,7 @@ describe("Desk (S18b)", () => {
     expect(page).toContain("In progress");
     expect(page).toContain("/_snypd/review/post/in-progress");
     expect(page).not.toContain("Shipped");            // published is not in flight
-    expect(page).toContain("needs a human");          // the draft policy, in a person's words
+    expect(page).toContain("ready to publish");       // the default policy since S19c: no human in the loop
   });
 
   test("a trailing slash is the same page", async () => {
@@ -528,8 +528,12 @@ describe("Desk (S18b)", () => {
     expect(await (await fetch(`${bareServer.url}/_snypd`)).text()).not.toContain(">Push<");
   });
 
-  test("an approved draft reads as ready, and stops reading that way when it changes", async () => {
+  test("under `draft` policy an approved draft reads as ready, and stops when it changes", async () => {
     const c = await import("@snypd/core");
+    // The opt-in shape (S19c, decision 80). The Desk renders approval state only for a type that asks
+    // for approval; the default is `publish`, which the test above covers.
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: Desk test, url: https://desk.example }\ntypes: { post: { mcp: { write: draft } } }\n");
+    await server.rebuild();
     const cfg = c.loadConfig(site);
     const store = c.approvals(site);
     const source = c.draftSource(site, cfg, "post", "in-progress")!;
@@ -714,7 +718,9 @@ describe("preview (S11)", () => {
   beforeAll(async () => {
     rmSync(site, { recursive: true, force: true });
     mkdirSync(`${site}/content/posts`, { recursive: true });
-    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: preview, url: https://p.example }\n");
+    // `write: draft` declared, not inherited: since S19c the spec's default is `publish`, and this
+    // describe exists to test the review-and-approve flow, which only a `draft`-policy type has.
+    writeFileSync(`${site}/snypd.yaml`, "snypd: 1\nsite: { name: preview, url: https://p.example }\ntypes: { post: { mcp: { write: draft } } }\n");
     const { git } = await import("@snypd/core");
     initRepo(site, { name: "T", email: "t@example.com" });   // guarded: never inits into the enclosing repo
     git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init");

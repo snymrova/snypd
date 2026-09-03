@@ -66,6 +66,14 @@ export const ConfigSchema = z.object({
   roles: z.object({ agents: z.enum(ROLES).default("contributor") }).passthrough().default({ agents: "contributor" }),
   plugins: z.array(z.union([z.string(), z.record(z.string(), z.unknown())])).default([]),
   jobs: z.record(z.string(), z.object({ every: z.string().regex(/^\d+(ms|s|m|h|d|w)$/, "duration like 7d, 12h, 30m") }).passthrough()).default({}),
+  /**
+   * Who may send the base branch to the host (S19c). `agent` is the default and is the product's
+   * position: MCP is the only interface, and an interface that stops at the last mile and waits for a
+   * mouse is not the only interface — it is most of one. A site that wants the older shape sets `human`,
+   * and then `site` › push hands back the Desk's URL instead of pushing, which is what every site did
+   * between S19a and S19c.
+   */
+  deploy: z.object({ push: z.enum(["agent", "human"]).default("agent") }).passthrough().default({ push: "agent" }),
   bench: z.object({ budgets: z.record(z.string(), z.union([z.number(), z.record(z.string(), z.number())])).default({}) }).passthrough().default({ budgets: {} }),
   fieldTypes: z.record(z.string(), z.object({ json: z.string() }).passthrough()).default({}),
 }).strict();

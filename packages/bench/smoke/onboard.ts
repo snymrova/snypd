@@ -248,9 +248,14 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean } = {}): P
         await session.call("site", { action: "set_config", path: "site.url", value: ORIGIN });
         continue;
       }
+      // Not reached on a default site since S19c (decision 80): `mcp.write` is `publish`, so the call
+      // above does not refuse for an approval and the loop breaks. Kept, and deliberately not deleted —
+      // it is the branch a site that declares `mcp.write: draft` still walks, and this file's whole
+      // claim is that the count is measured rather than asserted. Deleting it would make the five a
+      // number this file *decided* instead of one it observed.
       if (/needs a human/i.test(said)) {
         act({ step: 12, kind: "approve-post", what: "read the post on the review page and approve it", irreducible: true, proof: "refused",
-          detail: "publish refused without an approval for this exact version — the product's safety claim, and the second action decision 65 forbids optimising away" });
+          detail: "publish refused without an approval for this exact version — a `draft`-policy type, which is opt-in from S19c" });
         const res = await fetch(`${origin}/_snypd/approve/post/${FIRST_POST.slug}`, { method: "POST", redirect: "manual" });
         if (res.status !== 303 && !res.ok) throw new Error(`approve: HTTP ${res.status}`);
         continue;
@@ -369,7 +374,9 @@ export function onboardMetrics(w: OnboardWalk): Metric[] {
   const irreducible = w.actions.filter((a) => a.irreducible).length;
   const observed = w.actions.filter((a) => a.proof !== "structural").length;
   return [
-    { name: "onboard.handoff", value: w.actions.length, unit: "actions", budget: HANDOFF_BUDGET,
+    // `exact`: five is a number docs/08 F1 states in prose, not a target with headroom. 80 % of it is
+    // four, which no document claims and which would have this row read ⚠️ at the exact value F1 asks for.
+    { name: "onboard.handoff", value: w.actions.length, unit: "actions", budget: HANDOFF_BUDGET, exact: true,
       note: `${w.actions.map((a) => a.kind).join(" · ")} — ${irreducible} irreducible (decision 65), ${observed} of ${w.actions.length} established by the product refusing or the file being absent` },
     { name: "onboard.handoff.fresh", value: w.actions.length + (w.fresh ? 1 : 0), unit: "actions",
       note: w.fresh ? `a machine with no git author identity: ${w.fresh.detail}` : "no git identity needed — this machine had one and the walk could not reach the state (docs/08 §12.11)" },

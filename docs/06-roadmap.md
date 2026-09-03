@@ -7,7 +7,7 @@
 4. Closed primitive vocabulary, ~35, versioned; themes implement it.
 5. Bun 1.4+ runtime, single-binary distribution, own renderer, TSX themes, zero client JS by default. No framework in core; Astro/Next as adapter plugins.
 6. remark + directives for the vocabulary; `Bun.markdown` only where structure doesn't matter.
-7. Agents are Contributor by default.
+7. Agents are Contributor by default — **amended S19c (`07` decision 80): the *write policy* is `publish` by default and `deploy.push` is `agent`, so an agent drafts, publishes and deploys. The role vocabulary is still unbuilt; the gates that exist are per-type config, not roles.**
 8. `snypd bench` ships in v0.1, before the second theme.
 9. MIT. Open-core cloud later, optional.
 

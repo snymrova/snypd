@@ -279,8 +279,11 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
       // the review page having shipped since S11 without any browser suite ever looking at it.
       `<h2>Frontmatter</h2><pre tabindex="0"><code>${escape(yaml)}</code></pre>`,
       diff ? `<h2>Diff</h2><pre tabindex="0"><code>${escape(diff)}</code></pre>` : `<h2>Diff</h2><p>No uncommitted or branched changes — this is what is already committed.</p>`,
-      check.ok && current ? "" : `<form method="post" action="/_snypd/approve/${escape(type)}/${escape(slug)}"><button type="submit">Approve this version</button></form>`,
-      `<p><small>Approving covers version <code>${escape(hash.slice(0, 12))}</code> only. Edit after approving and the approval no longer applies — deliberately: an agent must not be able to swap the words a human read.</small></p>`,
+      // Only where an approval means something. Under `publish` policy (the default since S19c) nothing
+      // reads the ledger, so a button writing to it would be a control that changes nothing — the worst
+      // kind on a page whose whole claim is that every control does exactly one legible thing.
+      check.policy !== "draft" || (check.ok && current) ? "" : `<form method="post" action="/_snypd/approve/${escape(type)}/${escape(slug)}"><button type="submit">Approve this version</button></form>`,
+      check.policy !== "draft" ? "" : `<p><small>Approving covers version <code>${escape(hash.slice(0, 12))}</code> only. Edit after approving and the approval no longer applies — deliberately: an agent must not be able to swap the words a human read.</small></p>`,
     ].join("\n"));
     return new Response(shell(`Review: ${t.type}/${t.slug}`, body, reviewPath(type, slug)).html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
   };
@@ -370,7 +373,7 @@ Write something. There is no file to delete.
     const st = pushCache.state;
     // `drafts` is the one number that must never be cached: it is the index's, it is free, and a card
     // saying "2 drafts stay local" while three are in flight would be wrong in the direction that matters.
-    return { ...st, deploy: st.deploy, drafts, route: PUSH_ROUTE, last: lastPush };
+    return { ...st, deploy: st.deploy, policy: st.policy, drafts, route: PUSH_ROUTE, last: lastPush };
   };
 
   const deskFacts = (): DeskFacts => {
@@ -527,7 +530,7 @@ Write something. There is no file to delete.
         const site = req.headers.get("sec-fetch-site");
         if (site && site !== "same-origin" && site !== "none")
           return new Response("cross-site push refused", { status: 403 });
-        const r = pushSite(root, cfg, { who: reviewerOf(req, "the Desk") });
+        const r = pushSite(root, cfg, { who: reviewerOf(req, "the Desk"), as: "human" });
         lastPush = { ok: r.ok, at: Date.now(), sent: r.sent, by: r.by, reason: r.reason, hint: r.hint };
         pushCache = undefined;   // the tracking ref moved, or git just told us why it did not
         return new Response(null, { status: 303, headers: { location: "/_snypd" } });

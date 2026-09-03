@@ -55,7 +55,22 @@ export function budgetsFor(root: string): typeof BUDGETS {
 }
 
 /** `higherIsBetter` metrics (e.g. % reduction) breach when value < budget; no 80 % margin. */
-export interface Metric { name: string; value: number; unit: string; budget?: number; higherIsBetter?: boolean; note?: string }
+export interface Metric {
+  name: string; value: number; unit: string; budget?: number; higherIsBetter?: boolean; note?: string;
+  /**
+   * The budget is a **discrete design statement**, so CI passes at `≤ budget` rather than at 80 % of it
+   * (S19c).
+   *
+   * `CI_FACTOR` is headroom for a clock: a runner is noisy, so a metric that must be under 50 ms is held
+   * to 40 in CI and nobody is surprised on a bad afternoon. A count of human actions has no noise — it is
+   * five or it is six — and 80 % of five is four, which is a budget nobody wrote down and which docs/08
+   * F1 does not claim. Applying a headroom factor to it does not make the gate stricter; it makes the
+   * gate *different from the document that defines it*.
+   *
+   * Set only where the number is counted rather than timed and the budget is quoted in prose somewhere.
+   */
+  exact?: boolean;
+}
 export interface Report { version: string; bun: string; date: string; tokenizer: string; metrics: Metric[]; /** Which suite ran; `bench compare` reads reports of the same suite. */ suite?: string }
 
 function median(xs: number[]) { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]!; }
@@ -655,6 +670,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
 export function status(m: Metric): "report" | "ok" | "ci" | "budget" {
   if (m.budget === undefined) return "report";
   if (m.higherIsBetter) return m.value >= m.budget ? "ok" : "budget";
+  if (m.exact) return m.value <= m.budget ? "ok" : "budget";
   return m.value <= m.budget * CI_FACTOR ? "ok" : m.value <= m.budget ? "ci" : "budget";
 }
 
@@ -664,7 +680,7 @@ export function toMarkdown(r: Report) {
     const b = m.budget !== undefined ? `${m.higherIsBetter ? "≥ " : ""}${m.budget} ${m.unit}` : "—";
     return `| \`${m.name}\` | ${m.value} ${m.unit} | ${b} | ${label[status(m)]} | ${m.note ?? ""} |`;
   });
-  return `# snypd bench — ${r.suite ?? "latest"}\n\n**Version** ${r.version} · **Bun** ${r.bun} · **Date** ${r.date} · **Tokenizer** ${r.tokenizer}\n\n| Metric | Value | Budget | Status | Note |\n|---|---|---|---|---|\n${rows.join("\n")}\n\nCI passes at ≤ 80 % of budget (docs/07 §3). Corpora are deterministic (\`bun run corpus <n>\`); 10k is generated on demand, not checked in.\n`;
+  return `# snypd bench — ${r.suite ?? "latest"}\n\n**Version** ${r.version} · **Bun** ${r.bun} · **Date** ${r.date} · **Tokenizer** ${r.tokenizer}\n\n| Metric | Value | Budget | Status | Note |\n|---|---|---|---|---|\n${rows.join("\n")}\n\nCI passes at ≤ 80 % of budget (docs/07 §3), except where a row is a counted design statement rather than a clock, which passes at ≤ budget. Corpora are deterministic (\`bun run corpus <n>\`); 10k is generated on demand, not checked in.\n`;
 }
 
 /** Names of metrics over the CI threshold. */

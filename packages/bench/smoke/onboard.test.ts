@@ -46,31 +46,48 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * make the number impossible to lose: change the flow and this line fails, and whoever changes it reads
    * the paragraph above before they edit it.
    */
-  test("six human actions, not five — and the sixth is the URL", () => {
-    expect(walk.actions).toHaveLength(6);
+  /**
+   * **Five, and F1 is green** — S19c, decision 80. This read six from S18g until the write policy's
+   * default moved from `draft` to `publish`, and the action that left is `approve-post`: the walk breaks
+   * out of its publish loop on the first call that does not refuse, so nothing here was told about the
+   * change, it measured it. That is the whole reason the count was built as a measurement.
+   *
+   * The sixth is not gone from the product. A site that declares `mcp.write: draft` still pays it, and
+   * the branch that records it is still in `onboard.ts` for exactly that walk.
+   */
+  test("five human actions, and the fifth is the URL", () => {
+    expect(walk.actions).toHaveLength(5);
     expect(walk.actions.map((a) => a.kind)).toEqual([
-      "paste", "answer", "approve-shell", "restart", "answer-url", "approve-post",
+      "paste", "answer", "approve-shell", "restart", "answer-url",
     ]);
-    expect(HANDOFF_BUDGET).toBe(5);   // the design; the line above is the measurement
+    expect(walk.actions).toHaveLength(HANDOFF_BUDGET);   // the design and the measurement, at last agreeing
   });
 
-  /** Decision 65: two of them are the safety story, and a funnel metric that rewards removing them is
-   *  pointed at the wrong thing. Pinned so an "optimisation" has to delete an assertion to land. */
-  test("approving a shell command and approving a publish are never optimised away", () => {
+  /**
+   * Decision 65 said two of these were the safety story and a funnel metric that rewards removing them is
+   * pointed at the wrong thing. **Decision 80 removed one of the two deliberately**, which is the case
+   * that rule was written to make expensive rather than impossible: it took a decision, a documented
+   * argument and a rewritten gate, not an optimisation.
+   *
+   * What is left is irreducible in the strict sense — neither is ours to delete. A shell command needs
+   * its user's approval because the harness asks, not because we do; a harness reads `.mcp.json` at
+   * startup because that is what harnesses do.
+   */
+  test("approving a shell command and restarting the harness are never optimised away", () => {
     const irreducible = walk.actions.filter((a) => a.irreducible).map((a) => a.kind);
     expect(irreducible).toContain("approve-shell");
-    expect(irreducible).toContain("approve-post");
-    // The restart is the third, and it is irreducible for a different reason: a harness reads
-    // `.mcp.json` at startup, which is not ours to change.
     expect(irreducible).toContain("restart");
+    // And the one that left is gone from the walk rather than quietly reclassified as optional.
+    expect(walk.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
 
   /** Half the count is structural and half is observed; a number that hides which is worse than two. */
   test("every action a product can prove was proved by the product refusing", () => {
     const observed = walk.actions.filter((a) => a.proof !== "structural");
-    expect(observed.map((a) => a.kind)).toEqual(["restart", "answer-url", "approve-post"]);
-    // The two refusals came from `publishCheck`, in its own order: URL first, approval second.
-    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual(["answer-url", "approve-post"]);
+    expect(observed.map((a) => a.kind)).toEqual(["restart", "answer-url"]);
+    // One refusal now, from `publishCheck`, and it is the URL. The approval that used to follow it is
+    // opt-in from S19c — `publishCheck` still refuses for it, on a site that asks.
+    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual(["answer-url"]);
   });
 
   /**
@@ -168,13 +185,17 @@ describe("F3 — the seven states, each naming its own next action", () => {
   });
 
   /** State 5: published to `main`. Reached only through both refusals, which is the row's whole point. */
-  test("5 · published locally → reached, and only after a human did both things", () => {
+  test("5 · published locally → reached, and the only thing a person owed was the URL", () => {
     expect(walk.publishedMs).toBeGreaterThan(walk.ttfpMs);
-    expect(walk.actions.map((a) => a.kind)).toContain("approve-post");
+    // Until S19c this asserted `approve-post`. Under decision 80 the agent publishes, and the one thing
+    // it could not answer for itself is where the site will be served — which is a fact about the world
+    // and not a judgement about the words.
+    expect(walk.actions.map((a) => a.kind)).toContain("answer-url");
+    expect(walk.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
 
-  /** State 6 is `site.push` and S19a. Named here so the row is not silently absent from the suite. */
-  test.todo("6 · live on the internet → S19a, `site.push` and the Desk's one button", () => {});
+  /** State 6 is `site` › push, S19a and S19c. Named here so the row is not silently absent from the suite. */
+  test.todo("6 · live on the internet → `site` › push, which an agent may now make itself", () => {});
 });
 
 describe("F4 — survives the restart", () => {
