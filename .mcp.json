@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "snypd": {
+      "command": "bun",
+      "args": ["packages/cli/src/index.ts", "serve", "sites/snypd.rocks"]
+    }
+  }
+}
