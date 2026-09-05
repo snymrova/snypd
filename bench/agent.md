@@ -1,6 +1,6 @@
 # snypd bench — agent
 
-**Version** 0.1.0-s18c · **Bun** 1.4.0 · **Date** 2026-08-31T11:37:16.326Z · **Tokenizer** o200k_base
+**Version** 0.1.2 · **Bun** 1.4.0 · **Date** 2026-09-05T06:39:10.355Z · **Tokenizer** o200k_base
 
 | Metric | Value | Budget | Status | Note |
 |---|---|---|---|---|
@@ -8,10 +8,10 @@
 | `agent.calls.draft` | 2 calls | 8 calls | ✅ | D1 literally: nothing → a lint-clean draft of the new post |
 | `agent.calls` | 18 calls | — | report | upgrade 6 · theme 3 · write 2 · publish 5 · build 2 · +1 final lint — reference route 18, gated exactly at 19 in the test |
 | `agent.reads` | 4 reads | — | report | resources and tools/list — free by decision 38, counted so the split stays honest |
-| `agent.tokens` | 7350 tokens | — | report | o200k both directions — 899 sent, 6451 returned |
-| `agent.wallMs` | 1081 ms | — | report | spawn → published site, report-only (build and preview dominate) |
+| `agent.tokens` | 7376 tokens | — | report | o200k both directions — 899 sent, 6477 returned |
+| `agent.wallMs` | 1153 ms | — | report | spawn → published site, report-only (build and preview dominate) |
 
-CI passes at ≤ 80 % of budget (docs/07 §3). Corpora are deterministic (`bun run corpus <n>`); 10k is generated on demand, not checked in.
+CI passes at ≤ 80 % of budget (docs/07 §3), except where a row is a counted design statement rather than a clock, which passes at ≤ budget. Corpora are deterministic (`bun run corpus <n>`); 10k is generated on demand, not checked in.
 
 
 - ✅ **cold-start carries a `chart`** — :::chart present (a four-row table of one measurement per row)

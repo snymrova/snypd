@@ -52,7 +52,7 @@ export const CATALOG: Tool[] = [
   { name: "site",
     description: "Change the site itself rather than a post: one config key, a redirect for a URL that moved, a health report, a build, or a request to put the site live. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_redirect` for a moved URL · `doctor` for a health report · `build` the site to dist/ · `push` to ask a human to put it live", { enum: ["init", "set_config", "explain_config", "set_redirect", "doctor", "build", "push"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `push` to ask a human to put it live", { enum: ["init", "set_config", "explain_config", "set_redirect", "set_deploy", "doctor", "build", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       from: str("`set_redirect`: the old route, e.g. `/posts/old-slug`"),
@@ -61,7 +61,7 @@ export const CATALOG: Tool[] = [
       url: str("`init`: the absolute origin it will be served from, e.g. https://example.com. Optional — defaults to a localhost placeholder, because the feed, sitemap and JSON-LD need a real one at publish and not before"),
       description: str("`init`: one sentence about the site"),
       theme: str("`init`: the theme to start on. Default `editorial`"),
-      deploy: str("`init`: also write the host's half — a build command and `dist/` as the output dir, committed with the scaffold. Optional: snypd never talks to a host, so anything that can run a binary and serve a folder needs none of this", { enum: ["cloudflare", "vercel"] }),
+      deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. Optional on `init`, required on `set_deploy`. snypd never talks to a host, so anything that can run a binary and serve a folder needs none of this", { enum: ["cloudflare", "vercel"] }),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
@@ -313,21 +313,64 @@ tokens: {}
           ].join("\n"), { ok: true, ...r });
         }
         /**
-         * **`push` asks; it does not push** (S19a, decision 44).
+         * **`set_deploy` exists because `init` refuses** (S19a′), and the refusal is right.
          *
-         * Every other action here is a write this tool performs. This one is the single act reserved for
-         * a person: sending the base branch to the host is when a site becomes visible to everybody, and
-         * a human clicking a button in a local browser is a stronger gate than a `destructiveHint` on a
-         * tool an agent can call. So what comes back is the state a push is in, what would go with it,
-         * and the URL of the button — phrased to be relayed, the same way `init`'s restart line is.
+         * `initSite` throws on a directory that already has a `snypd.yaml` — "this site is already
+         * initialised" — which is correct and, until this action, meant the host's half was reachable
+         * from exactly one moment in a site's life. The default first run is `bunx @snypd/cli init` with
+         * no flags (docs/08 §2), so the majority path produced sites that could never be given a deploy
+         * target through any snypd surface at all. Found by walking it: snypd.rocks was scaffolded that
+         * way and there was nothing to call.
          *
-         * The name is the request, not a promise: an agent that asked for a push and got back "here is
-         * where a person does that" has been answered, and `snypd://config` is not a better place for
-         * this because none of it is config. The escape hatch is `git push` in a terminal, which is
-         * nobody's to take away and is the right answer for CI.
+         * It writes and never overwrites, which is `writeDeploy`'s own rule: a `wrangler.toml` in a repo
+         * is somebody's, and a site already deployed somewhere is exactly the one whose config must not
+         * be clobbered. So a second call reports that there was nothing to do rather than resetting a
+         * hand-tuned file, and this is safe to suggest to an agent that is not sure.
+         */
+        if (action === "set_deploy") {
+          const targetName = need(args, "deploy");
+          const cfg = cfgOf();
+          const created = c.writeDeploy(root, targetName as "cloudflare" | "vercel", { name: cfg.config.site.name });
+          if (!created.length)
+            return text(`${targetName} is already configured here — ${targetName === "cloudflare" ? "wrangler.toml" : "vercel.json"} and the PR workflow are both present and were not touched. Nothing to do.`,
+              { ok: true, deploy: targetName, created: [], changed: false });
+          const git = await commit(created, `site: deploy ${targetName}`);
+          return text([
+            `${targetName}: wrote ${created.join(", ")}`,
+            `The host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/. Nothing here holds a credential or calls a deploy API — a push is what triggers it.`,
+            git,
+            `Connect the repo to ${targetName === "cloudflare" ? "Cloudflare (Workers, the option their dashboard gives you for a repo)" : "Vercel"} once, in their dashboard; after that every push builds. \`site\` › push says what would go and where a person presses it.`,
+          ].join("\n"), { ok: true, deploy: targetName, created, changed: true });
+        }
+        /**
+         * **`push` pushes** (S19c, decision 80), unless `deploy.push` is `human` — in which case it does
+         * what it did for the whole of S19a: reports the state and hands back the URL of the Desk's
+         * button.
+         *
+         * S19a shipped the second behaviour as the only one, on decision 44's argument that a human
+         * clicking beats a `destructiveHint`. What changed is not that argument but its scope: "MCP is
+         * the only interface" was false at the last mile, and the cases that broke are not edge cases —
+         * CI, a headless box, a scheduled post, and D1's kill test, which cannot finish a site it may
+         * not publish. The gate that does the real work is `publishCheck`, per type, in config.
+         *
+         * The result says which of the two happened in its first line, because an agent relaying "I have
+         * put your site live" when it has not is worse than either behaviour on its own.
          */
         if (action === "push") {
-          const st = c.pushState(root, cfgOf());
+          const cfgPush = cfgOf();
+          // **Counted, not defaulted** (found by running this against snypd.rocks, which had three drafts
+          // and was told it had none). `pushState`'s `drafts` is an input because the Desk already has the
+          // index open and the number is free there; here it is not, so this opens one. A push tool that
+          // says "0 drafts stay local" while three sit in the tree is wrong in the reassuring direction,
+          // which is the only direction that matters for a sentence about what does *not* go public.
+          const statuses = cfgPush.config.statuses as Record<string, { public?: boolean }> | undefined;
+          const index = await c.SiteIndex.open(root);
+          let drafts = 0;
+          try {
+            index.sync(cfgPush);
+            drafts = index.files({}).filter((f) => f.status !== "trashed" && statuses?.[f.status]?.public !== true).length;
+          } finally { index.close(); }
+          const st = c.pushState(root, cfgPush, { drafts });
           const dev = await c.liveDev(root);
           const desk = dev ? `${dev.url}${c.PUSH_ROUTE.replace(/\/push$/, "")}` : undefined;
           const where = desk
@@ -337,11 +380,21 @@ tokens: {}
             const b = st.blockers[0]!;
             return fail(`nothing to push yet — ${b.reason}`, b.hint);
           }
+          if (st.policy === "agent") {
+            const r = c.pushSite(root, cfgPush, { as: "agent" });
+            if (!r.ok) return fail(`push failed: ${r.reason}`, r.hint);
+            return text([
+              r.sent ? `pushed ${st.branch} → ${st.remote!.name}: ${r.sent} commit${r.sent === 1 ? "" : "s"}` : `${st.branch} → ${st.remote!.name}: the remote already had it`,
+              st.deploy ? `${st.deploy} builds from the branch; give it a minute, then read ${cfgPush.config.site.url}.` : `Whatever watches that branch builds next; there is no deploy API here to poll.`,
+              `${st.drafts} draft${st.drafts === 1 ? "" : "s"} in flight stay${st.drafts === 1 ? "s" : ""} local — a push sends ${st.branch}, and drafts are not on it.`,
+              ...(desk ? [`The Desk shows what went and when: ${desk}`] : []),
+            ].join("\n"), { ...st, ok: true, ready: true, pushed: true, sent: r.sent, deskUrl: desk });
+          }
           const going = st.ahead === 0
             ? st.known ? `\`${st.branch}\` is already on \`${st.remote!.name}\` as of the last fetch — there is nothing to send.` : `\`${st.branch}\` has never been pushed to \`${st.remote!.name}\`.`
             : `${st.ahead} commit${st.ahead === 1 ? "" : "s"} would go:\n${st.commits.slice(0, 5).map((x) => `  ${x.sha.slice(0, 7)} ${x.subject}`).join("\n")}${st.ahead > 5 ? `\n  and ${st.ahead - 5} more` : ""}`;
           return text([
-            `A push is a person's to make, so this call does not make one — it tells you where they make it.`,
+            `\`deploy.push\` is \`human\` on this site, so this call does not push — it tells you where a person does.`,
             ``,
             `${st.branch} → ${st.remote!.name} (${st.origin ?? st.remote!.url})${st.deploy ? ` · ${st.deploy}` : ""}`,
             going,
@@ -351,7 +404,7 @@ tokens: {}
           ].join("\n"), { ...st, ok: true, ready: st.ok, pushed: false, deskUrl: desk });
         }
         if (action === "doctor") return await doctor(root);
-        return fail(`unknown action "${action}"`, "site takes: init, set_config, explain_config, set_redirect, doctor, build, push.");
+        return fail(`unknown action "${action}"`, "site takes: init, set_config, explain_config, set_redirect, set_deploy, doctor, build, push.");
       }
 
       case "bench": {

@@ -91,7 +91,14 @@ describe("write (S11)", () => {
     expect(() => restoreContent(root, { type: "post", slug: "t", cfg })).toThrow(/nothing trashed/);
   });
 
-  test("publish needs a human, and the approval covers one version only", async () => {
+  /**
+   * The approval machinery, which is opt-in from S19c (decision 80) rather than the default. `draft`
+   * policy is still a supported and fully working shape — a site that wants a person to sign every post
+   * declares it in one line, and everything below still holds for that site. What changed is which of
+   * the two a new site gets, not whether both exist.
+   */
+  test("a type whose policy is `draft` needs a human, and the approval covers one version only", async () => {
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntypes: { post: { mcp: { write: draft } } }\n");
     const cfg = loadConfig(root);
     const c = createContent(root, { type: "post", slug: "p", frontmatter: { title: "P" }, cfg });
     const ix = approvals(root);
@@ -124,9 +131,15 @@ describe("write (S11)", () => {
     expect(() => updateContent(root, { type: "post", slug: "p", body: "Still writable.", cfg })).not.toThrow();
   });
 
-  test("a type whose policy is publish needs no approval", async () => {
+  test("`publish` is the default policy, and needs no approval — declared or not (S19c)", async () => {
+    // Declared explicitly…
     writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntypes: { post: { mcp: { write: publish } } }\n");
-    const cfg = loadConfig(root);
+    let cfg = loadConfig(root);
+    createContent(root, { type: "post", slug: "free", frontmatter: { title: "F" }, cfg });
+    expect(publishCheck(root, cfg, approvals(root), "post", "free")).toMatchObject({ ok: true, policy: "publish" });
+    // …and inherited from the spec, which is the line decision 80 actually moved.
+    fresh();
+    cfg = loadConfig(root);
     createContent(root, { type: "post", slug: "free", frontmatter: { title: "F" }, cfg });
     expect(publishCheck(root, cfg, approvals(root), "post", "free")).toMatchObject({ ok: true, policy: "publish" });
   });

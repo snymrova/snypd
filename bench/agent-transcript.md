@@ -1,6 +1,6 @@
 # snypd bench — the kill test
 
-**Driver** `scripted` · **Tool calls** 18 (draft 2/8) · **Goal** 11/11 · **Wall** 1081 ms
+**Driver** `scripted` · **Tool calls** 18 (draft 2/8) · **Goal** 11/11 · **Wall** 1153 ms
 
 The scenario is docs/06's v0.1 test: three plain posts upgraded with `suggest_blocks`, the theme swapped
 and retuned, a new post written with a chart and a flow, everything approved by a person and published.
@@ -26,42 +26,42 @@ Checks read the finished site, never this transcript — a driver passes by leav
 
 | Phase | Tool calls | Reads | Tokens out |
 |---|---|---|---|
-| upgrade | 6 | 0 | 476 |
-| theme | 3 | 1 | 2130 |
+| upgrade | 6 | 0 | 473 |
+| theme | 3 | 1 | 2133 |
 | write | 2 | 0 | 52 |
-| publish | 5 | 0 | 201 |
+| publish | 5 | 0 | 212 |
 | build | 2 | 0 | 167 |
 
 ## Transcript
 
-### 1. `initialize` · meta · 22.4 ms · 162 tokens back
+### 1. `initialize` · meta · 22.2 ms · 162 tokens back
 
 ```
 {"protocolVersion":"2025-11-25","capabilities":{"resources":{},"tools":{"listChanged":true},"prompts":{}},"serverInfo":{"name":"snypd","version":"0.1.0-s16"},"instructions":"Start with the `get-started` prompt: it branches on what this site already is — empty, scaffolded, or established — and names the calls in the order that works. Otherwise: read snypd://config, then snypd://spec/primitives, before writing content — a post that is only prose wastes the vocabulary this CMS exists for. Writes go to a draft branch; publishing a draft-policy type needs a human to approve that exact version on /_snypd, the page this server serves for them."}
 ```
 
-### 2. `tools/list` · read · 1.5 ms · 2215 tokens back
+### 2. `tools/list` · read · 1.8 ms · 2230 tokens back
 
 ```
 {"tools":[{"name":"content.create","description":"Write a new content file and commit it to the site's drafts branch. Frontmatter is the type's schema (snypd://types/{type}); the body is markdown plus the primitive directives in snypd://spec/primitives — a post that is all prose is a post that wastes the vocabulary. Status is always the site's initial status: this tool cannot publish. Returns the route, the branch and the lint the new file produces, so the fixes come back in the same turn as the writing.","inputSchema":{"type":"object","properties":{"type":{"type":"string","description":"Content type: `post`, `page`, `author` (snypd://types lists them)"},"slug":{"type":"string","description":"Slug to write at; defaults to the title, slugified"},"frontmatter":{"type":"object","description":"Frontmatter fields for the type. `status` is ignored — a new file is always a draft"},"body":{"type
-… (8555 more characters)
+… (8598 more characters)
 ```
 
-### 3. `resources/read` · read · 135.7 ms · 478 tokens back
+### 3. `resources/read` · read · 147.6 ms · 478 tokens back
 
 ```
 {"contents":[{"uri":"snypd://config","mimeType":"application/yaml","text":"# snypd://config — merged (env: dev). Layers, later wins:\n#   1. spec\n#   2. theme base (base/theme.yaml)\n#   3. site (snypd.yaml)\n#   4. env dev (snypd.dev.yaml) — not found\n# Lines without \"← file:line\" are @snypd/spec defaults; untouched subtrees are collapsed to their snypd://spec/* resource (theme.yaml subtrees to their file:line).\nsnypd: 1 # ← snypd.yaml:8\nsite: # ← snypd.yaml:9\n  name: Kill test # ← snypd.yaml:10\n  url: https://kill.snypd.rocks # ← snypd.yaml:11\n  description: Three plain posts, upgraded, restyled and published without opening\n    an editor. # ← snypd.yaml:12\ntheme: # ← base/theme.yaml\n  theme: base # ← base/theme.yaml:3 (theme base)\n  version: 0.1.0 # ← base/theme.yaml:4 (theme base)\n  spec: ^1 # ← base/theme.yaml:5 (theme base)\n  layouts: <theme base default — base/theme
 … (570 more characters)
 ```
 
-### 4. `resources/read` · read · 21.5 ms · 570 tokens back
+### 4. `resources/read` · read · 28 ms · 570 tokens back
 
 ```
 {"contents":[{"uri":"snypd://spec/primitives","mimeType":"text/markdown","text":"# snypd spec v1 — primitives (13)\n\nRead `snypd://spec/primitives/{name}` for props, intent and an example. Unknown blocks fail lint.\n\n- **callout** (container, emphasis) `:::callout{…} … :::` — A boxed aside that must not be skipped — a warning, a tip, a note, or a line you want quoted.\n- **chart** (container, evidence) `:::chart{…} … :::` required: type, source, caption — A small static chart rendered to inline SVG at build time from inline data or a YAML file.\n- **cover** (leaf, structure) `::cover{…}` — The post header — title block with optional eyebrow, subtitle and image.\n- **cta** (leaf, interaction) `::cta{…}` required: title, button, href — One call to action — a title, a line of body and a single button.\n- **diagram** (container, evidence) `:::diagram{…} … :::` required: caption — A box-and
 … (1157 more characters)
 ```
 
-### 5. **content.suggest_blocks** · call · 49.2 ms · 118 tokens back
+### 5. **content.suggest_blocks** · call · 55.6 ms · 118 tokens back
 ```json
 {
   "type": "post",
@@ -79,7 +79,7 @@ Checks read the finished site, never this transcript — a driver passes by leav
    ! needs source — Lint rule 3 fails a chart or a stat with no checkable source — a number whose origin cannot be clicked is an opinion, and the prose does not carry one
 ```
 
-### 6. **content.suggest_blocks** · call · 55.3 ms · 63 tokens back
+### 6. **content.suggest_blocks** · call · 56.3 ms · 61 tokens back
 ```json
 {
   "type": "post",
@@ -98,11 +98,11 @@ Checks read the finished site, never this transcript — a driver passes by leav
 ```
 applied 1 of 1 to post/cold-start → /posts/cold-start
   1. lines 11–16 → `chart` (1)
-committed 8e9298a9 on snypd/drafts (from main)
+committed 94729b22 on snypd/drafts (from main)
 lint: 0 errors, 0 warnings
 ```
 
-### 7. **content.suggest_blocks** · call · 12.3 ms · 93 tokens back
+### 7. **content.suggest_blocks** · call · 14.8 ms · 93 tokens back
 ```json
 {
   "type": "post",
@@ -118,7 +118,7 @@ lint: 0 errors, 0 warnings
    ! needs caption — `flow` requires a caption saying what the procedure is, and there is no heading or short lead paragraph above the list to take one from
 ```
 
-### 8. **content.suggest_blocks** · call · 38.8 ms · 69 tokens back
+### 8. **content.suggest_blocks** · call · 39.8 ms · 68 tokens back
 ```json
 {
   "type": "post",
@@ -137,11 +137,11 @@ lint: 0 errors, 0 warnings
 ```
 applied 1 of 1 to post/publishing-a-draft → /posts/publishing-a-draft
   1. lines 9–13 → `flow` (0.9)
-committed 3a34ec3a on snypd/drafts (from main)
+committed aca5a0b1 on snypd/drafts (from main)
 lint: 0 errors, 0 warnings
 ```
 
-### 9. **content.suggest_blocks** · call · 14.2 ms · 66 tokens back
+### 9. **content.suggest_blocks** · call · 18.3 ms · 66 tokens back
 ```json
 {
   "type": "post",
@@ -157,7 +157,7 @@ lint: 0 errors, 0 warnings
    · These sit below the post's own sections
 ```
 
-### 10. **content.suggest_blocks** · call · 40.8 ms · 67 tokens back
+### 10. **content.suggest_blocks** · call · 38.3 ms · 67 tokens back
 ```json
 {
   "type": "post",
@@ -171,11 +171,11 @@ lint: 0 errors, 0 warnings
 ```
 applied 1 of 1 to post/why-only-mcp → /posts/why-only-mcp
   1. lines 9–25 → `faq` (0.95)
-committed 109effe1 on snypd/drafts (from main)
+committed fa362c4f on snypd/drafts (from main)
 lint: 0 errors, 1 warning
 ```
 
-### 11. **find_tools** · call · 1.8 ms · 338 tokens back
+### 11. **find_tools** · call · 2.1 ms · 338 tokens back
 ```json
 {
   "query": "change the theme and its colours"
@@ -192,7 +192,7 @@ input: {"type":"object","properties":{"action":{"type":"string","description":"`
 … (491 more characters)
 ```
 
-### 12. **theme** · call · 89.5 ms · 45 tokens back
+### 12. **theme** · call · 93.7 ms · 46 tokens back
 ```json
 {
   "action": "set",
@@ -202,18 +202,18 @@ input: {"type":"object","properties":{"action":{"type":"string","description":"`
 
 ```
 theme base → editorial
-committed d088454a → main 1c1f5a00
+committed 06e7de82 → main 6bb22b7a
 Look at it with content.render_preview; snypd://theme/coverage says which primitives this theme implements itself.
 ```
 
-### 13. `resources/read` · read · 13.8 ms · 1668 tokens back
+### 13. `resources/read` · read · 16.4 ms · 1668 tokens back
 
 ```
 {"contents":[{"uri":"snypd://theme/tokens","mimeType":"application/yaml","text":"# Tokens of theme `editorial`. 38 of 38 can be set from snypd.yaml\n# with `theme` › set_tokens; the rest are structure, not taste. Every one is emitted as a CSS custom\n# property (`color.accent` → `--color-accent`), which is what a theme's stylesheet reads.\ntokens:\n  color.accent:\n    value: \"light-dark(#8a3324, #e0785f)\"\n    kind: color\n    description: \"Links and the one emphatic colour.\"\n  color.bg:\n    value: \"light-dark(#fdfcfa, #12110f)\"\n    kind: color\n    description: \"Page background.\"\n  color.border:\n    value: \"light-dark(#ddd7cb, #2e2b26)\"\n    kind: color\n    description: \"Hairlines and block edges.\"\n  color.muted:\n    value: \"light-dark(#6b655c, #9a9287)\"\n    kind: color\n    description: \"Dates, captions, secondary labels.\"\n  color.on-accent:\n    value: \"lig
 … (3980 more characters)
 ```
 
-### 14. **theme** · call · 74.8 ms · 79 tokens back
+### 14. **theme** · call · 88 ms · 81 tokens back
 ```json
 {
   "action": "set_tokens",
@@ -228,10 +228,10 @@ Look at it with content.render_preview; snypd://theme/coverage says which primit
 2 tokens set
   color.accent: light-dark(#8a3324, #e0785f) → #2f5d62
   font.body: 'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, ui-serif, serif → 1.6
-committed 66d7dc5c → main b1def018
+committed 4d6057b1 → main 0974edb6
 ```
 
-### 15. **content.create** · call · 39.3 ms · 42 tokens back
+### 15. **content.create** · call · 37 ms · 42 tokens back
 ```json
 {
   "type": "post",
@@ -249,11 +249,11 @@ committed 66d7dc5c → main b1def018
 
 ```
 create post/the-kill-test → /posts/the-kill-test (draft)
-committed dd5c7325 on snypd/drafts (from main)
+committed b0607ec6 on snypd/drafts (from main)
 lint: 0 errors, 0 warnings
 ```
 
-### 16. **content.lint** · call · 30 ms · 10 tokens back
+### 16. **content.lint** · call · 34.2 ms · 10 tokens back
 ```json
 {
   "type": "post",
@@ -265,7 +265,7 @@ lint: 0 errors, 0 warnings
 1 file · 0 errors · 0 warnings
 ```
 
-### 17. **content.render_preview** · call · 106.6 ms · 66 tokens back
+### 17. **content.render_preview** · call · 114.5 ms · 91 tokens back
 ```json
 {
   "type": "post",
@@ -278,9 +278,10 @@ http://localhost:4321/posts/cold-start
 markdown twin: http://localhost:4321/posts/cold-start/index.md
 review + approve: http://localhost:4321/_snypd/review/post/cold-start
 The preview rebuilds on change and includes drafts; it is the same build that publishes.
+Started for this session — it stops when the harness does. `snypd dev` gives it to the person instead.
 ```
 
-### 18. **content.publish** · call · 74 ms · 32 tokens back
+### 18. **content.publish** · call · 71 ms · 29 tokens back
 ```json
 {
   "type": "post",
@@ -290,11 +291,11 @@ The preview rebuilds on change and includes drafts; it is the same build that pu
 
 ```
 published post/cold-start → /posts/cold-start
-landed on main as 1db980d3
-approved by a human at the review page
+landed on main as 47cb9c2a
+approved by policy publish
 ```
 
-### 19. **content.publish** · call · 66 ms · 36 tokens back
+### 19. **content.publish** · call · 66.1 ms · 31 tokens back
 ```json
 {
   "type": "post",
@@ -304,11 +305,11 @@ approved by a human at the review page
 
 ```
 published post/publishing-a-draft → /posts/publishing-a-draft
-landed on main as f9f74da2
-approved by a human at the review page
+landed on main as f23e560a
+approved by policy publish
 ```
 
-### 20. **content.publish** · call · 68 ms · 34 tokens back
+### 20. **content.publish** · call · 68.7 ms · 33 tokens back
 ```json
 {
   "type": "post",
@@ -318,11 +319,11 @@ approved by a human at the review page
 
 ```
 published post/why-only-mcp → /posts/why-only-mcp
-landed on main as fc880e61
-approved by a human at the review page
+landed on main as 07a9c95b
+approved by policy publish
 ```
 
-### 21. **content.publish** · call · 67.4 ms · 33 tokens back
+### 21. **content.publish** · call · 67.1 ms · 28 tokens back
 ```json
 {
   "type": "post",
@@ -332,11 +333,11 @@ approved by a human at the review page
 
 ```
 published post/the-kill-test → /posts/the-kill-test
-landed on main as c5983e72
-approved by a human at the review page
+landed on main as ea71555b
+approved by policy publish
 ```
 
-### 22. **site** · call · 31 ms · 27 tokens back
+### 22. **site** · call · 39.4 ms · 27 tokens back
 ```json
 {
   "action": "build"
@@ -344,11 +345,11 @@ approved by a human at the review page
 ```
 
 ```
-built 8 routes in 28 ms
+built 8 routes in 39 ms
   18 rendered, 0 from cache, 10 artefacts, 0 media
 ```
 
-### 23. **content.lint** · call · 8.4 ms · 140 tokens back
+### 23. **content.lint** · call · 12.3 ms · 140 tokens back
 ```json
 {}
 ```

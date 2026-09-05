@@ -35,7 +35,7 @@ Snypd is an open-source CMS whose **only interface is MCP**. You write, edit, th
 5. **Zero JS by default.** Client JavaScript is an opt-in per primitive, per theme, and is budgeted.
 6. **Evidence-grade by default.** `stat`, `chart`, `citation` require sources; `faq`/`steps` emit schema; the editorial rules are lint.
 7. **Own the renderer.** No framework in core. A few hundred lines of Bun + TSX we can benchmark and reason about beats a framework's roadmap. Frameworks are plugins ("bring your Astro/Next site").
-8. **Agents are principals with roles.** Default Contributor: draft, never publish.
+8. **Agents are principals with roles.** ~~Default Contributor: draft, never publish.~~ **S19c (`07` decision 80): an agent drafts, publishes and pushes by default.** A site puts a person back in the loop per type (`mcp.write: draft`) or per deploy (`deploy.push: human`); the role vocabulary itself is still unbuilt, and these two keys are what actually decides.
 9. **Measure or don't claim.** Every performance/agent-friendliness claim in the README links to `snypd bench` output.
 10. **Small, boring spec.** Additions by RFC, bias to no. Removals only across majors, with fallbacks.
 

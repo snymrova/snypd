@@ -43,11 +43,14 @@ A person arrives at the repo, or at snypd.rocks. They do not open a terminal. Th
 | 8 | — | **the agent's context dies here.** Whatever was in the conversation is gone (decision 61) | — |
 | 9 | agent, new session | `initialize` returns `instructions`, which name `get-started` for a site with no content. The agent reads `snypd://config`, `snypd://spec/primitives`, `snypd://theme` | — |
 | 10 | agent | writes one real post using at least two primitives, fixes the lint it gets back, calls `content.render_preview` | — |
-| 11 | agent | hands back the page, the markdown twin, and the review URL — and says plainly that publishing is the human's | — |
-| 12 | person | opens the review URL, reads the post, approves | **yes** — approve the post |
-| 13 | agent | `content.publish` lands the one item on the deploy branch | — |
+| 11 | agent | hands back the page, the markdown twin, and the review URL — the page a person reads if they want to, not a gate they must pass | — |
+| 12 | agent | `content.publish` — which refuses once, for the origin: the feed, sitemap and JSON-LD are absolute and `site.url` is still the placeholder | — |
+| 13 | person | says where the site will be served | **yes** — answer the URL |
+| 14 | agent | `content.publish` lands the one item on the deploy branch, then `site` › push sends it to the host | — |
 
-**Five human actions, and only one of them is friction.** Answering a question and approving a post are the product working. Approving a shell command is a correct security prompt. The restart is the only irreducible cost, and it exists because a harness reads `.mcp.json` when it starts — which is not ours to change.
+**Five human actions, and only one of them is friction.** Answering a question is the product working. Approving a shell command is a correct security prompt. The restart is the only irreducible cost, and it exists because a harness reads `.mcp.json` when it starts — which is not ours to change.
+
+**Rewritten in S19c (`07` decision 80).** Steps 11–13 used to be *hand back the review URL → a person approves → publish*, and the fifth action was that approval. The write policy's default moved from `draft` to `publish`, so an agent takes the post all the way and the one thing it still cannot answer for itself is where the site will live — a fact about the world, not a judgement about the words. A site that wants the older shape declares `types.post.mcp.write: draft` and gets step 12 back exactly as it was, review page and all.
 
 **The URL is absent from this table on purpose.** The feed, sitemap and JSON-LD are all absolute, so a real origin is genuinely required — at step 12, not step 4. Asking for a production domain before a person has seen one pixel is the single most common way a setup flow loses somebody (decision 63).
 
@@ -66,7 +69,7 @@ First run is done when all seven are true, on Linux + macOS, from the compiled b
 
 | # | Gate | Evidence |
 |---|---|---|
-| **F1** | **Handoff cost.** The flow in §2 completes in **five human actions or fewer**, none of them typing a command, none of them opening an editor. | `onboard.handoff`, counted as actions rather than seconds (decision 65) — ❌ **measured at 6 in S18g**, the sixth being the origin at publish. See §5b |
+| **F1** | **Handoff cost.** The flow in §2 completes in **five human actions or fewer**, none of them typing a command, none of them opening an editor. | `onboard.handoff`, counted as actions rather than seconds (decision 65) — ❌ **measured at 6 in S18g**, the sixth being the origin at publish · ✅ **5 in S19c**: `07` decision 80 made an agent able to publish, so `approve-post` left the walk. Nothing in the instrument was told about it — `onboard.ts` breaks out of its publish loop on the first call that does not refuse, and the count fell out of running it. See §5b |
 | **F2** | **Time to first post.** From the paste to a lint-clean draft with a review URL. | `onboard.ttfp`, driven by the S17 MCP client, model named beside the number — ✅ **S18g**, seconds rather than the tens the budget allows, with the reference driver named beside it |
 | **F3** | **No dead ends.** Every state in §6 names its own next action, *on the surface its actor is looking at* — stdout for an agent, the page for a person. A state that can be reached and cannot be left is a release blocker. | state-transition test, one case per row of §6 — ✅ **S18g**, `smoke/onboard.test.ts`; state 6 is a `todo` naming S19a rather than a silent gap |
 | **F4** | **Survives the restart.** Onboarding state is derived from disk on every request and on every session start; killing and restarting any process loses nothing that is not re-derivable. | `rm -rf .snypd/` mid-flow changes no answer except the heartbeat — ✅ **S18g**, 12 of doctor's structured facts diffed, 0 lost |
@@ -113,8 +116,14 @@ So: **the npm platform-package publish moves ahead of the first-run Desk page.**
 
 ## 5b. The sixth action (S18g)
 
-F1 was written as five and stayed "measured rather than claimed" for six sessions. S18g measured it. It is **six**,
-and the extra one is not a defect anybody can fix without giving something else up.
+F1 was written as five and stayed "measured rather than claimed" for six sessions. S18g measured it. It was **six**,
+and the extra one was not a defect anybody could fix without giving something else up.
+
+> **Closed in S19c, and by giving that something up on purpose.** `07` decision 80 made `publish` the default
+> write policy, so the second refusal below — the approval — does not happen on a default site, and the walk
+> reads **5**. What is left is the origin, which is the one thing in this list an agent genuinely cannot know.
+> The paragraphs below stay as written because they are still exactly true of a `draft`-policy site, and
+> because the reasoning is what decision 80 had to argue with rather than around.
 
 **What happens.** `publishCheck` refuses twice, in a fixed order. First for the origin — `site.url` is still the
 localhost placeholder, and the feed, sitemap and JSON-LD are absolute, so nothing can publish until a real one exists.

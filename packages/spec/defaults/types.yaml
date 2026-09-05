@@ -8,7 +8,7 @@ types:
     hierarchical: false
     taxonomies: [category, tag]
     vocabulary: all
-    mcp: { read: true, write: draft }
+    mcp: { read: true, write: publish }
     fields:
       title: { type: string, required: true }
       slug: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", description: Defaults to the filename }
@@ -30,7 +30,7 @@ types:
     hierarchical: true
     taxonomies: []
     vocabulary: all
-    mcp: { read: true, write: draft }
+    mcp: { read: true, write: publish }
     fields:
       title: { type: string, required: true }
       slug: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
@@ -45,7 +45,7 @@ types:
     hierarchical: false
     taxonomies: []
     vocabulary: [figure]
-    mcp: { read: true, write: draft }
+    mcp: { read: true, write: publish }
     fields:
       name: { type: string, required: true }
       slug: { type: string }

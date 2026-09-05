@@ -24,6 +24,33 @@ describe("site config writes", () => {
     expect(after).toContain("url: https://t.example");
   });
 
+  /**
+   * S19c, found on snypd.rocks' own `snypd.yaml`. `init` writes the placeholder with a comment saying so;
+   * `setIn` replaces the value and keeps the comment, so a site that set a real origin read
+   * `url: "https://snypd.rocks" # placeholder — … publishing needs the real one`. The product asserting
+   * something false about its own state, in the file a person is most likely to open.
+   */
+  test("setting a real origin takes the placeholder comment with it, and nothing else", () => {
+    const dir = mkdtempSync(join(tmpdir(), "snypd-placeholder-"));
+    initSite(dir, { name: "Later" });                       // no url: the placeholder and its comment
+    expect(readFileSync(`${dir}/snypd.yaml`, "utf8")).toContain("# placeholder");
+    setConfig(dir, "site.url", "https://real.example");
+    const after = readFileSync(`${dir}/snypd.yaml`, "utf8");
+    expect(after).toContain('url: "https://real.example"');
+    expect(after).not.toContain("# placeholder");
+    // The file's own header comment is a human's and stays, which is the line this is scoped to.
+    expect(after).toContain("# Later — the whole site config");
+  });
+
+  test("a comment a person wrote on that same key is never touched", () => {
+    const dir = mkdtempSync(join(tmpdir(), "snypd-mine-"));
+    initSite(dir, { name: "Mine", url: "https://mine.example" });
+    const f = `${dir}/snypd.yaml`;
+    writeFileSync(f, readFileSync(f, "utf8").replace('url: "https://mine.example"', 'url: "https://mine.example"   # ask ops before changing'));
+    setConfig(dir, "site.url", "https://moved.example");
+    expect(readFileSync(f, "utf8")).toContain("# ask ops before changing");
+  });
+
   test("a patch that does not validate is rolled back on disk, and says why", () => {
     const before = readFileSync(`${root}/snypd.yaml`, "utf8");
     expect(() => setConfig(root, "site.url", "not a url")).toThrow(/does not validate/);

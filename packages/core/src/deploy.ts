@@ -90,16 +90,38 @@ export function writeDeploy(root: string, target: DeployTarget, opts: { name: st
   };
 
   if (target === "cloudflare") {
-    // Pages reads `pages_build_output_dir` and runs the build command configured in the dashboard or in
-    // `[build]`; both are named here so the repo says what it expects rather than the dashboard alone.
-    put("wrangler.toml", `# Cloudflare Pages. \`snypd build\` writes dist/; Pages serves it. Nothing here talks to an API —
-# snypd writes files and git, and the host builds on push (docs/07 §3b).
+    // **Workers with static assets, not Pages** — corrected in S19a′ by a real deploy, which is the only
+    // thing that could have caught it.
+    //
+    // This wrote `pages_build_output_dir` from S18d′ until snypd.rocks went up, and the first build on
+    // Cloudflare ran `snypd build` perfectly and then failed on the step after it:
+    //
+    //     Executing user deploy command: npx wrangler deploy
+    //     ▲ [WARNING] It seems that you have run `wrangler deploy` on a Pages project…
+    //     ✘ [ERROR] Missing entry-point to Worker script or to assets directory
+    //
+    // Connecting a repo in Cloudflare's dashboard now creates a **Workers** project, and Workers Builds
+    // deploys with `wrangler deploy` — which needs `[assets]` and treats `pages_build_output_dir` as the
+    // marker of a Pages project it is being run against by mistake. Pages still exists and still works;
+    // it is no longer what a person gets by following the obvious path, and a config that only works on
+    // the path nobody is sent down is a config that is wrong.
+    //
+    // `_redirects` and `_headers` — which `emit.ts` writes and `site` › set_redirect depends on — are
+    // honoured by Workers static assets exactly as they were by Pages, so nothing downstream moves.
+    //
+    // No `[build]` section, deliberately: Workers Builds runs the build command from the dashboard, and
+    // a `[build]` here would make `wrangler deploy` run it a second time on every deploy. The command is
+    // in a comment instead, so the repo still says what it expects without paying for it twice.
+    put("wrangler.toml", `# Cloudflare Workers, serving static assets. \`snypd build\` writes dist/; \`wrangler deploy\` uploads it.
+# Nothing here talks to an API — snypd writes files and git, and the host builds on push (docs/07 §3b).
+#
+# The build command, for the dashboard's "Build command" field (Workers Builds runs it before deploy):
+#     ${buildCommand(version)}
 name = "${slug(opts.name)}"
 compatibility_date = "2026-08-31"
-pages_build_output_dir = "dist"
 
-[build]
-command = "${buildCommand(version)}"
+[assets]
+directory = "./dist"
 `);
   } else {
     put("vercel.json", JSON.stringify({
