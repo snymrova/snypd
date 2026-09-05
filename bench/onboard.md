@@ -1,14 +1,14 @@
 # snypd bench — onboard
 
-**Version** 0.1.2 · **Bun** 1.4.0 · **Date** 2026-09-03T16:48:11.460Z · **Tokenizer** o200k_base
+**Version** 0.1.2 · **Bun** 1.4.0 · **Date** 2026-09-05T06:39:12.758Z · **Tokenizer** o200k_base
 
 | Metric | Value | Budget | Status | Note |
 |---|---|---|---|---|
 | `onboard.handoff` | 5 actions | 5 actions | ✅ | paste · answer · approve-shell · restart · answer-url — 2 irreducible (decision 65), 2 of 5 established by the product refusing or the file being absent |
 | `onboard.handoff.fresh` | 6 actions | — | report | a machine with no git author identity: git refused the scaffold commit for want of an identity; `init` printed the two lines that fix it, so the agent can run them with one approval |
-| `onboard.ttfv` | 0.55 s | 5 s | ✅ | empty directory → `init` → `dev` → the Desk answering 200, against the compiled binary (docs/08 F6) |
-| `onboard.ttfp` | 1.21 s | 60 s | ✅ | the paste → a lint-clean draft with a review URL · driver: reference driver (no model) — no model latency in this number, and S21 substitutes three that have it |
-| `onboard.published` | 1.43 s | — | report | …and on to a published post, through both refusals — report-only: it is bounded by how fast a person reads |
+| `onboard.ttfv` | 0.39 s | 5 s | ✅ | empty directory → `init` → `dev` → the Desk answering 200, against the compiled binary (docs/08 F6) |
+| `onboard.ttfp` | 0.84 s | 60 s | ✅ | the paste → a lint-clean draft with a review URL · driver: reference driver (no model) — no model latency in this number, and S21 substitutes three that have it |
+| `onboard.published` | 0.99 s | — | report | …and on to a published post, through both refusals — report-only: it is bounded by how fast a person reads |
 
 CI passes at ≤ 80 % of budget (docs/07 §3), except where a row is a counted design statement rather than a clock, which passes at ≤ budget. Corpora are deterministic (`bun run corpus <n>`); 10k is generated on demand, not checked in.
 
@@ -32,4 +32,4 @@ CI passes at ≤ 80 % of budget (docs/07 §3), except where a row is a counted d
 Everything is re-derived from git and the config on the request. Doctor's own heartbeat facts did not move, and cannot: the session asking is the harness, and decision 70 has in-process memory outrank the file so a server cannot report itself unspoken-to while answering. The running preview's record of where it bound (deskUrl, dev) went with the directory it lives in, and returns when that process writes it again.
 The Desk still renders with its cache deleted: yes. Its first-run checklist came back — the heartbeat is the one fact the Desk can only get from the file, so deleting it correctly returns that row to unfinished.
 
-Driver `reference driver (no model)` · binary `/tmp/snypd-onboard-bin-ZGMS9y/snypd` · review URL handed back: yes · lint clean: yes
+Driver `reference driver (no model)` · binary `/tmp/snypd-onboard-bin-mbFqtx/snypd` · review URL handed back: yes · lint clean: yes
