@@ -97,6 +97,8 @@ Lifecycle events: `onCreate, onUpdate, onStatusChange, onPublish, onDelete`. Sta
 
 An npm package containing a `snypd.yaml` fragment (types, taxonomies, field types, primitives with schema + fallback, jobs, budgets) and optionally a `plugin.ts` exporting pure hook functions and **MCP tools/prompts**. A YAML-only plugin is first-class. Every plugin declares capabilities up front (`writes: [content]`, `network: [api.buttondown.com]`); `site.doctor` lists health and last release. Launch set: `seo, newsletter, comments (Giscus/Webmention), i18n, agent-analytics, social-crosspost, astro-adapter, next-adapter, pocketbase-state`.
 
+**Superseded by docs/10 (6 Sep 2026).** The manifest is a `plugin:` block (decision 81); capabilities are five declared tiers (82); first-party plugins ship in the binary (83); the launch set is `changelog, analytics, autolink, indexnow` (§4.8 there). Two things above are withdrawn: a plugin may not add primitives (decision 89) and may not declare `writes: [content]` (decision 88).
+
 ## 11. Roles and principals
 
 Roles `subscriber, contributor, author, editor, admin` with capability bags. A principal is a human, an **agent token**, or a plugin. Agent tokens default to `contributor` (draft, never publish); owners opt them up per site. Capabilities are checked at the MCP boundary; every write commit carries `Snypd-Principal: agent:claude-code/<user>` in the trailer.

@@ -3,7 +3,7 @@
 > Code lives in this repo (`snypd/`); this design set lives in `docs/`.
 
 **Status:** design set v0.3, 27 Aug 2026. Supersedes the five `harness-native-cms*.md` brainstorms (deleted). Name **Snypd**, domain snypd.rocks; see 06-roadmap §naming.
-**Docs in this set:** 00 overview · 01 content & primitives · 02 architecture (YAML, types, taxonomies, plugins, roles) · 03 MCP surface · 04 runtime & renderer (Bun) · 05 benchmarks · 06 roadmap.
+**Docs in this set:** 00 overview · 01 content & primitives · 02 architecture (YAML, types, taxonomies, plugins, roles) · 03 MCP surface · 04 runtime & renderer (Bun) · 05 benchmarks · 06 roadmap · 07 delivery plan · 08 first run · 09 themes, parts & settings · 10 plugins, ecosystem & the launch.
 
 ---
 

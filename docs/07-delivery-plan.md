@@ -146,6 +146,10 @@ If Gate B is red, S13–S14 become speed sessions and the editorial theme slips.
 It is a separate plan because it is separate scope: nothing in it is a D1–D6 gate, and none of D1–D6 needs
 it. It carries its own gates (T1–T7), its own risks and decisions 72–78, and its own session log.
 
+**Phase 6 — plugins, the theme ecosystem and the Product Hunt launch (H1, P1–P4, U6a/b, L1–L2) is docs/10**,
+written 6 Sep 2026 after S19b. It orders U1–U6, the plugin contract, S19d–S22 and the launch into fourteen
+sessions behind **Gate D** (D7–D13), which is the launch gate and is distinct from Gate C. Decisions 81–96.
+
 If D1 fails — not obviously better than a markdown folder + Claude Code — stop, fix primitives before v0.2 (06).
 
 ## 5. Session log
