@@ -10,6 +10,9 @@ parts:
   header:  ./parts/header.tsx
   footer:  ./parts/footer.tsx
   entries: ./parts/entries.tsx
+# The menus a site can give this theme, one `content/nav/<location>.yaml` each (docs/09 §4.3, U2). The
+# header and footer parts render them; a file for a location not listed here is a lint warning.
+locations: [header, footer]
 primitives:
   callout:   ./primitives/callout.tsx
   chart:     ./primitives/chart.tsx

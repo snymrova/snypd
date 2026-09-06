@@ -11,7 +11,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { formatDiagnostics, loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { formatDiagnostics, loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, type Theme, type SiteCtx, type Entry, type TermLink, type PrimitiveProps } from "./theme";
@@ -90,10 +90,14 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     // than the copy it is trying to avoid, and a touched file recopying is the same trade `build.noop` makes.
     mediaFiles.push({ rel, src, url, key: sha1(`${OUTPUT_FORMAT}:media:${rel}:${st.size}:${st.mtimeMs}`) });
   }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts };
+  // The menus (U2): resolved here, once, against the content the index just synced — so a slug change
+  // moves the item, and the hash of the *resolved* menus is in every route key, so it also re-renders
+  // every page that shows it. A `ref` that resolves to nothing is left out; lint rule 5 names it.
+  const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav };
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses }));
   const mediaHash = sha1(JSON.stringify(mediaSizes));
-  const base = `${OUTPUT_FORMAT}:${theme.hash}:${configHash}:${mediaHash}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
+  const base = `${OUTPUT_FORMAT}:${theme.hash}:${configHash}:${mediaHash}:${nav.hash}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }

@@ -106,7 +106,7 @@ tokens:
 layouts: [post, page, index, term, author]
 parts:                                   # U1 (docs/09 §4.1): the document around the layouts, one file each, resolved like primitives
   header:  ./parts/header.tsx            # override one and no layout; shell, footer and entries stay inherited
-locations: [header, footer]              # NOT BUILT — docs/09 §4.3 (U2); a warning naming file:line since U1
+locations: [header, footer]              # nav locations, one content/nav/<location>.yaml each (docs/09 §4.3, U2); arrays append up the chain
 variants: { callout: [soft, loud], cover: [text-only, image-left, image-full] }   # NOT BUILT — docs/09 §4.5, deferred; warns since U1
 primitives:
   cover:   ./primitives/Cover.tsx

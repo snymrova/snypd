@@ -44,9 +44,10 @@ export type TokenDecl = z.infer<typeof TokenDeclSchema>;
 
 /**
  * `theme.yaml`, validated (docs/09 decision 73). Strict: a mistyped `layout:` is a diagnostic naming
- * file and line, not a key silently discarded. The four keys docs/04 documents and nothing reads —
- * `locations`, `variants`, `patterns`, `client` — are listed so the diagnostic can say *not built* rather
- * than *unknown*; `loadConfig` turns them into warnings, every other unknown key into an error.
+ * file and line, not a key silently discarded. The keys docs/04 documents and nothing reads yet —
+ * `variants`, `patterns`, `client` (`locations` joined the schema in U2) — are listed so the diagnostic
+ * can say *not built* rather than *unknown*; `loadConfig` turns them into warnings, every other unknown
+ * key into an error.
  */
 const slot = z.union([z.string().min(1), z.object({ fallback: z.string().min(1) }).strict()]);
 export const ThemeYamlSchema = z.object({
@@ -60,6 +61,8 @@ export const ThemeYamlSchema = z.object({
   primitives: z.record(z.string(), slot).optional(),
   /** Part → component file, resolved exactly as primitives are (docs/09 §4.1, decision 72). */
   parts: z.record(z.string(), slot).optional(),
+  /** Nav locations this theme renders — one `content/nav/<location>.yaml` each (docs/09 §4.3, U2). Arrays append up the chain, so a child inherits its parent's and may add its own. */
+  locations: z.array(z.string().regex(/^[a-z][a-z0-9-]*$/i, "location: letters, digits, dashes")).optional(),
   tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).optional(),
   /** One stylesheet, theme-relative; emitted after the token vars as assets/theme.css. */
   css: z.string().min(1).optional(),
@@ -68,7 +71,6 @@ export const ThemeYamlSchema = z.object({
 export type ThemeYaml = z.infer<typeof ThemeYamlSchema>;
 /** Documented in docs/04, read by nothing yet, and the session that builds each (docs/09 §2.2). */
 export const THEME_UNBUILT_KEYS: Record<string, string> = {
-  locations: "nav locations — docs/09 U2",
   variants: "primitive variants — docs/09 §4.5, deferred",
   patterns: "block patterns — docs/09 §4.5, deferred",
   client: "client scripts against a JS budget — docs/10 decision 84, lands with plugins",

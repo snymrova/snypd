@@ -7,6 +7,7 @@ import { lint, type LintOptions, type LintResult } from "./lint";
 import type { Diagnostic } from "./tree";
 import { frontmatterKeyLine } from "./parse";
 import { taxonomyFields, type Move } from "../store";
+import { lintNav, routeLookup, termRoutes } from "../nav";
 
 export { parseMarkdown, frontmatterKeyLine, type ParsedDoc } from "./parse";
 export { buildTree, checkProp, countNodes, type Block, type PrimitiveTree, type Diagnostic, type Severity } from "./tree";
@@ -20,7 +21,7 @@ export function lintMarkdown(source: string, opts: LintOptions = {}, cache?: Mda
   return lint(doc, tree, source, opts);
 }
 
-export interface ContentFile { type: string; slug: string; file: string; route: string }
+export interface ContentFile { type: string; slug: string; file: string; route: string; /** `slug`, or `parent/slug` for a nested item — what a nav `ref` names after the type */ path: string }
 
 /** Every content file the merged config's types declare, with its route from the type's urlPattern. */
 export function listContent(root: string, cfg: LoadedConfig = loadConfig(root)): ContentFile[] {
@@ -35,7 +36,7 @@ export function listContent(root: string, cfg: LoadedConfig = loadConfig(root)):
         const slug = f.name.slice(0, -3);
         const path = `${prefix}${slug}`;
         const route = def.urlPattern.replace("{slug}", slug).replace("{path}", path).replace(/\/+$/, "") || "/";
-        out.push({ type, slug, file: join(d, f.name), route });
+        out.push({ type, slug, file: join(d, f.name), route, path });
       }
     };
     walk(dir, "");
@@ -48,13 +49,15 @@ export interface SiteLint { files: LintResult[]; errors: number; warnings: numbe
 /**
  * Lint a whole site: routes feed rule 5, the merged type schema feeds rule 0, the whole set feeds rule 11
  * (a tag used once) and the index's move log feeds rule 10 (`SiteIndex.moves()`, passed as `moves`).
+ * Nav files (U2) are linted here too, after the content: rule 5 for a `ref` that resolves to nothing,
+ * rule 12 for a location the theme does not declare — so `site` › doctor and `content` › lint see a
+ * broken menu without anyone asking.
  */
 export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedConfig; moves?: Move[] } = {}): SiteLint {
   const t0 = performance.now();
   const cfg = opts.cfg ?? loadConfig(root);
   const cache = opts.cache ?? new MdastCache();
   const content = listContent(root, cfg);
-  const routes = new Set<string>(["/", ...content.map((c) => c.route)]);
   const statuses = Object.keys(cfg.config.statuses);
   const files: LintResult[] = [];
   const D = (rule: string, n: number, message: string, hint: string, line: number): Diagnostic => ({ rule, n, severity: "warning", message, hint, line });
@@ -74,6 +77,9 @@ export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedC
     }
     return { c, src, cached, terms };
   });
+  // Rule 5's routes: the index, every item, and every term page any frontmatter names — the set a nav `ref` resolves against too.
+  const lookup = routeLookup(root, cfg, content, termRoutes(cfg, docs.map((d) => ({ type: d.c.type, frontmatter: d.cached.doc.frontmatter }))), opts.moves);
+  const routes = lookup.routes;
   const moves = new Map((opts.moves ?? []).map((m) => [m.path, m]));
   const redirected = redirects(cfg);
   for (const { c, src, cached, terms } of docs) {
@@ -96,6 +102,11 @@ export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedC
     r.diagnostics.sort((a, b) => a.line - b.line || a.n - b.n);
     r.warnings = r.diagnostics.filter((d) => d.severity === "warning").length;
     files.push(r);
+  }
+  // ── nav files: rules 5 and 12 ────────────────────────────────────────────
+  for (const n of lintNav(root, cfg, lookup)) {
+    if (!n.diagnostics.length) { files.push({ file: n.file, diagnostics: [], errors: 0, warnings: 0, words: 0, skipped: [] }); continue; }
+    files.push({ file: n.file, diagnostics: n.diagnostics, errors: n.diagnostics.filter((d) => d.severity === "error").length, warnings: n.diagnostics.filter((d) => d.severity === "warning").length, words: 0, skipped: [] });
   }
   return { files, errors: files.reduce((n, f) => n + f.errors, 0), warnings: files.reduce((n, f) => n + f.warnings, 0), ms: performance.now() - t0, cache: { hits: cache.hits, misses: cache.misses } };
 }

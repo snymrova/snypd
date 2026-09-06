@@ -1,0 +1,4 @@
+# The footer menu (docs/09 §4.3).
+- { label: "Feed", url: "/feed.xml" }
+- { label: "llms.txt", url: "/llms.txt" }
+- { label: "Every primitive, once", ref: "post/every-primitive-once" }

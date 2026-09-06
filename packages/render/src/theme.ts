@@ -10,7 +10,7 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
-import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LoadedConfig, type ThemeLink, type ThemeYaml } from "@snypd/core";
+import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LoadedConfig, type NavLink, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 
 export interface SiteCtx {
@@ -33,6 +33,12 @@ export interface SiteCtx {
    * theme that *wrote* the line — which is exactly what stopped a child theme from changing the header.
    */
   parts: Parts;
+  /**
+   * The menus, by location, resolved (U2, decision 75): every location the theme declares is a key, and
+   * a location with no `content/nav/<location>.yaml` is an empty list. A part reads its menu with
+   * `menu(ctx, "header", route)`, which also marks the current item.
+   */
+  nav: Record<string, NavLink[]>;
 }
 export interface Entry {
   route: string; type: string; slug: string; title: string;
@@ -105,6 +111,17 @@ export function part<K extends keyof Parts & string>(ctx: SiteCtx, name: K): Par
   const c = ctx.parts[name];
   if (!c) throw new Error(`theme ${ctx.theme.name}: part "${name}" is not declared by this theme or any it extends (theme.yaml › parts)`);
   return c as Parts[K];
+}
+/** One rendered menu item: the link, plus whether this page is the one it points at. */
+export interface MenuItem extends NavLink { current: boolean }
+/**
+ * The menu for a location, with the item that points at `route` marked `current` — so a part writes
+ * `aria-current="page"` from one boolean instead of comparing routes. A `url` item is never current, and
+ * an undeclared location is an empty menu, not an error: a part that renders `menu(ctx, "footer", …)` in
+ * a theme that declares only `header` renders nothing there.
+ */
+export function menu(ctx: SiteCtx, location: string, route: string): MenuItem[] {
+  return (ctx.nav[location] ?? []).map((l) => ({ ...l, current: l.route !== undefined && l.route === route }));
 }
 /** `<Part name="header" ctx={ctx} … />` — the wrapper form, so a part can nest another without threading props. */
 export function Part({ name, ctx, ...props }: { name: string; ctx: SiteCtx } & Record<string, unknown>): Html {

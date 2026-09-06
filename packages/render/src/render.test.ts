@@ -1,9 +1,9 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
-import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, part, flowSteps, tokensCss, resolveTokens } from "./index";
-import { loadConfig, initRepo, LIVE_ROUTE } from "@snypd/core";
+import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, part, menu, flowSteps, tokensCss, resolveTokens } from "./index";
+import { loadConfig, initRepo, lintSite, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
@@ -170,7 +170,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
   });
   test("a theme edit re-renders everything (in a fresh process — see loadTheme); a config edit too", async () => {
     const f = join(root, "themes/base/parts/footer.tsx");
-    writeFileSync(f, readFileSync(f, "utf8").replace("<footer><p>{ctx.site.name}</p></footer>", "<footer><p>{ctx.site.name} · edited</p></footer>"));
+    writeFileSync(f, readFileSync(f, "utf8").replace("<p>{ctx.site.name}</p>", "<p>{ctx.site.name} · edited</p>"));
     const cli = Bun.spawnSync([process.execPath, "packages/cli/src/index.ts", "build", root]);   // `snypd build`: the real path, no module cache
     expect(cli.stdout.toString()).toContain("built 8 routes + 10 artefacts (18 rendered, 0 cached");
     expect(read("about")).toContain("T · edited");
@@ -370,13 +370,13 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const root = "corpora/_test/theme-validate";
     rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "themes/t"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: V, url: https://v.example }\ntheme: { use: t }\n");
-    writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\nextends: base\nlayout: [post]\nlocations: [header, footer]\nprimitives: { tldr: 3 }\n");
+    writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\nextends: base\nlayout: [post]\nvariants: { callout: [note] }\nprimitives: { tldr: 3 }\n");
     const cfg = loadConfig(root);
     const d = cfg.diagnostics;
     const typo = d.find((x) => x.message.includes('unknown key "layout"'))!;
     expect(typo.level).toBe("error");
     expect(typo.where).toContain("themes/t/theme.yaml:3");
-    const dead = d.find((x) => x.message.includes("`locations` is documented but not built"))!;
+    const dead = d.find((x) => x.message.includes("`variants` is documented but not built"))!;
     expect(dead.level).toBe("warning");
     expect(dead.where).toContain("themes/t/theme.yaml:4");
     expect(d.some((x) => x.level === "error" && x.path === "theme.primitives.tldr")).toBe(true);
@@ -384,6 +384,94 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     // and a clean one is clean: neither shipped theme produces a theme.yaml diagnostic
     writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\nextends: editorial\n");
     expect(loadConfig(root).diagnostics.filter((x) => x.path.startsWith("theme."))).toEqual([]);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  /**
+   * T6 (docs/09 §6): nav is real. A menu is `content/nav/<location>.yaml`, resolved through the content
+   * list at build, rendered by the header and footer parts on both shipped themes, and it follows a slug
+   * change — which is the whole reason `ref` exists next to `url`. A `ref` that resolves to nothing is
+   * left out of the markup and named by lint rule 5, so a page never ships a link to a 404.
+   */
+  test("T6 nav: menus render from files on base and editorial, mark the current page, and survive a slug change", async () => {
+    const root = "corpora/_test/nav";
+    const dist = join(root, "dist");
+    const read = (route: string) => readFileSync(join(dist, route, "index.html"), "utf8");
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/nav"]) mkdirSync(join(root, d), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example }\ntheme: { use: base }\n");
+    writeFileSync(join(root, "content/posts/hello.md"), "---\ntitle: Hello\ndate: 2026-09-01\nstatus: published\n---\n\nHi.\n");
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\nAbout.\n");
+    writeFileSync(join(root, "content/nav/header.yaml"), "- { label: Home, ref: / }\n- { label: About, ref: page/about }\n- { label: Hello, ref: /posts/hello }\n- { label: GitHub, url: https://github.com/x, rel: external }\n- { label: Gone, ref: page/nope }\n");
+    writeFileSync(join(root, "content/nav/footer.yaml"), "- { label: Feed, url: /feed.xml }\n");
+    writeFileSync(join(root, "content/nav/sidebar.yaml"), "- { label: Stray, url: /x }\n");   // no theme declares `sidebar`
+
+    // base: a <nav> in the header and one in the footer, from the files, current page marked, dead ref absent
+    let r = await build(root);
+    const about = read("about");
+    expect(about).toContain('<nav aria-label="Site"><ul><li><a href="/">Home</a></li><li><a href="/about/" aria-current="page">About</a></li><li><a href="/posts/hello/">Hello</a></li><li><a href="https://github.com/x" rel="external">GitHub</a></li></ul></nav>');
+    expect(about).not.toContain("Gone");
+    expect(about).toContain('<footer><nav aria-label="Footer"><ul><li><a href="/feed.xml">Feed</a></li></ul></nav><p>N</p></footer>');
+    expect(read("")).toContain('<a href="/" aria-current="page">Home</a>');            // the index is current for `/`
+    expect(read("posts/hello")).toContain('<a href="/posts/hello/" aria-current="page">Hello</a>');
+    expect(read("posts/hello")).not.toContain('href="/about/" aria-current');
+    // the twin carries none of it
+    expect(readFileSync(join(dist, "about", "index.md"), "utf8")).not.toContain("GitHub");
+
+    // lint: the dead ref is rule 5 on the nav file with its line; the undeclared location is rule 12
+    const lint = lintSite(root);
+    const header = lint.files.find((f) => f.file === "content/nav/header.yaml")!;
+    expect(header.diagnostics).toMatchObject([{ rule: "dead-internal-link", n: 5, severity: "error", line: 5 }]);
+    expect(header.diagnostics[0]!.message).toContain("`Gone` → `page/nope`");
+    const stray = lint.files.find((f) => f.file === "content/nav/sidebar.yaml")!;
+    expect(stray.diagnostics).toMatchObject([{ rule: "nav-location", n: 12, severity: "warning" }]);
+    expect(stray.diagnostics[0]!.message).toContain("`sidebar` is not a nav location");
+    expect(lint.files.find((f) => f.file === "content/nav/footer.yaml")!.diagnostics).toEqual([]);
+
+    // A slug change here is a file rename (the filename is the slug — write.ts). The route form of a
+    // ref survives it the way a body link does: through the redirect that rule 10 asks for, or the move
+    // log the index keeps; the resolved menu is in every route key, so every page re-renders.
+    renameSync(join(root, "content/pages/about.md"), join(root, "content/pages/about-us.md"));
+    writeFileSync(join(root, "content/nav/header.yaml"), "- { label: Home, ref: / }\n- { label: About, ref: /about }\n- { label: Hello, ref: /posts/hello }\n");
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example, redirects: { /about: /about-us } }\ntheme: { use: base }\n");
+    r = await build(root);
+    expect(r.rendered).toBeGreaterThanOrEqual(3);
+    expect(read("about-us")).toContain('<a href="/about-us/" aria-current="page">About</a>');
+    expect(read("posts/hello")).toContain('href="/about-us/"');
+    expect(read("posts/hello")).not.toContain('href="/about/"');
+    expect(lintSite(root).files.find((f) => f.file === "content/nav/header.yaml")!.diagnostics).toEqual([]);
+    // and a no-op build stays a no-op
+    r = await build(root);
+    expect(r.rendered).toBe(0);
+    // the type/slug form names the file, so it follows a url-pattern change — and a rename is a dead ref
+    writeFileSync(join(root, "content/nav/header.yaml"), "- { label: Home, ref: / }\n- { label: About, ref: page/about-us }\n- { label: Old, ref: page/about }\n");
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example }\ntheme: { use: base }\ntypes: { page: { urlPattern: \"/p/{path}\" } }\n");
+    await build(root);
+    expect(read("p/about-us")).toContain('<a href="/p/about-us/" aria-current="page">About</a>');
+    expect(read("p/about-us")).not.toContain("Old");
+    expect(lintSite(root).files.find((f) => f.file === "content/nav/header.yaml")!.diagnostics).toMatchObject([{ rule: "dead-internal-link", line: 3 }]);
+    writeFileSync(join(root, "content/nav/header.yaml"), "- { label: Home, ref: / }\n- { label: About, ref: page/about-us }\n");
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example }\ntheme: { use: base }\n");
+    await build(root); await build(root);   // twice: a url-pattern flip settles one route on the build after (pre-U2 behaviour, not nav's)
+    expect((await build(root)).rendered).toBe(0);
+    // an edit to the menu alone re-renders every route
+    writeFileSync(join(root, "content/nav/footer.yaml"), "- { label: Feed, url: /feed.xml }\n- { label: Source, url: https://github.com/x }\n");
+    r = await build(root);
+    expect(r.rendered).toBeGreaterThanOrEqual(3);
+    expect(read("posts/hello")).toContain(">Source</a>");
+
+    // editorial: the masthead carries the same menu beside the brand; the footer is base's
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example, description: A tagline }\ntheme: { use: editorial }\n");
+    await build(root);
+    const ed = read("about-us");
+    expect(ed).toContain('<header class="snypd-masthead"><div class="snypd-brand"><a href="/" rel="home">N</a><p class="snypd-tagline">A tagline</p></div><nav aria-label="Site"><ul>');
+    expect(ed).toContain('<a href="/about-us/" aria-current="page">About</a>');
+    expect(ed).toContain('<nav aria-label="Footer">');
+    const ctxNav = { header: [{ label: "Home", href: "/", route: "/" }] };
+    expect(menu({ nav: ctxNav } as never, "header", "/")).toEqual([{ label: "Home", href: "/", route: "/", current: true }]);
+    expect(menu({ nav: ctxNav } as never, "header", "/x")).toEqual([{ label: "Home", href: "/", route: "/", current: false }]);
+    // an undeclared location is an empty menu for a part, never a throw
+    expect(menu({ nav: ctxNav } as never, "sidebar", "/")).toEqual([]);
     rmSync(root, { recursive: true, force: true });
   });
 });

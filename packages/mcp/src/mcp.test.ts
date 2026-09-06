@@ -509,6 +509,37 @@ describe("find_tools + the catalogue", () => {
     expect(structured(activated)).toMatchObject({ theme: "scratchy", from: "editorial", changed: true });
   });
 
+  test("U2: set_nav writes the menu, commits it, refuses a dead ref, and snypd://nav reads it back", async () => {
+    const site = "corpora/_test/mcp-nav";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(site, { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    const [, , written, again, dead, badLoc, resource, doctor, removed] = await session([
+      req(1, "initialize"),
+      call(0, "site", { action: "init", name: "Nav", url: "https://nav.example" }),
+      call(2, "site", { action: "set_nav", location: "header", items: [{ label: "Home", ref: "/" }, { label: "GitHub", url: "https://github.com/x", rel: "external" }] }),
+      call(3, "site", { action: "set_nav", location: "header", items: [{ label: "Home", ref: "/" }, { label: "GitHub", url: "https://github.com/x", rel: "external" }] }),
+      call(4, "site", { action: "set_nav", location: "footer", items: [{ label: "About", ref: "page/about" }] }),
+      call(5, "site", { action: "set_nav", location: "sidebar", items: [] }),
+      req(6, "resources/read", { uri: "snypd://nav" }),
+      call(7, "site", { action: "doctor" }),
+      call(8, "site", { action: "set_nav", location: "header", items: null }),
+    ], site);
+    expect(structured(written)).toMatchObject({ ok: true, changed: true, location: "header", file: "content/nav/header.yaml", links: [{ label: "Home", href: "/" }, { label: "GitHub", href: "https://github.com/x", rel: "external" }] });
+    expect(written.result.content[0].text).toContain("committed");
+    expect(structured(again)).toMatchObject({ ok: true, changed: false });
+    expect(dead.result.isError).toBe(true);
+    expect(dead.result.content[0].text).toContain("`About` → `page/about`");
+    expect(existsSync(`${site}/content/nav/footer.yaml`)).toBe(false);
+    expect(badLoc.result.isError).toBe(true);
+    expect(badLoc.result.content[0].text).toContain("`header` and `footer`");
+    expect(resource.result.contents[0].text).toContain("locations: [header, footer]");
+    expect(resource.result.contents[0].text).toContain('{ label: "Home", ref: "/" }   # → /');
+    expect(doctor.result.content[0].text).toContain("menus: header 2 items, footer none");
+    expect(structured(removed)).toMatchObject({ ok: true, changed: true });
+    expect(existsSync(`${site}/content/nav/header.yaml`)).toBe(false);
+  });
+
   test("switching to a theme that does not declare a token you set says so rather than losing it", async () => {
     const bare = "corpora/_test/mcp-s16-strand";
     rmSync(bare, { recursive: true, force: true }); mkdirSync(bare, { recursive: true });
@@ -635,7 +666,10 @@ describe("the first run, from the agent's side", () => {
     // the fourth unfinished thing on a two-minute-old scaffold.
     expect(s).toContain("no remote");
     expect(structured(doc).facts.push).toMatchObject({ branch: "main", ahead: 0, known: false, ready: false });
-    expect(s).toContain("nothing broken — 4 things still unfinished");
+    // U2 adds the seventh: the theme renders two menus and the site has written neither yet — the header
+    // a visitor sees first is a bare site name until `site` › set_nav. A ⚠ that names the remedy.
+    expect(s).toContain("no menus yet");
+    expect(s).toContain("nothing broken — 5 things still unfinished");
   });
 
   /**

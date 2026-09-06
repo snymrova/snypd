@@ -40,7 +40,7 @@ Resources carry `ttlMs`; content resources subscribe so the harness is told when
 **site.** `init(name?, url?, description?, theme?, deploy?)` — every argument optional (S18d: a name falls back to the directory, a URL to a placeholder that comes due at publish); `deploy: cloudflare|vercel` also writes the host's half, a build command and `dist/` (S18d′) · `set_config(path, value)` (validated, and rolled back on disk if it does not load) · `explain_config(path)` · `set_redirect(from, to)` · `doctor` · `build`
 **bench.** `run(suite?)` · `compare(a, b)`
 
-*Not yet in v0.1:* `taxonomy.*`, `media.*`, `history.*`, `jobs.*`, `theme.preview`, `site.set_nav`, `site.use` (workspaces). They join the catalogue on the same terms — one tool, an `action`, reads as resources — which is what keeps the budget intact as they land. `theme.preview` is deliberately absent: `theme` › set followed by `content.render_preview` is the same thing in two calls the agent already knows.
+*Not yet in v0.1:* `taxonomy.*`, `media.*`, `history.*`, `jobs.*`, `theme.preview`, `site.use` (workspaces) — `site.set_nav` landed in U2 (docs/09 §4.3). They join the catalogue on the same terms — one tool, an `action`, reads as resources — which is what keeps the budget intact as they land. `theme.preview` is deliberately absent: `theme` › set followed by `content.render_preview` is the same thing in two calls the agent already knows.
 
 ### Prompts (versioned editorial workflows)
 

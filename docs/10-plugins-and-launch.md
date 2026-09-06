@@ -246,8 +246,8 @@ Gate C (docs/07: D1–D6) is the release. **Gate D is the launch, and it is a di
 | D9 | Four first-party plugins, one per tier, bundled; `plugins: [analytics]` works on a fresh `init` with no install; removing a plugin from the list removes every byte it added | P1–P4 exits; a test that diffs `dist/` with and without each plugin |
 | D10 | A plugin in a site's own `plugins/` dir — not bundled, not on npm — loads by the same path and passes the same gates | a corpus fixture with a local plugin; `snypd://plugins` names its source as `plugins/` |
 | D11 | The budgets hold with every plugin on: `tokens.tools` unchanged (plugin tools are catalogue-only); `tokens.learn` ≤ 6,000; `build.cold.100` within 10 % of `main` with no plugins; `page.js.kb` equals the declared client bytes exactly (0 without `analytics`) | `bench.compare` in CI; new lanes `plugins.*` extend rather than invent |
-| D12 | snypd.rocks has `/themes`, `/plugins`, `/bench` (S22), a nav, and a post about each of U1, P1–P4 and U6 — build-in-public is the launch content | the pages answer 200; the posts are in the feed |
-| D13 | Launch assets exist and the paste works: a 60-second recording of an agent writing a post, switching a variation, and enabling a plugin; five gallery images; tagline, first comment, and an FAQ; `bunx @snypd/cli init` run on a clean machine on at least three of the five platforms | a `docs/launch/` folder with the assets and the three clean-machine transcripts |
+| D12 | snypd.rocks has `/themes`, `/plugins`, `/bench` (S22), a nav, and **one post per gate** — the U-series (after U6b), the P-series (after P4), and the launch itself (L2) — build-in-public is the launch content (amended 6 Sep 2026, decision 97: three good posts over fourteen thin ones) | the pages answer 200; the three posts are in the feed |
+| D13 | Launch assets exist and the paste works: a 60-second recording of an agent writing a post, switching a variation, and enabling a plugin; five gallery images; tagline, first comment, and an FAQ; `bunx @snypd/cli init` run on a clean machine on at least three of the five platforms — and the copy names **every platform Bun compiles to**, Windows included (Sunny, 6 Sep 2026: "all bun provides"), so `@snypd/windows-x64` gets its clean-machine run in L2 and is fixed rather than dropped from the sentence | a `docs/launch/` folder with the assets and the three clean-machine transcripts |
 
 ### 7.2 Sessions, in order
 
@@ -256,7 +256,7 @@ Fourteen sessions. Public embarrassment first, then the contract in dependency o
 | # | Session | Deliverable | Exit |
 |---|---|---|---|
 | 1 | ~~**U1**~~ | **done 6 Sep 2026, PR #10** — parts, Zod over `theme.yaml`, social metadata in the shell; the log row is docs/09 §7b | docs/09 U1 exit ✅ · OG tags on every route ✅ |
-| 2 | **U2** | Nav (docs/09); snypd.rocks gets a header and footer menu **the same day**, and a post about it | T6 green; `curl snypd.rocks` has a `<nav>` |
+| 2 | ~~**U2**~~ | **done 6 Sep 2026, PR #11** — nav (docs/09 §4.3); snypd.rocks got a header and footer menu the same day, through `site` › set_nav; the log row is docs/09 §7b. No post: decision 97 | T6 green ✅; `curl snypd.rocks` has two `<nav>`s ✅ |
 | 3 | **H1** | The S19b product findings (§2.3): dead byline on a default site, comma labels caught by lint, `lr` diagrams scaled not scrolled, flow label clipping, `description` hint, the branching-list `flow` detector | each finding has a test; `suggest.precision` unmoved |
 | 4 | **P1** | **The contract.** `plugin:` block, Zod, `api:` check, options schema, resolution incl. `plugins/` workspace and the bundled barrel, plugin graph hash in the route key, `snypd://plugins`, doctor rows, `changelog` as the Tier 0 proof | D10's fixture loads; a bad option is attributed; `build.cold.100` unmoved with no plugins |
 | 5 | **P2** | **Slots and filters** (docs/09 U5) + **the client budget (§4.6)** + `analytics` | the seo-tag test docs/09 wrote, now against `analytics`; `page.js.kb` 0 without it, 1 with it and a budget of 2; over budget refuses at load |
@@ -270,7 +270,7 @@ Fourteen sessions. Public embarrassment first, then the contract in dependency o
 | 13 | **S22 · L1** | The bench page (S22) + `/themes` and `/plugins` (§6) + the gallery screenshots script | D12 |
 | 14 | **L2** | Launch assets (D13); clean-machine runs on three platforms; the maker post drafted on snypd.rocks as an unpublished draft — S19d's branch preview is how Sunny reads it | D13; **Gate D** |
 
-**Calendar.** Fourteen sessions at the two-a-day pace docs/07 assumes is seven working days; at one a day it is three weeks. From 7 Sep that puts Gate D between **18 and 25 Sep**, plus a week of slack for CI, screenshots and the recording. **Recommendation: target Tuesday 29 September 2026, hold Tuesday 6 October as the fallback**, and do not announce either until D7–D13 are green. Product Hunt launches land Tuesday to Thursday, 00:01 Pacific; the maker should be awake for the first twelve hours, which is evening in India — that is Sunny's constraint to weigh, not this document's.
+**Calendar.** Fourteen sessions at the two-a-day pace docs/07 assumes is seven working days; at one a day it is three weeks. From 7 Sep that puts Gate D between **18 and 25 Sep**, plus a week of slack for CI, screenshots and the recording. **Launch date: Tuesday 29 September 2026, 00:01 Pacific (12:31 IST) — chosen by Sunny on 6 Sep 2026; Tuesday 6 October is the fallback.** Not announced anywhere until D7–D13 are green (decision 93 still holds: the date is a target, the gate is the gate). Product Hunt launches land Tuesday to Thursday, 00:01 Pacific; the maker should be awake for the first twelve hours, which is evening in India — that is Sunny's constraint to weigh, not this document's.
 
 **What does not block launch:** `migrate-from-wordpress` (a week of WXR edge cases nobody runs on launch day; it is the first post-launch session because it will be the first comment), `newsletter`, `og-image` unless the spike is clean, i18n, HTTP transport, workspaces, adapters.
 
@@ -298,7 +298,7 @@ Fourteen sessions. Public embarrassment first, then the contract in dependency o
 | **A plugin does something its manifest did not say, and a visitor finds out** | Medium | §4.7 says what is and is not enforced, in the docs and in the maker comment. Overclaiming is the failure mode; the mitigation is not to |
 | **Six looks from two themes reads as padding** | Low | Each variation is a real, complete token set with a name and a description, and the gallery labels them as variations of a theme. `technical` is a genuinely different theme |
 | **`og-image` eats P3** | Medium | It is a spike with a stop rule: renders without Chrome or it waits |
-| **The clean-machine paste fails on a platform on launch day** | High impact | D13 requires three platforms *before* the date is chosen; Windows is one of them or the copy says macOS and Linux |
+| **The clean-machine paste fails on a platform on launch day** | High impact | D13 requires three platforms *before* the date is chosen; the copy names all five Bun targets (Sunny's call), so Windows is one of the three runs, and a Windows failure in L2 is a fix, not a sentence |
 | **CI bench noise blocks a merge** (docs/07 §3.3, memory: this box's numbers are not comparable) | Low | Every `bench.compare` comes from CI; the 10 % tolerances in D11 are against `main`'s CI run |
 
 ---
@@ -323,16 +323,19 @@ Continuing docs/07 §7 and docs/09 §9. These override 02, 04 and 09 where they 
 94. **`migrate-from-wordpress` does not block launch** and is the first session after it, because it will be the first comment.
 95. **The route key includes the plugin graph hash.** A transform that changes output must invalidate the cache; the key is content + theme + plugins + config subset.
 96. **No telemetry in the binary.** Adoption is read from npm, GitHub and the web, and the maker comment says so.
+97. **One build-in-public post per gate, not per session** (Sunny, 6 Sep 2026: "three good ones"). The U-series post lands after U6b, the P-series post after P4, the maker post at L2. A session still ships its change to snypd.rocks the day it lands — U2's menus did — it just does not write about it. Amends D12.
 
 ---
 
 ## 11. Open questions — the calls that are Sunny's
 
-1. **Launch date and time zone.** 29 Sep with 6 Oct fallback is the recommendation; 00:01 Pacific is 12:31 IST, and the first twelve hours are the ones that count. Whether that is a night to spend awake is not a PM decision.
-2. **Does H1 (the dogfood findings) go before P1, as scheduled, or after the contract?** It is scheduled third because a launch visitor hits finding (1) and (9) in their first ten minutes, and no plugin fixes that. The counter-argument is momentum on the contract. Either order works; I would not push it past P2.
-3. **`og-image` — spike or skip?** The stop rule is written; the question is whether P3 spends its first hour finding out.
-4. **Windows in D13, or "macOS and Linux" in the copy?** `@snypd/windows-x64` is built and untested by a person. One clean-machine run decides which sentence ships.
-5. **A `snypd.rocks` post per session, as D12 requires?** It is the build-in-public promise and it is also fourteen posts in three weeks. The alternative is one post per gate — U-series, P-series, launch — which is three. I would do three good ones over fourteen thin ones, and D12 should read that way if you agree.
+Answered 6 Sep 2026, in the order they were asked; the one still open is marked.
+
+1. ~~**Launch date and time zone.**~~ **29 September 2026**, 00:01 Pacific, 6 October fallback — recorded in §7.2's calendar. Sunny's answer to "say the word" was "start", so H1 stays third as scheduled.
+2. ~~**H1 before P1?**~~ Stays third, as scheduled (no objection raised; the schedule stands).
+3. **`og-image` — spike or skip?** *Still open.* P3 spends its first hour on the spike unless told otherwise before then; the stop rule in §4.8 holds.
+4. ~~**Windows in D13?**~~ **"All Bun provides":** the copy names all five targets, Windows included, and L2's clean-machine runs include it — D13 and the risk table say so.
+5. ~~**A post per session?**~~ **"Three good ones":** one per gate — decision 97, D12 amended.
 
 ---
 

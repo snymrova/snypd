@@ -243,6 +243,16 @@ export function generateTheme(root = "corpora/theme") {
   writeFileSync(join(root, "content/taxonomies/tag/markdown.md"),
     "---\ntitle: Markdown\nstatus: published\ndescription: The source format, and the twin served beside every page.\n---\n\nA tag with a description reads as a page; one without reads as a filter.\n");
 
+  // The two menus (U2): what a theme reviewer looks at first, and the `ref` forms a real site uses —
+  // the index, a page by type/slug, a post by route, and one link off the site.
+  mkdirSync(join(root, "content/nav"), { recursive: true });
+  writeFileSync(join(root, "content/nav/header.yaml"),
+    "# The header menu (docs/09 §4.3). `ref` is a route or type/slug, resolved at build; `url` is verbatim.\n"
+    + '- { label: "Posts", ref: "/" }\n- { label: "About", ref: "page/about" }\n- { label: "Engineering", ref: "/category/engineering" }\n- { label: "GitHub", url: "https://github.com/snymrova/snypd", rel: "external" }\n');
+  writeFileSync(join(root, "content/nav/footer.yaml"),
+    "# The footer menu (docs/09 §4.3).\n"
+    + '- { label: "Feed", url: "/feed.xml" }\n- { label: "llms.txt", url: "/llms.txt" }\n- { label: "Every primitive, once", ref: "post/every-primitive-once" }\n');
+
   // `author` ships with `layout: null` (spec defaults), so a site that wants author pages asks for them.
   writeFileSync(join(root, "snypd.yaml"),
     "snypd: 1\nsite:\n  name: Theme fixture\n  url: https://fixture.snypd.rocks\n  description: Every primitive and every layout, once.\n"

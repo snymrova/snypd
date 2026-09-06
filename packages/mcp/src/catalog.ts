@@ -50,11 +50,13 @@ export const CATALOG: Tool[] = [
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
   { name: "site",
-    description: "Change the site itself rather than a post: one config key, a redirect for a URL that moved, a health report, a build, or a request to put the site live. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from.",
+    description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or a request to put the site live. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `push` to ask a human to put it live", { enum: ["init", "set_config", "explain_config", "set_redirect", "set_deploy", "doctor", "build", "push"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `push` to ask a human to put it live", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
+      location: str("`set_nav`: which menu — a location the theme declares (`header`, `footer`; snypd://nav lists them)"),
+      items: { type: "array", description: "`set_nav`: the whole menu, in order — [{ label, ref | url, rel? }]. `ref` is a route (`/about`) or type/slug (`page/about`) and follows the item when its slug changes; `url` is verbatim, for links off this site. A `ref` that resolves to nothing is refused. `null` removes the menu", items: { type: "object", properties: { label: { type: "string" }, ref: { type: "string" }, url: { type: "string" }, rel: { type: "string" } }, required: ["label"] } },
       from: str("`set_redirect`: the old route, e.g. `/posts/old-slug`"),
       to: str("`set_redirect`: the route it moved to. `null` removes the redirect instead"),
       name: str("`init`: the site's name, as a reader sees it. Optional — defaults to the directory's name"),
@@ -294,6 +296,20 @@ tokens: {}
           const git = await commit(w.paths, `site: ${path}`);
           return text([`${path}: ${JSON.stringify(w.from) ?? "unset"} → ${JSON.stringify(w.to)}`, git].join("\n"), { ok: true, changed: true, path, from: w.from, to: w.to });
         }
+        if (action === "set_nav") {
+          const location = need(args, "location");
+          if (!("items" in args)) return fail("items required", "The whole menu as a list of { label, ref | url }; pass `items: null` to remove it.");
+          const items = args.items === null ? null : Array.isArray(args.items) ? args.items : undefined;
+          if (items === undefined) return fail("items must be a list", "[{ label: \"About\", ref: \"page/about\" }, { label: \"GitHub\", url: \"https://…\" }]");
+          const w = c.setNav(root, location, items);
+          if (!w.paths.length) return text(items === null ? `there is no ${location} menu to remove` : `the ${location} menu already reads that way`, { ok: true, changed: false, location, items: w.items });
+          const git = await commit(w.paths, items === null ? `nav: remove the ${location} menu` : `nav: ${location} — ${w.links.map((l) => l.label).join(", ")}`);
+          return text([
+            items === null ? `removed ${w.file}` : `${w.file}: ${w.links.map((l) => `${l.label} → ${l.href}`).join(" · ")}`,
+            git,
+            items === null ? "" : "Every page re-renders with it on the next build; content.render_preview shows it now.",
+          ].filter(Boolean).join("\n"), { ok: true, changed: true, location, file: w.file, items: w.items, links: w.links });
+        }
         if (action === "set_redirect") {
           const from = need(args, "from");
           const to = args.to === null || args.to === undefined ? null : String(args.to);
@@ -405,7 +421,7 @@ tokens: {}
           ].join("\n"), { ...st, ok: true, ready: st.ok, pushed: false, deskUrl: desk });
         }
         if (action === "doctor") return await doctor(root);
-        return fail(`unknown action "${action}"`, "site takes: init, set_config, explain_config, set_redirect, set_deploy, doctor, build, push.");
+        return fail(`unknown action "${action}"`, "site takes: init, set_config, explain_config, set_nav, set_redirect, set_deploy, doctor, build, push.");
       }
 
       case "bench": {
@@ -477,6 +493,16 @@ async function doctor(root: string): Promise<ToolResult> {
   const redir = c.redirects(cfg);
   const n = Object.keys(redir).length;
   if (n) ok(`${n} redirect${n === 1 ? "" : "s"} declared`);
+
+  // The menus (U2). A declared location with no file is the state every `init` site starts in, so it is
+  // a warning that names the remedy, not a problem; a dead `ref` is already a lint error above.
+  const locations = c.navLocations(cfg);
+  if (locations.length) {
+    const menus = locations.map((l) => c.loadNav(root, l, cfg));
+    const empty = menus.filter((m) => !m.exists);
+    if (empty.length === menus.length) warn(`no menus yet — theme \`${cfg.config.theme.use}\` renders ${locations.map((l) => `\`${l}\``).join(" and ")}; \`site\` › set_nav writes one`);
+    else ok(`menus: ${menus.map((m) => `${m.location} ${m.exists ? `${m.items.length} item${m.items.length === 1 ? "" : "s"}` : "none"}`).join(", ")}`);
+  }
 
   const repo = c.Repo.open(root);
   // A problem rather than a warning since S18d: writes land on a drafts branch and publishing lands one

@@ -76,7 +76,7 @@ git. Surfaced as `history.list/diff/restore`. Agent edits autosave to **one draf
 
 ## 8. Nav, globals, redirects
 
-Nav: `content/nav/<location>.yaml` per theme-declared location — **not built; docs/09 §4.3 (U2) is the plan, decision 75**. Globals: `snypd.yaml › site`. Redirects: `content/redirects.yaml`; a slug change on a published item auto-appends one and lint blocks publishes that would 404 a known URL.
+Nav: `content/nav/<location>.yaml` per theme-declared location — **built in U2 (6 Sep 2026), docs/09 §4.3, decision 75**: a list of `{ label, ref | url }`, `ref` resolved at build through the index, redirects and the move log; written by `site` › set_nav, read as `snypd://nav`. Globals: `snypd.yaml › site`. Redirects: `content/redirects.yaml`; a slug change on a published item auto-appends one and lint blocks publishes that would 404 a known URL.
 
 ## 9. Pipeline (typed hooks, fixed order)
 

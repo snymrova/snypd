@@ -7,7 +7,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { loadConfig, setConfig, setRedirect, redirects, normalizeRoute, themeTokens, initSite, onPath, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded } from "./index";
+import { loadConfig, setConfig, setRedirect, setNav, loadNav, navLocations, renderNav, redirects, normalizeRoute, themeTokens, initSite, onPath, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -401,5 +401,71 @@ describe("the heartbeat and the first-run facts (S18f)", () => {
     rmSync(`${site}/.snypd`, { recursive: true, force: true });
     expect(onboardingFacts(site, { cfg, items: 1 }).harness).toBe("never");
     expect(onboardingFacts(site, { cfg, items: 1 }).git).toBe(true);
+  });
+});
+
+/**
+ * U2 — menus are files, and `setNav` is the one write path to them. The rules, stated without JSON-RPC in
+ * the way: a location the theme does not declare is refused, a dead `ref` is refused before the file is
+ * touched, a `url` is never checked, the file is one flow map per line, and writing what is already there
+ * is a no-op with no paths — the same shape every other site write has.
+ */
+describe("nav writes (U2)", () => {
+  const nav = "corpora/_test/nav-writes";
+  beforeEach(() => {
+    rmSync(nav, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages/docs"]) mkdirSync(join(nav, d), { recursive: true });
+    writeFileSync(join(nav, "snypd.yaml"), "snypd: 1\nsite: { name: T, url: https://t.example }\ntheme: { use: editorial }\n");
+    writeFileSync(join(nav, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\nAbout.\n");
+    writeFileSync(join(nav, "content/pages/docs/intro.md"), "---\ntitle: Intro\nstatus: draft\n---\n\nIntro.\n");
+    writeFileSync(join(nav, "content/posts/hello.md"), "---\ntitle: Hello\ndate: 2026-09-01\nstatus: published\n---\n\nHi.\n");
+  });
+
+  test("both shipped themes declare header and footer; the child inherits base's list once", () => {
+    expect(navLocations(loadConfig(nav))).toEqual(["header", "footer"]);
+  });
+
+  test("writes one flow map per line, resolves every ref, and says which paths changed", () => {
+    const w = setNav(nav, "header", [{ label: "Home", ref: "/" }, { label: "About", ref: "page/about" }, { label: "Intro", ref: "page/docs/intro" }, { label: "Hello", ref: "/posts/hello/" }, { label: "GitHub", url: "https://github.com/x", rel: "external" }]);
+    expect(w.paths).toEqual(["content/nav/header.yaml"]);
+    expect(w.links.map((l) => l.href)).toEqual(["/", "/about/", "/docs/intro/", "/posts/hello/", "https://github.com/x"]);
+    const file = readFileSync(join(nav, "content/nav/header.yaml"), "utf8");
+    expect(file).toContain('- { label: "About", ref: "page/about" }');
+    expect(file).toContain('- { label: "GitHub", url: "https://github.com/x", rel: "external" }');
+    // reading it back gives the same items, and the file is one line per item under one comment
+    expect(loadNav(nav, "header").items).toEqual(w.items);
+    expect(file.split("\n").filter((l) => l.startsWith("- ")).length).toBe(5);
+    // the same menu again is a no-op
+    expect(setNav(nav, "header", w.items).paths).toEqual([]);
+    // null removes it
+    expect(setNav(nav, "header", null).paths).toEqual(["content/nav/header.yaml"]);
+    expect(existsSync(join(nav, "content/nav/header.yaml"))).toBe(false);
+    expect(setNav(nav, "header", null).paths).toEqual([]);
+  });
+
+  test("refuses an undeclared location, a dead ref and a malformed item, and touches nothing", () => {
+    expect(() => setNav(nav, "sidebar", [{ label: "x", url: "/x" }])).toThrow("declares no nav location `sidebar`");
+    expect(() => setNav(nav, "header", [{ label: "About", ref: "page/about" }, { label: "Nope", ref: "page/nope" }])).toThrow("`Nope` → `page/nope`");
+    expect(() => setNav(nav, "header", [{ label: "Both", ref: "/", url: "/" }])).toThrow("exactly one of `ref`");
+    expect(() => setNav(nav, "header", [{ ref: "/" }])).toThrow("label");
+    expect(() => setNav(nav, "header", [{ label: "x", ref: "/", extra: 1 }])).toThrow("does not validate — item 1: Unrecognized key");
+    expect(existsSync(join(nav, "content/nav"))).toBe(false);
+  });
+
+  test("a hand-written file that is not a list, or has a bad item, is a rule-12 error with a line; the resource says what resolved", () => {
+    mkdirSync(join(nav, "content/nav"), { recursive: true });
+    writeFileSync(join(nav, "content/nav/footer.yaml"), "label: no\n");
+    expect(loadNav(nav, "footer").diagnostics).toMatchObject([{ rule: "nav-location", n: 12, severity: "error", message: "content/nav/footer.yaml is not a list" }]);
+    writeFileSync(join(nav, "content/nav/footer.yaml"), "- { label: Feed, url: /feed.xml }\n- { label: Two, ref: /, url: /x }\n");
+    const bad = loadNav(nav, "footer");
+    expect(bad.items).toEqual([]);
+    expect(bad.diagnostics).toMatchObject([{ n: 12, severity: "error", line: 2 }]);
+    expect(bad.diagnostics[0]!.message).toContain("item 2");
+    writeFileSync(join(nav, "content/nav/footer.yaml"), "- { label: Feed, url: /feed.xml }\n- { label: Gone, ref: /nowhere }\n");
+    const text = renderNav(nav, loadConfig(nav));
+    expect(text).toContain("locations: [header, footer]");
+    expect(text).toContain("header: []   # no content/nav/header.yaml yet");
+    expect(text).toContain('- { label: "Gone", ref: "/nowhere" }   # dead: resolves to no route');
+    expect(text).toContain('- { label: "Feed", url: "/feed.xml" }');
   });
 });

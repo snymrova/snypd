@@ -18,6 +18,8 @@ css: ./theme.css
 # One part overridden, three inherited (U1). The shell, footer and entry list are `base`'s.
 parts:
   header: ./parts/header.tsx
+# No `locations:` of its own: `header` and `footer` are inherited from `base`, and the masthead renders
+# the header menu beside the brand (U2).
 personality: >-
   Long-form reading. One serif column at a comfortable measure, generous leading, a single accent used
   sparingly. Figures, charts, diagrams and flows break out of the column; nothing else does. Zero JS.
