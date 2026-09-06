@@ -4,6 +4,12 @@ theme: base
 version: 0.1.0
 spec: ^1
 layouts: [post, page, index, term, author]
+# The document around the layouts, as slots a child theme overrides one file at a time (docs/09 U1).
+parts:
+  shell:   ./parts/shell.tsx
+  header:  ./parts/header.tsx
+  footer:  ./parts/footer.tsx
+  entries: ./parts/entries.tsx
 primitives:
   callout:   ./primitives/callout.tsx
   chart:     ./primitives/chart.tsx

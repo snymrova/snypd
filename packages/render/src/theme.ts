@@ -10,11 +10,11 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
-import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LoadedConfig, type ThemeLink } from "@snypd/core";
+import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LoadedConfig, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 
 export interface SiteCtx {
-  site: { name: string; url: string; description?: string; icon?: string };
+  site: { name: string; url: string; description?: string; icon?: string; image?: string };
   /** Resolved design tokens (theme.yaml defaults ← snypd.yaml overrides), also emitted as CSS vars (tokens.ts). */
   tokens: Record<string, string>;
   theme: { name: string };
@@ -27,6 +27,12 @@ export interface SiteCtx {
    */
   media: Record<string, { width: number; height: number }>;
   config: Config;
+  /**
+   * The theme's parts, resolved up the `extends:` chain like primitives (U1, decision 72). A layout takes
+   * `ctx.parts.shell` instead of importing `./shell`, because a relative import resolves against the
+   * theme that *wrote* the line — which is exactly what stopped a child theme from changing the header.
+   */
+  parts: Parts;
 }
 export interface Entry {
   route: string; type: string; slug: string; title: string;
@@ -70,7 +76,41 @@ export interface LayoutProps {
 }
 export type LayoutComponent = (p: LayoutProps) => Html;
 
-export interface ThemeYaml { theme?: string; version?: string; spec?: string; extends?: string; layouts?: string[]; primitives?: Record<string, string | { fallback: string }>; personality?: string; tokens?: Record<string, unknown>; /** one stylesheet, relative to the theme dir; emitted as assets/theme.css after the token vars (docs/04) */ css?: string }
+// ── Parts (docs/09 §4.1) ────────────────────────────────────────────────────
+/** What the shell is handed: the document's own metadata, plus the item when the route is one. */
+export interface ShellProps { ctx: SiteCtx; title: string; description?: string; route: string; markdownUrl?: string; jsonLd?: string; page?: Page; children: Html }
+/** `header` and `footer`: where in the site the document is, so a menu can mark the current item (U2). */
+export interface PartProps { ctx: SiteCtx; route: string; title: string; page?: Page }
+export interface EntriesProps { ctx: SiteCtx; entries: Entry[] }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type PartComponent = (p: any) => Html;
+/**
+ * The four parts every theme is expected to have, typed; anything else a theme declares is reachable by
+ * name. `shell` is the document, `header` and `footer` are what every layout shows around its content,
+ * `entries` is the list index, term and author layouts share.
+ */
+export interface Parts {
+  shell: (p: ShellProps) => Html;
+  header: (p: PartProps) => Html;
+  footer: (p: PartProps) => Html;
+  entries: (p: EntriesProps) => Html;
+  [name: string]: PartComponent;
+}
+export const PART_NAMES = ["shell", "header", "footer", "entries"] as const;
+/**
+ * A part by name, with the failure named: a layout that asks for a part no theme in the chain declares
+ * gets the theme and the part in the error, not `undefined is not a function` from inside a render.
+ */
+export function part<K extends keyof Parts & string>(ctx: SiteCtx, name: K): Parts[K] {
+  const c = ctx.parts[name];
+  if (!c) throw new Error(`theme ${ctx.theme.name}: part "${name}" is not declared by this theme or any it extends (theme.yaml › parts)`);
+  return c as Parts[K];
+}
+/** `<Part name="header" ctx={ctx} … />` — the wrapper form, so a part can nest another without threading props. */
+export function Part({ name, ctx, ...props }: { name: string; ctx: SiteCtx } & Record<string, unknown>): Html {
+  return part(ctx, name)({ ctx, ...props });
+}
+
 /** `own` = this theme's file · `inherited` = an ancestor's (`via` names it) · `fallback` = another primitive's component (`via` names it) · `missing` = the generic wrapper. */
 export interface Coverage { name: string; status: "own" | "inherited" | "fallback" | "missing"; via?: string }
 export interface Theme {
@@ -81,7 +121,11 @@ export interface Theme {
   css?: string;
   layouts: Record<string, LayoutComponent>;
   primitives: Record<string, PrimitiveComponent>;
+  /** Per primitive, all 13. */
   coverage: Coverage[];
+  parts: Parts;
+  /** Per part: the four in `PART_NAMES` first, then anything else the chain declares. `missing` here has no generic — a layout that asks for it throws (see `part`). */
+  partCoverage: Coverage[];
 }
 
 
@@ -215,7 +259,7 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
     const src = themeFile(link.dir, "theme.yaml");
     if (src !== undefined) try { y = (parseYaml(src) ?? {}) as ThemeYaml; }
       catch (e) { throw new Error(`theme ${link.name}: ${f} is not valid YAML — ${(e as Error).message}`); }
-    return { link, yaml: y, map: y.primitives ?? {} };
+    return { link, yaml: y, map: y.primitives ?? {}, parts: y.parts ?? {} };
   });
   const own = links[0]!;
 
@@ -225,6 +269,7 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   for (const { yaml: y } of [...links].reverse()) {
     Object.assign(yaml, y);
     if (y.primitives || yaml.primitives) yaml.primitives = { ...yaml.primitives, ...y.primitives };
+    if (y.parts || yaml.parts) yaml.parts = { ...yaml.parts, ...y.parts };
     if (y.tokens || yaml.tokens) yaml.tokens = { ...yaml.tokens, ...y.tokens };
   }
   yaml.theme = own.yaml.theme ?? name;
@@ -254,24 +299,36 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   // entry is followed within that same theme's map first, then on up the chain.
   // `file` is relative to `link.dir` — the theme that wrote the line — and stays relative, because a
   // bundled theme has no directory to join it onto (decision 46).
-  const declarer = (n: string, seen: string[] = []): { link: ThemeLink; file: string; via?: string } | undefined => {
+  // The same walk serves primitives and parts (decision 72): a part is a slot with a name, resolved
+  // against the dir of the theme that declared it, and `coverage` says the same four words about it.
+  const declarer = (map: "map" | "parts", n: string, seen: string[] = []): { link: ThemeLink; file: string; via?: string } | undefined => {
     if (seen.includes(n)) return undefined;
     for (const x of links) {
-      const e = x.map[n];
+      const e = x[map][n];
       if (typeof e === "string") return { link: x.link, file: e.replace(/^\.\//, "") };
-      if (e && typeof e.fallback === "string") { const f = declarer(e.fallback, [...seen, n]); return f && { ...f, via: e.fallback }; }
+      if (e && typeof e.fallback === "string") { const f = declarer(map, e.fallback, [...seen, n]); return f && { ...f, via: e.fallback }; }
     }
     return undefined;
   };
+  const cover = (n: string, d: NonNullable<ReturnType<typeof declarer>>): Coverage =>
+    d.via ? { name: n, status: "fallback", via: d.via } : d.link.dir !== dir ? { name: n, status: "inherited", via: d.link.name } : { name: n, status: "own" };
   const primitives: Record<string, PrimitiveComponent> = {};
   const coverage: Coverage[] = [];
   for (const n of primitiveNames()) {
-    const d = declarer(n);
+    const d = declarer("map", n);
     if (!d) { primitives[n] = genericPrimitive; coverage.push({ name: n, status: "missing" }); continue; }
     primitives[n] = await mod(d.link, d.file) as PrimitiveComponent;
-    if (d.via) coverage.push({ name: n, status: "fallback", via: d.via });
-    else if (d.link.dir !== dir) coverage.push({ name: n, status: "inherited", via: d.link.name });
-    else coverage.push({ name: n, status: "own" });
+    coverage.push(cover(n, d));
+  }
+  const parts = {} as Parts;
+  const partCoverage: Coverage[] = [];
+  const declaredParts = [...new Set<string>([...PART_NAMES, ...links.flatMap((x) => Object.keys(x.parts))])];
+  for (const n of declaredParts) {
+    const d = declarer("parts", n);
+    if (!d) { partCoverage.push({ name: n, status: "missing" }); continue; }
+    if (!themeHas(d.link.dir, d.file)) throw new Error(`theme ${d.link.name}: part "${n}" is declared in theme.yaml but ${d.file} is missing`);
+    parts[n] = await mod(d.link, d.file) as PartComponent;
+    partCoverage.push(cover(n, d));
   }
 
   // Ancestors' stylesheets first, so a child's rules cascade over what it inherits.
@@ -284,7 +341,7 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   }
   const css = sheets.length ? sheets.join("\n") : undefined;
 
-  const theme = { name, dir, chain, hash, yaml, css, layouts, primitives, coverage, stamp };
+  const theme = { name, dir, chain, hash, yaml, css, layouts, primitives, coverage, parts, partCoverage, stamp };
   loaded.set(dir, theme);
   return theme;
 }

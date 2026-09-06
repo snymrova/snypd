@@ -21,18 +21,20 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "038251b73ac26b5799c88121c3a78688ce7047d3",
+    hash: "799e18282e364647254e970a550a279de1022918",
     files: {
       "theme.yaml": _base_theme_yaml,
     },
     modules: {
       "layouts/author.tsx": () => import("../../../themes/base/layouts/author.tsx"),
-      "layouts/entries.tsx": () => import("../../../themes/base/layouts/entries.tsx"),
       "layouts/index.tsx": () => import("../../../themes/base/layouts/index.tsx"),
       "layouts/page.tsx": () => import("../../../themes/base/layouts/page.tsx"),
       "layouts/post.tsx": () => import("../../../themes/base/layouts/post.tsx"),
-      "layouts/shell.tsx": () => import("../../../themes/base/layouts/shell.tsx"),
       "layouts/term.tsx": () => import("../../../themes/base/layouts/term.tsx"),
+      "parts/entries.tsx": () => import("../../../themes/base/parts/entries.tsx"),
+      "parts/footer.tsx": () => import("../../../themes/base/parts/footer.tsx"),
+      "parts/header.tsx": () => import("../../../themes/base/parts/header.tsx"),
+      "parts/shell.tsx": () => import("../../../themes/base/parts/shell.tsx"),
       "primitives/callout.tsx": () => import("../../../themes/base/primitives/callout.tsx"),
       "primitives/chart.tsx": () => import("../../../themes/base/primitives/chart.tsx"),
       "primitives/cover.tsx": () => import("../../../themes/base/primitives/cover.tsx"),
@@ -49,12 +51,13 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "21b7d6956d48e9b394eac2cf1d551cbb1ebbac60",
+    hash: "43a9bc27074be5cba746f81aeaf9d94c37ad3c61",
     files: {
       "theme.css": _editorial_theme_css,
       "theme.yaml": _editorial_theme_yaml,
     },
     modules: {
+      "parts/header.tsx": () => import("../../../themes/editorial/parts/header.tsx"),
     },
   },
 };

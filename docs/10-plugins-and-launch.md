@@ -255,7 +255,7 @@ Fourteen sessions. Public embarrassment first, then the contract in dependency o
 
 | # | Session | Deliverable | Exit |
 |---|---|---|---|
-| 1 | **U1** | Parts (docs/09) + Zod over `theme.yaml` + **core social metadata in the shell (§5.1)** | docs/09 U1 exit; OG tags on every route |
+| 1 | ~~**U1**~~ | **done 6 Sep 2026, PR #10** — parts, Zod over `theme.yaml`, social metadata in the shell; the log row is docs/09 §7b | docs/09 U1 exit ✅ · OG tags on every route ✅ |
 | 2 | **U2** | Nav (docs/09); snypd.rocks gets a header and footer menu **the same day**, and a post about it | T6 green; `curl snypd.rocks` has a `<nav>` |
 | 3 | **H1** | The S19b product findings (§2.3): dead byline on a default site, comma labels caught by lint, `lr` diagrams scaled not scrolled, flow label clipping, `description` hint, the branching-list `flow` detector | each finding has a test; `suggest.precision` unmoved |
 | 4 | **P1** | **The contract.** `plugin:` block, Zod, `api:` check, options schema, resolution incl. `plugins/` workspace and the bundled barrel, plugin graph hash in the route key, `snypd://plugins`, doctor rows, `changelog` as the Tier 0 proof | D10's fixture loads; a bad option is attributed; `build.cold.100` unmoved with no plugins |

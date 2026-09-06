@@ -1,14 +1,13 @@
-import type { LayoutProps, Html } from "@snypd/render";
-import Shell from "./shell";
-import Entries from "./entries";
+import { part, type LayoutProps, type Html } from "@snypd/render";
 
 export default function Term({ ctx, entries, route, title, description, term, jsonLd }: LayoutProps): Html {
+  const Shell = part(ctx, "shell"), Entries = part(ctx, "entries");
   return (
     <Shell ctx={ctx} title={title} description={description} route={route} jsonLd={jsonLd}>
       <main>
         <h1><small>{term?.taxonomy}</small> {title}</h1>
         {description ? <p>{description}</p> : null}
-        <Entries entries={entries} />
+        <Entries ctx={ctx} entries={entries} />
       </main>
     </Shell>
   );

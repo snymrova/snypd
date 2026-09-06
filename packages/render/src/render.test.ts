@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
-import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, flowSteps, tokensCss, resolveTokens } from "./index";
+import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, part, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig, initRepo, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
 import { deskPage, type DeskOnboarding } from "./desk";
@@ -127,6 +127,15 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     // S14: no `site.icon` declared, so no link — and with one, the 404 every browser asks for goes away.
     expect(a).not.toContain('rel="icon"');
     expect(a).toContain('<meta name="description" content="Body of Post A.">');   // excerpt: first paragraph, not the tldr
+    // U1 (docs/10 §5.1): social metadata is core. A dated item is an article; no cover and no site.image → no og:image, summary card.
+    expect(a).toContain('<meta property="og:type" content="article">');
+    expect(a).toContain('<meta property="og:title" content="Post A">');
+    expect(a).toContain('<meta property="og:url" content="https://t.example/posts/a/">');
+    expect(a).toContain('<meta property="article:published_time" content="2026-03-02">');
+    expect(a).not.toContain("og:image");
+    expect(a).toContain('<meta name="twitter:card" content="summary">');
+    expect(read("")).toContain('<meta property="og:type" content="website">');
+    expect(read("")).toContain('<meta property="og:title" content="T">');
     expect(a).toContain('<section class="snypd-tldr"');
     expect(a).toContain('<div class="snypd-stat-row" data-count="2"><div class="snypd-stat">');
     expect(a).toContain('<a href="/tag/mcp/" rel="tag">Model Context Protocol</a>');
@@ -160,7 +169,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(read("")).toContain("Post B2");
   });
   test("a theme edit re-renders everything (in a fresh process — see loadTheme); a config edit too", async () => {
-    const f = join(root, "themes/base/layouts/shell.tsx");
+    const f = join(root, "themes/base/parts/footer.tsx");
     writeFileSync(f, readFileSync(f, "utf8").replace("<footer><p>{ctx.site.name}</p></footer>", "<footer><p>{ctx.site.name} · edited</p></footer>"));
     const cli = Bun.spawnSync([process.execPath, "packages/cli/src/index.ts", "build", root]);   // `snypd build`: the real path, no module cache
     expect(cli.stdout.toString()).toContain("built 8 routes + 10 artefacts (18 rendered, 0 cached");
@@ -324,7 +333,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(cfg.diagnostics.map((d) => d.message).join(" ")).toContain("extends cycle");
     expect(cfg.layers.find((l) => l.name === "theme")!.chain!.map((c) => c.name)).toEqual(["a", "b"]);
   });
-  test("editorial: the shipped child theme covers all 13 primitives without a single .tsx of its own", async () => {
+  test("editorial: the shipped child theme covers all 13 primitives with no primitive .tsx of its own, and overrides one part", async () => {
     const root = "corpora/_test/theme-editorial";
     rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "content/posts"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: E, url: https://e.example }\ntheme: { use: editorial }\n");
@@ -334,6 +343,48 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.coverage.some((c) => c.status === "missing")).toBe(false);
     expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
     expect(t.css).toContain("color-scheme: light dark");
+    // U1: the header is editorial's one file; shell, footer and entries are base's. No layout was forked.
+    const pc = (n: string) => t.partCoverage.find((c) => c.name === n)!;
+    expect(pc("header").status).toBe("own");
+    expect(pc("shell")).toMatchObject({ status: "inherited", via: "base" });
+    expect(pc("footer")).toMatchObject({ status: "inherited", via: "base" });
+    expect(pc("entries")).toMatchObject({ status: "inherited", via: "base" });
+    expect(t.partCoverage.length).toBe(4);
+  });
+  test("U1 parts: base owns all four; a theme with no parts reports them missing; a part file that is missing is an error", async () => {
+    const root = "corpora/_test/theme-parts";
+    rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "themes/bare"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: base }\n");
+    const base = await loadTheme(loadConfig(root));
+    expect(base.partCoverage).toEqual(["shell", "header", "footer", "entries"].map((name) => ({ name, status: "own" })));
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: bare }\n");
+    writeFileSync(join(root, "themes/bare/theme.yaml"), "theme: bare\nlayouts: []\n");
+    const bare = await loadTheme(loadConfig(root));
+    expect(bare.partCoverage.map((c) => c.status)).toEqual(["missing", "missing", "missing", "missing"]);
+    expect(() => part({ parts: bare.parts, theme: { name: "bare" } } as never, "header")).toThrow('theme bare: part "header" is not declared');
+    writeFileSync(join(root, "themes/bare/theme.yaml"), "theme: bare\nlayouts: []\nparts: { header: ./parts/header.tsx }\n");
+    await expect(loadTheme(loadConfig(root))).rejects.toThrow('part "header" is declared in theme.yaml but parts/header.tsx is missing');
+    rmSync(root, { recursive: true, force: true });
+  });
+  test("T7: theme.yaml is validated — a typo is an error with file:line, a documented-but-unbuilt key is a warning that says so", () => {
+    const root = "corpora/_test/theme-validate";
+    rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "themes/t"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: V, url: https://v.example }\ntheme: { use: t }\n");
+    writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\nextends: base\nlayout: [post]\nlocations: [header, footer]\nprimitives: { tldr: 3 }\n");
+    const cfg = loadConfig(root);
+    const d = cfg.diagnostics;
+    const typo = d.find((x) => x.message.includes('unknown key "layout"'))!;
+    expect(typo.level).toBe("error");
+    expect(typo.where).toContain("themes/t/theme.yaml:3");
+    const dead = d.find((x) => x.message.includes("`locations` is documented but not built"))!;
+    expect(dead.level).toBe("warning");
+    expect(dead.where).toContain("themes/t/theme.yaml:4");
+    expect(d.some((x) => x.level === "error" && x.path === "theme.primitives.tldr")).toBe(true);
+    expect(cfg.ok).toBe(false);
+    // and a clean one is clean: neither shipped theme produces a theme.yaml diagnostic
+    writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\nextends: editorial\n");
+    expect(loadConfig(root).diagnostics.filter((x) => x.path.startsWith("theme."))).toEqual([]);
+    rmSync(root, { recursive: true, force: true });
   });
 });
 
@@ -1050,7 +1101,7 @@ describe("live reload (S18k): the page reloads because something changed, not ev
 
 describe("theme reload (S13): the preview bundles, so an edit to an inner file is not served stale", () => {
   const root = "corpora/_test/reload";
-  const shell = join(root, "themes/base/layouts/shell.tsx");
+  const shell = join(root, "themes/base/parts/footer.tsx");
   beforeAll(() => {
     rmSync(root, { recursive: true, force: true });
     mkdirSync(join(root, "content/posts"), { recursive: true });
@@ -1060,7 +1111,7 @@ describe("theme reload (S13): the preview bundles, so an edit to an inner file i
   });
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-  test("editing shell.tsx — which the layouts import statically — shows up without a restart", async () => {
+  test("editing a part the shell reaches through ctx — and a primitive's inner import — shows up without a restart", async () => {
     const s = await preview(root, { port: 0, watch: false });
     try {
       expect(await (await fetch(`${s.url}/posts/p/`)).text()).not.toContain("RELOADED");

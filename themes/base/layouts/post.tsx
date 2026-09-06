@@ -1,5 +1,4 @@
-import type { LayoutProps, Html } from "@snypd/render";
-import Shell from "./shell";
+import { part, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The header is the author's `::cover` when the body opens with one, and otherwise one built from
@@ -7,11 +6,12 @@ import Shell from "./shell";
  * do not disappear just because the author wrote their own cover.
  */
 export default function Post({ ctx, page, route, title, description, jsonLd }: LayoutProps): Html {
+  const Shell = part(ctx, "shell");
   const p = page!;
   const fm = p.frontmatter.cover as { image?: string; alt?: string; eyebrow?: string } | undefined;
   const size = fm?.image ? ctx.media[fm.image] : undefined;
   return (
-    <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd}>
+    <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd} page={p}>
       <main>
         <article class="snypd-post">
           {p.cover ?? (

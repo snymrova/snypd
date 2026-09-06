@@ -3,7 +3,8 @@
 # It declares no layouts and no primitives of its own. Every one of the 13 primitives and all 5 layouts
 # resolve up the `extends:` chain to `base`, whose markup is semantic and carries one `snypd-<name>` class
 # per primitive — which is exactly what `base`'s personality promises. So this theme is tokens plus one
-# stylesheet, and the *only* way it can drift from the vocabulary is if `base` does.
+# stylesheet plus one part — the masthead — and the *only* way it can drift from the vocabulary is if
+# `base` does.
 #
 # Dark mode costs nothing here: every colour token is a `light-dark()` pair and `theme.css` sets
 # `color-scheme: light dark`, so the browser picks. That also settles viz — `@snypd/viz` paints its label
@@ -14,6 +15,9 @@ version: 0.1.0
 spec: ^1
 extends: base
 css: ./theme.css
+# One part overridden, three inherited (U1). The shell, footer and entry list are `base`'s.
+parts:
+  header: ./parts/header.tsx
 personality: >-
   Long-form reading. One serif column at a comfortable measure, generous leading, a single accent used
   sparingly. Figures, charts, diagrams and flows break out of the column; nothing else does. Zero JS.

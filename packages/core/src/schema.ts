@@ -42,6 +42,38 @@ export const ROLES = ["subscriber", "contributor", "author", "editor", "admin"] 
 export const TokenDeclSchema = z.object({ default: z.union([z.string(), z.number()]), customisable: z.boolean().optional(), kind: z.string().optional(), description: z.string().optional() }).strict();
 export type TokenDecl = z.infer<typeof TokenDeclSchema>;
 
+/**
+ * `theme.yaml`, validated (docs/09 decision 73). Strict: a mistyped `layout:` is a diagnostic naming
+ * file and line, not a key silently discarded. The four keys docs/04 documents and nothing reads —
+ * `locations`, `variants`, `patterns`, `client` — are listed so the diagnostic can say *not built* rather
+ * than *unknown*; `loadConfig` turns them into warnings, every other unknown key into an error.
+ */
+const slot = z.union([z.string().min(1), z.object({ fallback: z.string().min(1) }).strict()]);
+export const ThemeYamlSchema = z.object({
+  theme: z.string().min(1).optional(),
+  version: z.string().optional(),
+  spec: z.string().optional(),
+  extends: z.string().min(1).optional(),
+  /** The layouts this theme renders, by name; each resolves to `layouts/<name>.tsx` up the chain. */
+  layouts: z.array(z.string().min(1)).optional(),
+  /** Primitive → component file (theme-relative) or `{ fallback }` to another primitive's. */
+  primitives: z.record(z.string(), slot).optional(),
+  /** Part → component file, resolved exactly as primitives are (docs/09 §4.1, decision 72). */
+  parts: z.record(z.string(), slot).optional(),
+  tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).optional(),
+  /** One stylesheet, theme-relative; emitted after the token vars as assets/theme.css. */
+  css: z.string().min(1).optional(),
+  personality: z.string().optional(),
+}).strict();
+export type ThemeYaml = z.infer<typeof ThemeYamlSchema>;
+/** Documented in docs/04, read by nothing yet, and the session that builds each (docs/09 §2.2). */
+export const THEME_UNBUILT_KEYS: Record<string, string> = {
+  locations: "nav locations — docs/09 U2",
+  variants: "primitive variants — docs/09 §4.5, deferred",
+  patterns: "block patterns — docs/09 §4.5, deferred",
+  client: "client scripts against a JS budget — docs/10 decision 84, lands with plugins",
+};
+
 export const ConfigSchema = z.object({
   snypd: z.literal(1),
   site: z.object({
@@ -51,6 +83,9 @@ export const ConfigSchema = z.object({
     /** Site-relative url of the favicon, usually a file under `content/media/`. Without one a browser asks
      *  for `/favicon.ico` unprompted and every page logs a 404 (S14). */
     icon: z.string().optional(),
+    /** Site-relative url of the default social image (`og:image`) for routes with no `cover.image` of
+     *  their own (docs/10 §5.1). Without one the tags carry no image and a share card is text only. */
+    image: z.string().optional(),
     locales: z.array(z.string()).min(1).default(["en"]),
     defaultLocale: z.string().default("en"),
   }).passthrough(),

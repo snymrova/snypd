@@ -12,7 +12,7 @@ import { describeSource, getPath, mergeLayer, type Layer, type LayerName, type P
 import { BUNDLED } from "./bundled";
 import { bundledDir, themeFile, themeHas } from "./themefs";
 import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
-import { ConfigSchema, type Config } from "./schema";
+import { ConfigSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, type Config } from "./schema";
 
 export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string }
 export interface ThemeLink { name: string; dir: string; yamlFile?: string }
@@ -160,6 +160,33 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const { chain: themeChain, errors: themeErrors, parsed: themeParsed } = resolveThemeChain(themeName, search, root);
   for (const e of themeErrors) diags.push({ level: "warning", path: "theme.use", message: e, source: prov.get("theme.use") });
   for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, (v) => ({ theme: v }), themeParsed.get(link.yamlFile)), prov);
+  // Every theme.yaml in the chain is validated, strictly, with file:line (decision 73). A key docs/04
+  // documents and nothing reads is a warning that says so; any other unknown key, or a wrong shape, is an
+  // error — the treatment snypd.yaml has had since S4, and the reason a mistyped `layout:` stopped
+  // being silently discarded.
+  for (const link of themeChain) {
+    const p = link.yamlFile ? themeParsed.get(link.yamlFile) : undefined;
+    if (!p || !isObj(p.value)) continue;
+    const r = ThemeYamlSchema.safeParse(p.value);
+    if (r.success) continue;
+    const file = rel(root, link.yamlFile!);
+    const at = (path: Path): Source => ({ layer: "theme", from: link.name, file, line: p.origins.get(pathKey(path))?.line });
+    for (const i of r.error.issues) {
+      const path = i.path as Path;
+      if (i.code === "unrecognized_keys") {
+        for (const k of (i as { keys: string[] }).keys) {
+          const src = at([...path, k]);
+          const unbuilt = THEME_UNBUILT_KEYS[k];
+          diags.push(unbuilt
+            ? { level: "warning", path: pathKey(["theme", ...path, k]), message: `\`${k}\` is documented but not built yet (${unbuilt}); ignored`, source: src, where: describeSource(src) }
+            : { level: "error", path: pathKey(["theme", ...path, k]), message: `unknown key "${k}" in theme.yaml`, source: src, where: describeSource(src) });
+        }
+      } else {
+        const src = at(path);
+        diags.push({ level: "error", path: pathKey(["theme", ...path]), message: `${i.message} in theme.yaml`, source: src, where: describeSource(src) });
+      }
+    }
+  }
   const self = themeChain[0];
   const inherited = themeChain.slice(1).map((l) => l.name);
   layers.push({ name: "theme", from: themeName, file: self?.yamlFile ? rel(root, self.yamlFile) : undefined, found: !!self, dir: self?.dir, chain: themeChain,

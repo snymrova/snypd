@@ -235,7 +235,8 @@ export async function call(root: string, name: string, args: Record<string, unkn
           const yaml = `# ${newName} — extends \`${parent}\`, which brings every layout and all 13 primitives with it.
 # Nothing below is required: a theme that declares only \`extends:\` and \`css:\` already renders the whole
 # vocabulary. Redeclare a token here to change its default; set \`customisable: true\` to let snypd.yaml
-# move it. \`snypd://theme/tokens\` lists what you inherited.
+# move it. \`snypd://theme/tokens\` lists what you inherited. To change the header or footer, override
+# one part and no layout: \`parts: { header: ./parts/header.tsx }\` — snypd://theme/coverage lists the four.
 theme: ${newName}
 version: 0.1.0
 spec: ^1

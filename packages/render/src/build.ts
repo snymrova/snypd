@@ -65,7 +65,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t3 = performance.now();
   const cache = opts.cache ?? new MdastCache(index.mdastStore());
   const c = cfg.config;
-  const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description, icon: c.site.icon as string | undefined };
+  const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description, icon: c.site.icon as string | undefined, image: c.site.image as string | undefined };
   const tokens = resolveTokens(c.theme.tokens as Parameters<typeof resolveTokens>[0]);
   // The *source* sheet: what the artefact is keyed on, and what `minifyCss` runs over — but only inside
   // the artefact's thunk, so a no-op build does not pay ~3 ms to re-minify a sheet it is not writing.
@@ -90,7 +90,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     // than the copy it is trying to avoid, and a touched file recopying is the same trade `build.noop` makes.
     mediaFiles.push({ rel, src, url, key: sha1(`${OUTPUT_FORMAT}:media:${rel}:${st.size}:${st.mtimeMs}`) });
   }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes };
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts };
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses }));
   const mediaHash = sha1(JSON.stringify(mediaSizes));
   const base = `${OUTPUT_FORMAT}:${theme.hash}:${configHash}:${mediaHash}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so

@@ -64,7 +64,8 @@ export function handlers(root: string): Handlers {
         summary: { own: by("own").length, inherited: by("inherited").length, fallback: by("fallback").length, missing: by("missing").length, total: t.coverage.length },
         layouts: Object.keys(t.layouts).sort(),
         primitives: t.coverage,
-        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing",
+        parts: t.partCoverage,
+        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout",
       }, null, 2)];
     }
     if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /coverage)`);
@@ -81,7 +82,7 @@ export function handlers(root: string): Handlers {
         ...Object.keys(c.config.taxonomies).map((n) => ({ uri: `snypd://taxonomies/${n}`, name: `taxonomies/${n}`, mimeType: JSON_, description: `Merged schema for taxonomy ${n}` })),
         { uri: "snypd://theme", name: "theme", mimeType: YAML, description: "The active theme: what it inherits, how it means to read, and what else is installed — read this with the config" },
         { uri: "snypd://theme/tokens", name: "theme/tokens", mimeType: YAML, description: "Every token the theme declares, with its value, default and whether it may be set from snypd.yaml — the knobs that change how the site looks without writing CSS" },
-        { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
+        { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives and 4 parts (shell, header, footer, entries) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
         { uri: "snypd://bench/latest", name: "bench/latest", mimeType: MD, description: "The last full benchmark report: every speed and size budget with its measured value" },
       ];
     },
