@@ -116,7 +116,7 @@ export function handlers(root: string): Handlers {
       }
       if (uri === "snypd://theme" || uri.startsWith("snypd://theme/")) { const [m, t] = await themeResource(uri); return text(m, t); }
       if (uri === "snypd://nav") { const c = await loadCore(); return text(YAML, c.renderNav(root, await config())); }
-      if (uri === "snypd://plugins") { const c = await loadCore(); return text(YAML, c.renderPlugins((await config()).plugins)); }
+      if (uri === "snypd://plugins") { const c = await loadCore(); const cfg = await config(); return text(YAML, c.renderPlugins(cfg.plugins, { jsKb: (cfg.config.bench.budgets as Record<string, unknown>).jsKb as number | undefined })); }
       if (uri === "snypd://bench/latest") {
         const file = join(root, "bench", "latest.md");
         if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no bench/latest.md yet — run \`bench\` › run)`);

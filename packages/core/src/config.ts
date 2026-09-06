@@ -201,6 +201,15 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     note: [self && !self.yamlFile ? "no theme.yaml yet" : "", inherited.length ? `extends ${inherited.join(" \u2192 ")}` : ""].filter(Boolean).join("; ") || undefined });
 
   // 3. plugins' snypd.yaml, declared order — the manifest read and checked, the root keys merged (plugins.ts, docs/10 §4.1)
+  // The client-JS budget the plugins are summed against (P2, decision 84) is the *site's*: env over site
+  // over the spec default, read before any plugin merges — a plugin's own `bench:` keys merge like any
+  // root key, but they cannot raise the budget its own script is measured against.
+  const jsKbOf = (v: Record<string, unknown>) => { const b = isObj(v.bench) && isObj(v.bench.budgets) ? v.bench.budgets.jsKb : undefined; return typeof b === "number" ? b : undefined; };
+  const specJsKb = isObj(d.budgets) && typeof d.budgets.jsKb === "number" ? d.budgets.jsKb : 0;
+  const jsKbFrom = jsKbOf(envView) !== undefined ? envLayer : jsKbOf(siteView) !== undefined ? site : undefined;
+  const budgetKb = jsKbOf(envView) ?? jsKbOf(siteView) ?? specJsKb;
+  const budgetOrigin: Source | undefined = jsKbFrom ? { layer: jsKbFrom.name, file: jsKbFrom.file, line: jsKbFrom.origins?.get(pathKey(["bench", "budgets", "jsKb"]))?.line } : undefined;
+  let spentKb = 0;
   const plugins: LoadedPlugin[] = [];
   for (const { entry, origin } of pluginEntries) {
     let name: string | undefined, options: Record<string, unknown> | undefined;
@@ -212,9 +221,10 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
       options = isObj(v) ? v : undefined;
     }
     if (!name) { diags.push({ level: "error", path: "plugins", message: `invalid plugin entry ${JSON.stringify(entry)} — a name, or one \`{ name: { options } }\` per entry`, source: origin, where: describeSource(origin) }); continue; }
-    const { plugin, layer } = loadPlugin({ entry: name, options, origin, search, rel: (f) => rel(root, f) });
+    const { plugin, layer } = loadPlugin({ entry: name, options, origin, search, rel: (f) => rel(root, f), client: { budgetKb, spentKb, origin: budgetOrigin ?? origin } });
     diags.push(...plugin.diagnostics);
     plugins.push(plugin);
+    if (plugin.loaded) spentKb += plugin.clientKb;
     if (layer) merged = mergeLayer(merged, layer, prov);
     layers.push({ name: "plugin", from: plugin.name, file: plugin.file, found: plugin.found, dir: plugin.dir,
       note: !plugin.found ? undefined : !plugin.loaded ? `refused: ${plugin.why}` : plugin.manifest ? `${plugin.manifest.version}, ${plugin.where}${plugin.tiers.length ? `, ${plugin.tiers.join(" + ")}` : ""}` : `${plugin.where}, no plugin: block` });

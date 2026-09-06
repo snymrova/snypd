@@ -5,11 +5,17 @@
  * Social metadata is emitted here, from frontmatter and site config, because every site needs it and
  * WordPress's worst onboarding lesson is that basics need a plugin (docs/10 §5.1, decision 90). A route
  * with a `cover.image` shares that; otherwise `site.image`; otherwise the card is text only.
+ *
+ * Three of the six slots live here (P2, docs/10 §4.3): `head` last in `<head>`, `body-start` first in
+ * `<body>`, `body-end` last before `</body>` — where a beacon goes. The theme decides where a slot is;
+ * a plugin decides what goes in it, and a site with no plugin renders nothing here at all.
  */
-import { raw, part, type Html, type ShellProps } from "@snypd/render";
+import { raw, part, Slot, type Html, type ShellProps } from "@snypd/render";
 
 export default function Shell({ ctx, title, description, markdownUrl, route, jsonLd, page, children }: ShellProps): Html {
-  const full = route === "/" ? ctx.site.name : `${title} - ${ctx.site.name}`;
+  // At `/` the title *is* the site's name (the index layout passes it), so it is not repeated; it is still
+  // `title` and not `ctx.site.name`, so a `title` filter (P2) reaches the front page too.
+  const full = route === "/" ? title : `${title} - ${ctx.site.name}`;
   const url = `${ctx.site.url}${route === "/" ? "/" : `${route}/`}`;
   const cover = page?.frontmatter.cover as { image?: string; alt?: string } | undefined;
   const image = cover?.image ?? ctx.site.image;
@@ -35,7 +41,7 @@ export default function Shell({ ctx, title, description, markdownUrl, route, jso
           <meta name="generator" content="snypd" />
           <meta property="og:site_name" content={ctx.site.name} />
           <meta property="og:type" content={article ? "article" : "website"} />
-          <meta property="og:title" content={route === "/" ? ctx.site.name : title} />
+          <meta property="og:title" content={title} />
           {description ? <meta property="og:description" content={description} /> : null}
           <meta property="og:url" content={url} />
           {imageUrl ? <meta property="og:image" content={imageUrl} /> : null}
@@ -46,11 +52,14 @@ export default function Shell({ ctx, title, description, markdownUrl, route, jso
           {article && page?.updated ? <meta property="article:modified_time" content={page.updated} /> : null}
           <meta name="twitter:card" content={imageUrl ? "summary_large_image" : "summary"} />
           {jsonLd ? raw(`<script type="application/ld+json">${jsonLd.replace(/<\//g, "<\\/")}</script>\n`) : null}
+          <Slot name="head" ctx={ctx} route={route} title={title} page={page} />
         </head>
         <body>
+          <Slot name="body-start" ctx={ctx} route={route} title={title} page={page} />
           <Header ctx={ctx} route={route} title={title} page={page} />
           {children}
           <Footer ctx={ctx} route={route} title={title} page={page} />
+          <Slot name="body-end" ctx={ctx} route={route} title={title} page={page} />
         </body>
       </html>
     </>

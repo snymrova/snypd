@@ -12,6 +12,7 @@ import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
 import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LoadedConfig, type NavLink, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
+import type { Hooks } from "./hooks";
 
 export interface SiteCtx {
   site: { name: string; url: string; description?: string; icon?: string; image?: string };
@@ -39,6 +40,11 @@ export interface SiteCtx {
    * `menu(ctx, "header", route)`, which also marks the current item.
    */
   nav: Record<string, NavLink[]>;
+  /**
+   * The plugins' slots and filters, resolved (P2, docs/10 §4.3). A part or layout renders a slot with
+   * `slot(ctx, "head", …)`; a site with no decorating plugin carries `EMPTY_HOOKS` and pays nothing.
+   */
+  hooks: Hooks;
 }
 export interface Entry {
   route: string; type: string; slug: string; title: string;
@@ -212,7 +218,7 @@ function pinExternals(code: string): string {
  * so a changed theme is a different module URL all the way down.
  * Only the preview server (`snypd dev`) asks for this. `snypd build` is one process per run and never needs it.
  */
-async function bundleTheme(files: string[], outRoot: string): Promise<Map<string, string>> {
+export async function bundleTheme(files: string[], outRoot: string): Promise<Map<string, string>> {
   mkdirSync(outRoot, { recursive: true });
   const out = new Map<string, string>();
   await Promise.all(files.map(async (f) => {

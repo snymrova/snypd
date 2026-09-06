@@ -18,17 +18,22 @@ import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type Author
 import { Html } from "./jsx-runtime";
 import { resolveTokens, tokensCss, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
+import { loadHooks, applyFilter, type Hooks, type HookDiagnostic } from "./hooks";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
   out?: string; cfg?: LoadedConfig; index?: SiteIndex; cache?: MdastCache;
   /** Render drafts too (everything but trashed). `snypd dev` builds this way; `dist/` never does. */
   drafts?: boolean;
+  /** The plugins' hooks, already resolved — `snypd dev` bundles them; a one-shot build resolves its own. */
+  hooks?: Hooks;
 }
 export interface BuildResult {
   routes: number; artefacts: number; media: number; rendered: number; cached: number; removed: number; ms: number;
   phases: { config: number; theme: number; sync: number; plan: number; render: number };
   theme: { name: string; coverage: Theme["coverage"] };
+  /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. */
+  hooks: { plugins: string[]; diagnostics: HookDiagnostic[] };
 }
 
 /**
@@ -59,6 +64,10 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   }
   const t1 = performance.now();
   const theme = await loadTheme(cfg);
+  // The plugins' slots and filters (P2, hooks.ts): resolved once per build, free when no plugin declares
+  // one. The diagnostics array is per build — what a hook did wrong on *this* run, carried out in the result.
+  const hooks = opts.hooks ?? await loadHooks(cfg);
+  hooks.diagnostics.length = 0;
   const t2 = performance.now();
   const index = opts.index ?? await SiteIndex.open(root);
   const sync = index.sync(cfg);
@@ -90,11 +99,30 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     // than the copy it is trying to avoid, and a touched file recopying is the same trade `build.noop` makes.
     mediaFiles.push({ rel, src, url, key: sha1(`${OUTPUT_FORMAT}:media:${rel}:${st.size}:${st.mtimeMs}`) });
   }
+  const isPublic = (f: IndexedFile) => c.statuses[f.status]?.public === true;
+  const visible = (f: IndexedFile) => (opts.drafts ? f.status !== "trashed" : isPublic(f));
+  const newest = (a: IndexedFile, b: IndexedFile) => (b.date ?? "").localeCompare(a.date ?? "") || a.route.localeCompare(b.route);
+  const rawEntry = (f: IndexedFile): Entry => ({ route: f.route, type: f.type, slug: f.slug, title: f.title, date: f.date, updated: f.updated, status: f.status, description: typeof f.frontmatter.description === "string" ? f.frontmatter.description : undefined, frontmatter: f.frontmatter });
+  const fctx = (route: string, entry?: Entry) => ({ route, entry, site, config: c });
+  // The `route` filter (P2) runs first and on the file, so every later reading of an item's route — its
+  // output directory, the lists that link it, the surface, the menus — is the filtered one. The index
+  // keeps the unfiltered route; a filter is a view, and a plugin removed puts the route back.
+  const rerouted = new Map<string, string>();   // index route → filtered route, for the menus and the key
+  const reroute = (f: IndexedFile): IndexedFile => {
+    if (hooks.empty) return f;
+    const r = applyFilter(hooks, "route", f.route, fctx(f.route, rawEntry(f)));
+    if (r === f.route) return f;
+    rerouted.set(f.route, r);
+    return { ...f, route: r };
+  };
+  const published = sync.files.filter(visible).sort(newest).map(reroute);
   // The menus (U2): resolved here, once, against the content the index just synced — so a slug change
   // moves the item, and the hash of the *resolved* menus is in every route key, so it also re-renders
   // every page that shows it. A `ref` that resolves to nothing is left out; lint rule 5 names it.
+  // A `ref` to a rerouted item follows the filter, because the menu must point where the page is.
   const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav };
+  if (rerouted.size) for (const links of Object.values(nav.nav)) for (const l of links) if (l.route && rerouted.has(l.route)) { const r = rerouted.get(l.route)!; l.href = r === "/" ? "/" : `${r}/`; l.route = r; }
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks };
   // The plugin graph (P1, decision 95): every loaded plugin's bytes, hashed the way the theme chain is,
   // and the site's options beside them in the config hash — a transform that changes output must
   // invalidate the cache, and P3's transforms are plugin files. Both are absent from the key when no
@@ -102,19 +130,22 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const pluginHash = pluginDirs(cfg.plugins).length ? `:${themeHash(pluginDirs(cfg.plugins))}` : "";
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses, ...(c.plugins.length ? { plugins: c.plugins } : {}) }));
   const mediaHash = sha1(JSON.stringify(mediaSizes));
-  const base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
+  const base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }
-  const isPublic = (f: IndexedFile) => c.statuses[f.status]?.public === true;
-  const visible = (f: IndexedFile) => (opts.drafts ? f.status !== "trashed" : isPublic(f));
   const url = (route: string) => absolute(site.url, route);
 
   // ── plan ────────────────────────────────────────────────────────────────────
-  const entryOf = (f: IndexedFile): Entry => ({ route: f.route, type: f.type, slug: f.slug, title: f.title, date: f.date, updated: f.updated, status: f.status, description: typeof f.frontmatter.description === "string" ? f.frontmatter.description : undefined, frontmatter: f.frontmatter });
+  // `title` and `description` are filtered here (P2), on the entry, so a page, the lists that show it,
+  // the feed and the JSON all agree on what the item is called — one value, filtered once, read everywhere.
+  const entryOf = (f: IndexedFile): Entry => {
+    const e = rawEntry(f);
+    if (hooks.empty) return e;
+    const ctx = fctx(f.route, e);
+    return { ...e, title: applyFilter(hooks, "title", e.title, ctx), description: applyFilter(hooks, "description", e.description, ctx) };
+  };
   const listKey = (es: Entry[]) => sha1(es.map((e) => [e.route, e.title, e.date ?? "", e.description ?? ""].join("|")).join("\n"));
-  const newest = (a: IndexedFile, b: IndexedFile) => (b.date ?? "").localeCompare(a.date ?? "") || a.route.localeCompare(b.route);
-  const published = sync.files.filter(visible).sort(newest);
   const termFiles = new Map<string, Record<string, unknown>>();
   const termMeta = (taxonomy: string, term: string): TermLink => {
     const k = `${taxonomy}/${term}`;
@@ -167,10 +198,11 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const entry = entryOf(f);
       const { body, cover, root: mdast, blocks } = renderBody(source, entry);
       const derived = blockSchemas(blocks);
-      const description = entry.description ?? excerpt(mdast);
-      const schemas = [pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas];
+      const fc = fctx(f.route, entry);
+      const description = entry.description ?? applyFilter(hooks, "excerpt", excerpt(mdast), fc);
+      const schemas = applyFilter(hooks, "jsonLd", [pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas], fc);
       const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author };
-      const entries = layout === "author" ? published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf) : [];
+      const entries = layout === "author" ? applyFilter(hooks, "entries", published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf), fc) : [];
       const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });
@@ -188,7 +220,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     const entries = listed.map(entryOf);
     lastmod.set("/", entries[0]?.updated ?? entries[0]?.date);
     const schema = { "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: `${site.url}/`, description: site.description };
-    plan.push({ route: "/", key: sha1(`${base}:index:${listKey(entries)}`), kind: "route", outputs: ["index.html"], render: () => ({ "index.html": theme.layouts.index!({ ctx, kind: "index", route: "/", title: site.name, description: site.description, entries, jsonLd: jsonLd([schema]) }).html }) });
+    plan.push({ route: "/", key: sha1(`${base}:index:${listKey(entries)}`), kind: "route", outputs: ["index.html"], render: () => ({ "index.html": theme.layouts.index!({ ctx, kind: "index", route: "/", title: applyFilter(hooks, "title", site.name, fctx("/")), description: applyFilter(hooks, "description", site.description, fctx("/")), entries: applyFilter(hooks, "entries", entries, fctx("/")), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fctx("/"))) }).html }) });
   }
   // terms: one page per used term of every taxonomy
   const byTerm = new Map<string, { link: TermLink; files: IndexedFile[] }>();
@@ -200,7 +232,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       lastmod.set(link.route, entries[0]?.updated ?? entries[0]?.date);
       const dir = routeDir(link.route);
       const schema = { "@context": "https://schema.org", "@type": "CollectionPage", name: link.title, url: url(link.route), description: link.description };
-      plan.push({ route: link.route, key: sha1(`${base}:term:${JSON.stringify(link)}:${listKey(entries)}`), kind: "route", outputs: [join(dir, "index.html")], render: () => ({ [join(dir, "index.html")]: theme.layouts.term!({ ctx, kind: "term", route: link.route, title: link.title, description: link.description, entries, term: link, jsonLd: jsonLd([schema]) }).html }) });
+      plan.push({ route: link.route, key: sha1(`${base}:term:${JSON.stringify(link)}:${listKey(entries)}`), kind: "route", outputs: [join(dir, "index.html")], render: () => { const fc = fctx(link.route); return { [join(dir, "index.html")]: theme.layouts.term!({ ctx, kind: "term", route: link.route, title: applyFilter(hooks, "title", link.title, fc), description: applyFilter(hooks, "description", link.description, fc), entries: applyFilter(hooks, "entries", entries, fc), term: link, jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fc)) }).html }; } });
     }
   }
   // site artefacts (emit.ts): keyed on everything they show, so an unchanged list rewrites nothing
@@ -265,9 +297,13 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       index.setRoute(p.route, p.key, p.outputs);
       rendered++;
     }
+    // A route that vanished takes its outputs with it — except one a planned route now writes. A `route`
+    // filter (P2) that moves `/posts/a` to `/articles/a` leaves the JSON at `api/post/a.json` in both
+    // the old row and the new plan; deleting it here would make every following build a miss.
+    const claimed = new Set(plan.flatMap((p) => p.outputs));
     for (const [route, r] of known) {
       if (planned.has(route)) continue;
-      for (const o of r.outputs) rmSync(join(out, o), { force: true });
+      for (const o of r.outputs) if (!claimed.has(o)) rmSync(join(out, o), { force: true });
       index.deleteRoute(route); removed++;
     }
   });
@@ -276,7 +312,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage } };
+  return { routes, artefacts: plan.length - routes - media, media, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics] } };
 }
 
 /**

@@ -10,6 +10,7 @@
 import _base_theme_yaml from "../../../themes/base/theme.yaml" with { type: "text" };
 import _editorial_theme_css from "../../../themes/editorial/theme.css" with { type: "text" };
 import _editorial_theme_yaml from "../../../themes/editorial/theme.yaml" with { type: "text" };
+import _plugin_analytics_snypd_yaml from "../../../plugins/analytics/snypd.yaml" with { type: "text" };
 import _plugin_changelog_snypd_yaml from "../../../plugins/changelog/snypd.yaml" with { type: "text" };
 
 export interface BundledTheme {
@@ -22,7 +23,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "04c9984e78699ccaf88813a5b88ce149f3664595",
+    hash: "c5a3993c0a4b1732510bcc9c482c7cef7744c168",
     files: {
       "theme.yaml": _base_theme_yaml,
     },
@@ -65,6 +66,17 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
 
 /** The first-party plugins (docs/10 §4.8, decision 83): the same shape, the same seam, a different prefix. */
 export const BUNDLED_PLUGINS: Readonly<Record<string, BundledTheme>> = {
+  "analytics": {
+    hash: "096b251af08506d1481d483cb74eb24fe2c8d16b",
+    files: {
+      "snypd.yaml": _plugin_analytics_snypd_yaml,
+    },
+    modules: {
+      "provider.ts": () => import("../../../plugins/analytics/provider.ts"),
+      "slots/beacon.tsx": () => import("../../../plugins/analytics/slots/beacon.tsx"),
+      "slots/head.tsx": () => import("../../../plugins/analytics/slots/head.tsx"),
+    },
+  },
   "changelog": {
     hash: "c7a7a6b331250e7e90171bf84dd311495ef22a5c",
     files: {

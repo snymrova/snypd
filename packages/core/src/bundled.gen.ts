@@ -16,7 +16,7 @@ export const BUNDLED_NAMES = ["base", "editorial"] as const;
  * The first-party plugins that ship in the binary (docs/10 §4.8, decision 83) — found *after* the site's
  * own `plugins/` and `node_modules/`, through the same loader, so a third-party plugin is never second-class.
  */
-export const BUNDLED_PLUGIN_NAMES = ["changelog"] as const;
+export const BUNDLED_PLUGIN_NAMES = ["analytics", "changelog"] as const;
 /** Text we can inline; everything else is a module and gets a lazy `import()` thunk. */
 const TEXT = [".yaml", ".css", ".json"];
 

@@ -26,6 +26,7 @@ export const BUDGETS = {
   tokensPerPage: 2500, tokensToLearn: 6000, tokensTools: 3000,        // tokens (docs/05; tokensTools is S16, decision 38)
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
+  jsKb: 0,                                                           // KB of client JS a content page may load or inline — declared by plugins, afforded by the site (P2, decision 84)
   chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
   diagramRenderMs: 15, diagramSvgKb: 25,                             // D3, per diagram (spec: diagram.budget)
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
@@ -48,7 +49,7 @@ export function budgetsFor(root: string): typeof BUDGETS {
   /** Per-primitive budgets are nested (`budgets.chart.renderMs`), because that is the shape the spec declares. */
   const per = (k: string, sub: string, fallback: number) => { const o = b[k] as unknown as Record<string, unknown> | undefined; return o && typeof o === "object" && typeof o[sub] === "number" ? o[sub] as number : fallback; };
   return { buildPer100: num("buildPer100", BUDGETS.buildPer100), incremental: num("incremental", BUDGETS.incremental), mcpColdStart: num("mcpColdStart", BUDGETS.mcpColdStart),
-    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), tokensTools: num("tokensTools", BUDGETS.tokensTools), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000),
+    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), tokensTools: num("tokensTools", BUDGETS.tokensTools), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000), jsKb: num("jsKb", BUDGETS.jsKb),
     chartRenderMs: per("chart", "renderMs", BUDGETS.chartRenderMs), chartSvgKb: per("chart", "svgKb", BUDGETS.chartSvgKb),
     diagramRenderMs: per("diagram", "renderMs", BUDGETS.diagramRenderMs), diagramSvgKb: per("diagram", "svgKb", BUDGETS.diagramSvgKb),
     flowRenderMs: per("flow", "renderMs", BUDGETS.flowRenderMs), flowSvgKb: per("flow", "svgKb", BUDGETS.flowSvgKb) };
@@ -451,7 +452,7 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   const root = opts.root ?? themeFixture();
   ACTIVE = budgetsFor(root);
   await build(root);
-  const { metrics, browser } = await pageSuite({ root, label: "editorial" });
+  const { metrics, browser } = await pageSuite({ root, label: "editorial", jsKb: ACTIVE.jsKb });
   metrics.push(...(await deskLane(root)));
   metrics.push(...(await firstRunLane()));
   const report: Report = { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };

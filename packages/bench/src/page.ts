@@ -3,8 +3,11 @@
  * that no other suite can see (docs/07 §4: "coverage 100 %, Lighthouse ≥ 98, a11y 100, 0 KB JS").
  *
  * Two of those three are measured here and gated:
- *   `page.js.kb`             bytes of JavaScript the page loads or inlines — budget 0, not "small".
- *                            JSON-LD is data, not script, and is excluded by type; everything else counts.
+ *   `page.js.kb`             bytes of JavaScript the page loads or inlines — budget `bench.budgets.jsKb`,
+ *                            0 unless the site raised it to afford a plugin (P2, decision 84): declared by
+ *                            the plugin, afforded by the site, measured here — a plugin whose script weighs
+ *                            more than it declared fails this gate. JSON-LD is data, not script, and is
+ *                            excluded by type; everything else counts, third-party scripts included.
  *   `page.a11y.violations`   axe-core, which *is* Lighthouse's accessibility category, run in the page.
  * The third — a Lighthouse performance score — is deliberately not owned here: its accessibility half is
  * the axe run below, and its performance half is a weighted curve over vitals that a localhost static
@@ -102,6 +105,10 @@ async function measure(page: Page, url: string, route: string, view: (typeof VIE
 
   await page.send("Emulation.setDeviceMetricsOverride", { width: view.width, height: view.height, deviceScaleFactor: 1, mobile: view.mobile });
   await page.send("Network.enable");
+  // No cache, so every navigation pays every byte (P2). The warm-up page primed Chrome's disk cache with
+  // the first route's scripts, and a cached response reports `encodedDataLength: 0` — which made a page
+  // carrying a third-party beacon measure as 0 KB of JS. Lighthouse disables the cache for the same reason.
+  await page.send("Network.setCacheDisabled", { cacheDisabled: true });
   await page.send("Page.enable");
   await page.send("Runtime.enable");
   await page.send("Page.addScriptToEvaluateOnNewDocument", { source: VITALS_SCRIPT });
@@ -137,7 +144,7 @@ async function measure(page: Page, url: string, route: string, view: (typeof VIE
  * Chrome is a machine dependency, not a package one: without it the suite returns a single report-only
  * metric saying so rather than failing a build that has nothing wrong with it.
  */
-export async function pageSuite(opts: { root: string; dist?: string; routes?: string[]; label?: string; url?: string; prefix?: string } = { root: "." }): Promise<{ metrics: Metric[]; pages: PageResult[]; browser?: string }> {
+export async function pageSuite(opts: { root: string; dist?: string; routes?: string[]; label?: string; url?: string; prefix?: string; /** the site's `bench.budgets.jsKb`; 0 when absent */ jsKb?: number } = { root: "." }): Promise<{ metrics: Metric[]; pages: PageResult[]; browser?: string }> {
   const dist = opts.dist ?? join(opts.root, "dist");
   // S18b: the Desk is a *live* route, not a file in `dist`, so the suite has to be able to measure a
   // server somebody else started. The metrics get their own namespace with it (`desk.*`), because
@@ -179,8 +186,8 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
     browser: browser.version,
     pages,
     metrics: [
-      { name: `${prefix}.js.kb`, value: KB(js.bytes.js + js.inlineJsBytes), unit: "KB", budget: 0,
-        note: `${seen}; worst ${at(js)} (${js.bytes.js} B loaded + ${js.inlineJsBytes} B inline/handlers). JSON-LD excluded: it is data` },
+      { name: `${prefix}.js.kb`, value: KB(js.bytes.js + js.inlineJsBytes), unit: "KB", budget: opts.jsKb ?? 0,
+        note: `${seen}; worst ${at(js)} (${js.bytes.js} B loaded + ${js.inlineJsBytes} B inline/handlers). JSON-LD excluded: it is data${opts.jsKb ? `; budget ${opts.jsKb} KB is bench.budgets.jsKb — what the site afforded its plugins` : ""}` },
       { name: `${prefix}.a11y.violations`, value: allViolations.length, unit: "violations", budget: 0,
         note: allViolations.length ? allViolations.map((v) => `${v.route} @ ${v.width} ${v.id} (${v.impact}, ${v.nodes} nodes)`).join(" · ") : `axe-core, 0 across ${pages.length} route/viewport pairs` },
       { name: `${prefix}.bytes.kb`, value: KB(heavy.bytes.total), unit: "KB",

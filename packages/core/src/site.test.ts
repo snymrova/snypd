@@ -314,13 +314,16 @@ describe("bundled themes", () => {
     }
   });
 
-  test("every file of every bundled plugin is in it too (P1, decision 83)", async () => {
+  test("every file of every bundled plugin is in it too (P1, decision 83; P2 adds analytics, whose slots are modules)", async () => {
     const { BUNDLED_PLUGIN_NAMES } = await import("./bundled.gen");
     const { BUNDLED_PLUGINS } = await import("./bundled");
-    expect([...BUNDLED_PLUGIN_NAMES]).toEqual(["changelog"]);
+    expect([...BUNDLED_PLUGIN_NAMES]).toEqual(["analytics", "changelog"]);
     for (const name of BUNDLED_PLUGIN_NAMES) {
       const dir = `${import.meta.dir}/../../../plugins/${name}`;
-      const files = readdirSync(dir).filter((f) => f !== "package.json" && !f.startsWith(".")).sort();
+      const walk = (d: string, base = dir): string[] => readdirSync(d, { withFileTypes: true }).flatMap((f) =>
+        f.name === "node_modules" || f.name.startsWith(".") || f.name === "package.json" ? []
+          : f.isDirectory() ? walk(`${d}/${f.name}`, base) : [`${d}/${f.name}`.slice(base.length + 1)]);
+      const files = walk(dir).sort();
       const b = BUNDLED_PLUGINS[name]!;
       expect(files).toEqual([...Object.keys(b.files), ...Object.keys(b.modules)].sort());
       for (const [f, text] of Object.entries(b.files)) expect(text, f).toBe(readFileSync(`${dir}/${f}`, "utf8"));
@@ -335,8 +338,11 @@ describe("bundled themes", () => {
     expect(themeFile(dir, "snypd.yaml")).toContain("name: changelog");
     expect(themeFiles(dir)).toEqual(["snypd.yaml"]);
     expect(themeSignature(dir)).toMatch(/^snypd:plugin\/changelog:[0-9a-f]{40}$/);
-    expect(bundledPluginNames()).toEqual(["changelog"]);
+    expect(bundledPluginNames()).toEqual(["analytics", "changelog"]);
     expect(themeFile(bundledPluginDir("nope"), "snypd.yaml")).toBeUndefined();
+    // P2: a bundled plugin's slot modules are reachable through the seam too — `themeHas` is what the loader asks before it loads
+    expect(themeHas(bundledPluginDir("analytics"), "./slots/beacon.tsx")).toBe(true);
+    expect(themeFiles(bundledPluginDir("analytics"))).toEqual(["provider.ts", "slots/beacon.tsx", "slots/head.tsx", "snypd.yaml"]);
   });
 
   test("a bundled theme loads through the seam with no directory to read", () => {

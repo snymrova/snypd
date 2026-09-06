@@ -18,14 +18,20 @@
  *     `node_modules/<name>`, then the set bundled in the binary — one loader, so a third-party plugin
  *     is never second-class.
  *
- * What runs is Tier 0 — declare. The manifest keys of tiers 1–4 parse today and warn that they are not
- * built, naming the session that builds each, so a manifest written for P2 is not an unknown-key error.
+ * Since P2 (docs/10 §4.3, §4.6) two more things are enforced here:
+ *   - every `slots` and `filters` module the manifest names must exist in the plugin's directory, or the
+ *     plugin is refused — a missing hook file is found at load, not at the first render.
+ *   - `capabilities.client` is summed, in `plugins:` order, against the site's `bench.budgets.jsKb`; the
+ *     plugin that takes the sum over the budget is refused with the remedy in the diagnostic (decision 84).
+ *     The budget is the *site's* number — a plugin's own root `bench:` keys cannot raise it for itself.
+ * Tiers 1 (slots, filters) run in `@snypd/render` (hooks.ts). The keys of tiers 2–4 parse and warn that
+ * they are not built, naming the session that builds each.
  */
 import { join, sep } from "node:path";
 import { z } from "zod";
 import type { Diagnostic } from "./config";
 import { describeSource, type Layer, type Source } from "./merge";
-import { PLUGIN_API, PLUGIN_UNBUILT_KEYS, PluginManifestSchema, type PluginManifest } from "./schema";
+import { clientKbOf, FILTER_NAMES, PLUGIN_API, PLUGIN_UNBUILT_KEYS, PluginManifestSchema, SLOT_NAMES, type PluginManifest } from "./schema";
 import { bundledPluginDir, bundledPluginNames, themeFile, themeHas } from "./themefs";
 import { parseYaml, pathKey, type Origin, type Path } from "./yaml";
 
@@ -34,6 +40,8 @@ export type PluginSource = "site" | "node_modules" | "workspace" | "bundled";
 /** The five kinds of thing a plugin can be (docs/10 §4.2), in tier order. */
 export const PLUGIN_TIERS = ["declares", "decorates", "transforms", "reacts", "speaks"] as const;
 export type PluginTier = (typeof PLUGIN_TIERS)[number];
+export type SlotName = (typeof SLOT_NAMES)[number];
+export type FilterName = (typeof FILTER_NAMES)[number];
 
 export interface LoadedPlugin {
   /** The name the site used, without a `snypd-plugin-` prefix — what `plugins[name]` diagnostics say. */
@@ -57,6 +65,11 @@ export interface LoadedPlugin {
   /** Root keys the plugin contributes to the config, by key: `{ types: [release], taxonomies: [product] }`. */
   contributes: Record<string, string[]>;
   tiers: PluginTier[];
+  /** Kilobytes of client JS the manifest declares (`capabilities.client`), 0 when none — what the budget sums (P2). */
+  clientKb: number;
+  /** Slot → plugin-relative module, as declared; `{}` when the plugin decorates nothing. Every file exists when `loaded`. */
+  slots: Partial<Record<SlotName, string>>;
+  filters: Partial<Record<FilterName, string>>;
   diagnostics: Diagnostic[];
 }
 
@@ -91,6 +104,11 @@ export interface PluginLoadInput {
   search: string[];
   /** Turns an absolute file into the provenance form (`config.ts`'s `rel`). */
   rel: (file: string) => string;
+  /**
+   * The site's client-JS budget and what the plugins before this one already declared (P2, decision 84).
+   * Absent means "do not check" — a caller that loads one plugin in isolation.
+   */
+  client?: { budgetKb: number; spentKb: number; /** where the budget was set, or would be: the site's file, for the remedy's attribution */ origin?: Source };
 }
 
 /**
@@ -105,7 +123,7 @@ export function loadPlugin(input: PluginLoadInput): { plugin: LoadedPlugin; laye
 function loadPluginInner(input: PluginLoadInput): { plugin: LoadedPlugin; layer?: Layer } {
   const name = shortName(input.entry);
   const diagnostics: Diagnostic[] = [];
-  const plugin: LoadedPlugin = { name, entry: input.entry, found: false, loaded: false, options: input.options ?? {}, contributes: {}, tiers: [], diagnostics };
+  const plugin: LoadedPlugin = { name, entry: input.entry, found: false, loaded: false, options: input.options ?? {}, contributes: {}, tiers: [], clientKb: 0, slots: {}, filters: {}, diagnostics };
   // `plugins[analytics].provider` — the site's entry, then the key inside it (docs/10 §4.1).
   const path = (p: Path = []) => { const tail = pathKey(p); return tail ? `plugins[${name}]${tail.startsWith("[") ? "" : "."}${tail}` : `plugins[${name}]`; };
   const refuse = (why: string, p: Path = [], source?: Source) => {
@@ -186,6 +204,39 @@ function loadPluginInner(input: PluginLoadInput): { plugin: LoadedPlugin; layer?
     } else if (Object.keys(plugin.options).length) {
       diagnostics.push({ level: "warning", path: path(), message: `takes no options (its manifest declares no \`options\` schema); ${Object.keys(plugin.options).map((k) => `\`${k}\``).join(", ")} ignored`, source: input.origin, where: input.origin ? describeSource(input.origin) : undefined });
     }
+
+    // Tier 1 (P2, docs/10 §4.3): a hook is a YAML line naming a module, so the module has to be there.
+    // Checked here, at load, because a missing file found at the first render is a broken page and a
+    // missing file found here is a diagnostic naming the plugin and the line.
+    const missing: string[] = [];
+    for (const [kind, map] of [["slots", r.data.slots], ["filters", r.data.filters]] as const) for (const [hook, file] of Object.entries(map ?? {})) {
+      if (typeof file !== "string") continue;
+      if (themeHas(found.dir, file)) continue;
+      const src = at(["plugin", kind, hook]);
+      diagnostics.push({ level: "error", path: path(["plugin", kind, hook]), message: `${file} is missing from ${plugin.where === "bundled" ? "the bundled plugin" : plugin.where} — a ${kind === "slots" ? "slot" : "filter"} names a module relative to the plugin's own directory`, source: src, where: describeSource(src) });
+      missing.push(`${kind}.${hook}`);
+    }
+    if (missing.length) { refuse(`${missing.length === 1 ? "a hook module is" : `${missing.length} hook modules are`} missing (${missing.join(", ")})`, ["plugin"], at(["plugin"])); return { plugin }; }
+    plugin.slots = { ...(r.data.slots ?? {}) } as LoadedPlugin["slots"];
+    plugin.filters = { ...(r.data.filters ?? {}) } as LoadedPlugin["filters"];
+
+    // The client budget (P2, docs/10 §4.6, decision 84): declared kilobytes, summed in `plugins:` order
+    // against the site's `bench.budgets.jsKb`. The plugin that takes the sum over is the one refused, and
+    // the remedy is in the message — the site's line is where the number lives, so that is what it names.
+    plugin.clientKb = clientKbOf(r.data.capabilities?.client);
+    if (plugin.clientKb > 0 && input.client) {
+      const { budgetKb, spentKb } = input.client;
+      if (spentKb + plugin.clientKb > budgetKb) {
+        const need = Math.ceil((spentKb + plugin.clientKb) * 100) / 100;
+        const fmt = (n: number) => `${+n.toFixed(2)} KB`;
+        const remedy = `Set bench.budgets.jsKb: ${Math.ceil(need)} to afford it, or remove the plugin`;
+        const src = input.client.origin ?? input.origin;
+        diagnostics.push({ level: "error", path: path(["plugin", "capabilities", "client"]), message: `asks for ${fmt(plugin.clientKb)} of client JS; this site's jsKb budget is ${fmt(budgetKb)}${spentKb ? ` and ${fmt(spentKb)} of it is already declared by the plugins before it` : ""}. ${remedy}`, source: src, where: src ? describeSource(src) : undefined });
+        plugin.why = `over the client JS budget (${fmt(plugin.clientKb)} asked, ${fmt(budgetKb - spentKb)} left)`;
+        diagnostics.push({ level: "error", path: path(), message: `${plugin.why} — not loaded`, source: src, where: src ? describeSource(src) : undefined });
+        return { plugin };
+      }
+    }
   }
 
   plugin.loaded = true;
@@ -209,6 +260,24 @@ export function tiersOf(p: Pick<LoadedPlugin, "manifest" | "contributes">): Plug
   return out;
 }
 
+/**
+ * Every slot and filter, with the plugins that fill it in `plugins:` order (docs/09 §4.4 rule 3: inspectable).
+ * Doctor and `snypd://plugins` print this; the renderer resolves the same map into modules (hooks.ts).
+ */
+export function hooksOf(plugins: LoadedPlugin[]): { slots: Record<SlotName, string[]>; filters: Record<FilterName, string[]>; any: boolean } {
+  const slots = Object.fromEntries(SLOT_NAMES.map((n) => [n, [] as string[]])) as Record<SlotName, string[]>;
+  const filters = Object.fromEntries(FILTER_NAMES.map((n) => [n, [] as string[]])) as Record<FilterName, string[]>;
+  for (const p of plugins) {
+    if (!p.loaded) continue;
+    for (const n of Object.keys(p.slots) as SlotName[]) slots[n].push(p.name);
+    for (const n of Object.keys(p.filters) as FilterName[]) filters[n].push(p.name);
+  }
+  const any = Object.values(slots).some((x) => x.length) || Object.values(filters).some((x) => x.length);
+  return { slots, filters, any };
+}
+/** Kilobytes of client JS the loaded plugins declare between them — the number `page.js.kb` is measured against (D11). */
+export const clientKbDeclared = (plugins: LoadedPlugin[]): number => +plugins.filter((p) => p.loaded).reduce((n, p) => n + p.clientKb, 0).toFixed(2);
+
 /** Directories whose bytes are the plugin half of every route key (decision 95): the loaded plugins, in order. */
 export const pluginDirs = (plugins: LoadedPlugin[]): string[] => plugins.filter((p) => p.loaded && p.dir).map((p) => p.dir!);
 
@@ -217,7 +286,7 @@ export const pluginDirs = (plugins: LoadedPlugin[]): string[] => plugins.filter(
  * it declares, and the bundled set an agent can enable with one line. Diagnostics are here too, because
  * a refused plugin is the thing an agent reading this most needs to see.
  */
-export function renderPlugins(plugins: LoadedPlugin[]): string {
+export function renderPlugins(plugins: LoadedPlugin[], opts: { /** the site's `bench.budgets.jsKb`, for the client line */ jsKb?: number } = {}): string {
   const q = (s: string) => JSON.stringify(s);
   const list = (xs: string[]) => `[${xs.join(", ")}]`;
   const lines = [
@@ -238,11 +307,23 @@ export function renderPlugins(plugins: LoadedPlugin[]): string {
     const c = Object.entries(p.contributes);
     if (c.length) lines.push(`    contributes: { ${c.map(([k, v]) => `${k}: ${list(v)}`).join(", ")} }`);
     if (m?.options) lines.push(`    options: ${JSON.stringify(p.options)}`);
-    if (m?.capabilities) lines.push(`    capabilities: ${JSON.stringify(m.capabilities)}   # declared, printed, and — for network and client — enforced from P2/P3 (docs/10 §4.7)`);
+    if (m?.capabilities) lines.push(`    capabilities: ${JSON.stringify(m.capabilities)}   # client is summed against bench.budgets.jsKb at load (P2); network is enforced from P3 (docs/10 §4.7)`);
+    if (Object.keys(p.slots).length) lines.push(`    slots: { ${Object.entries(p.slots).map(([k, v]) => `${k}: ${v}`).join(", ")} }`);
+    if (Object.keys(p.filters).length) lines.push(`    filters: { ${Object.entries(p.filters).map(([k, v]) => `${k}: ${v}`).join(", ")} }`);
     lines.push(`    status: ${p.loaded ? "loaded" : `refused — ${p.why}`}`);
   }
   const bundled = bundledPluginNames();
   lines.push(`bundled: ${list(bundled)}   # ship in this snypd; a plugin on disk with the same name wins`);
+  // What runs where (P2, docs/10 §4.3): every slot and filter with its contributors in order — the whole
+  // hook table of the site on six + six lines, which is the inspectability WordPress never had.
+  const h = hooksOf(plugins);
+  if (h.any) {
+    lines.push("hooks:   # in the order they run; the theme decides where a slot is, the plugin what goes in it");
+    lines.push(`  slots: { ${SLOT_NAMES.map((n) => `${n}: ${list(h.slots[n])}`).join(", ")} }`);
+    lines.push(`  filters: { ${FILTER_NAMES.map((n) => `${n}: ${list(h.filters[n])}`).join(", ")} }`);
+  }
+  const declared = clientKbDeclared(plugins);
+  if (declared || opts.jsKb) lines.push(`client: { declared: ${declared}, budget: ${opts.jsKb ?? 0} }   # KB of client JS; declared by plugins, afforded by bench.budgets.jsKb, measured by page.js.kb (decision 84)`);
   const diags = plugins.flatMap((p) => p.diagnostics);
   if (diags.length) lines.push("# Diagnostics:", ...diags.map((x) => `#   ${x.level}: ${x.path ? `${x.path}: ` : ""}${x.message}${x.where ? ` (${x.where})` : ""}`));
   return lines.join("\n") + "\n";

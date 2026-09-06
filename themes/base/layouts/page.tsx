@@ -1,4 +1,4 @@
-import { part, type LayoutProps, type Html } from "@snypd/render";
+import { part, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 export default function Page({ ctx, page, route, title, description, jsonLd }: LayoutProps): Html {
   const Shell = part(ctx, "shell");
@@ -8,7 +8,9 @@ export default function Page({ ctx, page, route, title, description, jsonLd }: L
       <main>
         <article class="snypd-page">
           {p.cover ?? <h1>{p.title}</h1>}
+          <Slot name="before-content" ctx={ctx} route={route} title={title} page={p} />
           {p.body}
+          <Slot name="after-content" ctx={ctx} route={route} title={title} page={p} />
         </article>
       </main>
     </Shell>

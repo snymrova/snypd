@@ -1,0 +1,35 @@
+# analytics — the Tier 1 plugin (docs/10 §4.2, §4.6, §4.8): two slots and a declared byte count, no root keys.
+#
+# The first plugin anyone asks for, and the one that forced client JavaScript to become a budget line
+# (decision 84). It fills `head` with a preconnect to the provider and `body-end` with the provider's
+# script tag, and declares what that costs the page. Nothing else: no root keys, so `snypd://config` is
+# unchanged by it, and no options are read by anything but the two slot modules.
+#
+# `client:` is measured, not guessed — what `snypd bench page` weighs on the wire (`encodedDataLength`,
+# compressed body plus response headers) on 6 Sep 2026: Plausible 1.87 KB, Fathom 2.69 KB, Umami 2.63 KB;
+# the tag itself is ~0.1 KB and inline. One number covers all three providers, so it is the largest
+# rounded up; a site sets `bench.budgets.jsKb: 3` to afford any of them, and the page suite then measures
+# what actually reached the page — a provider that ships more than this declaration fails that gate,
+# which is the rule doing its job. (CI's 80 % margin on budgets, docs/07 §3, puts Fathom and Umami over
+# 2.4 KB — a site that runs `bench --ci` with either sets `jsKb: 4`.) Cloudflare Web Analytics is not
+# offered: its beacon is 9.9 KB, and a plugin that declared 10 KB for everyone to carry one provider
+# would be dishonest for the other three.
+plugin:
+  name: analytics
+  version: 0.1.0
+  api: 1
+  description: A privacy-respecting analytics beacon — Plausible, Fathom or Umami — declared at 3 KB of client JS.
+  options:
+    type: object
+    required: [provider]
+    additionalProperties: false
+    properties:
+      provider: { type: string, enum: [plausible, fathom, umami], description: "Which provider's script to load" }
+      domain:   { type: string, description: "Plausible: the `data-domain` the provider knows the site by; defaults to the host of `site.url`" }
+      site:     { type: string, description: "Fathom: the site id (`data-site`); Umami: the website id (`data-website-id`). Required for those two" }
+      src:      { type: string, format: uri, description: "The script url, for a self-hosted or proxied provider; defaults to the provider's own" }
+  capabilities:
+    client: 3kb
+  slots:
+    head:     ./slots/head.tsx
+    body-end: ./slots/beacon.tsx

@@ -327,6 +327,8 @@ tokens: {}
           return text([
             `built ${r.routes} route${r.routes === 1 ? "" : "s"} in ${r.ms.toFixed(0)} ms`,
             `  ${r.rendered} rendered, ${r.cached} from cache, ${r.artefacts} artefacts, ${r.media} media${r.removed ? `, ${r.removed} removed` : ""}`,
+            // A hook that failed is a line here and never a failed build (P2): the page went out without that plugin's contribution.
+            ...r.hooks.diagnostics.map((d) => `  ⚠ plugin ${d.plugin} ${d.hook}${d.route ? ` on ${d.route}` : ""}: ${d.message}`),
           ].join("\n"), { ok: true, ...r });
         }
         /**
@@ -481,8 +483,13 @@ async function doctor(root: string): Promise<ToolResult> {
     const why = p.diagnostics.filter((d) => d.level === "error").map((d) => `${d.path}: ${d.message}${d.where ? ` (${d.where})` : ""}`).join("\n");
     if (!p.found) warn(`plugin \`${p.entry}\` not found — \`bun add snypd-plugin-${p.name}\`, or a \`plugins/${p.name}/snypd.yaml\` here`);
     else if (!p.loaded) bad(`plugin \`${p.name}\` not loaded — ${p.why}`, why);
-    else ok(`plugin \`${p.name}\` ${p.manifest?.version ?? "(no plugin: block)"} ${p.tiers.join(" + ") || "declares nothing"} (${p.where})`);
+    else ok(`plugin \`${p.name}\` ${p.manifest?.version ?? "(no plugin: block)"} ${p.tiers.join(" + ") || "declares nothing"} (${p.where})${Object.keys(p.slots).length || Object.keys(p.filters).length ? ` — ${[Object.keys(p.slots).length ? `slots ${Object.keys(p.slots).join(", ")}` : "", Object.keys(p.filters).length ? `filters ${Object.keys(p.filters).join(", ")}` : ""].filter(Boolean).join("; ")}` : ""}${p.clientKb ? ` · client ${p.clientKb} KB` : ""}`);
   }
+  // The client-JS line (P2, decision 84): what the plugins declared against what the site afforded. Only
+  // when there is something to say — a site with no plugin and a budget of 0 is the default and prints nothing.
+  const jsKb = (cfg.config.bench.budgets as Record<string, unknown>).jsKb;
+  const declared = c.clientKbDeclared(cfg.plugins);
+  if (declared || (typeof jsKb === "number" && jsKb > 0)) ok(`client JS: ${declared} KB declared by plugins, ${typeof jsKb === "number" ? jsKb : 0} KB afforded (bench.budgets.jsKb) — \`snypd bench page\` measures what reached the page`);
 
   const stranded = c.themeTokens(cfg).filter((t) => t.overridden && !t.customisable);
   if (stranded.length) warn(`${stranded.length} token override${stranded.length === 1 ? "" : "s"} the theme does not declare: ${stranded.map((t) => t.name).join(", ")}`);

@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
-import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, part, menu, flowSteps, tokensCss, resolveTokens } from "./index";
+import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, resolveTokens } from "./index";
 import { loadConfig, initRepo, lintSite, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
 import { deskPage, type DeskOnboarding } from "./desk";
@@ -465,6 +465,176 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(has("topic/plugins")).toBe(false);
     expect(readFileSync(join(dist, "llms.txt"), "utf8")).not.toContain("changelog");
     expect(readFileSync(join(dist, "posts/hello/index.html"), "utf8")).not.toContain("/topic/");
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  /**
+   * P2 (docs/10 §4.3, §4.6): slots and filters are real, and client JavaScript is a budget line.
+   * Six slots the base theme renders — so `editorial`, which inherits the shell, the footer and the
+   * layouts, renders them too with no file of its own — and six value filters the build applies where
+   * the value is computed. Declared in YAML, ordered by `plugins:`, a throw is a diagnostic and not a
+   * crash, and a site with nothing hooked pays nothing. `analytics` is the proof: a beacon with no theme
+   * change, refused when the site has not afforded its bytes, and gone when the plugin is.
+   */
+  test("P2 slots and filters: six places, six values, ordered by the list, diagnosed not crashed, and the analytics beacon is declared and afforded", async () => {
+    const root = "corpora/_test/hooks-build";
+    const dist = join(root, "dist");
+    const has = (route: string) => existsSync(join(dist, route, "index.html"));
+    const read = (route: string) => readFileSync(join(dist, route, "index.html"), "utf8");
+    const scripts = (html: string) => [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)].map((m) => m[0]).filter((t) => !t.includes("application/ld+json"));
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/nav", "plugins/local/slots", "plugins/local/filters", "plugins/second", "plugins/broken"]) mkdirSync(join(root, d), { recursive: true });
+    const config = (plugins: string, extra = "", theme = "base") => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: N, url: https://n.example, description: A site }\ntheme: { use: ${theme} }\nplugins: ${plugins}\n${extra}`);
+    writeFileSync(join(root, "content/posts/a.md"), "---\ntitle: Post A\ndate: 2026-09-02\nstatus: published\n---\n\nBody of A.\n");
+    writeFileSync(join(root, "content/posts/b.md"), "---\ntitle: Post B\ndate: 2026-09-01\nstatus: published\ndescription: B is described.\n---\n\nBody of B.\n");
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\nAbout N.\n");
+    writeFileSync(join(root, "content/nav/header.yaml"), "- { label: A, ref: /posts/a }\n- { label: About, ref: /about }\n");
+    // `local`: every slot as a plain `.ts` returning a string (markup, no JSX, no import), one as `.tsx`
+    // returning Html through the runtime — both shapes a slot module may take; and every filter.
+    const slotNames = ["head", "body-start", "before-content", "after-content", "footer-end", "body-end"] as const;
+    for (const n of slotNames) if (n !== "head") writeFileSync(join(root, `plugins/local/slots/${n}.ts`), `export default ({ route, plugin, options }) => \`<!--${n}:\${plugin}:\${route}:\${options.tag}-->\`;\n`);
+    writeFileSync(join(root, "plugins/local/slots/head.tsx"), `import type { SlotProps, Html } from "@snypd/render";\nexport default ({ plugin, options }: SlotProps): Html => <meta name="x-slot" content={\`\${plugin}:\${options.tag}\`} />;\n`);
+    writeFileSync(join(root, "plugins/local/filters/title.ts"), "export default (v, ctx) => ctx.entry ? `${v} ★` : `${v} ◆`;\n");
+    writeFileSync(join(root, "plugins/local/filters/description.ts"), "export default (v, ctx) => v === undefined ? v : `${v} (filtered)`;\n");
+    writeFileSync(join(root, "plugins/local/filters/excerpt.ts"), "export default (v) => `Excerpt: ${v}`;\n");
+    writeFileSync(join(root, "plugins/local/filters/entries.ts"), "export default (v, ctx) => ctx.route === '/' ? v.slice(0, 1) : v;\n");
+    writeFileSync(join(root, "plugins/local/filters/jsonLd.ts"), "export default (v, ctx) => v.map((s) => ({ ...s, filteredOn: ctx.route }));\n");
+    writeFileSync(join(root, "plugins/local/filters/route.ts"), "export default (v, ctx) => ctx.entry?.type === 'post' ? v.replace('/posts/', '/articles/') : v;\n");
+    writeFileSync(join(root, "plugins/local/snypd.yaml"), [
+      "plugin:", "  name: local", "  version: 0.0.1", "  api: 1",
+      "  options: { type: object, properties: { tag: { type: string, default: t } } }",
+      "  slots:", ...slotNames.map((n) => `    ${n}: ./slots/${n}.${n === "head" ? "tsx" : "ts"}`),
+      "  filters: { title: ./filters/title.ts, description: ./filters/description.ts, excerpt: ./filters/excerpt.ts, entries: ./filters/entries.ts, jsonLd: ./filters/jsonLd.ts, route: ./filters/route.ts }",
+      "",
+    ].join("\n"));
+    // `second`: one slot and one filter, to show order; `broken`: a slot that throws and a filter that returns the wrong kind
+    writeFileSync(join(root, "plugins/second/head.ts"), "export default ({ plugin }) => `<!--head:${plugin}-->`;\n");
+    writeFileSync(join(root, "plugins/second/title.ts"), "export default (v) => `${v}!`;\n");
+    writeFileSync(join(root, "plugins/second/snypd.yaml"), "plugin: { name: second, version: 0.0.1, api: 1, slots: { head: ./head.ts }, filters: { title: ./title.ts } }\n");
+    writeFileSync(join(root, "plugins/broken/end.ts"), "export default () => { throw new Error('beacon exploded'); };\n");
+    writeFileSync(join(root, "plugins/broken/title.ts"), "export default () => 42;\n");
+    writeFileSync(join(root, "plugins/broken/snypd.yaml"), "plugin: { name: broken, version: 0.0.1, api: 1, slots: { body-end: ./end.ts }, filters: { title: ./title.ts } }\n");
+
+    // ── no plugin: nothing hooked, nothing in the page, and the build says so ──
+    config("[]");
+    let r = await build(root);
+    expect(r.hooks).toEqual({ plugins: [], diagnostics: [] });
+    expect(read("posts/a")).not.toMatch(/<!--(head|body-start|before-content|after-content|footer-end|body-end)/);
+    expect(scripts(read("posts/a"))).toEqual([]);
+
+    // ── local + second + broken ──
+    config("[{ local: { tag: L } }, second, broken]");
+    r = await build(root);
+    expect(r.hooks.plugins).toEqual(["local", "second", "broken"]);
+    // the route filter: the post moved, its old route is not built, and everything that links it followed
+    expect(has("articles/a")).toBe(true);
+    expect(has("posts/a")).toBe(false);
+    const a = read("articles/a");
+    // slots, each where the theme put it, in `plugins:` order — and the `.tsx` slot came through the runtime
+    const head = a.slice(a.indexOf("<head>"), a.indexOf("</head>"));
+    expect(head).toContain('<meta name="x-slot" content="local:L"><!--head:second-->');
+    expect(head.indexOf('application/ld+json')).toBeLessThan(head.indexOf('name="x-slot"'));   // last in head, after the JSON-LD
+    expect(a).toMatch(/<body>\s*<!--body-start:local:\/articles\/a:L-->\s*<header>/);
+    expect(a).toMatch(/<!--before-content:local:\/articles\/a:L-->\s*<p>Body of A\.<\/p>\s*<!--after-content:local:\/articles\/a:L-->/);
+    expect(a).toMatch(/<!--footer-end:local:\/articles\/a:L-->\s*<\/footer>/);
+    expect(a).toMatch(/<\/footer>\s*<!--body-end:local:\/articles\/a:L-->\s*<\/body>/);
+    // filters, in order: local appends ★ (an entry) then second appends !; broken's 42 is refused and leaves the value
+    expect(a).toContain("<h1>Post A ★!</h1>");
+    expect(a).toContain("<title>Post A ★! - N</title>");
+    expect(a).toContain('<meta property="og:title" content="Post A ★!">');
+    // excerpt: A has no description, so the excerpt is the description, filtered; B's frontmatter description is filtered as a description
+    expect(a).toContain('<meta name="description" content="Excerpt: Body of A.">');
+    expect(read("articles/b")).toContain('<meta name="description" content="B is described. (filtered)">');
+    // jsonLd: the schema list went through the filter before it was serialised
+    expect(a).toContain('"filteredOn":"/articles/a"');
+    // the index: title filtered as a non-entry (◆), entries cut to one by the filter, the link is the filtered route
+    const index = read("");
+    expect(index).toContain("<title>N ◆!</title>");
+    expect(index).toContain('href="/articles/a/"');
+    expect(index).not.toContain('href="/articles/b/"');
+    // the menu followed the route filter, because a menu must point where the page is
+    expect(index).toContain('<a href="/articles/a/">A</a>');
+    expect(a).toContain('<a href="/articles/a/" aria-current="page">A</a>');
+    // the surface agrees: one title, filtered once, read everywhere
+    expect(readFileSync(join(dist, "feed.xml"), "utf8")).toContain("Post A ★!");
+    expect(readFileSync(join(dist, "llms.txt"), "utf8")).toContain("/articles/a");
+    expect(readFileSync(join(dist, "llms.txt"), "utf8")).not.toContain("/posts/a");
+    // broken: a throw and a wrong kind are diagnostics naming the plugin, the hook and the route — the page was built without them
+    const d = r.hooks.diagnostics;
+    expect(d).toContainEqual({ plugin: "broken", hook: "slots.body-end", route: "/articles/a", message: "beacon exploded" });
+    expect(d).toContainEqual({ plugin: "broken", hook: "filters.title", route: "/articles/a", message: "returned a number where title expects a string; value left as it was" });
+    expect(d.every((x) => x.plugin === "broken")).toBe(true);
+    expect(d.filter((x) => x.hook === "filters.title" && x.route === "/articles/a")).toHaveLength(1);   // one line per distinct failure, however many times the value was read
+    // a no-op build is a no-op. The slot did not run (nothing rendered) so it is not reported; the filter
+    // runs at plan time, so the plugin that is still broken is still said to be — the line is about the plugin
+    r = await build(root);
+    expect(r.rendered).toBe(0);
+    expect(r.hooks.diagnostics.some((x) => x.hook === "slots.body-end")).toBe(false);
+    expect(r.hooks.diagnostics).toContainEqual({ plugin: "broken", hook: "filters.title", route: "/articles/a", message: "returned a number where title expects a string; value left as it was" });
+    // an edit to a slot module is in the plugin graph hash: every route re-renders with the new module (decision 95)
+    writeFileSync(join(root, "plugins/second/head.ts"), "export default ({ plugin }) => `<!--head:${plugin}:v2-->`;\n");
+    r = await build(root);
+    expect(r.rendered).toBeGreaterThan(0);
+    expect(read("articles/a")).toContain("<!--head:second:v2-->");
+    // reorder the list: the same hooks run in the new order — no priorities, one list
+    config("[second, { local: { tag: L } }]");
+    await build(root);
+    expect(read("articles/a")).toContain("<h1>Post A! ★</h1>");
+    expect(read("articles/a")).toContain('<!--head:second:v2--><meta name="x-slot" content="local:L">');
+
+    // ── editorial inherits every slot from base with no file of its own ──
+    config("[{ local: { tag: E } }]", "", "editorial");
+    await build(root);
+    const e = read("articles/a");
+    expect(e).toContain('<meta name="x-slot" content="local:E">');
+    expect(e).toMatch(/<!--body-start:local:\/articles\/a:E-->\s*<header class="snypd-masthead">/);
+    expect(e).toMatch(/<!--footer-end:local:\/articles\/a:E-->\s*<\/footer>\s*<!--body-end:local:\/articles\/a:E-->\s*<\/body>/);
+
+    // ── analytics: declared, afforded, measured (decision 84) ──
+    // not afforded: the spec's jsKb is 0, so the plugin is refused at load and the page carries no script
+    config("[{ analytics: { provider: plausible } }]");
+    r = await build(root);
+    expect(r.hooks.plugins).toEqual([]);
+    expect(scripts(read("posts/a"))).toEqual([]);
+    expect(has("posts/a")).toBe(true);   // the route filter went with `local`; the index route is back
+    // afforded: 3 KB covers what the manifest declares; the beacon is last in body, the preconnect in head, no theme touched
+    config("[{ analytics: { provider: plausible } }]", "bench: { budgets: { jsKb: 3 } }\n");
+    r = await build(root);
+    expect(r.hooks.plugins).toEqual(["analytics"]);
+    const p = read("posts/a");
+    expect(p).toContain('<link rel="preconnect" href="https://plausible.io" crossorigin="">');
+    expect(p).toMatch(/<script defer src="https:\/\/plausible\.io\/js\/script\.js" data-domain="n.example"><\/script>\s*<\/body>/);
+    // what the page itself carries is the tag — under 0.2 KB of the 3 KB declared; the rest is the provider's script, which `bench page` weighs on the wire
+    const inlineBytes = scripts(p).reduce((n, t) => n + Buffer.byteLength(t), 0);
+    expect(inlineBytes).toBeGreaterThan(0);
+    expect(inlineBytes).toBeLessThan(200);
+    // the options reach the slot: a self-hosted src moves both the beacon and the preconnect; fathom and umami carry their ids
+    config("[{ analytics: { provider: fathom, site: ABCDEFGH, src: https://stats.n.example/script.js } }]", "bench: { budgets: { jsKb: 3 } }\n");
+    await build(root);
+    expect(read("posts/a")).toContain('<link rel="preconnect" href="https://stats.n.example" crossorigin="">');
+    expect(read("posts/a")).toContain('<script defer src="https://stats.n.example/script.js" data-site="ABCDEFGH"></script>');
+    config("[{ analytics: { provider: umami, site: 11111111-2222-3333-4444-555555555555 } }]", "bench: { budgets: { jsKb: 3 } }\n");
+    await build(root);
+    expect(read("posts/a")).toContain('<script defer src="https://cloud.umami.is/script.js" data-website-id="11111111-2222-3333-4444-555555555555"></script>');
+    // a provider that needs an id and was not given one: a diagnostic naming the plugin and the fix, and a page with no beacon rather than a broken one
+    config("[{ analytics: { provider: umami } }]", "bench: { budgets: { jsKb: 3 } }\n");
+    r = await build(root);
+    expect(scripts(read("posts/a"))).toEqual([]);
+    expect(r.hooks.diagnostics[0]).toMatchObject({ plugin: "analytics", hook: "slots.head", message: expect.stringContaining("umami needs `site`") });
+    // a provider outside the enum is the options gate, at load, on the site's line
+    config("[{ analytics: { provider: cloudflare } }]", "bench: { budgets: { jsKb: 10 } }\n");
+    expect(loadConfig(root).plugins[0]).toMatchObject({ loaded: false, why: "options do not validate" });
+    // gone: remove the plugin and the beacon is gone — the seo-tag test docs/09 U5 wrote, against analytics
+    config("[]");
+    await build(root);
+    expect(scripts(read("posts/a"))).toEqual([]);
+    expect(read("posts/a")).not.toContain("preconnect");
+
+    // ── `snypd dev`'s path: hooks bundled, same functions ──
+    config("[{ local: { tag: D } }]");
+    const hooks = await loadHooks(loadConfig(root), { bundle: true });
+    expect(hooks.plugins).toEqual(["local"]);
+    expect(hooks.slots["body-end"][0]!.fn({ route: "/x", title: "t", plugin: "local", options: { tag: "D" } } as never)).toBe("<!--body-end:local:/x:D-->");
     rmSync(root, { recursive: true, force: true });
   });
 

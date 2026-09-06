@@ -14,6 +14,7 @@ import { join, resolve } from "node:path";
 import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, renderDoc, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./theme";
+import { loadHooks, EMPTY_HOOKS, type Hooks } from "./hooks";
 import { Html, escape } from "./jsx-runtime";
 import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts, type DeskOnboarding, type DeskPush } from "./desk";
 import { resolveTokens, tokensCss } from "./tokens";
@@ -170,6 +171,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   const index = await SiteIndex.open(root, join(root, INDEX_DIR, "preview.sqlite"));
   const store: ApprovalStore = approvals(root);   // shared with the MCP server; the preview index is not (see write.ts)
   let theme!: Theme;
+  let hooks: Hooks = EMPTY_HOOKS;
   let dirty = false, building: Promise<BuildResult> | undefined;
   let lastBuild: { routes: number; ms: number; at: number } | undefined;   // S18b: the Desk's "did it work?"
   // S19a: the push card. `cached` is the git half (see PUSH_TTL_MS); `last` is what the button did, kept
@@ -199,7 +201,10 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     // whose path carries the theme hash, so a theme edit reloads the *graph* — not just the entry, with
     // its statically-imported `./shell` still coming from Bun's module cache and rendering the old page.
     theme = await loadTheme(cfg, { bundle: true });
-    building = build(root, { out, cfg, index, drafts: true, cache: new MdastCache(index.mdastStore()) });
+    // The plugins' hooks, bundled for the same reason the theme is: an edit to a slot module — or to a
+    // file it imports — is the next request's page, not the next process's (P2).
+    hooks = await loadHooks(cfg, { bundle: true });
+    building = build(root, { out, cfg, index, drafts: true, cache: new MdastCache(index.mdastStore()), hooks });
     try {
       const r = await building;
       lastBuild = { routes: r.routes, ms: r.ms, at: Date.now() };
@@ -233,7 +238,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   const siteCtx = (): SiteCtx => {
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
     const css = tokensCss(tokens) + (theme.css ?? "");
-    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {}, parts: theme.parts, nav: {} };
+    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks };
   };
 
   const shell = (title: string, body: Html, route: string) => {

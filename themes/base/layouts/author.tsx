@@ -1,4 +1,4 @@
-import { part, type LayoutProps, type Html } from "@snypd/render";
+import { part, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 export default function Author({ ctx, page, entries, route, title, description, jsonLd }: LayoutProps): Html {
   const Shell = part(ctx, "shell"), Entries = part(ctx, "entries");
@@ -12,9 +12,11 @@ export default function Author({ ctx, page, entries, route, title, description, 
           {avatar ? <img src={avatar} alt="" /> : null}
           <h1>{p.title}</h1>
           {url ? <p><a href={url} rel="me">{url}</a></p> : null}
+          <Slot name="before-content" ctx={ctx} route={route} title={title} page={p} />
           {p.body}
         </article>
         <Entries ctx={ctx} entries={entries} />
+        <Slot name="after-content" ctx={ctx} route={route} title={title} page={p} />
       </main>
     </Shell>
   );

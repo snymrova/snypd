@@ -1,4 +1,4 @@
-import { part, type LayoutProps, type Html } from "@snypd/render";
+import { part, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The header is the author's `::cover` when the body opens with one, and otherwise one built from
@@ -27,7 +27,9 @@ export default function Post({ ctx, page, route, title, description, jsonLd }: L
             {p.updated ? <> (updated <time datetime={p.updated}>{p.updated}</time>)</> : null}
             {p.author ? <> by {p.author.page ? <a href={`${p.author.route}/`} rel="author">{p.author.title}</a> : p.author.title}</> : null}
           </p>
+          <Slot name="before-content" ctx={ctx} route={route} title={title} page={p} />
           {p.body}
+          <Slot name="after-content" ctx={ctx} route={route} title={title} page={p} />
           <footer class="snypd-post-footer">
             {p.terms.length ? (
               <ul class="snypd-terms">{p.terms.map((t) => <li><a href={`${t.route}/`} rel="tag">{t.title}</a></li>)}</ul>

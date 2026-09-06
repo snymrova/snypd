@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { defaultStatus, loadConfig, parsePath, parseYaml, pathKey, renderPlugins, REPLACE } from "./index";
+import { defaultStatus, loadConfig, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -211,7 +211,8 @@ describe("plugins (P1)", () => {
     expect(text).toContain("does: [declares]");
     expect(text).toContain("contributes: { types: [release], taxonomies: [product] }");
     expect(text).toContain("status: loaded");
-    expect(text).toContain("bundled: [changelog]");
+    expect(text).toContain("bundled: [analytics, changelog]");
+    expect(text).not.toContain("hooks:");   // changelog decorates nothing, so the hook table is not printed (free when unused)
   });
 
   test("resolution: the site's plugins/ first, then node_modules/snypd-plugin-<name>, then node_modules/<name>, then bundled", () => {
@@ -237,7 +238,7 @@ describe("plugins (P1)", () => {
     c = loadConfig(R);
     expect(c.ok).toBe(true);
     expect(c.plugins[0]).toMatchObject({ name: "nope", found: false, loaded: false, why: "not found" });
-    expect(warnings(c)[0]).toBe('plugins: plugin "nope" has no snypd.yaml (looked for plugins/nope, node_modules/snypd-plugin-nope, node_modules/nope, and the bundled set: changelog) — not installed? (snypd.yaml:4)');
+    expect(warnings(c)[0]).toBe('plugins: plugin "nope" has no snypd.yaml (looked for plugins/nope, node_modules/snypd-plugin-nope, node_modules/nope, and the bundled set: analytics, changelog) — not installed? (snypd.yaml:4)');
   });
 
   test("api: is checked before anything else — a manifest for a contract this snypd does not speak is refused, root keys and all", () => {
@@ -260,7 +261,10 @@ describe("plugins (P1)", () => {
 
   test("the manifest is strict with file:line; a not-yet-built key warns and names its session; a bad manifest is not loaded", () => {
     rmSync(R, { recursive: true, force: true });
-    site("  - typo\n  - early\n");
+    site("  - typo\n  - early\n", "bench: { budgets: { jsKb: 1 } }\n");
+    // `early` declares P2 hooks, which are real now: their modules must exist (P2 refuses a missing one — tested below)
+    mkdirSync(join(R, "plugins/early"), { recursive: true });
+    for (const f of ["head.tsx", "beacon.tsx", "title.ts"]) writeFileSync(join(R, "plugins/early", f), "export default () => null;\n");
     plugin("plugins/typo", "plugin:\n  name: typo\n  version: 1.0.0\n  api: 1\n  descripton: oops\n  slots: { sidebar: ./x.tsx }\n  capabilities: { client: lots }\ntaxonomies:\n  topic: { attaches: [post] }\n");
     plugin("plugins/early", "plugin:\n  name: early\n  version: 1.0.0\n  api: 1\n  slots: { head: ./head.tsx, body-end: ./beacon.tsx }\n  filters: { title: ./title.ts }\n  stages: { transform: ./transform.ts }\n  events: { push: ./push.ts }\n  tools: ./tools.ts\n  capabilities: { network: [plausible.io], client: 1kb }\ntaxonomies:\n  topic: { attaches: [post] }\n");
     const c = loadConfig(R);
@@ -270,18 +274,84 @@ describe("plugins (P1)", () => {
     expect(e).toContainEqual(expect.stringMatching(/^plugins\[typo\]\.plugin\.capabilities\.client: .*1kb.* \(plugins\/typo\/snypd\.yaml:7 \(plugin typo\)\)$/));
     expect(e).toContainEqual("plugins[typo].plugin: manifest does not validate — not loaded (plugins/typo/snypd.yaml)");
     expect(c.plugins[0]!.loaded).toBe(false);
-    // `early` is a complete P2–P4 manifest: it parses, loads as Tier 0, and every key that does not run yet says so
-    expect(c.plugins[1]).toMatchObject({ loaded: true, tiers: ["declares", "decorates", "transforms", "reacts", "speaks"] });
+    // `early` is a complete P2–P4 manifest: it parses, loads as Tier 0 + 1, and every key that does not run yet says so
+    expect(c.plugins[1]).toMatchObject({ loaded: true, tiers: ["declares", "decorates", "transforms", "reacts", "speaks"], clientKb: 1, slots: { head: "./head.tsx", "body-end": "./beacon.tsx" }, filters: { title: "./title.ts" } });
     expect(c.config.taxonomies.topic).toBeDefined();
     const w = warnings(c).filter((x) => x.startsWith("plugins[early]"));
     expect(w).toEqual([
-      "plugins[early].plugin.slots: `slots` is declared but not built yet (slots — docs/10 §4.3, lands in P2); ignored (plugins/early/snypd.yaml:5 (plugin early))",
-      "plugins[early].plugin.filters: `filters` is declared but not built yet (filters — docs/10 §4.3, lands in P2); ignored (plugins/early/snypd.yaml:6 (plugin early))",
       "plugins[early].plugin.stages: `stages` is declared but not built yet (transform and emit stages — docs/10 §4.4, lands in P3); ignored (plugins/early/snypd.yaml:7 (plugin early))",
       "plugins[early].plugin.events: `events` is declared but not built yet (publish and push events — docs/10 §4.5, lands in P3); ignored (plugins/early/snypd.yaml:8 (plugin early))",
       "plugins[early].plugin.tools: `tools` is declared but not built yet (plugin tools in the catalogue — docs/10 §4.2 tier 4, lands in P4); ignored (plugins/early/snypd.yaml:9 (plugin early))",
     ]);
-    expect(renderPlugins(c.plugins)).toContain('capabilities: {"network":["plausible.io"],"client":"1kb"}');
+    const text = renderPlugins(c.plugins, { jsKb: 1 });
+    expect(text).toContain('capabilities: {"network":["plausible.io"],"client":"1kb"}');
+    // the hook table (docs/09 §4.4 rule 3): every slot and filter, with who fills it, in order
+    expect(text).toContain("slots: { head: ./head.tsx, body-end: ./beacon.tsx }");
+    expect(text).toContain("  slots: { head: [early], body-start: [], before-content: [], after-content: [], footer-end: [], body-end: [early] }");
+    expect(text).toContain("  filters: { title: [early], description: [], excerpt: [], entries: [], jsonLd: [], route: [] }");
+    expect(text).toContain("client: { declared: 1, budget: 1 }");
+    expect(hooksOf(c.plugins)).toMatchObject({ any: true, slots: { head: ["early"], "body-end": ["early"] }, filters: { title: ["early"] } });
+  });
+
+  test("P2: a slot or filter that names a module that is not there refuses the plugin at load, naming the file and the line", () => {
+    rmSync(R, { recursive: true, force: true });
+    site("  - gone\n");
+    plugin("plugins/gone", "plugin:\n  name: gone\n  version: 1.0.0\n  api: 1\n  slots: { head: ./slots/head.tsx }\n  filters: { title: ./title.ts, route: ./route.ts }\ntaxonomies:\n  topic: { attaches: [post] }\n");
+    writeFileSync(join(R, "plugins/gone/title.ts"), "export default (v: string) => v;\n");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    expect(c.plugins[0]).toMatchObject({ loaded: false, why: "2 hook modules are missing (slots.head, filters.route)" });
+    expect(errors(c)).toEqual([
+      "plugins[gone].plugin.slots.head: ./slots/head.tsx is missing from plugins/gone — a slot names a module relative to the plugin's own directory (plugins/gone/snypd.yaml:5 (plugin gone))",
+      "plugins[gone].plugin.filters.route: ./route.ts is missing from plugins/gone — a filter names a module relative to the plugin's own directory (plugins/gone/snypd.yaml:6 (plugin gone))",
+      "plugins[gone].plugin: 2 hook modules are missing (slots.head, filters.route) — not loaded (plugins/gone/snypd.yaml:1 (plugin gone))",
+    ]);
+    expect(c.config.taxonomies).not.toHaveProperty("topic");   // refused: root keys did not merge
+    expect(hooksOf(c.plugins).any).toBe(false);
+  });
+
+  test("P2: client JS is a budget line (decision 84) — declared, summed in order, refused over budget with the remedy, and the site's number is the only one that counts", () => {
+    rmSync(R, { recursive: true, force: true });
+    const decl = (name: string, kb: string) => { plugin(`plugins/${name}`, `plugin:\n  name: ${name}\n  version: 1.0.0\n  api: 1\n  capabilities: { client: ${kb} }\n  slots: { body-end: ./b.ts }\n`); writeFileSync(join(R, `plugins/${name}/b.ts`), "export default () => '<script></script>';\n"); };
+    decl("one", "1kb"); decl("two", "1.5 KB"); decl("three", "2");
+    // budget 0 (the spec default): the first plugin that asks for bytes is refused, and the remedy names the number that would afford it
+    site("  - one\n");
+    let c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    expect(c.plugins[0]).toMatchObject({ loaded: false, clientKb: 1, why: "over the client JS budget (1 KB asked, 0 KB left)" });
+    expect(errors(c)).toEqual([
+      "plugins[one].plugin.capabilities.client: asks for 1 KB of client JS; this site's jsKb budget is 0 KB. Set bench.budgets.jsKb: 1 to afford it, or remove the plugin (snypd.yaml:4)",
+      "plugins[one]: over the client JS budget (1 KB asked, 0 KB left) — not loaded (snypd.yaml:4)",
+    ]);
+    expect(clientKbDeclared(c.plugins)).toBe(0);
+    // afforded: the budget covers it, and the resource says what was declared against what
+    site("  - one\n", "bench: { budgets: { jsKb: 2 } }\n");
+    c = loadConfig(R);
+    expect(c.plugins[0]).toMatchObject({ loaded: true, clientKb: 1 });
+    expect(errors(c)).toEqual([]);
+    expect(renderPlugins(c.plugins, { jsKb: c.config.bench.budgets.jsKb as number })).toContain("client: { declared: 1, budget: 2 }");
+    // summed in `plugins:` order: 1 + 1.5 fits in 3, and the third (2 KB) is the one over — the diagnostic says what the others already took and is attributed to the budget's own line
+    site("  - one\n  - two\n  - three\n", "bench:\n  budgets:\n    jsKb: 3\n");
+    c = loadConfig(R);
+    expect(c.plugins.map((p) => p.loaded)).toEqual([true, true, false]);
+    expect(errors(c)[0]).toBe("plugins[three].plugin.capabilities.client: asks for 2 KB of client JS; this site's jsKb budget is 3 KB and 2.5 KB of it is already declared by the plugins before it. Set bench.budgets.jsKb: 5 to afford it, or remove the plugin (snypd.yaml:9)");
+    expect(clientKbDeclared(c.plugins)).toBe(2.5);
+    // reorder the list and a different plugin is the one refused: no priorities, one list (docs/09 §4.4 rule 2)
+    site("  - three\n  - one\n  - two\n", "bench: { budgets: { jsKb: 3 } }\n");
+    c = loadConfig(R);
+    expect(c.plugins.map((p) => `${p.name}:${p.loaded}`)).toEqual(["three:true", "one:true", "two:false"]);
+    // the env layer's budget wins over the site's, as every env value does
+    writeFileSync(join(R, "snypd.prod.yaml"), "bench: { budgets: { jsKb: 10 } }\n");
+    expect(loadConfig(R, { env: "prod" }).plugins.every((p) => p.loaded)).toBe(true);
+    rmSync(join(R, "snypd.prod.yaml"));
+    // a plugin cannot raise the budget for itself: `bench.budgets.jsKb` in a plugin's root keys merges like any root key, and the check still reads the site's number
+    plugin("plugins/greedy", "plugin:\n  name: greedy\n  version: 1.0.0\n  api: 1\n  capabilities: { client: 4kb }\n  slots: { body-end: ./b.ts }\nbench: { budgets: { jsKb: 99 } }\n");
+    writeFileSync(join(R, "plugins/greedy/b.ts"), "export default () => '';\n");
+    site("  - greedy\n");
+    c = loadConfig(R);
+    expect(c.plugins[0]!.loaded).toBe(false);
+    expect(errors(c)[0]).toContain("this site's jsKb budget is 0 KB");
+    expect(c.config.bench.budgets.jsKb).toBe(0);   // refused, so its root keys did not merge either
   });
 
   test("options are validated against the plugin's own schema, and a failure is attributed to the site's line and the plugin's key", () => {

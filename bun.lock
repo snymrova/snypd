@@ -100,6 +100,13 @@
       "name": "@snypd/viz",
       "version": "0.1.3",
     },
+    "plugins/analytics": {
+      "name": "@snypd/plugin-analytics",
+      "version": "0.1.0",
+      "dependencies": {
+        "@snypd/render": "workspace:*",
+      },
+    },
     "plugins/changelog": {
       "name": "@snypd/plugin-changelog",
       "version": "0.1.0",
@@ -130,6 +137,8 @@
     "@snypd/core": ["@snypd/core@workspace:packages/core"],
 
     "@snypd/mcp": ["@snypd/mcp@workspace:packages/mcp"],
+
+    "@snypd/plugin-analytics": ["@snypd/plugin-analytics@workspace:plugins/analytics"],
 
     "@snypd/plugin-changelog": ["@snypd/plugin-changelog@workspace:plugins/changelog"],
 

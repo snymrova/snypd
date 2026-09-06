@@ -562,7 +562,7 @@ describe("find_tools + the catalogue", () => {
     expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://plugins");
     // a fresh site: none enabled, and the bundled set is one line away
     expect(plugins.result.contents[0].text).toContain("plugins: {}   # none — `plugins: [changelog]` in snypd.yaml enables a bundled one, no install");
-    expect(plugins.result.contents[0].text).toContain("bundled: [changelog]");
+    expect(plugins.result.contents[0].text).toContain("bundled: [analytics, changelog]");
     expect(doctor.result.content[0].text).not.toContain("plugin `");
 
     // enable the bundled one and the local one, the local one with bad options
@@ -599,6 +599,32 @@ describe("find_tools + the catalogue", () => {
     expect(cfg3.result.contents[0].text).toContain("plugin local (plugins/local/snypd.yaml) — 0.0.1, plugins/local, declares");
     expect(cfg3.result.contents[0].text).toContain("topic: # ← plugins/local/snypd.yaml:8");
     void cfg;
+
+    // P2: enable `analytics` — the beacon the site has not paid for is refused with the remedy, and doctor
+    // says so; afford it and doctor prints the hooks it fills and the bytes it declares, and the resource
+    // prints the hook table — every slot and filter with who fills it, in order (docs/09 §4.4 rule 3).
+    writeFileSync(join(site, "snypd.yaml"), readFileSync(join(site, "snypd.yaml"), "utf8").replace("  - changelog\n", "  - changelog\n  - analytics: { provider: plausible }\n"));
+    const [, doctor4] = await session([req(1, "initialize"), call(2, "site", { action: "doctor" })], site);
+    const d4 = doctor4.result.content[0].text as string;
+    expect(d4).toContain("❌ plugin `analytics` not loaded — over the client JS budget (3 KB asked, 0 KB left)");
+    expect(structured(doctor4).problems.join("\n")).toContain("Set bench.budgets.jsKb: 3 to afford it, or remove the plugin");
+    writeFileSync(join(site, "snypd.yaml"), readFileSync(join(site, "snypd.yaml"), "utf8") + "bench: { budgets: { jsKb: 3 } }\n");
+    const [, plugins5, doctor5, built] = await session([
+      req(1, "initialize"),
+      req(2, "resources/read", { uri: "snypd://plugins" }),
+      call(3, "site", { action: "doctor" }),
+      call(4, "site", { action: "build" }),
+    ], site);
+    const d5 = doctor5.result.content[0].text as string;
+    expect(d5).toContain("✅ plugin `analytics` 0.1.0 decorates (");
+    expect(d5).toContain(") — slots head, body-end · client 3 KB");
+    expect(d5).toContain("✅ client JS: 3 KB declared by plugins, 3 KB afforded (bench.budgets.jsKb)");
+    const t5 = plugins5.result.contents[0].text as string;
+    expect(t5).toContain("    slots: { head: ./slots/head.tsx, body-end: ./slots/beacon.tsx }");
+    expect(t5).toContain("  slots: { head: [analytics], body-start: [], before-content: [], after-content: [], footer-end: [], body-end: [analytics] }");
+    expect(t5).toContain("client: { declared: 3, budget: 3 }");
+    expect(structured(built)).toMatchObject({ ok: true, hooks: { plugins: ["analytics"], diagnostics: [] } });
+    expect(readFileSync(join(site, "dist/index.html"), "utf8")).toContain('<script defer src="https://plausible.io/js/script.js" data-domain="plug.example"></script>');
   });
 
   test("switching to a theme that does not declare a token you set says so rather than losing it", async () => {

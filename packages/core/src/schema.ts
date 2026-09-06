@@ -85,14 +85,17 @@ export const SLOT_NAMES = ["head", "body-start", "before-content", "after-conten
 export const FILTER_NAMES = ["title", "description", "excerpt", "entries", "jsonLd", "route"] as const;
 const pluginPath = z.string().min(1);
 const clientKb = z.union([z.number().nonnegative(), z.string().regex(/^\d+(\.\d+)?\s*kb$/i, "client: `1kb` — kilobytes of client JS this plugin adds")]);
+/** `capabilities.client` as a number of kilobytes: `1kb`, `1.5 KB` or a bare number all read the same (P2, decision 84). */
+export const clientKbOf = (v: number | string | undefined): number => (v === undefined ? 0 : typeof v === "number" ? v : parseFloat(v));
 /**
  * `plugin:` in a plugin's `snypd.yaml` — what the plugin says about itself. Read by the loader and never
  * merged into the site's config; every *other* root key of the same file merges exactly as it did before
  * (types, taxonomies, fieldTypes, jobs, bench). Strict, so an unknown key names the plugin and the line.
  * `options` is JSON Schema, and the site's `plugins: [{ name: {…} }]` entry is validated against it at
  * load (§4.1); `capabilities` is what doctor and `snypd://plugins` print beside the version (§4.7).
- * The keys of tiers 1–4 (`slots`, `filters`, `stages`, `events`, `tools`, `prompts`) are in the schema so
- * a manifest written for P2–P4 parses today; `loadConfig` warns that each is not built yet.
+ * `slots` and `filters` run since P2 (§4.3): each names a module, relative to the plugin's own directory,
+ * that must exist at load. The keys of tiers 2–4 (`stages`, `events`, `tools`, `prompts`) are in the schema
+ * so a manifest written for P3–P4 parses today; `loadConfig` warns that each is not built yet.
  */
 export const PluginManifestSchema = z.object({
   name: slug,
@@ -105,10 +108,12 @@ export const PluginManifestSchema = z.object({
   capabilities: z.object({
     /** Hosts the plugin's own `ctx.fetch` may reach (P3); printed by doctor today. */
     network: z.array(z.string().min(1)).optional(),
-    /** Client JS it asks to add, summed against `bench.budgets.jsKb` (P2, decision 84); printed today. */
+    /** Client JS it asks to add, summed against the site's `bench.budgets.jsKb` at load (P2, decision 84): over budget is refused, with the remedy in the diagnostic. */
     client: clientKb.optional(),
   }).strict().optional(),
+  /** Slot → module, plugin-relative; the default export is `(props: SlotProps) => Html | string` (P2, `@snypd/render` hooks.ts). */
   slots: z.partialRecord(z.enum(SLOT_NAMES), pluginPath).optional(),
+  /** Filter → module, plugin-relative; the default export is `(value, ctx) => value` (P2). */
   filters: z.partialRecord(z.enum(FILTER_NAMES), pluginPath).optional(),
   stages: z.object({ transform: pluginPath.optional(), emit: pluginPath.optional() }).strict().optional(),
   events: z.object({ publish: pluginPath.optional(), push: pluginPath.optional() }).strict().optional(),
@@ -118,8 +123,6 @@ export const PluginManifestSchema = z.object({
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
 /** Manifest keys the contract names and this build does not run yet, and the session that builds each (docs/10 §7.2). */
 export const PLUGIN_UNBUILT_KEYS: Record<string, string> = {
-  slots: "slots — docs/10 §4.3, lands in P2",
-  filters: "filters — docs/10 §4.3, lands in P2",
   stages: "transform and emit stages — docs/10 §4.4, lands in P3",
   events: "publish and push events — docs/10 §4.5, lands in P3",
   tools: "plugin tools in the catalogue — docs/10 §4.2 tier 4, lands in P4",
