@@ -540,6 +540,67 @@ describe("find_tools + the catalogue", () => {
     expect(existsSync(`${site}/content/nav/header.yaml`)).toBe(false);
   });
 
+  /**
+   * D10 (docs/10 §7.1): a plugin in a site's own `plugins/` dir — not bundled, not on npm — loads by the
+   * same path and passes the same gates, and `snypd://plugins` names its source as `plugins/`. Doctor
+   * prints one row per plugin, and a refused one is a problem carrying its own diagnostic.
+   */
+  test("P1: snypd://plugins names a site-local plugin's source, doctor prints a row per plugin, and a refused plugin is a problem", async () => {
+    const site = "corpora/_test/mcp-plugins";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(join(site, "plugins/local"), { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    writeFileSync(join(site, "plugins/local/snypd.yaml"), "plugin:\n  name: local\n  version: 0.0.1\n  api: 1\n  description: A plugin that lives in this site.\n  options: { type: object, required: [greeting], properties: { greeting: { type: string } } }\ntaxonomies:\n  topic: { attaches: [post] }\n");
+    const [, , list, plugins, doctor, cfg] = await session([
+      req(1, "initialize"),
+      call(0, "site", { action: "init", name: "Plug", url: "https://plug.example" }),
+      req(2, "resources/list"),
+      req(3, "resources/read", { uri: "snypd://plugins" }),
+      call(4, "site", { action: "doctor" }),
+      req(5, "resources/read", { uri: "snypd://config" }),
+    ], site);
+    expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://plugins");
+    // a fresh site: none enabled, and the bundled set is one line away
+    expect(plugins.result.contents[0].text).toContain("plugins: {}   # none — `plugins: [changelog]` in snypd.yaml enables a bundled one, no install");
+    expect(plugins.result.contents[0].text).toContain("bundled: [changelog]");
+    expect(doctor.result.content[0].text).not.toContain("plugin `");
+
+    // enable the bundled one and the local one, the local one with bad options
+    writeFileSync(join(site, "snypd.yaml"), readFileSync(join(site, "snypd.yaml"), "utf8") + "plugins:\n  - changelog\n  - local: { greetings: hi }\n");
+    const [, plugins2, doctor2] = await session([
+      req(1, "initialize"),
+      req(2, "resources/read", { uri: "snypd://plugins" }),
+      call(3, "site", { action: "doctor" }),
+    ], site);
+    const text = plugins2.result.contents[0].text as string;
+    expect(text).toContain("  changelog:\n    version: \"0.1.0\"");
+    expect(text).toContain("contributes: { types: [release], taxonomies: [product] }");
+    expect(text).toContain("  local:\n    version: \"0.0.1\"\n    from: plugins/local\n    does: []");
+    expect(text).toContain("status: refused — options do not validate");
+    expect(text).toMatch(/error: plugins\[local\]\.greeting: .*\(snypd\.yaml:\d+\)/);
+    const d = doctor2.result.content[0].text as string;
+    expect(d).toContain("✅ plugin `changelog` 0.1.0 declares (");
+    expect(d).toContain("❌ plugin `local` not loaded — options do not validate");
+    expect(structured(doctor2).ok).toBe(false);
+    expect(structured(doctor2).problems.join("\n")).toContain("plugins[local].greeting");
+
+    // fix the options: loaded, and the site's config carries its taxonomy with provenance
+    writeFileSync(join(site, "snypd.yaml"), readFileSync(join(site, "snypd.yaml"), "utf8").replace("greetings: hi", "greeting: hi"));
+    const [, plugins3, doctor3, cfg3] = await session([
+      req(1, "initialize"),
+      req(2, "resources/read", { uri: "snypd://plugins" }),
+      call(3, "site", { action: "doctor" }),
+      req(4, "resources/read", { uri: "snypd://config" }),
+    ], site);
+    expect(plugins3.result.contents[0].text).toContain("  local:\n    version: \"0.0.1\"\n    from: plugins/local\n    does: [declares]");
+    expect(plugins3.result.contents[0].text).toContain('options: {"greeting":"hi"}');
+    expect(doctor3.result.content[0].text).toContain("✅ plugin `local` 0.0.1 declares (plugins/local)");
+    expect(structured(doctor3).ok).toBe(true);
+    expect(cfg3.result.contents[0].text).toContain("plugin local (plugins/local/snypd.yaml) — 0.0.1, plugins/local, declares");
+    expect(cfg3.result.contents[0].text).toContain("topic: # ← plugins/local/snypd.yaml:8");
+    void cfg;
+  });
+
   test("switching to a theme that does not declare a token you set says so rather than losing it", async () => {
     const bare = "corpora/_test/mcp-s16-strand";
     rmSync(bare, { recursive: true, force: true }); mkdirSync(bare, { recursive: true });

@@ -475,6 +475,15 @@ async function doctor(root: string): Promise<ToolResult> {
   if (active) ok(`theme \`${active.name}\` resolves (${themes.length} installed)`);
   else bad(`theme \`${cfg.config.theme.use}\` is not installed`, `Installed: ${themes.map((t) => t.name).join(", ")}`);
 
+  // The plugins (P1, docs/10 §4.1): one row per entry — version, what it does, where it came from — and a
+  // refused one is a problem carrying its own diagnostic, because the site loaded without it.
+  for (const p of cfg.plugins) {
+    const why = p.diagnostics.filter((d) => d.level === "error").map((d) => `${d.path}: ${d.message}${d.where ? ` (${d.where})` : ""}`).join("\n");
+    if (!p.found) warn(`plugin \`${p.entry}\` not found — \`bun add snypd-plugin-${p.name}\`, or a \`plugins/${p.name}/snypd.yaml\` here`);
+    else if (!p.loaded) bad(`plugin \`${p.name}\` not loaded — ${p.why}`, why);
+    else ok(`plugin \`${p.name}\` ${p.manifest?.version ?? "(no plugin: block)"} ${p.tiers.join(" + ") || "declares nothing"} (${p.where})`);
+  }
+
   const stranded = c.themeTokens(cfg).filter((t) => t.overridden && !t.customisable);
   if (stranded.length) warn(`${stranded.length} token override${stranded.length === 1 ? "" : "s"} the theme does not declare: ${stranded.map((t) => t.name).join(", ")}`);
 

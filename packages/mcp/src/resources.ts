@@ -83,6 +83,7 @@ export function handlers(root: string): Handlers {
         { uri: "snypd://theme", name: "theme", mimeType: YAML, description: "The active theme: what it inherits, how it means to read, and what else is installed — read this with the config" },
         { uri: "snypd://theme/tokens", name: "theme/tokens", mimeType: YAML, description: "Every token the theme declares, with its value, default and whether it may be set from snypd.yaml — the knobs that change how the site looks without writing CSS" },
         { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives and 4 parts (shell, header, footer, entries) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
+        { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
         { uri: "snypd://nav", name: "nav", mimeType: YAML, description: "The menus: which locations the theme renders (header, footer) and what each content/nav/<location>.yaml holds, every `ref` resolved to its route — `site` › set_nav writes one" },
         { uri: "snypd://bench/latest", name: "bench/latest", mimeType: MD, description: "The last full benchmark report: every speed and size budget with its measured value" },
       ];
@@ -115,6 +116,7 @@ export function handlers(root: string): Handlers {
       }
       if (uri === "snypd://theme" || uri.startsWith("snypd://theme/")) { const [m, t] = await themeResource(uri); return text(m, t); }
       if (uri === "snypd://nav") { const c = await loadCore(); return text(YAML, c.renderNav(root, await config())); }
+      if (uri === "snypd://plugins") { const c = await loadCore(); return text(YAML, c.renderPlugins((await config()).plugins)); }
       if (uri === "snypd://bench/latest") {
         const file = join(root, "bench", "latest.md");
         if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no bench/latest.md yet — run \`bench\` › run)`);

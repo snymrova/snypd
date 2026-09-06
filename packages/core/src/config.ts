@@ -13,8 +13,10 @@ import { BUNDLED } from "./bundled";
 import { bundledDir, themeFile, themeHas } from "./themefs";
 import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
 import { ConfigSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, type Config } from "./schema";
+import { loadPlugin, type LoadedPlugin } from "./plugins";
 
-export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string }
+export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string;
+  /** Set when the diagnostic is about one plugin (P1). An error here refuses that plugin and nothing else: the site still loads, `ok` stays true, and doctor carries it as a problem. */ plugin?: string }
 export interface ThemeLink { name: string; dir: string; yamlFile?: string }
 export interface LayerInfo { name: Layer["name"]; from?: string; file?: string; found: boolean; note?: string; /** absolute directory (theme layer): where layouts/ and primitives/ live */ dir?: string;
   /** theme layer only: the theme and its `extends:` ancestors, child first. `loadTheme` walks this per slot. */ chain?: ThemeLink[] }
@@ -22,6 +24,8 @@ export interface LoadedConfig {
   root: string; env: string; ok: boolean;
   config: Config; raw: Record<string, unknown>;
   provenance: Provenance; layers: LayerInfo[]; diagnostics: Diagnostic[];
+  /** Every plugin `plugins:` names, in order, found or not, loaded or refused (docs/10 §4.1; `plugins.ts`). */
+  plugins: LoadedPlugin[];
   explain(path: string | Path): string;
   source(path: string | Path): Source | undefined;
   render(): string;
@@ -154,7 +158,11 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const envView = isObj(envLayer?.value) ? envLayer!.value : {};
   const themeOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.use === "string" ? v.theme.use : undefined);
   const themeName = themeOf(envView) ?? themeOf(siteView) ?? "base";
-  const pluginList = ([] as unknown[]).concat(Array.isArray(siteView.plugins) ? siteView.plugins : [], Array.isArray(envView.plugins) ? envView.plugins : []);
+  // Each entry remembers the line that wrote it: an options error is attributed to the site's line, which
+  // is where the fix goes, not to the plugin's schema.
+  const pluginEntries: { entry: unknown; origin: Source }[] = [];
+  for (const layer of [site, envLayer]) if (layer && isObj(layer.value) && Array.isArray(layer.value.plugins))
+    layer.value.plugins.forEach((entry, i) => pluginEntries.push({ entry, origin: { layer: layer.name, file: layer.file, line: layer.origins?.get(pathKey(["plugins", i]))?.line } }));
 
   // 2. theme.yaml → under `theme`, ancestors first so the child overrides (`extends:`, docs/04)
   const { chain: themeChain, errors: themeErrors, parsed: themeParsed } = resolveThemeChain(themeName, search, root);
@@ -192,14 +200,24 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   layers.push({ name: "theme", from: themeName, file: self?.yamlFile ? rel(root, self.yamlFile) : undefined, found: !!self, dir: self?.dir, chain: themeChain,
     note: [self && !self.yamlFile ? "no theme.yaml yet" : "", inherited.length ? `extends ${inherited.join(" \u2192 ")}` : ""].filter(Boolean).join("; ") || undefined });
 
-  // 3. plugins' snypd.yaml, declared order
-  for (const entry of pluginList) {
-    const name = typeof entry === "string" ? entry : isObj(entry) ? Object.keys(entry)[0] : undefined;
-    if (!name) { diags.push({ level: "error", path: "plugins", message: `invalid plugin entry ${JSON.stringify(entry)}` }); continue; }
-    const f = findIn(search, [`node_modules/${name}/snypd.yaml`, `plugins/${name}/snypd.yaml`, `node_modules/snypd-plugin-${name}/snypd.yaml`, `plugins/${name.replace(/^snypd-plugin-/, "")}/snypd.yaml`]);
-    if (f) merged = mergeLayer(merged, readLayer(root, "plugin", f, diags, name), prov);
-    else diags.push({ level: "warning", path: "plugins", message: `plugin "${name}" has no snypd.yaml (not installed?)` });
-    layers.push({ name: "plugin", from: name, file: f ? rel(root, f) : undefined, found: !!f });
+  // 3. plugins' snypd.yaml, declared order — the manifest read and checked, the root keys merged (plugins.ts, docs/10 §4.1)
+  const plugins: LoadedPlugin[] = [];
+  for (const { entry, origin } of pluginEntries) {
+    let name: string | undefined, options: Record<string, unknown> | undefined;
+    if (typeof entry === "string") name = entry;
+    else if (isObj(entry) && Object.keys(entry).length === 1) {
+      name = Object.keys(entry)[0]!;
+      const v = entry[name];
+      if (v != null && !isObj(v)) { diags.push({ level: "error", path: `plugins[${name}]`, message: `options must be a mapping, got ${JSON.stringify(v)} — not loaded`, source: origin, where: describeSource(origin), plugin: name }); continue; }
+      options = isObj(v) ? v : undefined;
+    }
+    if (!name) { diags.push({ level: "error", path: "plugins", message: `invalid plugin entry ${JSON.stringify(entry)} — a name, or one \`{ name: { options } }\` per entry`, source: origin, where: describeSource(origin) }); continue; }
+    const { plugin, layer } = loadPlugin({ entry: name, options, origin, search, rel: (f) => rel(root, f) });
+    diags.push(...plugin.diagnostics);
+    plugins.push(plugin);
+    if (layer) merged = mergeLayer(merged, layer, prov);
+    layers.push({ name: "plugin", from: plugin.name, file: plugin.file, found: plugin.found, dir: plugin.dir,
+      note: !plugin.found ? undefined : !plugin.loaded ? `refused: ${plugin.why}` : plugin.manifest ? `${plugin.manifest.version}, ${plugin.where}${plugin.tiers.length ? `, ${plugin.tiers.join(" + ")}` : ""}` : `${plugin.where}, no plugin: block` });
   }
 
   // 4. site, 5. env
@@ -240,7 +258,10 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     for (const [n, t] of Object.entries(config.taxonomies)) if (!Object.values(config.types).some((x) => x.taxonomies.includes(n)) && t.attaches.length === 0) warn(`taxonomies.${n}`, "attached to no type");
   }
 
-  const ok = !diags.some((x) => x.level === "error");
+  // A plugin's error refuses the plugin, not the site (docs/10 §4.1: "a plugin with bad options is not
+  // loaded and the rest of the site is"). It is still an error — doctor prints it as a problem and the
+  // resource header carries it — but a build goes on without the plugin rather than without a site.
+  const ok = !diags.some((x) => x.level === "error" && !x.plugin);
   const source = (p: string | Path) => prov.get(typeof p === "string" ? p : pathKey(p));
   const explain = (p: string | Path) => {
     const key = typeof p === "string" ? p : pathKey(p);
@@ -249,7 +270,7 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     const s = prov.get(key) ?? nearest(prov, key);
     return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}`;
   };
-  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
+  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
 }
 
 function nearest(prov: Provenance, key: string): Source | undefined {

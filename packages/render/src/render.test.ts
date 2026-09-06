@@ -416,6 +416,59 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
   });
 
   /**
+   * P1 (docs/10 §4.1, decisions 83, 95): a plugin's declarations reach the build, every byte of the plugin
+   * graph is in every route key, and a site that drops the plugin drops everything it added — D9's
+   * "removing a plugin from the list removes every byte it added", for the one tier that runs today.
+   */
+  test("P1 plugins: changelog renders a release, a plugin edit or an options change re-renders, and removing the plugin removes its routes", async () => {
+    const root = "corpora/_test/plugins-build";
+    const dist = join(root, "dist");
+    const has = (route: string) => existsSync(join(dist, route, "index.html"));
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/changelog", "plugins/local"]) mkdirSync(join(root, d), { recursive: true });
+    const config = (plugins: string) => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: N, url: https://n.example }\ntheme: { use: base }\nplugins: ${plugins}\n`);
+    const local = (head = "") => writeFileSync(join(root, "plugins/local/snypd.yaml"), `${head}plugin:\n  name: local\n  version: 0.0.1\n  api: 1\n  options: { type: object, properties: { label: { type: string } } }\ntaxonomies:\n  topic: { attaches: [post] }\ntypes:\n  post:\n    taxonomies: [topic]\n    fields: { topics: { type: list, of: { type: ref, to: topic } } }\n`);
+    config("[changelog, local]");
+    local();
+    writeFileSync(join(root, "content/posts/hello.md"), "---\ntitle: Hello\ndate: 2026-09-01\nstatus: published\ntopics: [plugins]\n---\n\nHi.\n");
+    writeFileSync(join(root, "content/changelog/1-2-0.md"), "---\ntitle: 1.2.0\nversion: 1.2.0\ndate: 2026-09-06\nstatus: published\nproduct: snypd\nbreaking: true\n---\n\nFirst release.\n");
+
+    let r = await build(root);
+    const all = r.rendered;   // routes and artefacts alike: every plan item is keyed on the plugin graph
+    // the release: a post-layout page at the plugin's url pattern, filed under the plugin's taxonomy
+    const release = readFileSync(join(dist, "changelog/1-2-0/index.html"), "utf8");
+    expect(release).toContain("<h1>1.2.0</h1>");
+    expect(release).toContain("First release.");
+    expect(release).toContain('href="/product/snypd/"');
+    expect(has("product/snypd")).toBe(true);
+    expect(has("topic/plugins")).toBe(true);
+    expect(readFileSync(join(dist, "llms.txt"), "utf8")).toContain("/changelog/1-2-0");
+    // a no-op build is a no-op
+    r = await build(root);
+    expect(r.rendered).toBe(0);
+    // an edit to a plugin's file — even a comment — is in the plugin graph hash, so every route re-renders (decision 95)
+    local("# a comment is a byte\n");
+    r = await build(root);
+    expect(r.rendered).toBe(all);
+    r = await build(root);
+    expect(r.rendered).toBe(0);
+    // the site's options for a plugin are in the config hash, so changing one re-renders too
+    config("[changelog, { local: { label: x } }]");
+    r = await build(root);
+    expect(r.rendered).toBe(all);
+    // drop the plugins: their routes go, and nothing in dist names what they added
+    config("[]");
+    r = await build(root);
+    expect(r.removed).toBeGreaterThanOrEqual(3);
+    expect(has("changelog/1-2-0")).toBe(false);
+    expect(has("product/snypd")).toBe(false);
+    expect(has("topic/plugins")).toBe(false);
+    expect(readFileSync(join(dist, "llms.txt"), "utf8")).not.toContain("changelog");
+    expect(readFileSync(join(dist, "posts/hello/index.html"), "utf8")).not.toContain("/topic/");
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  /**
    * T6 (docs/09 §6): nav is real. A menu is `content/nav/<location>.yaml`, resolved through the content
    * list at build, rendered by the header and footer parts on both shipped themes, and it follows a slug
    * change — which is the whole reason `ref` exists next to `url`. A `ref` that resolves to nothing is

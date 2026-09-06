@@ -9,21 +9,29 @@
  *
  * Every theme read on the runtime path goes through here. `existsSync`/`readdirSync` against a theme dir
  * do not, because in a binary they are quietly wrong: they report "missing" for a theme that is present.
+ *
+ * Since P1 a plugin's files come through the same functions (docs/10 decision 83): a bundled plugin is a
+ * `snypd:plugin/<name>` dir answered from `BUNDLED_PLUGINS`, and a plugin on disk is a real path — so
+ * the route key's plugin graph hash (decision 95) is `themeHash` over plugin dirs, not a second hasher.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { BUNDLED } from "./bundled";
+import { BUNDLED, BUNDLED_PLUGINS } from "./bundled";
 
 /** The dir a bundled theme is given when it has no directory. Never passed to `fs`. */
 export const bundledDir = (name: string) => `snypd:theme/${name}`;
-export const isBundledDir = (dir: string) => dir.startsWith("snypd:theme/");
-const bundledName = (dir: string) => dir.slice("snypd:theme/".length);
-const of = (dir: string) => (isBundledDir(dir) ? BUNDLED[bundledName(dir)] : undefined);
+/** The same for a first-party plugin (docs/10 §4.8, decision 83): one seam, a second prefix, no second loader. */
+export const bundledPluginDir = (name: string) => `snypd:plugin/${name}`;
+export const isBundledDir = (dir: string) => dir.startsWith("snypd:theme/") || dir.startsWith("snypd:plugin/");
+const bundledName = (dir: string) => dir.slice(dir.indexOf("/") + 1);
+const of = (dir: string) => (dir.startsWith("snypd:theme/") ? BUNDLED[bundledName(dir)] : dir.startsWith("snypd:plugin/") ? BUNDLED_PLUGINS[bundledName(dir)] : undefined);
 /** `./primitives/x.tsx` and `primitives/x.tsx` are the same slot; theme.yaml writes both. */
 const norm = (rel: string) => rel.replace(/^\.\//, "");
 
 /** Names of the themes that ship in the binary. */
 export const bundledNames = (): string[] => Object.keys(BUNDLED).sort();
+/** Names of the plugins that ship in the binary. */
+export const bundledPluginNames = (): string[] => Object.keys(BUNDLED_PLUGINS).sort();
 
 /** One theme file as text, or undefined if the theme does not have it. */
 export function themeFile(dir: string, rel: string): string | undefined {

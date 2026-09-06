@@ -7,7 +7,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { loadConfig, setConfig, setRedirect, setNav, loadNav, navLocations, renderNav, redirects, normalizeRoute, themeTokens, initSite, onPath, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded } from "./index";
+import { loadConfig, setConfig, setRedirect, setNav, loadNav, navLocations, renderNav, redirects, normalizeRoute, themeTokens, initSite, onPath, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded, bundledPluginDir, bundledPluginNames, isBundledDir, themeSignature } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -312,6 +312,31 @@ describe("bundled themes", () => {
       expect(walk(dir).sort()).toEqual([...Object.keys(b.files), ...Object.keys(b.modules)].sort());
       for (const [f, text] of Object.entries(b.files)) expect(text, f).toBe(readFileSync(`${dir}/${f}`, "utf8"));
     }
+  });
+
+  test("every file of every bundled plugin is in it too (P1, decision 83)", async () => {
+    const { BUNDLED_PLUGIN_NAMES } = await import("./bundled.gen");
+    const { BUNDLED_PLUGINS } = await import("./bundled");
+    expect([...BUNDLED_PLUGIN_NAMES]).toEqual(["changelog"]);
+    for (const name of BUNDLED_PLUGIN_NAMES) {
+      const dir = `${import.meta.dir}/../../../plugins/${name}`;
+      const files = readdirSync(dir).filter((f) => f !== "package.json" && !f.startsWith(".")).sort();
+      const b = BUNDLED_PLUGINS[name]!;
+      expect(files).toEqual([...Object.keys(b.files), ...Object.keys(b.modules)].sort());
+      for (const [f, text] of Object.entries(b.files)) expect(text, f).toBe(readFileSync(`${dir}/${f}`, "utf8"));
+    }
+  });
+
+  test("a bundled plugin answers through the same seam as a bundled theme (P1)", () => {
+    const dir = bundledPluginDir("changelog");
+    expect(existsSync(dir)).toBe(false);
+    expect(isBundledDir(dir)).toBe(true);
+    expect(themeHas(dir, "snypd.yaml")).toBe(true);
+    expect(themeFile(dir, "snypd.yaml")).toContain("name: changelog");
+    expect(themeFiles(dir)).toEqual(["snypd.yaml"]);
+    expect(themeSignature(dir)).toMatch(/^snypd:plugin\/changelog:[0-9a-f]{40}$/);
+    expect(bundledPluginNames()).toEqual(["changelog"]);
+    expect(themeFile(bundledPluginDir("nope"), "snypd.yaml")).toBeUndefined();
   });
 
   test("a bundled theme loads through the seam with no directory to read", () => {

@@ -226,6 +226,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     add(join(root, "content"));
     add(join(root, "snypd.yaml"), false);
     if (theme.dir) add(theme.dir);
+    add(join(root, "plugins"));   // the site's own plugins (P1): an edit to one is a rebuild, like a theme edit
   }
 
   // ── the review page ────────────────────────────────────────────────────────

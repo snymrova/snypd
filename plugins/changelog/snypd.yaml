@@ -1,0 +1,32 @@
+# changelog — the Tier 0 plugin (docs/10 §4.2, §4.8): one file, no code.
+#
+# Everything at the root of this file merges into the site's config exactly as any plugin's did before P1
+# (`# ← plugin:changelog` in snypd://config). Everything under `plugin:` is about the plugin, is read by the
+# loader, and is never merged (decision 81). This is the proof that a YAML-only plugin is real — and a
+# changelog is what a launch visitor wants for *their* product.
+plugin:
+  name: changelog
+  version: 0.1.0
+  api: 1
+  description: A `release` type and a `product` taxonomy — a changelog at /changelog/{slug}, no code.
+
+types:
+  # A release is a post with a version: the post layout renders it, the feed carries it, and the twelve
+  # lint rules apply. `extends: post` keeps title, date, status, description and cover; the taxonomy list
+  # replaces post's (extends replaces arrays), so a release is filed under a product, not a category.
+  release:
+    extends: post
+    dir: content/changelog
+    # The slug is the filename (write.ts), so `1-2-0.md` is `/changelog/1-2-0` and `version:` carries the
+    # dotted form the page shows. docs/10 §4.8 sketched `{version}`; url patterns expand `{slug}` and `{path}`.
+    urlPattern: /changelog/{slug}
+    taxonomies: [product]
+    fields:
+      version:  { type: string, required: true, pattern: "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$", description: "The version this release is, as the page shows it (1.2.0)" }
+      breaking: { type: boolean, default: false, description: "True when something that worked before does not work the same way after" }
+      product:  { type: ref, to: product }
+
+taxonomies:
+  product:
+    attaches: [release]
+    urlPattern: /product/{term}

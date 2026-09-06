@@ -76,6 +76,56 @@ export const THEME_UNBUILT_KEYS: Record<string, string> = {
   client: "client scripts against a JS budget — docs/10 decision 84, lands with plugins",
 };
 
+// ── The plugin manifest (docs/10 §4.1, decision 81) ──────────────────────────────────────────────
+/** The contract version this binary speaks. A manifest that names another is refused before anything else in it is read. */
+export const PLUGIN_API = 1;
+/** The six slots (docs/10 §4.3). `body-end` is where a beacon goes; the other five are docs/09 §4.4's. */
+export const SLOT_NAMES = ["head", "body-start", "before-content", "after-content", "footer-end", "body-end"] as const;
+/** The closed six value filters (docs/09 §4.4), each `(value, ctx) => value`. */
+export const FILTER_NAMES = ["title", "description", "excerpt", "entries", "jsonLd", "route"] as const;
+const pluginPath = z.string().min(1);
+const clientKb = z.union([z.number().nonnegative(), z.string().regex(/^\d+(\.\d+)?\s*kb$/i, "client: `1kb` — kilobytes of client JS this plugin adds")]);
+/**
+ * `plugin:` in a plugin's `snypd.yaml` — what the plugin says about itself. Read by the loader and never
+ * merged into the site's config; every *other* root key of the same file merges exactly as it did before
+ * (types, taxonomies, fieldTypes, jobs, bench). Strict, so an unknown key names the plugin and the line.
+ * `options` is JSON Schema, and the site's `plugins: [{ name: {…} }]` entry is validated against it at
+ * load (§4.1); `capabilities` is what doctor and `snypd://plugins` print beside the version (§4.7).
+ * The keys of tiers 1–4 (`slots`, `filters`, `stages`, `events`, `tools`, `prompts`) are in the schema so
+ * a manifest written for P2–P4 parses today; `loadConfig` warns that each is not built yet.
+ */
+export const PluginManifestSchema = z.object({
+  name: slug,
+  version: z.string().min(1),
+  api: z.literal(PLUGIN_API),
+  /** One line; doctor and the directory print it. */
+  description: z.string().optional(),
+  /** JSON Schema for the site's options; `undefined` means the plugin takes none. */
+  options: z.record(z.string(), z.unknown()).optional(),
+  capabilities: z.object({
+    /** Hosts the plugin's own `ctx.fetch` may reach (P3); printed by doctor today. */
+    network: z.array(z.string().min(1)).optional(),
+    /** Client JS it asks to add, summed against `bench.budgets.jsKb` (P2, decision 84); printed today. */
+    client: clientKb.optional(),
+  }).strict().optional(),
+  slots: z.partialRecord(z.enum(SLOT_NAMES), pluginPath).optional(),
+  filters: z.partialRecord(z.enum(FILTER_NAMES), pluginPath).optional(),
+  stages: z.object({ transform: pluginPath.optional(), emit: pluginPath.optional() }).strict().optional(),
+  events: z.object({ publish: pluginPath.optional(), push: pluginPath.optional() }).strict().optional(),
+  tools: pluginPath.nullable().optional(),
+  prompts: pluginPath.nullable().optional(),
+}).strict();
+export type PluginManifest = z.infer<typeof PluginManifestSchema>;
+/** Manifest keys the contract names and this build does not run yet, and the session that builds each (docs/10 §7.2). */
+export const PLUGIN_UNBUILT_KEYS: Record<string, string> = {
+  slots: "slots — docs/10 §4.3, lands in P2",
+  filters: "filters — docs/10 §4.3, lands in P2",
+  stages: "transform and emit stages — docs/10 §4.4, lands in P3",
+  events: "publish and push events — docs/10 §4.5, lands in P3",
+  tools: "plugin tools in the catalogue — docs/10 §4.2 tier 4, lands in P4",
+  prompts: "plugin prompts — docs/10 §4.2 tier 4, lands in P4",
+};
+
 export const ConfigSchema = z.object({
   snypd: z.literal(1),
   site: z.object({

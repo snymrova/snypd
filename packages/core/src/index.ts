@@ -1,10 +1,12 @@
 /** @snypd/core — YAML layering → validated Config with provenance (docs/02 §1–§2). */
 export { loadConfig, renderConfig, formatDiagnostics, resolveThemeChain, PLACEHOLDER_URL, isPlaceholderUrl, type Diagnostic, type LoadedConfig, type LoadOptions, type LayerInfo, type ThemeLink } from "./config";
-export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, ROLES, type TokenDecl, type ThemeYaml, type Config, type TypeDef, type TaxonomyDef } from "./schema";
+export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, PluginManifestSchema, PLUGIN_API, PLUGIN_UNBUILT_KEYS, SLOT_NAMES, FILTER_NAMES, ROLES, type TokenDecl, type ThemeYaml, type PluginManifest, type Config, type TypeDef, type TaxonomyDef } from "./schema";
 export { describeSource, type Source, type Provenance, type LayerName } from "./merge";
 export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "./yaml";
 // The theme filesystem seam (decision 46): every theme read on the runtime path, disk or binary.
-export { themeFile, themeHas, themeFiles, themeBytes, themeModule, themeSignature, bundledDir, bundledNames, isBundledDir } from "./themefs";
+export { themeFile, themeHas, themeFiles, themeBytes, themeModule, themeSignature, bundledDir, bundledNames, bundledPluginDir, bundledPluginNames, isBundledDir } from "./themefs";
+// P1: the plugin contract (docs/10 §4.1, decisions 81–83) — the manifest, the loader, and the `snypd://plugins` text.
+export { loadPlugin, resolvePlugin, pluginCandidates, pluginDirs, renderPlugins, tiersOf, shortName as pluginShortName, PLUGIN_TIERS, type LoadedPlugin, type PluginSource, type PluginTier, type ResolvedPlugin } from "./plugins";
 export * from "./content";
 // S18e: the `.snypd/dev.json` seam — one running preview, findable by the other process (decision 51).
 // S18f: the heartbeat on disk, and the six derived facts doctor and the Desk both render (decision 64).

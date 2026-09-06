@@ -10,6 +10,7 @@
 import _base_theme_yaml from "../../../themes/base/theme.yaml" with { type: "text" };
 import _editorial_theme_css from "../../../themes/editorial/theme.css" with { type: "text" };
 import _editorial_theme_yaml from "../../../themes/editorial/theme.yaml" with { type: "text" };
+import _plugin_changelog_snypd_yaml from "../../../plugins/changelog/snypd.yaml" with { type: "text" };
 
 export interface BundledTheme {
   hash: string;
@@ -58,6 +59,18 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
     modules: {
       "parts/header.tsx": () => import("../../../themes/editorial/parts/header.tsx"),
+    },
+  },
+};
+
+/** The first-party plugins (docs/10 §4.8, decision 83): the same shape, the same seam, a different prefix. */
+export const BUNDLED_PLUGINS: Readonly<Record<string, BundledTheme>> = {
+  "changelog": {
+    hash: "c7a7a6b331250e7e90171bf84dd311495ef22a5c",
+    files: {
+      "snypd.yaml": _plugin_changelog_snypd_yaml,
+    },
+    modules: {
     },
   },
 };
