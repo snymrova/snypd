@@ -41,7 +41,10 @@ types:
   author:
     dir: content/authors
     urlPattern: /authors/{slug}
-    layout: null
+    # `author` by default (H1): the post layout's byline links here, and a default site shipped a 404
+    # byline for as long as this was null. A site that wants no author pages sets it back to null, and
+    # the byline is then a name, not a link.
+    layout: author
     hierarchical: false
     taxonomies: []
     vocabulary: [figure]

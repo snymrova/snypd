@@ -15,7 +15,8 @@ export interface SurfaceEntry {
   type: string; slug: string; route: string; url: string;
   title: string; date?: string; updated?: string; status: string; description?: string;
   terms: { taxonomy: string; term: string; title: string; route: string; url: string }[];
-  author?: { name: string; route: string; url: string };
+  /** `route` and `url` only when the author type has a layout — a byline without a page carries the name alone. */
+  author?: { name: string; route?: string; url?: string };
   markdown: string;   // url of the .md twin
   json: string;       // url of the item's JSON
 }

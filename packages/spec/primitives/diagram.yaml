@@ -12,6 +12,7 @@ slots:
     description: |
       nodes: list of { id, label?, kind?: box|rounded|pill }
       edges: list of { from, to, label? }
+      A label clips past ~45 characters (three short lines); quote one that holds a comma.
     max: { nodes: 40 }
 intent: Show how parts connect — a pipeline, a data flow, a dependency graph — in ≤ 40 nodes.
 anti-intent: Not for sequences of actions (use flow). Not org charts, not maps, not UI mockups. Lint fails above 40 nodes.

@@ -93,6 +93,12 @@ describe("suggestions", () => {
     expect(flow.markdown).toContain('caption="Deploying."');      // taken from the heading, never invented
     const steps = one(`${FM}1. Run \`snypd build\`.\n2. Serve the twin.\n3. Verify with curl.\n`)!;
     expect(steps.primitive).toBe("steps");
+    // H1 (docs/07 §5, finding 10): the branch lives inside one step — "If it does … If it does not …" —
+    // which the vocabulary post fed the tool and the tool passed over. Clauses are counted, not items,
+    // and the item splits into the step it starts with and a decision with both branches.
+    const inside = one(`${FM}## Applying a suggestion\n\n1. Run \`suggest_blocks\` on the page.\n2. Check whether it applied the chart. If it does, open the preview. If it does not, read the reason it gives.\n3. Publish the post.\n`)!;
+    expect(inside.primitive).toBe("flow");
+    expect(inside.markdown).toContain("- Check whether it applied the chart\n- ask: \"It does?\"\n  yes: open the preview\n  no: read the reason it gives\n- Publish the post");
   });
   test("a labelled quote is a callout; an attributed one is a pullquote; a long one is neither", () => {
     expect(names(`${FM}> Warning: the numbers are ours, not Google's.\n`)).toEqual(["callout"]);
@@ -167,9 +173,10 @@ describe("the property that makes it safe", () => {
 
 describe("what it correctly leaves alone", () => {
   test("a lowered floor shows what was nearly suggested, and the safety pass still holds", () => {
-    // One conditional in four steps is under `flow`'s floor and gates `steps` out entirely, so the
-    // default answer is nothing. Lowering the line shows the call the tool declined to make.
-    const md = `${FM}## Reproducing it\n\n1. Delete the dist directory.\n2. If the box is loaded, wait. Otherwise run the bench.\n3. Repeat five times and take the median.\n`;
+    // One conditional clause in three steps — an `if` with no other branch stated — is under `flow`'s
+    // floor and gates `steps` out entirely, so the default answer is nothing. Lowering the line shows
+    // the call the tool declined to make. (Since H1 an `if … otherwise …` is two clauses and clears it.)
+    const md = `${FM}## Reproducing it\n\n1. Delete the dist directory.\n2. If the box is loaded, wait.\n3. Repeat five times and take the median.\n`;
     expect(names(md)).toEqual([]);
     const relaxed = suggestBlocks(md, { ...ctx, minConfidence: 0.4 });
     expect(relaxed.map((s) => s.primitive)).toEqual(["flow"]);

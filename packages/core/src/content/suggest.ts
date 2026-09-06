@@ -90,6 +90,7 @@ export function toNumber(raw: string): number {
 
 const IMPERATIVE = /^(add|run|open|write|set|copy|paste|click|install|create|make|check|verify|build|deploy|push|pull|commit|start|stop|edit|rename|delete|remove|choose|select|enter|type|save|download|upload|configure|point|send|call|read|replace|move|drop|name|give|put|use|wait|restart|confirm|apply|import|export|generate|publish|merge|clone|fetch|tag|serve|return|answer|reload|watch|measure|compare|record|repeat|split|join|mount|link|test|lint|format|sort|filter|count|log|track|scan|list|find|swap|bump|pin|patch|revert|rebase|stash)\b/i;
 const CONDITIONAL = /\b(if|unless|otherwise|when it|either|whether|in case|should (?:it|you|the)|on failure|fails?,|passes,)\b/i;
+const CONDITIONAL_G = new RegExp(CONDITIONAL.source, "gi");
 const BACKREF = /\b(back to|return to|repeat (?:from|step)|go to step|retry)\b/i;
 const UNIT = /\b(ms|s|kb|mb|gb|%|pp|tokens|req\/s|rps|px|x|×)\b/i;
 const CALLOUT_PREFIX = /^\s*(?:\*\*|__)?(note|tip|hint|warning|caution|danger|important)(?:\*\*|__)?\s*[:.—-]/i;
@@ -188,7 +189,9 @@ export function candidates(doc: ParsedDoc, source: string): Candidate[] {
       const base = {
         items: items.length, text,
         imperatives: items.filter((s) => IMPERATIVE.test(s)).length,
-        conditionals: items.filter((s) => CONDITIONAL.test(s)).length,
+        // Clauses, not items (H1, finding 10): one step reading "If it does, …. If it does not, …." is a
+        // decision with both branches, and counting it as one conditional kept the list under `flow`'s floor.
+        conditionals: items.reduce((n, s) => n + (s.match(CONDITIONAL_G) ?? []).length, 0),
         backReferences: items.filter((s) => BACKREF.test(s)).length,
         boldLeadIns: l.children.filter((li) => hasType(li, "strong")).length,
         hasCode: hasType(n, "inlineCode") || hasType(n, "code"),
@@ -372,19 +375,28 @@ const rewriteFlow: Rewriter = (c) => {
   const items = list.children.map((li) => toText(li).replace(/\s+/g, " ").trim());
   const lines: string[] = [];
   let decisions = 0;
+  const step = (s: string) => lines.push(`- ${yamlScalar(s.replace(/[.;]$/, ""))}`);
   for (const raw of items) {
-    const m = /^(?:if|when|unless)\s+([^,;.]+)[,;.]\s*(.+)$/i.exec(raw);
-    if (m) {
-      decisions++;
+    // An item is sentences; the ones that open with if/when/unless are decisions, whatever came before
+    // them is the step they follow (finding 10: "Check it. If it does, …. If it does not, …." is one item).
+    const sentences = raw.split(/(?<=[.;!?])\s+(?=(?:if|when|unless)\b)/i);
+    let open: { question: string; hasNo: boolean } | undefined;
+    for (const sentence of sentences) {
+      const m = /^(?:if|when|unless)\s+([^,;.]+)[,;.]\s*(.+)$/i.exec(sentence);
+      if (!m) { open = undefined; step(sentence); continue; }
       const [, cond, then] = m;
+      const consequence = then!.trim().replace(/[.;]$/, "");
+      // "If it does not, …" / "If not, …" after "If it does, …" is the other branch, not a second question.
+      const negated = /^(?:not\b|it (?:does|is|has|did|was) not\b|(?:it )?(?:doesn't|isn't|hasn't|didn't|wasn't)\b)/i.test(cond!.trim());
+      if (open && !open.hasNo && negated) { lines.push(`  no: ${yamlScalar(consequence)}`); open.hasNo = true; continue; }
+      decisions++;
       const alt = /\botherwise[,]?\s*(.+)$/i.exec(then!);
       const question = cond!.trim().replace(/\?$/, "");
       lines.push(`- ask: ${yamlScalar(question[0]!.toUpperCase() + question.slice(1) + "?")}`);
       lines.push(`  yes: ${yamlScalar((alt ? then!.slice(0, alt.index) : then!).trim().replace(/[.;]$/, ""))}`);
       if (alt) lines.push(`  no: ${yamlScalar(alt[1]!.trim().replace(/[.;]$/, ""))}`);
-      continue;
+      open = { question, hasNo: Boolean(alt) };
     }
-    lines.push(`- ${yamlScalar(raw.replace(/[.;]$/, ""))}`);
   }
   if (!decisions) return undefined;   // lint rule 2 warns on a decisionless flow — that is a `steps`
   return {

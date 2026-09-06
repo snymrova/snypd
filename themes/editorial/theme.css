@@ -202,6 +202,14 @@ blockquote {
    var viz reads for this; unset, it clamps to 100 % so a theme with no stylesheet still fits a phone. */
 .snypd-scroll { --viz-max-width: none; overflow-x: auto; overscroll-behavior-x: contain; }
 .snypd-scroll > svg { display: block; margin-inline: auto; }
+/* Except boxes and arrows (H1, docs/07 §5 finding 4): a seven-box `lr` diagram is ~1,100 px, and a reader
+   who has to scroll a picture sideways reads its edges twice. So `diagram` and `flow` shrink to the
+   column — but only down to 70 % of the drawn width (`--viz-width`, set by viz on the svg), where 13 px
+   labels are still 9 px; narrower than that, the container scrolls as before. Charts keep their size:
+   their type is smaller to begin with and their labels are the data. `min-width` beats `max-width`
+   in CSS, which is what makes the floor a floor. */
+.snypd-diagram .snypd-scroll, .snypd-flow .snypd-scroll { --viz-max-width: 100%; }
+.snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }
 .snypd-scroll:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 
 figcaption { margin-top: var(--space-2); text-align: center; }

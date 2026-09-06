@@ -65,21 +65,25 @@ export function generate(n: number, root = `corpora/${n}`) {
     if (i % 20 === 0) {
       // Decisions, a branch that rejoins and a jump back: a straight list of 15 steps is a `steps` block
       // (lint says so from S10) and exercises none of the desugar — no join edges, no cycle to break.
+      // A step is a phrase, not a sentence: a box wraps three lines and clips past ~45 characters, and
+      // lint rule 2 says so since H1. `label()` makes the same draws `sentence()` did and prints the first
+      // four words, so every post after a flow keeps the words it had when the corpus was first cut.
+      const label = () => sentence().replace(/\.$/, "").split(" ").slice(0, 4).join(" ");
       const steps = [
-        `  - { id: start, do: ${sentence()} }`,
-        `  - ${sentence()}`,
+        `  - { id: start, do: ${label()} }`,
+        `  - ${label()}`,
         `  - ask: ${words(3)}?`,
-        `    yes: ${sentence()}`,
+        `    yes: ${label()}`,
         `    no: { then: start }`,
-        `  - ${sentence()}`,
+        `  - ${label()}`,
         `  - ask: ${words(3)}?`,
         `    yes:`,
-        `      - ${sentence()}`,
-        `      - ${sentence()}`,
+        `      - ${label()}`,
+        `      - ${label()}`,
         `    no: { then: fix }`,
-        `  - { id: fix, do: ${sentence()} }`,
-        `  - ${sentence()}`,
-        `  - ${sentence()}`,
+        `  - { id: fix, do: ${label()} }`,
+        `  - ${label()}`,
+        `  - ${label()}`,
       ].join("\n");
       body.push(`:::flow{caption="${sentence()}"}\nsteps:\n${steps}\n:::\n`);
     }
@@ -88,6 +92,10 @@ export function generate(n: number, root = `corpora/${n}`) {
     writeFileSync(join(dir, `${slug}.md`), body.join("\n"));
   }
   writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite:\n  name: corpus-${n}\n  url: https://corpus-${n}.snypd.rocks\ntheme:\n  use: base\n`);
+  // The editorial lane's env layer (S13) was added to corpora/100 by hand, and `rmSync` above threw it
+  // away on every regeneration since — found when H1 regenerated the corpus (docs/07 §5). It is part
+  // of the corpus, so the generator writes it.
+  writeFileSync(join(root, "snypd.editorial.yaml"), "# The editorial lane (S13). `SNYPD_ENV=editorial` layers this over snypd.yaml so the *same* content is\n# rendered by a styled theme. docs/07 decision 15: the md-reduction budget is measured on a real theme,\n# not on `base`, whose HTML is the content twice over.\ntheme:\n  use: editorial\n");
   return dir;
 }
 

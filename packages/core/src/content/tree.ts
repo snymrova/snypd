@@ -71,7 +71,7 @@ export function checkProp(f: FieldSpec, raw: string): { value: unknown; problem?
     case "date": return DATE_RE.test(raw) ? { value: raw } : { value: raw, problem: `expected YYYY-MM-DD, got "${raw}"` };
     case "string": case "text": case "markdown": case "image": case "datetime": case "ref": {
       if (f.pattern && !new RegExp(f.pattern).test(raw)) return { value: raw, problem: `does not match /${f.pattern}/` };
-      if (f.max !== undefined && raw.length > f.max) return { value: raw, problem: `longer than ${f.max} characters` };
+      if (f.max !== undefined && raw.length > f.max) return { value: raw, problem: `is ${raw.length} characters; the limit is ${f.max}` };
       return { value: raw };
     }
     default: return { value: raw };   // list/object/yaml cannot be expressed as an attribute; not checked here
@@ -80,6 +80,8 @@ export function checkProp(f: FieldSpec, raw: string): { value: unknown; problem?
 
 /** The spec's intent line for `chart`: one comparison, this many points. Past it the picture stops working. */
 export const CHART_MAX_POINTS = 12;
+/** The closed row shapes (spec: chart.props.data, diagram.slots.body); flow's are `KEYS` in checkFlow. */
+const CHART_KEYS = ["label", "value", "series"] as const, NODE_KEYS = ["id", "label", "kind"] as const, EDGE_KEYS = ["from", "to", "label"] as const;
 
 /**
  * `chart` takes its rows three ways (spec: body YAML, `data=` inline, `src=` a file). This resolves the
@@ -88,6 +90,34 @@ export const CHART_MAX_POINTS = 12;
  * does not lint (html.ts). `src=` is parsed but not read in v0.1: the route key hashes the post, so a
  * chart whose numbers live in another file would not rebuild when that file changed.
  */
+/**
+ * A row in a YAML body is a closed shape, and an unknown key in one is nearly always the same accident:
+ * `{ label: 1,000 posts, value: 2722.4 }` is `label: 1` plus a key `000 posts` with no value, because a
+ * comma ends a flow-map entry. Lint accepted that for two posts running (docs/07 §5, findings 3 and 7),
+ * and the bar read "1" until a person looked. Rule 2, a warning: the row still renders, wrongly.
+ */
+function checkRowKeys(name: string, where: string, row: Record<string, unknown>, keys: readonly string[], at: (rule: string, n: number, severity: Severity, message: string, hint: string) => void): void {
+  for (const k of Object.keys(row)) {
+    if (keys.includes(k)) continue;
+    const split = row[k] === null || row[k] === undefined;   // a comma-split fragment is a key with no value
+    at("unknown-prop", 2, "warning", `\`${name}\` ${where} has no key \`${k}\``,
+      split ? `A comma ends a flow-map entry — quote the value it came from: \`label: "…, ${k}"\`. The keys are ${keys.join(", ")}` : `The keys are ${keys.join(", ")}; anything else is ignored — check snypd://spec/primitives/${name}`);
+  }
+}
+
+/**
+ * Labels wrap to three lines in a box and then clip (viz: `MAX_LINES`, S10 — by design, and the design
+ * is right). Three of four launch posts hit the clip and found it in the preview (findings 5 and 8); a
+ * label that will clip is knowable from its length, so rule 2 says so before a render does. Box lines
+ * hold ~20 characters at 13 px, a diamond's ~18 and it wraps earlier, hence the two ceilings.
+ */
+const LABEL_MAX = 45, ASK_MAX = 40;
+function checkLabel(name: string, where: string, label: string, max: number, at: (rule: string, n: number, severity: Severity, message: string, hint: string) => void): void {
+  if (label.length <= max) return;
+  at("label-length", 2, "warning", `\`${name}\` ${where} label is ${label.length} characters; past ${max} it clips`,
+    `Boxes wrap to three short lines and cut the rest with an ellipsis — shorten it to ${max} or fewer, and put the detail in the caption or the prose`);
+}
+
 function checkChart(b: Block, attrs: Record<string, string | null | undefined>, at: (rule: string, n: number, severity: Severity, message: string, hint: string) => void): void {
   if (b.data === undefined && typeof attrs.data === "string" && attrs.data.trim()) {
     try { b.data = parseYaml(attrs.data); }
@@ -109,6 +139,7 @@ function checkChart(b: Block, attrs: Record<string, string | null | undefined>, 
   for (const [i, raw] of list.entries()) {
     const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
     const value = r ? (typeof r.value === "number" ? r.value : typeof r.value === "string" ? Number(r.value) : NaN) : NaN;
+    if (r) checkRowKeys("chart", `row ${i + 1}`, r, CHART_KEYS, at);
     if (r && r.label !== undefined && r.label !== null && String(r.label) !== "" && Number.isFinite(value)) continue;
     if (bad++ < 3) at("invalid-prop", 2, "error", `\`chart\` row ${i + 1} is not \`{ label, value }\``, 'Every row needs a label and a number: `- { label: HTML, value: 6120 }`');
   }
@@ -138,6 +169,8 @@ function checkDiagram(b: Block, at: (rule: string, n: number, severity: Severity
     if (!id) { at("invalid-prop", 2, "error", `\`diagram\` node ${i + 1} has no \`id\``, "Every node needs an id the edges can point at: `- { id: build, label: snypd build }`"); continue; }
     if (ids.has(id)) at("invalid-prop", 2, "error", `\`diagram\` declares node \`${id}\` twice`, "Two boxes cannot share an id — rename one, or drop the duplicate");
     ids.add(id);
+    checkRowKeys("diagram", `node \`${id}\``, r!, NODE_KEYS, at);
+    checkLabel("diagram", `node \`${id}\``, r!.label === undefined || r!.label === null ? id : String(r!.label), LABEL_MAX, at);
     if (r!.kind !== undefined && !["box", "rounded", "pill"].includes(String(r!.kind)))
       at("invalid-prop", 2, "warning", `\`diagram\` node \`${id}\` has kind "${String(r!.kind)}"`, "`kind` is `box`, `rounded` or `pill`; anything else is drawn as a box");
   }
@@ -148,6 +181,7 @@ function checkDiagram(b: Block, at: (rule: string, n: number, severity: Severity
     const from = r && r.from !== undefined && r.from !== null ? String(r.from) : "";
     const to = r && r.to !== undefined && r.to !== null ? String(r.to) : "";
     if (!from || !to) { at("invalid-prop", 2, "error", `\`diagram\` edge ${i + 1} is not \`{ from, to }\``, "Every edge needs both ends: `- { from: md, to: build }`"); continue; }
+    checkRowKeys("diagram", `edge ${i + 1}`, r!, EDGE_KEYS, at);
     for (const end of [from, to]) if (!ids.has(end))
       at("invalid-prop", 2, "error", `\`diagram\` edge ${i + 1} points at \`${end}\`, which is not a node`, `Add \`- { id: ${end} }\` to \`nodes:\`, or fix the id — an edge to nothing is not drawn`);
     if (from && from === to) at("invalid-prop", 2, "warning", `\`diagram\` edge ${i + 1} points \`${from}\` at itself`, "A self-loop is not drawn; say it in the caption, or split the box in two");
@@ -178,6 +212,7 @@ function checkFlow(b: Block, at: (rule: string, n: number, severity: Severity, m
       const at_ = `${where} ${i + 1}`;
       if (typeof raw === "string" || typeof raw === "number") {
         if (!String(raw).trim()) at("invalid-prop", 2, "error", `\`flow\` ${at_} is empty`, "A step is the sentence a reader follows: `- Run lint`");
+        else checkLabel("flow", at_, String(raw).trim(), LABEL_MAX, at);
         continue;
       }
       if (Array.isArray(raw) || !raw || typeof raw !== "object") {
@@ -196,6 +231,7 @@ function checkFlow(b: Block, at: (rule: string, n: number, severity: Severity, m
       if (o.ask !== undefined && o.ask !== null) {
         decisions++;
         if (!String(o.ask).trim()) at("invalid-prop", 2, "error", `\`flow\` ${at_} asks nothing`, "A decision is the question the reader answers: `- { ask: Lint clean?, yes: …, no: … }`");
+        else checkLabel("flow", `${at_} \`ask:\``, String(o.ask).trim(), ASK_MAX, at);
         if ((o.yes === undefined || o.yes === null) && (o.no === undefined || o.no === null))
           at("invalid-prop", 2, "warning", `\`flow\` ${at_} is a decision with neither \`yes:\` nor \`no:\``, "Give the decision at least one branch, or write it as a plain step — both answers going to the same place is not a decision");
         for (const [branch, name] of [[o.yes, "yes"], [o.no, "no"]] as const)
@@ -204,6 +240,7 @@ function checkFlow(b: Block, at: (rule: string, n: number, severity: Severity, m
       }
       if (o.do === undefined || o.do === null || !String(o.do).trim())
         at("required-prop", 2, "error", `\`flow\` ${at_} has no \`do:\``, id ? `A named step says what it does: \`- { id: ${id}, do: Fix the reported rule }\`` : "A step is a string, or `{ id, do }` when a `then:` needs to point at it");
+      else checkLabel("flow", at_, String(o.do).trim(), LABEL_MAX, at);
     }
   };
   walk(steps, "step");

@@ -15,6 +15,7 @@ slots:
       A branch with no yes:/no: carries straight on, labelled. A named step that only earlier
       steps jump forward to sits out of the line — the straight path steps over it, and only the
       branch naming it goes there; a jump back to an earlier step is a loop and changes nothing.
+      A step clips past ~45 characters and an ask past ~40: say the detail in the caption.
     max: { nodes: 40 }
 intent: A procedure with at most a handful of decisions that a reader follows top to bottom.
 anti-intent: Not for straight lists (use steps). Not for graphs that are not procedures (use diagram).

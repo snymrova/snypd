@@ -25,7 +25,7 @@ export default function Post({ ctx, page, route, title, description, jsonLd }: L
           <p class="snypd-byline">
             {p.date ? <time datetime={p.date}>{p.date}</time> : null}
             {p.updated ? <> (updated <time datetime={p.updated}>{p.updated}</time>)</> : null}
-            {p.author ? <> by <a href={`${p.author.route}/`} rel="author">{p.author.title}</a></> : null}
+            {p.author ? <> by {p.author.page ? <a href={`${p.author.route}/`} rel="author">{p.author.title}</a> : p.author.title}</> : null}
           </p>
           {p.body}
           <footer class="snypd-post-footer">

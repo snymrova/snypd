@@ -85,6 +85,41 @@ describe("lint rules", () => {
     expect(find(chart(rows(13)), "slot-limit")!.severity).toBe("warning");
     expect(find(chart(rows(13)), "slot-limit")!.message).toContain("13 points; the spec's intent is ≤ 12");
   });
+  test("2 closed rows: an unknown key in a chart row, a diagram node or an edge is a warning that names the comma (H1)", () => {
+    // `{ label: 1,000 posts, value: 2722.4 }` is `label: 1` and a key `000 posts` with no value — the bar
+    // read "1" on the live site for as long as lint accepted the row (docs/07 §5, findings 3 and 7).
+    const chart = `${FM}:::chart{type="bar" source="https://x.y/z" caption="C"}\n- { label: 1,000 posts, value: 2722.4 }\n- { label: b, value: 2, colour: red }\n:::\n`;
+    const d = lintMarkdown(chart, LINT_CTX).diagnostics.filter((x) => x.rule === "unknown-prop");
+    expect(d.map((x) => [x.severity, x.message])).toEqual([["warning", "`chart` row 1 has no key `000 posts`"], ["warning", "`chart` row 2 has no key `colour`"]]);
+    expect(d[0]!.hint).toContain('quote the value it came from: `label: "…, 000 posts"`');
+    expect(d[1]!.hint).toContain("The keys are label, value, series");
+    const diagram = `${FM}:::diagram{caption="C"}\nnodes:\n  - { id: git, label: git repo, drafts branch and main }\n  - { id: b, label: B }\nedges:\n  - { from: git, to: b, weight: 2 }\n:::\n`;
+    const e = lintMarkdown(diagram, LINT_CTX).diagnostics.filter((x) => x.rule === "unknown-prop");
+    expect(e.map((x) => x.message)).toEqual(["`diagram` node `git` has no key `drafts branch and main`", "`diagram` edge 1 has no key `weight`"]);
+    expect(e[0]!.hint).toContain("A comma ends a flow-map entry");
+    expect(e[1]!.hint).toContain("The keys are from, to, label");
+  });
+  test("2 labels that will clip are said before a render: 45 in a box, 40 in a diamond (H1)", () => {
+    const long = "Publish the approved version and land it on main as one commit";   // 62 characters
+    const flow = `${FM}:::flow{caption="c"}\nsteps:\n  - ${long}\n  - { ask: "Does the exact version the human approved still match?", yes: Ship, no: { then: fix } }\n  - { id: fix, do: ${long} }\n:::\n`;
+    const d = lintMarkdown(flow, LINT_CTX).diagnostics.filter((x) => x.rule === "label-length");
+    expect(d.map((x) => [x.severity, x.message])).toEqual([
+      ["warning", "`flow` step 1 label is 62 characters; past 45 it clips"],
+      ["warning", "`flow` step 2 `ask:` label is 54 characters; past 40 it clips"],
+      ["warning", "`flow` step 3 label is 62 characters; past 45 it clips"],
+    ]);
+    expect(d[0]!.hint).toContain("shorten it to 45 or fewer");
+    expect(find(flow, "label-length")!.n).toBe(2);
+    const diagram = `${FM}:::diagram{caption="C"}\nnodes:\n  - { id: a, label: "${long}" }\n  - { id: b, label: Forty-five characters is the most a box takes }\n:::\n`;
+    expect(lintMarkdown(diagram, LINT_CTX).diagnostics.filter((x) => x.rule === "label-length").map((x) => x.message)).toEqual(["`diagram` node `a` label is 62 characters; past 45 it clips"]);   // 45 exactly, on node b, is not a warning
+  });
+  test("0 a description over its max says how far over, not just that it is (H1)", () => {
+    const type = { ...POST_TYPE, fields: { ...POST_TYPE.fields, description: { type: "text", max: 160 } } };
+    const md = `---\ntitle: T\ndate: 2026-01-02\nstatus: draft\ndescription: ${"x".repeat(171)}\n---\n\nBody.\n`;
+    const d = find(md, "frontmatter", { type })!;
+    expect(d.message).toBe("Frontmatter field `description` is 171 characters; the limit is 160");
+    expect(d.hint).toBe("Cut 11 characters — the limit is the field's `max` in snypd://types");
+  });
   test("2 flow steps: the sugar's shapes, the jumps that go nowhere, and the flow that is a list (S10)", () => {
     const flow = (body: string) => `${FM}:::flow{caption="c"}\n${body}\n:::\n`;
     const msgs = (body: string) => lintMarkdown(flow(body), LINT_CTX).diagnostics.map((d) => d.message);

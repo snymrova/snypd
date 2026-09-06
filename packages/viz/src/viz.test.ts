@@ -79,7 +79,7 @@ describe("renderChart", () => {
       expect(r.svg).toContain("<title>Tokens per page</title>");
       expect(r.svg).toContain(`<desc>${type} chart. r0 6,120 tokens,`);
       expect(r.svg).toContain(`data-chart="${type}"`);
-      expect(r.svg).toContain('style="max-width:var(--viz-max-width,100%);height:auto"');   // responsive with zero CSS, overridable with one var
+      expect(r.svg).toContain('style="max-width:var(--viz-max-width,100%);height:auto;--viz-width:640px"');   // responsive with zero CSS, overridable with one var; the drawn width is readable by a stylesheet (H1)
       expect(kb(r.svg)).toBeLessThan(SVG_KB);
     }
   });
@@ -254,6 +254,8 @@ describe("renderDiagram", () => {
     expect(+wide[1]!).toBeGreaterThan(+wide[2]!);
     expect(+tall[2]!).toBeGreaterThan(+tall[1]!);
     expect(renderDiagram({ data: chain(2), direction: "sideways" })!.warnings[0]).toContain("laid out left to right");
+    // H1: the drawn width rides on the svg as `--viz-width`, so a theme can floor a shrink relative to it
+    expect(renderDiagram({ data: chain(4), direction: "lr" })!.svg).toMatch(/ width="(\d+)" height="\d+"[^>]*;--viz-width:\1px">/);
   });
   test("edges leaving one box fan out instead of stacking on one pixel", () => {
     const r = renderDiagram({ data: graph(["a", "b", "c", "d"], [["a", "b"], ["a", "c"], ["a", "d"]]) })!;

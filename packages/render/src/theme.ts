@@ -52,7 +52,9 @@ export interface TermLink { taxonomy: string; term: string; title: string; route
  * frontmatter", so it is the layout's title block and not body flow: handing it to the layout separately
  * is what lets a layout use one or the other, instead of drawing its own header above the author's.
  */
-export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: Entry }
+/** The post's author, with whether the author has a page: `types.author.layout` unset means there is no route to link, and the byline is a name. */
+export interface AuthorLink extends Entry { page: boolean }
+export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink }
 export interface PrimitiveProps {
   name: string;
   /** Coerced props from the spec (tree.ts). */

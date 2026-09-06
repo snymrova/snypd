@@ -14,7 +14,7 @@ import { dirname, join, sep } from "node:path";
 import { formatDiagnostics, loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
-import { loadTheme, type Theme, type SiteCtx, type Entry, type TermLink, type PrimitiveProps } from "./theme";
+import { loadTheme, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps } from "./theme";
 import { Html } from "./jsx-runtime";
 import { resolveTokens, tokensCss, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
@@ -127,13 +127,15 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     }
     return links;
   };
-  const authorOf = (f: IndexedFile): Entry | undefined => { const a = f.frontmatter.author; if (typeof a !== "string") return undefined; const af = sync.files.find((x) => x.type === "author" && x.slug === a); return af ? entryOf(af) : undefined; };
   const layoutOf = (f: IndexedFile): string | null => { const fm = f.frontmatter.layout; if (typeof fm === "string") return fm; return c.types[f.type]?.layout ?? null; };
-  const surfaceOf = (f: IndexedFile, terms: TermLink[], author: Entry | undefined): SurfaceEntry => {
+  // `page` is whether the author's route is built: a type with no layout emits nothing, and a byline
+  // that linked there anyway was the dead link S19b found on a default site (docs/07 §5, finding 1).
+  const authorOf = (f: IndexedFile): AuthorLink | undefined => { const a = f.frontmatter.author; if (typeof a !== "string") return undefined; const af = sync.files.find((x) => x.type === "author" && x.slug === a); return af ? { ...entryOf(af), page: layoutOf(af) !== null } : undefined; };
+  const surfaceOf = (f: IndexedFile, terms: TermLink[], author: AuthorLink | undefined): SurfaceEntry => {
     const e = entryOf(f);
     return { type: e.type, slug: e.slug, route: e.route, url: url(e.route), title: e.title, date: e.date, updated: e.updated, status: e.status, description: e.description,
       terms: terms.map((t) => ({ taxonomy: t.taxonomy, term: t.term, title: t.title, route: t.route, url: url(t.route) })),
-      author: author ? { name: author.title, route: author.route, url: url(author.route) } : undefined,
+      author: author ? { name: author.title, ...(author.page ? { route: author.route, url: url(author.route) } : {}) } : undefined,
       markdown: `${url(e.route)}index.md`, json: `${site.url}/api/${e.type}/${e.slug}.json` };
   };
 
@@ -152,7 +154,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     const s = surfaceOf(f, terms, author);
     surface.push(s);
     lastmod.set(f.route, f.updated ?? f.date);
-    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.route}` : ""}`);
+    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}`);
     contentRoutes.add(f.route);
     const dir = routeDir(f.route);
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {

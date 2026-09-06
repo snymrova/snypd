@@ -156,6 +156,30 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(readFileSync(join(dist, "feed.xml"), "utf8")).not.toContain("<title>Sunny</title>");
     expect(read("authors/sunny")).toContain("<h1>Sunny</h1>");
   });
+  test("H1: a default site's byline links to an author page that exists; a site with no author layout gets a name, not a dead link", async () => {
+    // S19b finding 1: `types.author.layout` was null in the spec, the byline linked `/authors/{slug}/`
+    // anyway, and the first post on snypd.rocks shipped with a 404 under its name. The default is now
+    // `author`; a site that sets it back to null gets a byline that is text.
+    const site = async (name: string, types: string) => {
+      const r = `corpora/_test/byline-${name}`;
+      rmSync(r, { recursive: true, force: true });
+      for (const d of ["content/posts", "content/authors"]) mkdirSync(join(r, d), { recursive: true });
+      writeFileSync(join(r, "snypd.yaml"), `snypd: 1\nsite: { name: T, url: https://t.example }\ntheme: { use: base }\n${types}`);
+      writeFileSync(join(r, "content/posts/a.md"), post("a", "Post A", { author: "sunny" }));
+      writeFileSync(join(r, "content/authors/sunny.md"), "---\nname: Sunny\nstatus: published\n---\n\nBio.\n");
+      await build(r);
+      return { html: readFileSync(join(r, "dist/posts/a/index.html"), "utf8"), api: JSON.parse(readFileSync(join(r, "dist/api/post/a.json"), "utf8")), authorPage: existsSync(join(r, "dist/authors/sunny/index.html")) };
+    };
+    const dflt = await site("default", "");
+    expect(dflt.authorPage).toBe(true);
+    expect(dflt.html).toContain('by <a href="/authors/sunny/" rel="author">Sunny</a>');
+    expect(dflt.api.author).toEqual({ name: "Sunny", route: "/authors/sunny", url: "https://t.example/authors/sunny/" });
+    const none = await site("none", "types: { author: { layout: null } }\n");
+    expect(none.authorPage).toBe(false);
+    expect(none.html).toContain('<p class="snypd-byline"><time datetime="2026-03-01">2026-03-01</time> by Sunny</p>');
+    expect(none.html).not.toContain("/authors/");
+    expect(none.api.author).toEqual({ name: "Sunny" });
+  });
   test("a body edit re-renders exactly that route", async () => {
     writeFileSync(join(root, "content/posts/b.md"), post("b", "Post B", { body: "Changed body." }));
     const r = await build(root);
@@ -343,6 +367,10 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.coverage.some((c) => c.status === "missing")).toBe(false);
     expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
     expect(t.css).toContain("color-scheme: light dark");
+    // H1 (finding 4): boxes and arrows shrink to the column down to 70 % of the drawn width; charts still scroll
+    expect(t.css).toContain(".snypd-diagram .snypd-scroll, .snypd-flow .snypd-scroll { --viz-max-width: 100%; }");
+    expect(t.css).toContain(".snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }");
+    expect(t.css).not.toContain(".snypd-chart .snypd-scroll { --viz-max-width: 100%");
     // U1: the header is editorial's one file; shell, footer and entries are base's. No layout was forked.
     const pc = (n: string) => t.partCoverage.find((c) => c.name === n)!;
     expect(pc("header").status).toBe("own");

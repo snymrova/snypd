@@ -101,7 +101,12 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
     const fields = opts.type.fields;
     for (const [k, f] of Object.entries(fields)) {
       if (f.required && (fm[k] === undefined || fm[k] === null || fm[k] === "")) out.push(D("frontmatter", 0, "error", `Frontmatter is missing required field \`${k}\``, `Add \`${k}:\`${f.description ? ` — ${f.description}` : ""}`, doc.frontmatterLine || 1));
-      else { const p = checkField(k, f, fm[k]); if (p) out.push(D("frontmatter", 0, "error", `Frontmatter field \`${k}\` ${p}`, `See snypd://types for the schema`, frontmatterKeyLine(doc, k))); }
+      else {
+        const p = checkField(k, f, fm[k]);
+        // A `max` overrun says how far over it is (finding 9): "longer than 160" sent the author back to count.
+        const over = typeof fm[k] === "string" && "max" in f && typeof f.max === "number" ? (fm[k] as string).length - f.max : 0;
+        if (p) out.push(D("frontmatter", 0, "error", `Frontmatter field \`${k}\` ${p}`, over > 0 ? `Cut ${over} character${over === 1 ? "" : "s"} — the limit is the field's \`max\` in snypd://types` : `See snypd://types for the schema`, frontmatterKeyLine(doc, k)));
+      }
     }
     for (const k of Object.keys(fm)) if (!(k in fields)) out.push(D("frontmatter", 0, "warning", `Frontmatter has unknown field \`${k}\``, `Unknown fields are ignored; remove it or declare it on the type in snypd.yaml`, frontmatterKeyLine(doc, k)));
     if (opts.statuses && fm.status !== undefined && !opts.statuses.includes(String(fm.status))) out.push(D("frontmatter", 0, "error", `Unknown status \`${fm.status}\``, `Use one of ${opts.statuses.join("|")}`, frontmatterKeyLine(doc, "status")));
