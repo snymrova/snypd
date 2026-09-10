@@ -1,0 +1,32 @@
+# autolink — the Tier 2 plugin (docs/10 §4.2, §4.4, §4.8): one `transform` stage and nothing else.
+#
+# The first mention of a taxonomy term in a post links to the term's archive. docs/02 §9 named this as
+# *the* example of a transform before there was a way to register one, and it is the conformance test of
+# the stage: it runs on the parsed tree after the cache and before render, it reads the site (every used
+# term, with its route) and so its inputs are in the route key — add a term in one post and the others
+# re-render — and it changes nothing a theme owns. No root keys, no slots, no client bytes.
+#
+# What counts as a mention: the term's title (`content/taxonomies/<taxonomy>/<term>.md`'s `title:`), or
+# the term's slug with its dashes read as spaces when there is no title file, matched as whole words and
+# case-insensitively, in prose. Headings, existing links, code, images and directive attributes are left
+# alone, a term is linked once per document, and a page never links to itself.
+plugin:
+  name: autolink
+  version: 0.1.0
+  api: 1
+  description: The first mention of a taxonomy term in a post links to the term's archive — a transform, no markup change for the author.
+  options:
+    type: object
+    additionalProperties: false
+    properties:
+      taxonomies:
+        type: array
+        items: { type: string }
+        description: "Which taxonomies' terms to link; every taxonomy the site declares when absent"
+      minLength:
+        type: integer
+        minimum: 2
+        default: 3
+        description: "Shortest term title that is linked; two-letter terms link too many words by accident"
+  stages:
+    transform: ./transform.ts

@@ -211,7 +211,7 @@ describe("plugins (P1)", () => {
     expect(text).toContain("does: [declares]");
     expect(text).toContain("contributes: { types: [release], taxonomies: [product] }");
     expect(text).toContain("status: loaded");
-    expect(text).toContain("bundled: [analytics, changelog]");
+    expect(text).toContain("bundled: [analytics, autolink, changelog, indexnow]");
     expect(text).not.toContain("hooks:");   // changelog decorates nothing, so the hook table is not printed (free when unused)
   });
 
@@ -238,7 +238,7 @@ describe("plugins (P1)", () => {
     c = loadConfig(R);
     expect(c.ok).toBe(true);
     expect(c.plugins[0]).toMatchObject({ name: "nope", found: false, loaded: false, why: "not found" });
-    expect(warnings(c)[0]).toBe('plugins: plugin "nope" has no snypd.yaml (looked for plugins/nope, node_modules/snypd-plugin-nope, node_modules/nope, and the bundled set: analytics, changelog) — not installed? (snypd.yaml:4)');
+    expect(warnings(c)[0]).toBe('plugins: plugin "nope" has no snypd.yaml (looked for plugins/nope, node_modules/snypd-plugin-nope, node_modules/nope, and the bundled set: analytics, autolink, changelog, indexnow) — not installed? (snypd.yaml:4)');
   });
 
   test("api: is checked before anything else — a manifest for a contract this snypd does not speak is refused, root keys and all", () => {
@@ -262,9 +262,9 @@ describe("plugins (P1)", () => {
   test("the manifest is strict with file:line; a not-yet-built key warns and names its session; a bad manifest is not loaded", () => {
     rmSync(R, { recursive: true, force: true });
     site("  - typo\n  - early\n", "bench: { budgets: { jsKb: 1 } }\n");
-    // `early` declares P2 hooks, which are real now: their modules must exist (P2 refuses a missing one — tested below)
+    // `early` declares P2 hooks and P3 stages/events, which are real now: their modules must exist (a missing one refuses the plugin — tested below)
     mkdirSync(join(R, "plugins/early"), { recursive: true });
-    for (const f of ["head.tsx", "beacon.tsx", "title.ts"]) writeFileSync(join(R, "plugins/early", f), "export default () => null;\n");
+    for (const f of ["head.tsx", "beacon.tsx", "title.ts", "transform.ts", "push.ts"]) writeFileSync(join(R, "plugins/early", f), "export default () => null;\n");
     plugin("plugins/typo", "plugin:\n  name: typo\n  version: 1.0.0\n  api: 1\n  descripton: oops\n  slots: { sidebar: ./x.tsx }\n  capabilities: { client: lots }\ntaxonomies:\n  topic: { attaches: [post] }\n");
     plugin("plugins/early", "plugin:\n  name: early\n  version: 1.0.0\n  api: 1\n  slots: { head: ./head.tsx, body-end: ./beacon.tsx }\n  filters: { title: ./title.ts }\n  stages: { transform: ./transform.ts }\n  events: { push: ./push.ts }\n  tools: ./tools.ts\n  capabilities: { network: [plausible.io], client: 1kb }\ntaxonomies:\n  topic: { attaches: [post] }\n");
     const c = loadConfig(R);
@@ -274,23 +274,59 @@ describe("plugins (P1)", () => {
     expect(e).toContainEqual(expect.stringMatching(/^plugins\[typo\]\.plugin\.capabilities\.client: .*1kb.* \(plugins\/typo\/snypd\.yaml:7 \(plugin typo\)\)$/));
     expect(e).toContainEqual("plugins[typo].plugin: manifest does not validate — not loaded (plugins/typo/snypd.yaml)");
     expect(c.plugins[0]!.loaded).toBe(false);
-    // `early` is a complete P2–P4 manifest: it parses, loads as Tier 0 + 1, and every key that does not run yet says so
-    expect(c.plugins[1]).toMatchObject({ loaded: true, tiers: ["declares", "decorates", "transforms", "reacts", "speaks"], clientKb: 1, slots: { head: "./head.tsx", "body-end": "./beacon.tsx" }, filters: { title: "./title.ts" } });
+    // `early` is a complete P2–P4 manifest: it parses, loads as Tier 0–3, and the one key that does not run yet (P4) says so
+    expect(c.plugins[1]).toMatchObject({ loaded: true, tiers: ["declares", "decorates", "transforms", "reacts", "speaks"], clientKb: 1, slots: { head: "./head.tsx", "body-end": "./beacon.tsx" }, filters: { title: "./title.ts" }, stages: { transform: "./transform.ts" }, events: { push: "./push.ts" }, network: ["plausible.io"], emitPrefixes: ["early/"] });
     expect(c.config.taxonomies.topic).toBeDefined();
     const w = warnings(c).filter((x) => x.startsWith("plugins[early]"));
     expect(w).toEqual([
-      "plugins[early].plugin.stages: `stages` is declared but not built yet (transform and emit stages — docs/10 §4.4, lands in P3); ignored (plugins/early/snypd.yaml:7 (plugin early))",
-      "plugins[early].plugin.events: `events` is declared but not built yet (publish and push events — docs/10 §4.5, lands in P3); ignored (plugins/early/snypd.yaml:8 (plugin early))",
       "plugins[early].plugin.tools: `tools` is declared but not built yet (plugin tools in the catalogue — docs/10 §4.2 tier 4, lands in P4); ignored (plugins/early/snypd.yaml:9 (plugin early))",
     ]);
     const text = renderPlugins(c.plugins, { jsKb: 1 });
     expect(text).toContain('capabilities: {"network":["plausible.io"],"client":"1kb"}');
-    // the hook table (docs/09 §4.4 rule 3): every slot and filter, with who fills it, in order
+    // the hook table (docs/09 §4.4 rule 3): every slot, filter, stage and event, with who fills it, in order
     expect(text).toContain("slots: { head: ./head.tsx, body-end: ./beacon.tsx }");
+    expect(text).toContain("    stages: { transform: ./transform.ts }");
+    expect(text).toContain("    events: { push: ./push.ts }   # may fetch plausible.io");
     expect(text).toContain("  slots: { head: [early], body-start: [], before-content: [], after-content: [], footer-end: [], body-end: [early] }");
     expect(text).toContain("  filters: { title: [early], description: [], excerpt: [], entries: [], jsonLd: [], route: [] }");
+    expect(text).toContain("  stages: { transform: [early], emit: [] }");
+    expect(text).toContain("  events: { publish: [], push: [early] }");
     expect(text).toContain("client: { declared: 1, budget: 1 }");
-    expect(hooksOf(c.plugins)).toMatchObject({ any: true, slots: { head: ["early"], "body-end": ["early"] }, filters: { title: ["early"] } });
+    expect(hooksOf(c.plugins)).toMatchObject({ any: true, slots: { head: ["early"], "body-end": ["early"] }, filters: { title: ["early"] }, stages: { transform: ["early"], emit: [] }, events: { publish: [], push: ["early"] } });
+  });
+
+  test("P3: a stage or event module that is not there refuses the plugin; emit prefixes default to the plugin's name, are normalised, and cannot be `/`", () => {
+    rmSync(R, { recursive: true, force: true });
+    site("  - nostage\n  - noevent\n  - emitter\n  - greedy\n  - mute\n");
+    plugin("plugins/nostage", "plugin: { name: nostage, version: 0.0.1, api: 1, stages: { transform: ./t.ts } }\n");
+    plugin("plugins/noevent", "plugin: { name: noevent, version: 0.0.1, api: 1, events: { publish: ./p.ts, push: ./q.ts } }\n");
+    writeFileSync(join(R, "plugins/noevent/p.ts"), "export default () => 'ok';\n");
+    // `emitter` declares two prefixes, spelt three ways; `greedy` asks for the root of dist/, which is what a prefix exists to refuse
+    plugin("plugins/emitter", "plugin:\n  name: emitter\n  version: 0.0.1\n  api: 1\n  capabilities: { emit: [\"./og\", \"feeds/\", \"og\"] }\n  stages: { emit: ./e.ts }\n");
+    writeFileSync(join(R, "plugins/emitter/e.ts"), "export default () => [];\n");
+    plugin("plugins/greedy", "plugin:\n  name: greedy\n  version: 0.0.1\n  api: 1\n  capabilities: { emit: [\"/\", \"../\"] }\n  stages: { emit: ./e.ts }\n");
+    writeFileSync(join(R, "plugins/greedy/e.ts"), "export default () => [];\n");
+    // `mute` listens with no network: loaded, and its ctx.fetch will refuse every host (events.test.ts)
+    plugin("plugins/mute", "plugin: { name: mute, version: 0.0.1, api: 1, events: { push: ./p.ts } }\n");
+    writeFileSync(join(R, "plugins/mute/p.ts"), "export default () => 'ok';\n");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    const e = errors(c);
+    expect(e).toContainEqual("plugins[nostage].plugin.stages.transform: ./t.ts is missing from plugins/nostage — a stage names a module relative to the plugin's own directory (plugins/nostage/snypd.yaml:1 (plugin nostage))");
+    expect(e).toContainEqual("plugins[nostage].plugin: a hook module is missing (stages.transform) — not loaded (plugins/nostage/snypd.yaml:1 (plugin nostage))");
+    expect(e).toContainEqual("plugins[noevent].plugin.events.push: ./q.ts is missing from plugins/noevent — an event names a module relative to the plugin's own directory (plugins/noevent/snypd.yaml:1 (plugin noevent))");
+    expect(c.plugins.map((p) => `${p.name}:${p.loaded}`)).toEqual(["nostage:false", "noevent:false", "emitter:true", "greedy:true", "mute:true"]);
+    expect(c.plugins[2]!.emitPrefixes).toEqual(["og/", "feeds/", "og/"]);
+    expect(c.plugins[3]!.emitPrefixes).toEqual(["greedy/"]);
+    expect(warnings(c).filter((x) => x.startsWith("plugins[greedy]"))).toEqual([
+      'plugins[greedy].plugin.capabilities.emit[0]: emit prefix "/" would allow writing anywhere in dist/ — ignored; a prefix is a directory the plugin owns, like `greedy/` (plugins/greedy/snypd.yaml:5 (plugin greedy))',
+      'plugins[greedy].plugin.capabilities.emit[1]: emit prefix "../" would allow writing anywhere in dist/ — ignored; a prefix is a directory the plugin owns, like `greedy/` (plugins/greedy/snypd.yaml:5 (plugin greedy))',
+    ]);
+    expect(c.plugins[4]).toMatchObject({ tiers: ["reacts"], network: [], events: { push: "./p.ts" } });
+    const text = renderPlugins(c.plugins);
+    expect(text).toContain("    stages: { emit: ./e.ts }   # writes under og/, feeds/, og/");
+    expect(text).toContain("    events: { push: ./p.ts }   # no network: its ctx.fetch refuses every host");
+    expect(text).toContain("bundled: [analytics, autolink, changelog, indexnow]");
   });
 
   test("P2: a slot or filter that names a module that is not there refuses the plugin at load, naming the file and the line", () => {

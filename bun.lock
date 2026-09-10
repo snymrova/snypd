@@ -107,9 +107,27 @@
         "@snypd/render": "workspace:*",
       },
     },
+    "plugins/autolink": {
+      "name": "@snypd/plugin-autolink",
+      "version": "0.1.0",
+      "dependencies": {
+        "@snypd/render": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/mdast": "^4.0.4",
+      },
+    },
     "plugins/changelog": {
       "name": "@snypd/plugin-changelog",
       "version": "0.1.0",
+    },
+    "plugins/indexnow": {
+      "name": "@snypd/plugin-indexnow",
+      "version": "0.1.0",
+      "dependencies": {
+        "@snypd/core": "workspace:*",
+        "@snypd/render": "workspace:*",
+      },
     },
     "themes/base": {
       "name": "@snypd/theme-base",
@@ -140,7 +158,11 @@
 
     "@snypd/plugin-analytics": ["@snypd/plugin-analytics@workspace:plugins/analytics"],
 
+    "@snypd/plugin-autolink": ["@snypd/plugin-autolink@workspace:plugins/autolink"],
+
     "@snypd/plugin-changelog": ["@snypd/plugin-changelog@workspace:plugins/changelog"],
+
+    "@snypd/plugin-indexnow": ["@snypd/plugin-indexnow@workspace:plugins/indexnow"],
 
     "@snypd/render": ["@snypd/render@workspace:packages/render"],
 

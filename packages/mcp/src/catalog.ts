@@ -326,7 +326,7 @@ tokens: {}
           const r = await build(root);
           return text([
             `built ${r.routes} route${r.routes === 1 ? "" : "s"} in ${r.ms.toFixed(0)} ms`,
-            `  ${r.rendered} rendered, ${r.cached} from cache, ${r.artefacts} artefacts, ${r.media} media${r.removed ? `, ${r.removed} removed` : ""}`,
+            `  ${r.rendered} rendered, ${r.cached} from cache, ${r.artefacts} artefacts${r.emitted ? ` (${r.emitted} emitted by plugins)` : ""}, ${r.media} media${r.removed ? `, ${r.removed} removed` : ""}`,
             // A hook that failed is a line here and never a failed build (P2): the page went out without that plugin's contribution.
             ...r.hooks.diagnostics.map((d) => `  ⚠ plugin ${d.plugin} ${d.hook}${d.route ? ` on ${d.route}` : ""}: ${d.message}`),
           ].join("\n"), { ok: true, ...r });
@@ -402,12 +402,17 @@ tokens: {}
           if (st.policy === "agent") {
             const r = c.pushSite(root, cfgPush, { as: "agent" });
             if (!r.ok) return fail(`push failed: ${r.reason}`, r.hint);
+            // The `push` event (P3, docs/10 §4.5): the branch is on the remote; now every listening plugin
+            // hears which pages went. A handler's failure is a line below and never a failed push.
+            const changed = c.changedContent(root, cfgPush, r.paths ?? []);
+            const events = await c.fireEvent(root, cfgPush, "push", { branch: r.branch, remote: r.remote, sent: r.sent, commits: st.commits, changed, urls: [...new Set(changed.map((x) => x.url))] });
             return text([
               r.sent ? `pushed ${st.branch} → ${st.remote!.name}: ${r.sent} commit${r.sent === 1 ? "" : "s"}` : `${st.branch} → ${st.remote!.name}: the remote already had it`,
               st.deploy ? `${st.deploy} builds from the branch; give it a minute, then read ${cfgPush.config.site.url}.` : `Whatever watches that branch builds next; there is no deploy API here to poll.`,
               `${st.drafts} draft${st.drafts === 1 ? "" : "s"} in flight stay${st.drafts === 1 ? "s" : ""} local — a push sends ${st.branch}, and drafts are not on it.`,
+              ...c.eventLines(events),
               ...(desk ? [`The Desk shows what went and when: ${desk}`] : []),
-            ].join("\n"), { ...st, ok: true, ready: true, pushed: true, sent: r.sent, deskUrl: desk });
+            ].join("\n"), { ...st, ok: true, ready: true, pushed: true, sent: r.sent, deskUrl: desk, changed, events });
           }
           const going = st.ahead === 0
             ? st.known ? `\`${st.branch}\` is already on \`${st.remote!.name}\` as of the last fetch — there is nothing to send.` : `\`${st.branch}\` has never been pushed to \`${st.remote!.name}\`.`
@@ -483,7 +488,18 @@ async function doctor(root: string): Promise<ToolResult> {
     const why = p.diagnostics.filter((d) => d.level === "error").map((d) => `${d.path}: ${d.message}${d.where ? ` (${d.where})` : ""}`).join("\n");
     if (!p.found) warn(`plugin \`${p.entry}\` not found — \`bun add snypd-plugin-${p.name}\`, or a \`plugins/${p.name}/snypd.yaml\` here`);
     else if (!p.loaded) bad(`plugin \`${p.name}\` not loaded — ${p.why}`, why);
-    else ok(`plugin \`${p.name}\` ${p.manifest?.version ?? "(no plugin: block)"} ${p.tiers.join(" + ") || "declares nothing"} (${p.where})${Object.keys(p.slots).length || Object.keys(p.filters).length ? ` — ${[Object.keys(p.slots).length ? `slots ${Object.keys(p.slots).join(", ")}` : "", Object.keys(p.filters).length ? `filters ${Object.keys(p.filters).join(", ")}` : ""].filter(Boolean).join("; ")}` : ""}${p.clientKb ? ` · client ${p.clientKb} KB` : ""}`);
+    else {
+      // What it hooks (P2) and what it runs (P3), then what it is allowed: the emit prefix and the hosts,
+      // because a reader deciding whether to keep a plugin wants those two on the same line as its name.
+      const hooks = [
+        Object.keys(p.slots).length ? `slots ${Object.keys(p.slots).join(", ")}` : "",
+        Object.keys(p.filters).length ? `filters ${Object.keys(p.filters).join(", ")}` : "",
+        Object.keys(p.stages).length ? `stages ${Object.keys(p.stages).join(", ")}` : "",
+        Object.keys(p.events).length ? `events ${Object.keys(p.events).join(", ")}` : "",
+      ].filter(Boolean).join("; ");
+      const allowed = [p.clientKb ? `client ${p.clientKb} KB` : "", p.stages.emit ? `writes ${p.emitPrefixes.join(", ")}` : "", p.events.publish || p.events.push ? (p.network.length ? `fetches ${p.network.join(", ")}` : "no network") : ""].filter(Boolean).join(" · ");
+      ok(`plugin \`${p.name}\` ${p.manifest?.version ?? "(no plugin: block)"} ${p.tiers.join(" + ") || "declares nothing"} (${p.where})${hooks ? ` — ${hooks}` : ""}${allowed ? ` · ${allowed}` : ""}`);
+    }
   }
   // The client-JS line (P2, decision 84): what the plugins declared against what the site afforded. Only
   // when there is something to say — a site with no plugin and a budget of 0 is the default and prints nothing.

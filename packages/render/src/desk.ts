@@ -125,7 +125,7 @@ export interface DeskPush {
   /** Where the button posts. Spelled by `@snypd/core` (`PUSH_ROUTE`) and passed in with the rest. */
   route: string;
   /** The last push this preview server made, so the page can say what happened rather than only what is. */
-  last?: { ok: boolean; at: number; sent: number; by?: string; reason?: string; hint?: string };
+  last?: { ok: boolean; at: number; sent: number; by?: string; reason?: string; hint?: string; /** what the plugins listening to `push` said (P3), one line each */ events?: string[] };
 }
 
 export interface DeskFacts {
@@ -378,7 +378,7 @@ function pushCard(p: DeskPush, now: number): string {
 
   const last = p.last
     ? p.last.ok
-      ? `<p class="note"><span class="ok">Pushed</span> ${escape(ago(p.last.at, now))}${p.last.sent ? ` — ${p.last.sent} commit${p.last.sent === 1 ? "" : "s"}` : " — the remote already had it"}${p.last.by ? ` · <code>${escape(p.last.by)}</code>` : ""}. The host builds from the branch; give it a minute.</p>`
+      ? `<p class="note"><span class="ok">Pushed</span> ${escape(ago(p.last.at, now))}${p.last.sent ? ` — ${p.last.sent} commit${p.last.sent === 1 ? "" : "s"}` : " — the remote already had it"}${p.last.by ? ` · <code>${escape(p.last.by)}</code>` : ""}. The host builds from the branch; give it a minute.</p>${(p.last.events ?? []).map((e) => `<p class="note">${escape(e)}</p>`).join("")}`
       : `<p class="note"><span class="fail">The last push failed</span> ${escape(ago(p.last.at, now))}.</p>${pre(p.last.reason ?? "")}${p.last.hint ? `<p class="note">${escape(p.last.hint)}</p>` : ""}`
     : "";
 

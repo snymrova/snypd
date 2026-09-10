@@ -23,11 +23,24 @@
  * Modules load through the same seam themes use (decision 83): a plugin on disk is `import()`ed under
  * a hash-busting query, a bundled one comes from the barrel, and `snypd dev` bundles the entries so an
  * edit to a file a hook imports is picked up without a restart — the S11/S13 fix, applied to plugins.
+ *
+ * P3 (docs/10 §4.4) opens two **stages** the same way, declared under `stages:` in the manifest:
+ *   - `transform(root, ctx) → root` runs per document, on the parsed markdown tree after the cache and
+ *     before render, with the typed blocks beside it for reading. The tree it is handed is a **copy** — the
+ *     mdast cache is shared across routes and builds and a transform that mutated it would run twice on
+ *     the next build — and the typed blocks are rebuilt from what it returns, so a directive it touched
+ *     is coerced again. Its inputs are in the route key: the plugin's bytes, the site's options and the
+ *     site-wide list of terms (`ctx.terms`), so `autolink` re-renders every post when a term is added.
+ *   - `emit(ctx) → { path, bytes }[]` runs once per build. **The plugin returns files; core writes them**
+ *     (decision 86): a path outside the plugin's declared prefixes (`capabilities.emit`, default
+ *     `<name>/`), one a route or artefact already produces, or one another plugin already emitted is a
+ *     diagnostic and is not written. Nothing a plugin emits can overwrite a page.
  */
 import { resolve, join } from "node:path";
-import { INDEX_DIR, isBundledDir, themeModule, hooksOf, FILTER_NAMES, SLOT_NAMES, type LoadedConfig, type LoadedPlugin, type SlotName, type FilterName, type Config } from "@snypd/core";
+import type { Root } from "mdast";
+import { INDEX_DIR, isBundledDir, themeModule, hooksOf, FILTER_NAMES, SLOT_NAMES, type LoadedConfig, type LoadedPlugin, type SlotName, type FilterName, type Config, type Block } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
-import { bundleTheme, themeHash, themeStamp, type SiteCtx, type Entry, type Page } from "./theme";
+import { bundleTheme, themeHash, themeStamp, type SiteCtx, type Entry, type Page, type TermLink } from "./theme";
 
 export type { SlotName, FilterName };
 
@@ -44,12 +57,26 @@ export type SlotComponent = (p: SlotProps) => Html | string | null | undefined;
 export interface FilterCtx { name: FilterName; route: string; /** the content item, when the value belongs to one (absent for the index and term pages) */ entry?: Entry; options: Record<string, unknown>; plugin: string; site: SiteCtx["site"]; config: Config }
 export type FilterFn<T = unknown> = (value: T, ctx: FilterCtx) => T;
 
+/** What a `transform` stage is handed beside the tree (P3): the document's place, its typed blocks (read-only — they are rebuilt from the returned tree), and every term the site uses. */
+export interface TransformCtx { route: string; entry: Entry; blocks: Block[]; /** every used term of every taxonomy, sorted, with its route — what `autolink` links to */ terms: TermLink[]; site: SiteCtx["site"]; config: Config; options: Record<string, unknown>; plugin: string }
+/** A transform returns the tree (the same object, mutated, or a new one) or nothing, which means "mutated in place". */
+export type TransformFn = (root: Root, ctx: TransformCtx) => Root | void | undefined;
+/** One file an `emit` stage asks core to write: `dist/`-relative, under one of the plugin's prefixes. */
+export interface EmitFile { path: string; bytes: string | Uint8Array }
+/** What an `emit` stage is handed (P3): the site, the pages this build produces, and the prefixes it may write under. */
+export interface EmitCtx { site: SiteCtx["site"]; config: Config; root: string; /** every route this build renders, with its absolute url */ routes: { route: string; url: string }[]; entries: Entry[]; /** the `dist/`-relative prefixes this plugin declared (or `<name>/`) — anything else is refused */ prefixes: string[]; options: Record<string, unknown>; plugin: string }
+export type EmitFn = (ctx: EmitCtx) => EmitFile[] | Promise<EmitFile[]>;
+
 export interface HookDiagnostic { plugin: string; hook: string; route?: string; message: string }
-interface Contributor<F> { plugin: string; options: Record<string, unknown>; fn: F; file: string }
+interface Contributor<F> { plugin: string; options: Record<string, unknown>; fn: F; file: string; /** emit only: the prefixes it may write under */ prefixes?: string[] }
 export interface Hooks {
   /** Contributors per slot, in `plugins:` order. */
   slots: Record<SlotName, Contributor<SlotComponent>[]>;
   filters: Record<FilterName, Contributor<FilterFn>[]>;
+  /** `transform` stages in `plugins:` order (P3); `[]` is free — one length check per document. */
+  transforms: Contributor<TransformFn>[];
+  /** `emit` stages in `plugins:` order (P3). */
+  emits: Contributor<EmitFn>[];
   /** Plugins that fill at least one hook, in order. */
   plugins: string[];
   /** What went wrong in a hook during the last build; the build empties it at the start and carries it out at the end. */
@@ -60,7 +87,7 @@ export interface Hooks {
 
 const emptyMap = <K extends string, V>(keys: readonly K[]) => Object.fromEntries(keys.map((k) => [k, [] as V[]])) as Record<K, V[]>;
 /** What a site with no decorating plugin gets: nothing to run, nothing to cache, nothing to diagnose. */
-export const EMPTY_HOOKS: Hooks = Object.freeze({ slots: emptyMap<SlotName, Contributor<SlotComponent>>(SLOT_NAMES), filters: emptyMap<FilterName, Contributor<FilterFn>>(FILTER_NAMES), plugins: [], diagnostics: [], empty: true }) as Hooks;
+export const EMPTY_HOOKS: Hooks = Object.freeze({ slots: emptyMap<SlotName, Contributor<SlotComponent>>(SLOT_NAMES), filters: emptyMap<FilterName, Contributor<FilterFn>>(FILTER_NAMES), transforms: [], emits: [], plugins: [], diagnostics: [], empty: true }) as Hooks;
 
 /** A filter's value kinds — the check that turns a wrong return into a diagnostic instead of a broken page. */
 const FILTER_KIND: Record<FilterName, (v: unknown) => boolean> = {
@@ -85,10 +112,10 @@ export interface LoadHooksOptions {
  * returns `EMPTY_HOOKS` without touching the cache or the disk.
  */
 export async function loadHooks(cfg: LoadedConfig, opts: LoadHooksOptions = {}): Promise<Hooks> {
-  const plugins = cfg.plugins.filter((p) => p.loaded && p.dir && (Object.keys(p.slots).length || Object.keys(p.filters).length));
+  const plugins = cfg.plugins.filter((p) => p.loaded && p.dir && (Object.keys(p.slots).length || Object.keys(p.filters).length || Object.keys(p.stages).length));
   if (!plugins.length) return EMPTY_HOOKS;
   const dirs = plugins.map((p) => p.dir!);
-  const stamp = `${themeStamp(dirs)}|${plugins.map((p) => `${p.name}:${JSON.stringify(p.options)}:${JSON.stringify(p.slots)}:${JSON.stringify(p.filters)}`).join("|")}`;
+  const stamp = `${themeStamp(dirs)}|${plugins.map((p) => `${p.name}:${JSON.stringify(p.options)}:${JSON.stringify(p.slots)}:${JSON.stringify(p.filters)}:${JSON.stringify(p.stages)}:${p.emitPrefixes.join()}`).join("|")}`;
   const hit = loaded.get(cfg.root);
   if (hit && hit.stamp === stamp) return hit;
 
@@ -97,7 +124,7 @@ export async function loadHooks(cfg: LoadedConfig, opts: LoadHooksOptions = {}):
   let bundled: Map<string, string> | undefined;
   if (opts.bundle) {
     const entries: string[] = [];
-    for (const p of plugins) if (!isBundledDir(p.dir!)) for (const f of [...Object.values(p.slots), ...Object.values(p.filters)]) if (f) entries.push(resolve(join(p.dir!, f)));
+    for (const p of plugins) if (!isBundledDir(p.dir!)) for (const f of [...Object.values(p.slots), ...Object.values(p.filters), ...Object.values(p.stages)]) if (f) entries.push(resolve(join(p.dir!, f)));
     if (entries.length) bundled = await bundleTheme(entries, join(cfg.root, INDEX_DIR, "plugins", hash.slice(0, 8)));
   }
   const mod = async (p: LoadedPlugin, rel: string): Promise<unknown> => {
@@ -106,8 +133,18 @@ export async function loadHooks(cfg: LoadedConfig, opts: LoadHooksOptions = {}):
     return (await import((bundled?.get(abs) ?? abs) + bust)).default as unknown;
   };
 
-  const hooks: Hooks & { stamp: string } = { slots: emptyMap(SLOT_NAMES), filters: emptyMap(FILTER_NAMES), plugins: plugins.map((p) => p.name), diagnostics: [], empty: false, stamp };
+  const hooks: Hooks & { stamp: string } = { slots: emptyMap(SLOT_NAMES), filters: emptyMap(FILTER_NAMES), transforms: [], emits: [], plugins: plugins.map((p) => p.name), diagnostics: [], empty: false, stamp };
   for (const p of plugins) {
+    if (p.stages.transform) {
+      const fn = await mod(p, p.stages.transform);
+      if (typeof fn !== "function") throw new Error(`plugin ${p.name}: ${p.stages.transform} (stages.transform) does not export a default function`);
+      hooks.transforms.push({ plugin: p.name, options: p.options, fn: fn as TransformFn, file: p.stages.transform });
+    }
+    if (p.stages.emit) {
+      const fn = await mod(p, p.stages.emit);
+      if (typeof fn !== "function") throw new Error(`plugin ${p.name}: ${p.stages.emit} (stages.emit) does not export a default function`);
+      hooks.emits.push({ plugin: p.name, options: p.options, fn: fn as EmitFn, file: p.stages.emit, prefixes: p.emitPrefixes });
+    }
     for (const [name, file] of Object.entries(p.slots) as [SlotName, string][]) {
       const fn = await mod(p, file);
       if (typeof fn !== "function") throw new Error(`plugin ${p.name}: ${file} (slots.${name}) does not export a default function`);
@@ -182,4 +219,63 @@ export function applyFilter<T>(hooks: Hooks, name: FilterName, value: T, ctx: Om
     }
   }
   return v as T;
+}
+
+const isRoot = (v: unknown): v is Root => typeof v === "object" && v !== null && (v as Root).type === "root" && Array.isArray((v as Root).children);
+
+/**
+ * Run a document through every `transform` stage, in order (P3, docs/10 §4.4). Each contributor gets its
+ * own copy of the tree — the cache's tree is never handed out, and a contributor that throws halfway
+ * through mutating leaves no half-transformed tree behind: the copy is dropped and the next contributor
+ * starts from the last good one. A return that is not a root is a diagnostic and the tree stands.
+ * Free when nothing is declared: one length check, and the cache's own tree comes straight back.
+ */
+export function applyTransforms(hooks: Hooks, root: Root, ctx: Omit<TransformCtx, "options" | "plugin">): Root {
+  if (!hooks.transforms.length) return root;
+  let tree = root;
+  for (const c of hooks.transforms) {
+    const work = structuredClone(tree);
+    try {
+      const next = c.fn(work, { ...ctx, options: c.options, plugin: c.plugin });
+      if (next === undefined || next === null) { tree = work; continue; }
+      if (!isRoot(next)) { report(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, message: `returned ${Array.isArray(next) ? "an array" : `a ${typeof next}`} where transform returns the root (or nothing, having changed it in place); tree left as it was` }); continue; }
+      tree = next;
+    } catch (e) {
+      report(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, message: message(e) });
+    }
+  }
+  return tree;
+}
+
+export interface EmittedFile extends EmitFile { plugin: string }
+/**
+ * Run every `emit` stage once and hand back the files core may write (P3, decision 86). `claimed` is
+ * every `dist/`-relative output the plan already produces — routes, artefacts, media — and grows with
+ * each accepted file, so the second plugin to name a path loses it. Every refusal is a diagnostic naming
+ * the plugin, the path and the rule; a stage that throws or returns something other than a list emits
+ * nothing and says so. Paths are normalised (`./a//b` is `a/b`) and must stay inside `dist/`.
+ */
+export async function runEmits(hooks: Hooks, ctx: Omit<EmitCtx, "options" | "plugin" | "prefixes">, claimed: Set<string>): Promise<EmittedFile[]> {
+  const out: EmittedFile[] = [];
+  for (const c of hooks.emits) {
+    const prefixes = c.prefixes ?? [`${c.plugin}/`];
+    let files: unknown;
+    try { files = await c.fn({ ...ctx, options: c.options, plugin: c.plugin, prefixes }); }
+    catch (e) { report(hooks, { plugin: c.plugin, hook: "stages.emit", message: message(e) }); continue; }
+    if (!Array.isArray(files)) { report(hooks, { plugin: c.plugin, hook: "stages.emit", message: `returned ${files === undefined ? "undefined" : `a ${typeof files}`} where emit returns a list of { path, bytes }; nothing written` }); continue; }
+    for (const f of files as unknown[]) {
+      const refuse = (why: string, path?: string) => report(hooks, { plugin: c.plugin, hook: "stages.emit", route: path ? `/${path}` : undefined, message: `${path ? `${path}: ` : ""}${why}; not written` });
+      if (typeof f !== "object" || f === null || typeof (f as EmitFile).path !== "string") { refuse("an emitted file is { path, bytes }"); continue; }
+      const raw = (f as EmitFile).path;
+      const bytes = (f as EmitFile).bytes;
+      if (typeof bytes !== "string" && !(bytes instanceof Uint8Array)) { refuse("bytes must be a string or a Uint8Array", raw); continue; }
+      const path = raw.split("\\").join("/").replace(/^\.?\/+/, "").replace(/\/{2,}/g, "/");
+      if (!path || path.endsWith("/") || path.split("/").some((seg) => seg === "" || seg === "." || seg === "..")) { refuse("not a file path inside dist/", raw); continue; }
+      if (!prefixes.some((p) => path.startsWith(p))) { refuse(`outside the plugin's emit prefix${prefixes.length === 1 ? "" : "es"} ${prefixes.join(", ")} (capabilities.emit in its snypd.yaml)`, path); continue; }
+      if (claimed.has(path)) { refuse(out.some((o) => o.path === path) ? "already emitted by an earlier plugin" : "a route or site artefact already produces this file", path); continue; }
+      claimed.add(path);
+      out.push({ plugin: c.plugin, path, bytes });
+    }
+  }
+  return out;
 }

@@ -1580,3 +1580,112 @@ describe("redirects (S16)", () => {
     expect(existsSync(join(dist, "posts/old/index.html"))).toBe(false);
   });
 });
+
+/**
+ * P3 (docs/10 §4.4): the two stages. `transform` runs per document on a copy of the cached tree, in
+ * `plugins:` order, with the site's terms beside it — `autolink` is the proof — and a throw or a wrong
+ * return is a diagnostic, never a missing page. `emit` returns files and core writes them, refusing
+ * anything outside the plugin's prefix, anything the site already produces, and anything a plugin before
+ * it emitted (decision 86). Removing the plugins removes every byte they added, and the cache's own tree
+ * comes back untouched.
+ */
+describe("stages (P3): transform on a copy, emit through core, autolink as the proof", () => {
+  test("transform, emit, autolink, invalidation, and removal", async () => {
+    const root = "corpora/_test/stages-build";
+    const dist = join(root, "dist");
+    const read = (route: string) => readFileSync(join(dist, route, "index.html"), "utf8");
+    const count = (s: string, needle: string) => s.split(needle).length - 1;
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/taxonomies/category", "plugins/local", "plugins/second", "plugins/broken", "plugins/wrong"]) mkdirSync(join(root, d), { recursive: true });
+    const config = (plugins: string) => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: S, url: https://s.example }\nplugins: ${plugins}\n`);
+    writeFileSync(join(root, "content/taxonomies/category/building-in-public.md"), "---\ntitle: Building in public\n---\n");
+    const postA = "---\ntitle: Post A\ndate: 2026-09-02\nstatus: published\ncategory: building-in-public\ntags: [mcp]\n---\n\n## Building in public, as a heading\n\nWe are building in public here, and building in public again later. MCP is the interface, `building in public` is code, and [building in public](https://x.example) is already a link. A Zebra walks past.\n\n:::callout{title=\"building in public\"}\nInside a callout, building in public shows too.\n:::\n";
+    writeFileSync(join(root, "content/posts/a.md"), postA);
+    writeFileSync(join(root, "content/posts/b.md"), "---\ntitle: Post B\ndate: 2026-09-01\nstatus: published\n---\n\nNothing to link in B.\n");
+    // `local`: a transform that appends a paragraph (mutating in place, returning nothing) and an emit that tries every kind of path
+    writeFileSync(join(root, "plugins/local/transform.ts"), "export default (root, ctx) => { root.children.push({ type: 'paragraph', children: [{ type: 'text', value: `‡ ${ctx.plugin} on ${ctx.route} saw ${ctx.terms.length} terms and ${ctx.blocks.length} blocks` }] }); };\n");
+    writeFileSync(join(root, "plugins/local/emit.ts"), "export default (ctx) => [{ path: 'local/a.txt', bytes: `routes: ${ctx.routes.map((r) => r.route).join(' ')}` }, { path: 'shared/s.txt', bytes: 'shared by local' }, { path: 'other/b.txt', bytes: 'no' }, { path: 'index.html', bytes: 'evil' }, { path: '../x.txt', bytes: 'no' }, { path: 'local/', bytes: 'no' }, { path: './local//c.txt', bytes: new TextEncoder().encode('bytes') }, { path: 5, bytes: 'no' }, { path: 'local/d.txt', bytes: 7 }];\n");
+    writeFileSync(join(root, "plugins/local/snypd.yaml"), "plugin: { name: local, version: 0.0.1, api: 1, capabilities: { emit: [local/, shared/] }, stages: { transform: ./transform.ts, emit: ./emit.ts } }\n");
+    // `second`: may write under shared/ too, and tries the file `local` already emitted there; and an async emit is fine
+    writeFileSync(join(root, "plugins/second/emit.ts"), "export default async () => [{ path: 'shared/s.txt', bytes: 'shared by second' }, { path: 'second/ok.txt', bytes: 'ok' }];\n");
+    writeFileSync(join(root, "plugins/second/snypd.yaml"), "plugin: { name: second, version: 0.0.1, api: 1, capabilities: { emit: [shared/, second/] }, stages: { emit: ./emit.ts } }\n");
+    writeFileSync(join(root, "plugins/broken/transform.ts"), "export default (root) => { root.children.length = 0; throw new Error('boom'); };\n");   // mutates, then throws: the copy is dropped
+    writeFileSync(join(root, "plugins/broken/snypd.yaml"), "plugin: { name: broken, version: 0.0.1, api: 1, stages: { transform: ./transform.ts } }\n");
+    writeFileSync(join(root, "plugins/wrong/transform.ts"), "export default () => 42;\n");
+    writeFileSync(join(root, "plugins/wrong/snypd.yaml"), "plugin: { name: wrong, version: 0.0.1, api: 1, stages: { transform: ./transform.ts } }\n");
+
+    // ── no plugin: nothing transformed, nothing emitted ──
+    config("[]");
+    let r = await build(root);
+    const plainA = read("posts/a");
+    expect(r.emitted).toBe(0);
+    expect(plainA).not.toContain("‡");
+    expect(plainA).not.toContain('href="/category/building-in-public/">building');
+    expect(existsSync(join(dist, "local"))).toBe(false);
+
+    // ── autolink + local + second + broken + wrong ──
+    config("[autolink, local, second, broken, wrong]");
+    r = await build(root);
+    expect(r.hooks.plugins).toEqual(["autolink", "local", "second", "broken", "wrong"]);
+    const a = read("posts/a");
+    // autolink: the first prose mention, once; the heading, the code, the existing link and later mentions untouched
+    expect(count(a, '<a href="/category/building-in-public/">building in public</a>')).toBe(1);
+    expect(a).toContain("<h2 id=\"building-in-public-as-a-heading\">Building in public, as a heading</h2>");
+    expect(a).toContain("<code>building in public</code>");
+    expect(a).toContain('<a href="https://x.example">building in public</a>');
+    expect(a).toMatch(/<a href="\/category\/building-in-public\/">building in public<\/a> here, and building in public again later\./);
+    // a term with no title file links by its slug, case-insensitively, keeping the author's spelling
+    expect(a).toContain('<a href="/tag/mcp/">MCP</a>');
+    // the callout's prose is prose; its `title` attribute is markup and is left alone
+    expect(a).toContain('building in public shows too');
+    expect(a).not.toContain('title="<a');
+    // local's transform ran after autolink, on a tree that had the terms and the typed blocks beside it
+    expect(a).toContain("‡ local on /posts/a saw 2 terms and 1 blocks");
+    expect(read("posts/b")).toContain("‡ local on /posts/b saw 2 terms and 0 blocks");
+    // the markdown twin is the source: no transform reaches it
+    expect(readFileSync(join(dist, "posts/a/index.md"), "utf8")).toBe(postA);
+    // broken and wrong: diagnostics naming the plugin, the stage and the route; the page is whole
+    expect(r.hooks.diagnostics).toContainEqual({ plugin: "broken", hook: "stages.transform", route: "/posts/a", message: "boom" });
+    expect(r.hooks.diagnostics).toContainEqual({ plugin: "wrong", hook: "stages.transform", route: "/posts/a", message: "returned a number where transform returns the root (or nothing, having changed it in place); tree left as it was" });
+    // emit: four files written, every refusal a line
+    expect(r.emitted).toBe(4);
+    expect(readFileSync(join(dist, "local/a.txt"), "utf8")).toBe("routes: /posts/a /posts/b / /category/building-in-public /tag/mcp");
+    expect(readFileSync(join(dist, "shared/s.txt"), "utf8")).toBe("shared by local");
+    expect(readFileSync(join(dist, "local/c.txt"), "utf8")).toBe("bytes");
+    expect(readFileSync(join(dist, "second/ok.txt"), "utf8")).toBe("ok");
+    expect(existsSync(join(dist, "other/b.txt"))).toBe(false);
+    expect(readFileSync(join(dist, "index.html"), "utf8")).not.toBe("evil");
+    const emitDiags = r.hooks.diagnostics.filter((d) => d.hook === "stages.emit").map((d) => `${d.plugin}: ${d.message}`);
+    expect(emitDiags).toEqual([
+      "local: other/b.txt: outside the plugin's emit prefixes local/, shared/ (capabilities.emit in its snypd.yaml); not written",
+      "local: index.html: outside the plugin's emit prefixes local/, shared/ (capabilities.emit in its snypd.yaml); not written",
+      "local: ../x.txt: not a file path inside dist/; not written",
+      "local: local/: not a file path inside dist/; not written",
+      "local: an emitted file is { path, bytes }; not written",
+      "local: local/d.txt: bytes must be a string or a Uint8Array; not written",
+      "second: shared/s.txt: already emitted by an earlier plugin; not written",
+    ]);
+    // a no-op build is a no-op: emitted files are keyed on their bytes
+    r = await build(root);
+    expect(r.rendered).toBe(0);
+    expect(r.emitted).toBe(4);
+
+    // ── a term added in one post re-renders the others (the terms are in the key) ──
+    writeFileSync(join(root, "content/posts/c.md"), "---\ntitle: Post C\ndate: 2026-08-30\nstatus: published\ntags: [zebra]\n---\n\nC.\n");
+    r = await build(root);
+    expect(read("posts/a")).toContain('<a href="/tag/zebra/">Zebra</a>');
+    expect(read("posts/a")).toContain("saw 3 terms");
+
+    // ── remove the plugins: every byte they added goes, and the cached tree was never theirs to change ──
+    config("[]");
+    r = await build(root);
+    expect(r.emitted).toBe(0);
+    expect(read("posts/a")).not.toContain("‡");
+    expect(read("posts/a")).not.toContain('href="/category/building-in-public/">building');
+    expect(read("posts/a")).not.toContain('href="/tag/zebra/">Zebra');
+    for (const f of ["local/a.txt", "shared/s.txt", "local/c.txt", "second/ok.txt"]) expect(existsSync(join(dist, f))).toBe(false);
+    rmSync(join(root, "content/posts/c.md"));
+    await build(root);
+    expect(read("posts/a")).toBe(plainA);
+  });
+});

@@ -151,6 +151,12 @@ export interface PushResult {
   hint?: string;
   by?: string;
   at?: string;
+  /**
+   * Repo-relative paths the sent commits changed (P3): what the `push` event's handlers are told about,
+   * mapped to pages by `changedContent`. Every file on the branch when it had never been pushed before —
+   * a first push puts the whole site live. Empty when nothing went.
+   */
+  paths?: string[];
 }
 
 /**
@@ -174,11 +180,14 @@ export function pushSite(root: string, cfg: LoadedConfig, opts: { who?: string; 
   if (st.branch === DRAFTS_BRANCH)
     return { ok: false, branch: st.branch, remote: remote.name, sent: 0, reason: `refusing to push \`${DRAFTS_BRANCH}\``, hint: "The drafts branch is every unapproved word on this site. Publish an item and the base branch is what goes." };
 
+  // What is about to go, read before the push moves the tracking ref (P3, for the `push` event): the
+  // files between what the remote has and what it is getting, or the whole branch the first time.
+  const changed = st.ahead === 0 ? [] : (st.known ? repo.run("diff", "--name-only", `${remote.name}/${st.branch}`, st.branch) : repo.run("ls-tree", "-r", "--name-only", st.branch)).stdout.split("\n").map((x) => x.trim()).filter(Boolean);
   const r: GitResult = repo.push(remote.name, st.branch, { setUpstream: !st.known, timeoutMs: opts.timeoutMs });
   const who = opts.who ?? principal();
   const at = new Date().toISOString();
   if (!r.ok) return { ok: false, branch: st.branch, remote: remote.name, sent: 0, reason: r.stderr || `git push exited ${r.code}`, hint: pushHint(r.stderr, st.branch), by: who, at };
-  return { ok: true, branch: st.branch, remote: remote.name, sent: st.ahead, by: who, at };
+  return { ok: true, branch: st.branch, remote: remote.name, sent: st.ahead, by: who, at, paths: changed };
 }
 
 /** The two failures a first push actually has, in the words of somebody who can fix them. */

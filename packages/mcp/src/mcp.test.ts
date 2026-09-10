@@ -562,7 +562,7 @@ describe("find_tools + the catalogue", () => {
     expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://plugins");
     // a fresh site: none enabled, and the bundled set is one line away
     expect(plugins.result.contents[0].text).toContain("plugins: {}   # none — `plugins: [changelog]` in snypd.yaml enables a bundled one, no install");
-    expect(plugins.result.contents[0].text).toContain("bundled: [analytics, changelog]");
+    expect(plugins.result.contents[0].text).toContain("bundled: [analytics, autolink, changelog, indexnow]");
     expect(doctor.result.content[0].text).not.toContain("plugin `");
 
     // enable the bundled one and the local one, the local one with bad options
@@ -625,6 +625,57 @@ describe("find_tools + the catalogue", () => {
     expect(t5).toContain("client: { declared: 3, budget: 3 }");
     expect(structured(built)).toMatchObject({ ok: true, hooks: { plugins: ["analytics"], diagnostics: [] } });
     expect(readFileSync(join(site, "dist/index.html"), "utf8")).toContain('<script defer src="https://plausible.io/js/script.js" data-domain="plug.example"></script>');
+  });
+
+  test("P3: a publish fires the plugins that listen and the result says what they said; doctor and snypd://plugins print stages, events, prefixes and hosts; a build emits through core", async () => {
+    const site = "corpora/_test/mcp-p3";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(join(site, "plugins/hello"), { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    writeFileSync(join(site, "plugins/hello/snypd.yaml"), "plugin:\n  name: hello\n  version: 0.0.1\n  api: 1\n  capabilities: { network: [example.com], emit: [hello/] }\n  stages: { transform: ./t.ts, emit: ./e.ts }\n  events: { publish: ./p.ts }\n");
+    writeFileSync(join(site, "plugins/hello/t.ts"), "export default (root) => { root.children.push({ type: 'paragraph', children: [{ type: 'text', value: '— hello was here' }] }); };\n");
+    writeFileSync(join(site, "plugins/hello/e.ts"), "export default () => [{ path: 'hello/marker.txt', bytes: 'hi' }, { path: 'index.html', bytes: 'evil' }];\n");
+    writeFileSync(join(site, "plugins/hello/p.ts"), "export default (item, ctx) => `saw ${item.url} land on ${item.base} (${ctx.plugin} may fetch ${ctx.config.plugins.length} plugins' worth of nothing)`;\n");
+    await session([req(1, "initialize"), call(0, "site", { action: "init", name: "P3", url: "https://p3.example" })], site);
+    writeFileSync(join(site, "snypd.yaml"), readFileSync(join(site, "snypd.yaml"), "utf8") + "plugins:\n  - autolink\n  - hello\n");
+    const { git } = await import("@snypd/core");
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init with plugins");   // a clean tree, so the drafts branch can be entered
+    const [, plugins, doctor, created, published, built] = await session([
+      req(1, "initialize"),
+      req(2, "resources/read", { uri: "snypd://plugins" }),
+      call(3, "site", { action: "doctor" }),
+      call(4, "content.create", { type: "post", frontmatter: { title: "Hello", tags: ["snypd"] }, body: "We like snypd, and we say hello.\n" }),
+      call(5, "content.publish", { type: "post", slug: "hello" }),
+      call(6, "site", { action: "build" }),
+    ], site);
+    const t = plugins.result.contents[0].text as string;
+    expect(t).toContain("  autolink:\n    version: \"0.1.0\"");
+    expect(t).toContain("    stages: { transform: ./transform.ts }");
+    expect(t).toContain("    stages: { transform: ./t.ts, emit: ./e.ts }   # writes under hello/");
+    expect(t).toContain("    events: { publish: ./p.ts }   # may fetch example.com");
+    expect(t).toContain("  stages: { transform: [autolink, hello], emit: [hello] }");
+    expect(t).toContain("  events: { publish: [hello], push: [] }");
+    const d = doctor.result.content[0].text as string;
+    expect(d).toContain("✅ plugin `autolink` 0.1.0 transforms (");
+    expect(d).toContain(") — stages transform");
+    expect(d).toContain("✅ plugin `hello` 0.0.1 transforms + reacts (plugins/hello) — stages transform, emit; events publish · writes hello/ · fetches example.com");
+    expect(structured(doctor).ok).toBe(true);
+    expect(structured(created)).toMatchObject({ ok: true, slug: "hello" });
+    // the publish: landed, then the listener heard about it — a line in the result and a row in the structured answer
+    const p = published.result.content[0].text as string;
+    expect(p).toContain("published post/hello → /posts/hello");
+    expect(p).toContain("✓ hello on publish: saw https://p3.example/posts/hello/ land on main (hello may fetch 2 plugins' worth of nothing)");
+    expect(structured(published).events).toEqual([expect.objectContaining({ plugin: "hello", event: "publish", ok: true })]);
+    expect(existsSync(join(site, ".snypd/events.json"))).toBe(true);
+    // the build: the transform reached the page, autolink linked the tag, the emit wrote under its prefix and was refused the page
+    expect(structured(built)).toMatchObject({ ok: true, emitted: 1, hooks: { plugins: ["autolink", "hello"] } });
+    expect(built.result.content[0].text).toContain("(1 emitted by plugins)");
+    expect(built.result.content[0].text).toContain("⚠ plugin hello stages.emit on /index.html: index.html: outside the plugin's emit prefix hello/ (capabilities.emit in its snypd.yaml); not written");
+    const html = readFileSync(join(site, "dist/posts/hello/index.html"), "utf8");
+    expect(html).toContain("— hello was here");
+    expect(html).toContain('<a href="/tag/snypd/">snypd</a>');
+    expect(readFileSync(join(site, "dist/hello/marker.txt"), "utf8")).toBe("hi");
+    expect(readFileSync(join(site, "dist/index.html"), "utf8")).not.toBe("evil");
   });
 
   test("switching to a theme that does not declare a token you set says so rather than losing it", async () => {

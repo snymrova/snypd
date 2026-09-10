@@ -1,0 +1,43 @@
+# indexnow — the Tier 3 plugin (docs/10 §4.2, §4.5, §4.7, §4.8): an event with a network allowlist, and
+# the emit stage that makes the event work.
+#
+# IndexNow (indexnow.org) is how Bing, Yandex, Seznam and Naver learn a page changed without crawling
+# for it: one POST naming the host, a key, and the URLs. Google does not take part. The key has to be
+# proven — a text file containing it, served from the site — so this plugin has two halves:
+#
+#   emit  › writes `dist/indexnow/<key>.txt` on every build, under its own prefix (decision 86)
+#   push  › after the branch is sent, POSTs the URLs of the content the push changed, with `keyLocation`
+#           pointing at that file. Nothing changed → nothing sent, and it says so.
+#
+# `capabilities.network` is the whole list of endpoints the protocol has; the fetch this plugin is
+# handed refuses any other host before a connection is made (§4.7). A failed ping is a line in the
+# `site › push` result and a row in `.snypd/events.json`, never a failed push (decision 87). No retry:
+# P4's `indexnow › ping` tool re-sends on demand.
+#
+# The key is any 8–128 characters of `a-z A-Z 0-9 -`. Make one up; it is not a secret, it is a claim.
+plugin:
+  name: indexnow
+  version: 0.1.0
+  api: 1
+  description: Tells Bing, Yandex, Seznam and Naver which pages a push changed, the moment it is pushed — IndexNow, with the key file emitted for you.
+  options:
+    type: object
+    required: [key]
+    additionalProperties: false
+    properties:
+      key:
+        type: string
+        pattern: "^[A-Za-z0-9-]{8,128}$"
+        description: "Your IndexNow key — 8 to 128 letters, digits or dashes; served at /indexnow/<key>.txt"
+      endpoint:
+        type: string
+        format: uri
+        default: https://api.indexnow.org/indexnow
+        description: "Which IndexNow endpoint to POST to; api.indexnow.org fans out to every participating engine"
+  capabilities:
+    network: [api.indexnow.org, www.bing.com, yandex.com, search.seznam.cz, searchadvisor.naver.com]
+    emit: [indexnow/]
+  stages:
+    emit: ./emit.ts
+  events:
+    push: ./push.ts

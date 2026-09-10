@@ -1,0 +1,1 @@
+{ "name": "@snypd/plugin-indexnow", "version": "0.1.0", "type": "module", "license": "MIT", "keywords": ["snypd-plugin"], "dependencies": { "@snypd/core": "workspace:*", "@snypd/render": "workspace:*" } }

@@ -11,14 +11,14 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { formatDiagnostics, loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { formatDiagnostics, loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps } from "./theme";
 import { Html } from "./jsx-runtime";
 import { resolveTokens, tokensCss, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
-import { loadHooks, applyFilter, type Hooks, type HookDiagnostic } from "./hooks";
+import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic } from "./hooks";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
@@ -30,6 +30,8 @@ export interface BuildOptions {
 }
 export interface BuildResult {
   routes: number; artefacts: number; media: number; rendered: number; cached: number; removed: number; ms: number;
+  /** Files plugins' `emit` stages asked for and core wrote (P3) — counted in `artefacts` too. */
+  emitted: number;
   phases: { config: number; theme: number; sync: number; plan: number; render: number };
   theme: { name: string; coverage: Theme["coverage"] };
   /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. */
@@ -41,7 +43,7 @@ export interface BuildResult {
  * verbatim. `outputs` are dist-relative. A copy declares its source instead of its content, so a 2 MB
  * photograph never becomes a JavaScript string on the way to disk.
  */
-type Output = string | { copyFrom: string };
+type Output = string | Uint8Array | { copyFrom: string };
 interface Planned { route: string; key: string; outputs: string[]; kind: "route" | "artefact" | "media"; render: () => Record<string, Output> }
 
 /** Bump when the set or shape of files a route produces changes; a stale index is then reset, not pruned. */
@@ -130,7 +132,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const pluginHash = pluginDirs(cfg.plugins).length ? `:${themeHash(pluginDirs(cfg.plugins))}` : "";
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses, ...(c.plugins.length ? { plugins: c.plugins } : {}) }));
   const mediaHash = sha1(JSON.stringify(mediaSizes));
-  const base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
+  let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }
@@ -175,7 +177,15 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       markdown: `${url(e.route)}index.md`, json: `${site.url}/api/${e.type}/${e.slug}.json` };
   };
 
-  const renderBody = (source: string, page: Entry) => renderDoc(source, { theme, ctx, page, cache });
+  // Every used term of every taxonomy, once, before any page is planned (P3): the term pages need the
+  // grouping below, and a `transform` stage is handed the list — `autolink` links a mention to its
+  // archive — so the list is in every route key while a transform is on. A term added in one post then
+  // re-renders the others, which is the incremental cache being right rather than fast.
+  const byTerm = new Map<string, { link: TermLink; files: IndexedFile[] }>();
+  for (const f of published) for (const t of termsOf(f)) { const k = `${t.taxonomy} ${t.term}`; (byTerm.get(k) ?? byTerm.set(k, { link: t, files: [] }).get(k)!).files.push(f); }
+  const allTerms: TermLink[] = [...byTerm.values()].map((x) => x.link).sort((a, b) => a.taxonomy.localeCompare(b.taxonomy) || a.term.localeCompare(b.term));
+  if (hooks.transforms.length) base += `:transform:${sha1(JSON.stringify(allTerms))}`;
+  const renderBody = (source: string, page: Entry) => renderDoc(source, { theme, ctx, page, cache, transform: hooks.transforms.length ? (root, blocks) => applyTransforms(hooks, root, { route: page.route, entry: page, blocks, terms: allTerms, site, config: c }) : undefined });
 
   const plan: Planned[] = [];
   const contentRoutes = new Set<string>();
@@ -223,8 +233,6 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     plan.push({ route: "/", key: sha1(`${base}:index:${listKey(entries)}`), kind: "route", outputs: ["index.html"], render: () => ({ "index.html": theme.layouts.index!({ ctx, kind: "index", route: "/", title: applyFilter(hooks, "title", site.name, fctx("/")), description: applyFilter(hooks, "description", site.description, fctx("/")), entries: applyFilter(hooks, "entries", entries, fctx("/")), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fctx("/"))) }).html }) });
   }
   // terms: one page per used term of every taxonomy
-  const byTerm = new Map<string, { link: TermLink; files: IndexedFile[] }>();
-  for (const f of published) for (const t of termsOf(f)) { const k = `${t.taxonomy} ${t.term}`; (byTerm.get(k) ?? byTerm.set(k, { link: t, files: [] }).get(k)!).files.push(f); }
   if (theme.layouts.term) {
     for (const { link, files } of byTerm.values()) {
       if (contentRoutes.has(link.route)) continue;
@@ -273,6 +281,18 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     const output = join("media", m.rel);
     plan.push({ route: m.url, key: m.key, kind: "media", outputs: [output], render: () => ({ [output]: { copyFrom: m.src } }) });
   }
+  // Plugins' `emit` stages last (P3, decision 86), so `claimed` holds every file the site itself writes —
+  // a page, an artefact, a media copy — and an emitted path that names one is refused, not written over.
+  // Each accepted file is its own plan item keyed on its bytes: unchanged bytes rewrite nothing.
+  let emitted = 0;
+  if (hooks.emits.length) {
+    const claimed = new Set(plan.flatMap((p) => p.outputs));
+    const files = await runEmits(hooks, { site, config: c, root, routes: plan.filter((p) => p.kind === "route").map((p) => ({ route: p.route, url: url(p.route) })), entries: published.map(entryOf) }, claimed);
+    for (const f of files) {
+      plan.push({ route: `/${f.path}`, key: sha1(`${base}:emit:${f.plugin}:${f.path}:${sha1(typeof f.bytes === "string" ? f.bytes : Buffer.from(f.bytes))}`), kind: "artefact", outputs: [f.path], render: () => ({ [f.path]: f.bytes }) });
+      emitted++;
+    }
+  }
   const t4 = performance.now();
 
   // ── render what changed, drop what vanished ────────────────────────────────
@@ -281,7 +301,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const planned = new Set(plan.map((p) => p.route));
   const write = (rel: string, content: Output) => {
     const f = join(out, rel); mkdirSync(dirname(f), { recursive: true });
-    if (typeof content === "string") writeFileSync(f, content); else copyFileSync(content.copyFrom, f);
+    if (typeof content === "string" || content instanceof Uint8Array) writeFileSync(f, content); else copyFileSync(content.copyFrom, f);
   };
   index.transaction(() => {
     for (const p of plan) {
@@ -312,7 +332,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics] } };
+  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics] } };
 }
 
 /**
@@ -324,8 +344,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
  * dispatch would have been a second answer to "what does this theme do with a `stat-row`", which is the
  * one question the empty state exists to answer honestly.
  */
-export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: MdastCache }): { body: Html; cover?: Html; root: Root; blocks: Block[] } {
-  const { doc, tree } = o.cache.get(source);
+export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: MdastCache; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[] } {
+  let { doc, tree } = o.cache.get(source);
+  if (o.transform) {
+    const next = o.transform(doc.tree, tree.all);
+    if (next !== doc.tree) { doc = { ...doc, tree: next }; tree = buildTree(doc, source); }
+  }
   const blocks = new Map<Node, Block>(tree.all.map((b) => [b.node, b]));
   const renderBlock = (b: Block): Html => onBlock(b, () => toHtml({ type: "root", children: (b.node as { children?: Node[] }).children ?? [] } as Root, { blocks, onBlock, headingIds: false }));
   const onBlock = (b: Block, body: () => Html): Html => {

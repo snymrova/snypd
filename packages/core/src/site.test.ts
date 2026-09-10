@@ -314,10 +314,10 @@ describe("bundled themes", () => {
     }
   });
 
-  test("every file of every bundled plugin is in it too (P1, decision 83; P2 adds analytics, whose slots are modules)", async () => {
+  test("every file of every bundled plugin is in it too (P1, decision 83; P2 adds analytics, whose slots are modules; P3 adds autolink and indexnow)", async () => {
     const { BUNDLED_PLUGIN_NAMES } = await import("./bundled.gen");
     const { BUNDLED_PLUGINS } = await import("./bundled");
-    expect([...BUNDLED_PLUGIN_NAMES]).toEqual(["analytics", "changelog"]);
+    expect([...BUNDLED_PLUGIN_NAMES]).toEqual(["analytics", "autolink", "changelog", "indexnow"]);   // P3 adds autolink (a transform) and indexnow (an emit and a push event)
     for (const name of BUNDLED_PLUGIN_NAMES) {
       const dir = `${import.meta.dir}/../../../plugins/${name}`;
       const walk = (d: string, base = dir): string[] => readdirSync(d, { withFileTypes: true }).flatMap((f) =>
@@ -338,7 +338,7 @@ describe("bundled themes", () => {
     expect(themeFile(dir, "snypd.yaml")).toContain("name: changelog");
     expect(themeFiles(dir)).toEqual(["snypd.yaml"]);
     expect(themeSignature(dir)).toMatch(/^snypd:plugin\/changelog:[0-9a-f]{40}$/);
-    expect(bundledPluginNames()).toEqual(["analytics", "changelog"]);
+    expect(bundledPluginNames()).toEqual(["analytics", "autolink", "changelog", "indexnow"]);
     expect(themeFile(bundledPluginDir("nope"), "snypd.yaml")).toBeUndefined();
     // P2: a bundled plugin's slot modules are reachable through the seam too — `themeHas` is what the loader asks before it loads
     expect(themeHas(bundledPluginDir("analytics"), "./slots/beacon.tsx")).toBe(true);

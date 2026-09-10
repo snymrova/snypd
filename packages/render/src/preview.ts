@@ -11,7 +11,7 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, fireEvent, eventLines, changedContent, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, renderDoc, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./theme";
 import { loadHooks, EMPTY_HOOKS, type Hooks } from "./hooks";
@@ -537,7 +537,15 @@ Write something. There is no file to delete.
         if (site && site !== "same-origin" && site !== "none")
           return new Response("cross-site push refused", { status: 403 });
         const r = pushSite(root, cfg, { who: reviewerOf(req, "the Desk"), as: "human" });
-        lastPush = { ok: r.ok, at: Date.now(), sent: r.sent, by: r.by, reason: r.reason, hint: r.hint };
+        // The `push` event (P3): fired from here too, because a person's push is a push. What the plugins
+        // said goes on the card under the result; a failed handler is a line there, never a failed push.
+        let events: string[] = [];
+        if (r.ok) {
+          const st = pushState(root, cfg);
+          const changed = changedContent(root, cfg, r.paths ?? []);
+          events = eventLines(await fireEvent(root, cfg, "push", { branch: r.branch, remote: r.remote, sent: r.sent, commits: st.commits, changed, urls: [...new Set(changed.map((x) => x.url))] }));
+        }
+        lastPush = { ok: r.ok, at: Date.now(), sent: r.sent, by: r.by, reason: r.reason, hint: r.hint, events };
         pushCache = undefined;   // the tracking ref moved, or git just told us why it did not
         return new Response(null, { status: 303, headers: { location: "/_snypd" } });
       }

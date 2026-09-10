@@ -24,8 +24,11 @@
  *   - `capabilities.client` is summed, in `plugins:` order, against the site's `bench.budgets.jsKb`; the
  *     plugin that takes the sum over the budget is refused with the remedy in the diagnostic (decision 84).
  *     The budget is the *site's* number — a plugin's own root `bench:` keys cannot raise it for itself.
- * Tiers 1 (slots, filters) run in `@snypd/render` (hooks.ts). The keys of tiers 2–4 parse and warn that
- * they are not built, naming the session that builds each.
+ * Since P3 (docs/10 §4.4, §4.5, §4.7) the same existence check covers `stages` and `events` modules, and
+ * the loader reads what the two enforced capabilities say: `network` (the hosts an event handler's
+ * `ctx.fetch` may reach) and `emit` (the `dist/` prefixes an `emit` stage may write under — the plugin's
+ * own name when it says nothing). Tiers 1 and 2 run in `@snypd/render` (hooks.ts), tier 3 in `events.ts`
+ * here. The keys of tier 4 (`tools`, `prompts`) parse and warn that they are not built, naming P4.
  */
 import { join, sep } from "node:path";
 import { z } from "zod";
@@ -42,6 +45,11 @@ export const PLUGIN_TIERS = ["declares", "decorates", "transforms", "reacts", "s
 export type PluginTier = (typeof PLUGIN_TIERS)[number];
 export type SlotName = (typeof SLOT_NAMES)[number];
 export type FilterName = (typeof FILTER_NAMES)[number];
+/** The two stages a plugin may declare (docs/10 §4.4) and the two events (§4.5), in the order doctor prints them. */
+export const STAGE_NAMES = ["transform", "emit"] as const;
+export const EVENT_NAMES = ["publish", "push"] as const;
+export type StageName = (typeof STAGE_NAMES)[number];
+export type EventName = (typeof EVENT_NAMES)[number];
 
 export interface LoadedPlugin {
   /** The name the site used, without a `snypd-plugin-` prefix — what `plugins[name]` diagnostics say. */
@@ -70,6 +78,14 @@ export interface LoadedPlugin {
   /** Slot → plugin-relative module, as declared; `{}` when the plugin decorates nothing. Every file exists when `loaded`. */
   slots: Partial<Record<SlotName, string>>;
   filters: Partial<Record<FilterName, string>>;
+  /** Stage → plugin-relative module (P3): `transform` runs per document at build, `emit` once per build. */
+  stages: Partial<Record<StageName, string>>;
+  /** Event → plugin-relative module (P3): `publish` after an item lands, `push` after the branch is sent. */
+  events: Partial<Record<EventName, string>>;
+  /** Hosts the plugin's `ctx.fetch` may reach (`capabilities.network`); `[]` refuses every fetch. */
+  network: string[];
+  /** `dist/`-relative prefixes its `emit` stage may write under (`capabilities.emit`, default `<name>/`), each ending in `/`. */
+  emitPrefixes: string[];
   diagnostics: Diagnostic[];
 }
 
@@ -123,7 +139,7 @@ export function loadPlugin(input: PluginLoadInput): { plugin: LoadedPlugin; laye
 function loadPluginInner(input: PluginLoadInput): { plugin: LoadedPlugin; layer?: Layer } {
   const name = shortName(input.entry);
   const diagnostics: Diagnostic[] = [];
-  const plugin: LoadedPlugin = { name, entry: input.entry, found: false, loaded: false, options: input.options ?? {}, contributes: {}, tiers: [], clientKb: 0, slots: {}, filters: {}, diagnostics };
+  const plugin: LoadedPlugin = { name, entry: input.entry, found: false, loaded: false, options: input.options ?? {}, contributes: {}, tiers: [], clientKb: 0, slots: {}, filters: {}, stages: {}, events: {}, network: [], emitPrefixes: [], diagnostics };
   // `plugins[analytics].provider` — the site's entry, then the key inside it (docs/10 §4.1).
   const path = (p: Path = []) => { const tail = pathKey(p); return tail ? `plugins[${name}]${tail.startsWith("[") ? "" : "."}${tail}` : `plugins[${name}]`; };
   const refuse = (why: string, p: Path = [], source?: Source) => {
@@ -205,20 +221,35 @@ function loadPluginInner(input: PluginLoadInput): { plugin: LoadedPlugin; layer?
       diagnostics.push({ level: "warning", path: path(), message: `takes no options (its manifest declares no \`options\` schema); ${Object.keys(plugin.options).map((k) => `\`${k}\``).join(", ")} ignored`, source: input.origin, where: input.origin ? describeSource(input.origin) : undefined });
     }
 
-    // Tier 1 (P2, docs/10 §4.3): a hook is a YAML line naming a module, so the module has to be there.
-    // Checked here, at load, because a missing file found at the first render is a broken page and a
-    // missing file found here is a diagnostic naming the plugin and the line.
+    // Tiers 1–3 (P2, P3; docs/10 §4.3–4.5): a hook is a YAML line naming a module, so the module has to be
+    // there. Checked here, at load, because a missing file found at the first render is a broken page —
+    // and a missing event handler found at the first publish is a publish with a hole in its report — while
+    // a missing file found here is a diagnostic naming the plugin and the line.
     const missing: string[] = [];
-    for (const [kind, map] of [["slots", r.data.slots], ["filters", r.data.filters]] as const) for (const [hook, file] of Object.entries(map ?? {})) {
+    const noun: Record<string, string> = { slots: "slot", filters: "filter", stages: "stage", events: "event" };
+    for (const [kind, map] of [["slots", r.data.slots], ["filters", r.data.filters], ["stages", r.data.stages], ["events", r.data.events]] as const) for (const [hook, file] of Object.entries(map ?? {})) {
       if (typeof file !== "string") continue;
       if (themeHas(found.dir, file)) continue;
       const src = at(["plugin", kind, hook]);
-      diagnostics.push({ level: "error", path: path(["plugin", kind, hook]), message: `${file} is missing from ${plugin.where === "bundled" ? "the bundled plugin" : plugin.where} — a ${kind === "slots" ? "slot" : "filter"} names a module relative to the plugin's own directory`, source: src, where: describeSource(src) });
+      diagnostics.push({ level: "error", path: path(["plugin", kind, hook]), message: `${file} is missing from ${plugin.where === "bundled" ? "the bundled plugin" : plugin.where} — ${kind === "events" ? "an" : "a"} ${noun[kind]} names a module relative to the plugin's own directory`, source: src, where: describeSource(src) });
       missing.push(`${kind}.${hook}`);
     }
     if (missing.length) { refuse(`${missing.length === 1 ? "a hook module is" : `${missing.length} hook modules are`} missing (${missing.join(", ")})`, ["plugin"], at(["plugin"])); return { plugin }; }
     plugin.slots = { ...(r.data.slots ?? {}) } as LoadedPlugin["slots"];
     plugin.filters = { ...(r.data.filters ?? {}) } as LoadedPlugin["filters"];
+    plugin.stages = { ...(r.data.stages ?? {}) } as LoadedPlugin["stages"];
+    plugin.events = { ...(r.data.events ?? {}) } as LoadedPlugin["events"];
+    plugin.network = [...(r.data.capabilities?.network ?? [])];
+    // The emit prefixes (P3, decision 86): declared, or the plugin's own directory in dist/. Normalised to
+    // `a/b/` so the write-time check is one `startsWith`; a prefix of `/` or `.` would be "anywhere", which
+    // is the one thing a prefix exists to refuse, so those are diagnostics and the default stands.
+    const prefixes = (r.data.capabilities?.emit ?? []).map((x) => x.replace(/^\.?\/+/, "").replace(/\/*$/, "/"));
+    for (const [i, x] of prefixes.entries()) if (x === "/" || x.startsWith("../") || x.includes("/../")) {
+      const src = at(["plugin", "capabilities", "emit", i]);
+      diagnostics.push({ level: "warning", path: path(["plugin", "capabilities", "emit", i]), message: `emit prefix ${JSON.stringify(r.data.capabilities!.emit![i])} would allow writing anywhere in dist/ — ignored; a prefix is a directory the plugin owns, like \`${name}/\``, source: src, where: describeSource(src) });
+    }
+    plugin.emitPrefixes = prefixes.filter((x) => x !== "/" && !x.startsWith("../") && !x.includes("/../"));
+    if (!plugin.emitPrefixes.length) plugin.emitPrefixes = [`${name}/`];
 
     // The client budget (P2, docs/10 §4.6, decision 84): declared kilobytes, summed in `plugins:` order
     // against the site's `bench.budgets.jsKb`. The plugin that takes the sum over is the one refused, and
@@ -264,16 +295,18 @@ export function tiersOf(p: Pick<LoadedPlugin, "manifest" | "contributes">): Plug
  * Every slot and filter, with the plugins that fill it in `plugins:` order (docs/09 §4.4 rule 3: inspectable).
  * Doctor and `snypd://plugins` print this; the renderer resolves the same map into modules (hooks.ts).
  */
-export function hooksOf(plugins: LoadedPlugin[]): { slots: Record<SlotName, string[]>; filters: Record<FilterName, string[]>; any: boolean } {
-  const slots = Object.fromEntries(SLOT_NAMES.map((n) => [n, [] as string[]])) as Record<SlotName, string[]>;
-  const filters = Object.fromEntries(FILTER_NAMES.map((n) => [n, [] as string[]])) as Record<FilterName, string[]>;
+export function hooksOf(plugins: LoadedPlugin[]): { slots: Record<SlotName, string[]>; filters: Record<FilterName, string[]>; stages: Record<StageName, string[]>; events: Record<EventName, string[]>; any: boolean } {
+  const table = <K extends string>(names: readonly K[]) => Object.fromEntries(names.map((n) => [n, [] as string[]])) as Record<K, string[]>;
+  const slots = table(SLOT_NAMES), filters = table(FILTER_NAMES), stages = table(STAGE_NAMES), events = table(EVENT_NAMES);
   for (const p of plugins) {
     if (!p.loaded) continue;
     for (const n of Object.keys(p.slots) as SlotName[]) slots[n].push(p.name);
     for (const n of Object.keys(p.filters) as FilterName[]) filters[n].push(p.name);
+    for (const n of Object.keys(p.stages) as StageName[]) stages[n].push(p.name);
+    for (const n of Object.keys(p.events) as EventName[]) events[n].push(p.name);
   }
-  const any = Object.values(slots).some((x) => x.length) || Object.values(filters).some((x) => x.length);
-  return { slots, filters, any };
+  const any = [slots, filters, stages, events].some((t) => Object.values(t).some((x) => x.length));
+  return { slots, filters, stages, events, any };
 }
 /** Kilobytes of client JS the loaded plugins declare between them — the number `page.js.kb` is measured against (D11). */
 export const clientKbDeclared = (plugins: LoadedPlugin[]): number => +plugins.filter((p) => p.loaded).reduce((n, p) => n + p.clientKb, 0).toFixed(2);
@@ -307,9 +340,12 @@ export function renderPlugins(plugins: LoadedPlugin[], opts: { /** the site's `b
     const c = Object.entries(p.contributes);
     if (c.length) lines.push(`    contributes: { ${c.map(([k, v]) => `${k}: ${list(v)}`).join(", ")} }`);
     if (m?.options) lines.push(`    options: ${JSON.stringify(p.options)}`);
-    if (m?.capabilities) lines.push(`    capabilities: ${JSON.stringify(m.capabilities)}   # client is summed against bench.budgets.jsKb at load (P2); network is enforced from P3 (docs/10 §4.7)`);
-    if (Object.keys(p.slots).length) lines.push(`    slots: { ${Object.entries(p.slots).map(([k, v]) => `${k}: ${v}`).join(", ")} }`);
-    if (Object.keys(p.filters).length) lines.push(`    filters: { ${Object.entries(p.filters).map(([k, v]) => `${k}: ${v}`).join(", ")} }`);
+    if (m?.capabilities) lines.push(`    capabilities: ${JSON.stringify(m.capabilities)}   # client is summed against bench.budgets.jsKb at load; network is the hosts its ctx.fetch reaches; emit the dist/ prefixes it may write (docs/10 §4.7)`);
+    const map = (o: Record<string, string | undefined>) => `{ ${Object.entries(o).map(([k, v]) => `${k}: ${v}`).join(", ")} }`;
+    if (Object.keys(p.slots).length) lines.push(`    slots: ${map(p.slots)}`);
+    if (Object.keys(p.filters).length) lines.push(`    filters: ${map(p.filters)}`);
+    if (Object.keys(p.stages).length) lines.push(`    stages: ${map(p.stages)}${p.stages.emit ? `   # writes under ${p.emitPrefixes.join(", ")}` : ""}`);
+    if (Object.keys(p.events).length) lines.push(`    events: ${map(p.events)}${p.network.length ? `   # may fetch ${p.network.join(", ")}` : "   # no network: its ctx.fetch refuses every host"}`);
     lines.push(`    status: ${p.loaded ? "loaded" : `refused — ${p.why}`}`);
   }
   const bundled = bundledPluginNames();
@@ -321,6 +357,8 @@ export function renderPlugins(plugins: LoadedPlugin[], opts: { /** the site's `b
     lines.push("hooks:   # in the order they run; the theme decides where a slot is, the plugin what goes in it");
     lines.push(`  slots: { ${SLOT_NAMES.map((n) => `${n}: ${list(h.slots[n])}`).join(", ")} }`);
     lines.push(`  filters: { ${FILTER_NAMES.map((n) => `${n}: ${list(h.filters[n])}`).join(", ")} }`);
+    if (Object.values(h.stages).some((x) => x.length)) lines.push(`  stages: { ${STAGE_NAMES.map((n) => `${n}: ${list(h.stages[n])}`).join(", ")} }   # transform runs per document before render; emit once per build, files written by core`);
+    if (Object.values(h.events).some((x) => x.length)) lines.push(`  events: { ${EVENT_NAMES.map((n) => `${n}: ${list(h.events[n])}`).join(", ")} }   # fire after the act; a handler that fails is a line, never a failed publish (decision 87)`);
   }
   const declared = clientKbDeclared(plugins);
   if (declared || opts.jsKb) lines.push(`client: { declared: ${declared}, budget: ${opts.jsKb ?? 0} }   # KB of client JS; declared by plugins, afforded by bench.budgets.jsKb, measured by page.js.kb (decision 84)`);

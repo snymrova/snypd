@@ -298,8 +298,13 @@ export function handlers(root: string, notify?: (method: string, params?: Record
             if (landed && !landed.ok) return fail(`published ${type}/${slug}, but landing it on ${landed.base ?? "the base branch"} failed: ${landed.reason}`, "The file itself is published — this is git's problem, not the post's. `git log snypd/drafts` shows the commit that has not landed.");
             c.clearApproval(store, type, slug);
             const where = !landed ? "not a git repo" : landed.changed ? `landed on ${landed.base} as ${landed.sha!.slice(0, 8)}` : `${landed.base} already has this version`;
-            return text([`published ${type}/${slug} → ${t.route}`, where, `approved by ${check.approval?.by ?? `policy ${check.policy}`}`].join("\n"),
-              { ok: true, type, slug, route: t.route, status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base, landedSha: landed?.sha }, approval: check.approval });
+            // The `publish` event (P3, docs/10 §4.5): after the item is on the base branch — or, on a site that
+            // is not a repo, after it is published, which is the same fact without the branch. Fire and
+            // report: what each listening plugin said is a line here and a row in .snypd/events.json, and
+            // nothing it says can unpublish the words.
+            const events = await c.fireEvent(root, cfg, "publish", { type, slug, route: t.route, url: c.urlOf(cfg.config.site.url, t.route), path: t.path, base: landed?.base, sha: landed?.sha });
+            return text([`published ${type}/${slug} → ${t.route}`, where, `approved by ${check.approval?.by ?? `policy ${check.policy}`}`, ...c.eventLines(events)].join("\n"),
+              { ok: true, type, slug, route: t.route, status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base, landedSha: landed?.sha }, approval: check.approval, events });
           }
           case "content.suggest_blocks": {
             const cfg = await cfgOf();

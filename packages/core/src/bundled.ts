@@ -11,7 +11,9 @@ import _base_theme_yaml from "../../../themes/base/theme.yaml" with { type: "tex
 import _editorial_theme_css from "../../../themes/editorial/theme.css" with { type: "text" };
 import _editorial_theme_yaml from "../../../themes/editorial/theme.yaml" with { type: "text" };
 import _plugin_analytics_snypd_yaml from "../../../plugins/analytics/snypd.yaml" with { type: "text" };
+import _plugin_autolink_snypd_yaml from "../../../plugins/autolink/snypd.yaml" with { type: "text" };
 import _plugin_changelog_snypd_yaml from "../../../plugins/changelog/snypd.yaml" with { type: "text" };
+import _plugin_indexnow_snypd_yaml from "../../../plugins/indexnow/snypd.yaml" with { type: "text" };
 
 export interface BundledTheme {
   hash: string;
@@ -77,12 +79,31 @@ export const BUNDLED_PLUGINS: Readonly<Record<string, BundledTheme>> = {
       "slots/head.tsx": () => import("../../../plugins/analytics/slots/head.tsx"),
     },
   },
+  "autolink": {
+    hash: "5a036ac3d8dc01ae99a1a0da85148240b911048a",
+    files: {
+      "snypd.yaml": _plugin_autolink_snypd_yaml,
+    },
+    modules: {
+      "transform.ts": () => import("../../../plugins/autolink/transform.ts"),
+    },
+  },
   "changelog": {
     hash: "c7a7a6b331250e7e90171bf84dd311495ef22a5c",
     files: {
       "snypd.yaml": _plugin_changelog_snypd_yaml,
     },
     modules: {
+    },
+  },
+  "indexnow": {
+    hash: "32986d0216ab927edcdebd54ad9c4a4bc865f976",
+    files: {
+      "snypd.yaml": _plugin_indexnow_snypd_yaml,
+    },
+    modules: {
+      "emit.ts": () => import("../../../plugins/indexnow/emit.ts"),
+      "push.ts": () => import("../../../plugins/indexnow/push.ts"),
     },
   },
 };

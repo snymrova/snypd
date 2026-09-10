@@ -94,7 +94,7 @@ export const clientKbOf = (v: number | string | undefined): number => (v === und
  * `options` is JSON Schema, and the site's `plugins: [{ name: {…} }]` entry is validated against it at
  * load (§4.1); `capabilities` is what doctor and `snypd://plugins` print beside the version (§4.7).
  * `slots` and `filters` run since P2 (§4.3): each names a module, relative to the plugin's own directory,
- * that must exist at load. The keys of tiers 2–4 (`stages`, `events`, `tools`, `prompts`) are in the schema
+ * that must exist at load. Tiers 2 and 3 (`stages`, `events`) run since P3. The keys of tier 4 (`tools`, `prompts`) are in the schema
  * so a manifest written for P3–P4 parses today; `loadConfig` warns that each is not built yet.
  */
 export const PluginManifestSchema = z.object({
@@ -106,8 +106,18 @@ export const PluginManifestSchema = z.object({
   /** JSON Schema for the site's options; `undefined` means the plugin takes none. */
   options: z.record(z.string(), z.unknown()).optional(),
   capabilities: z.object({
-    /** Hosts the plugin's own `ctx.fetch` may reach (P3); printed by doctor today. */
+    /**
+     * Hosts the plugin's own `ctx.fetch` may reach (P3, docs/10 §4.7): exact hosts, or `*.example.com` for a
+     * host and its subdomains. The fetch an event handler is handed refuses every other host before any
+     * connection is made; a plugin with no `network:` gets a fetch that refuses everything.
+     */
     network: z.array(z.string().min(1)).optional(),
+    /**
+     * `dist/`-relative prefixes the plugin's `emit` stage may write under (P3, docs/10 §4.4, decision 86);
+     * `<name>/` when absent. A file outside them, or one a route or another plugin already claims, is a
+     * diagnostic and is not written. Nothing a plugin emits can overwrite a page.
+     */
+    emit: z.array(z.string().min(1)).optional(),
     /** Client JS it asks to add, summed against the site's `bench.budgets.jsKb` at load (P2, decision 84): over budget is refused, with the remedy in the diagnostic. */
     client: clientKb.optional(),
   }).strict().optional(),
@@ -115,7 +125,9 @@ export const PluginManifestSchema = z.object({
   slots: z.partialRecord(z.enum(SLOT_NAMES), pluginPath).optional(),
   /** Filter → module, plugin-relative; the default export is `(value, ctx) => value` (P2). */
   filters: z.partialRecord(z.enum(FILTER_NAMES), pluginPath).optional(),
+  /** Stage → module (P3, `@snypd/render` hooks.ts): `transform` is `(root, ctx) => root` per document; `emit` is `(ctx) => { path, bytes }[]` per build. */
   stages: z.object({ transform: pluginPath.optional(), emit: pluginPath.optional() }).strict().optional(),
+  /** Event → module (P3, `@snypd/core` events.ts): `publish` after an item lands, `push` after the branch is sent; each `(payload, ctx) => { ok, message }`. */
   events: z.object({ publish: pluginPath.optional(), push: pluginPath.optional() }).strict().optional(),
   tools: pluginPath.nullable().optional(),
   prompts: pluginPath.nullable().optional(),
@@ -123,8 +135,6 @@ export const PluginManifestSchema = z.object({
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
 /** Manifest keys the contract names and this build does not run yet, and the session that builds each (docs/10 §7.2). */
 export const PLUGIN_UNBUILT_KEYS: Record<string, string> = {
-  stages: "transform and emit stages — docs/10 §4.4, lands in P3",
-  events: "publish and push events — docs/10 §4.5, lands in P3",
   tools: "plugin tools in the catalogue — docs/10 §4.2 tier 4, lands in P4",
   prompts: "plugin prompts — docs/10 §4.2 tier 4, lands in P4",
 };
