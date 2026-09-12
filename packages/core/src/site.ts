@@ -19,6 +19,7 @@ import { loadConfig, formatDiagnostics, isPlaceholderUrl, normalizeRoute, redire
 import { bundledDir, bundledNames, themeFile } from "./themefs";
 import { writeDeploy, LAUNCHER, type DeployTarget } from "./deploy";
 import { parsePath, parseYaml, pathKey } from "./yaml";
+import { settingValue, type SettingDecl, type SettingValue } from "./schema";
 import { WriteError } from "./write";
 import { git, initRepo, isRepoRoot } from "./git";
 
@@ -147,6 +148,75 @@ export function themeTokens(cfg: LoadedConfig): TokenInfo[] {
       overridden: !decls.has(name) ? true : dec ? !isDecl(eff) : String(d) !== String(eff),
     };
   });
+}
+
+// ── settings (U3, docs/09 §4.2) ──────────────────────────────────────────────────────────────────
+
+export interface SettingInfo extends SettingDecl {
+  /** The declared default, or `undefined` when the theme declares none — which is how a part tells "unset" from "false". */
+  default?: SettingValue;
+  /** What the renderer will see: the site's value, or the default when there is none or the site's does not check out. */
+  value?: SettingValue;
+  /** The theme in the chain that declared it. */
+  declaredBy?: string;
+  /** True when `snypd.yaml › theme.settings` holds a value for it. */
+  set: boolean;
+  /** Why the site's value was refused; the row then reads the default. `loadConfig` has already said so as an error. */
+  invalid?: string;
+}
+
+/**
+ * Every setting the active theme chain declares, in declaration order, with the site's answer resolved
+ * against it. The declarations come off `cfg.settingDecls` — parsed once during the chain walk — and the
+ * values off `theme.settings`, so this is a join and not a second read of the disk. Three readers, one
+ * table (docs/09 §4.2): the renderer takes `value`, `snypd://theme/settings` prints the row, and
+ * `theme` › set_settings validates against it.
+ */
+export function themeSettings(cfg: LoadedConfig): SettingInfo[] {
+  const declaredBy = new Map<string, string>();
+  for (const link of cfg.layers.find((l) => l.name === "theme")?.chain ?? []) {
+    const text = link.yamlFile ? themeFile(link.dir, "theme.yaml") : undefined;
+    if (text === undefined) continue;
+    let raw: unknown;
+    try { raw = parseYaml(text, link.yamlFile!).value; } catch { continue; }
+    const list = (raw as Record<string, unknown> | undefined)?.settings;
+    // Child first, and the first theme to name an id is the one that declared the entry in force —
+    // `nearest declarer wins`, the rule a part and a primitive already follow (U1, decision 72).
+    if (Array.isArray(list)) for (const d of list) {
+      const id = (d as { id?: unknown } | null)?.id;
+      if (typeof id === "string" && !declaredBy.has(id)) declaredBy.set(id, link.name);
+    }
+  }
+  const values = cfg.config.theme.settings as Record<string, unknown>;
+  return cfg.settingDecls.map((decl) => {
+    const def = decl.default === undefined ? undefined : settingValue(decl, decl.default);
+    const fallback = def?.ok ? def.value : undefined;
+    const has = Object.hasOwn(values, decl.id) && values[decl.id] !== undefined;
+    const got = has ? settingValue(decl, values[decl.id]) : undefined;
+    return {
+      ...decl, default: fallback,
+      value: got?.ok ? got.value : fallback,
+      declaredBy: declaredBy.get(decl.id), set: has,
+      invalid: got && !got.ok ? got.why : undefined,
+    };
+  });
+}
+
+/**
+ * The settings a renderer sees: id → value, defaults applied, anything unanswered left out so a part can
+ * write `ctx.settings.tagline ?? ctx.site.description`. A theme that declares no settings hands back `{}`
+ * and every part behaves exactly as it did before U3 — which is the session's own exit criterion.
+ */
+export function settingValues(cfg: LoadedConfig): Record<string, SettingValue> {
+  const out: Record<string, SettingValue> = {};
+  for (const s of themeSettings(cfg)) if (s.value !== undefined) out[s.id] = s.value;
+  return out;
+}
+
+/** Values in `snypd.yaml` for ids the theme does not declare — what a theme switch leaves behind (doctor prints them, as it does stranded tokens). */
+export function strandedSettings(cfg: LoadedConfig): string[] {
+  const declared = new Set(cfg.settingDecls.map((d) => d.id));
+  return Object.keys(cfg.config.theme.settings as Record<string, unknown>).filter((id) => !declared.has(id)).sort();
 }
 
 /** Theme directories this root can resolve, active one first. Used by `snypd://theme` and `theme` › set. */
@@ -397,6 +467,7 @@ export function renderThemeSummary(root: string, cfg: LoadedConfig): string {
   const installed = installedThemes(root, cfg.config.theme.use);
   const chain = cfg.layers.find((l) => l.name === "theme")?.chain ?? [];
   const rows = themeTokens(cfg);
+  const set = themeSettings(cfg);
   const active = installed.find((t) => t.active);
   return [
     "# A theme is `theme.yaml` plus one stylesheet; anything it does not declare resolves up `extends:`.",
@@ -404,6 +475,9 @@ export function renderThemeSummary(root: string, cfg: LoadedConfig): string {
     `active: ${cfg.config.theme.use}`,
     `extends: [${chain.slice(1).map((l) => l.name).join(", ")}]`,
     `tokens: ${rows.length} declared, ${rows.filter((t) => t.customisable).length} settable, ${rows.filter((t) => t.overridden).length} overridden here`,
+    // One line, and only from a theme that has any (U3): a settings surface nobody can find is a
+    // settings surface nobody uses, and `snypd://theme` is the read an agent makes before it restyles.
+    ...(set.length ? [`settings: ${set.length} declared, ${set.filter((x) => x.set).length} set here — snypd://theme/settings`] : []),
     ...(active?.description ? ["reads as: >-", `  ${active.description}`] : []),
     // Names only. Another theme's personality is one `theme` › set away, and charging every session for
     // every installed theme's prose is how a resource that is read once a session turns into a tax.

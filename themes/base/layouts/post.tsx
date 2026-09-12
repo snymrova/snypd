@@ -1,4 +1,4 @@
-import { part, Slot, type LayoutProps, type Html } from "@snypd/render";
+import { formatDate, part, settingFlag, settingText, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The header is the author's `::cover` when the body opens with one, and otherwise one built from
@@ -10,6 +10,10 @@ export default function Post({ ctx, page, route, title, description, jsonLd }: L
   const p = page!;
   const fm = p.frontmatter.cover as { image?: string; alt?: string; eyebrow?: string } | undefined;
   const size = fm?.image ? ctx.media[fm.image] : undefined;
+  // The same two settings the entry list reads (U3), with the same fallbacks: `base` declares neither,
+  // so a theme that does not either renders the byline it always did.
+  const dates = settingFlag(ctx, "showDates", true);
+  const format = settingText(ctx, "dateFormat");
   return (
     <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd} page={p}>
       <main>
@@ -23,8 +27,8 @@ export default function Post({ ctx, page, route, title, description, jsonLd }: L
             </header>
           )}
           <p class="snypd-byline">
-            {p.date ? <time datetime={p.date}>{p.date}</time> : null}
-            {p.updated ? <> (updated <time datetime={p.updated}>{p.updated}</time>)</> : null}
+            {p.date && dates ? <time datetime={p.date}>{formatDate(p.date, format)}</time> : null}
+            {p.updated && dates ? <> (updated <time datetime={p.updated}>{formatDate(p.updated, format)}</time>)</> : null}
             {p.author ? <> by {p.author.page ? <a href={`${p.author.route}/`} rel="author">{p.author.title}</a> : p.author.title}</> : null}
           </p>
           <Slot name="before-content" ctx={ctx} route={route} title={title} page={p} />

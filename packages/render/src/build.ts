@@ -11,7 +11,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { formatDiagnostics, loadConfig, MdastCache, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps } from "./theme";
@@ -78,6 +78,9 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const c = cfg.config;
   const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description, icon: c.site.icon as string | undefined, image: c.site.image as string | undefined };
   const tokens = resolveTokens(c.theme.tokens as Parameters<typeof resolveTokens>[0]);
+  // The theme's settings, resolved once (U3): the site's answers over the declared defaults. Empty for a
+  // theme that declares none, and then every part renders exactly what it rendered before U3.
+  const settings = settingValues(cfg);
   // The *source* sheet: what the artefact is keyed on, and what `minifyCss` runs over — but only inside
   // the artefact's thunk, so a no-op build does not pay ~3 ms to re-minify a sheet it is not writing.
   const css = tokensCss(tokens) + (theme.css ?? "");
@@ -124,13 +127,13 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // A `ref` to a rerouted item follows the filter, because the menu must point where the page is.
   const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
   if (rerouted.size) for (const links of Object.values(nav.nav)) for (const l of links) if (l.route && rerouted.has(l.route)) { const r = rerouted.get(l.route)!; l.href = r === "/" ? "/" : `${r}/`; l.route = r; }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks };
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings };
   // The plugin graph (P1, decision 95): every loaded plugin's bytes, hashed the way the theme chain is,
   // and the site's options beside them in the config hash — a transform that changes output must
   // invalidate the cache, and P3's transforms are plugin files. Both are absent from the key when no
   // plugin is enabled, so a site with none keeps the keys it had.
   const pluginHash = pluginDirs(cfg.plugins).length ? `:${themeHash(pluginDirs(cfg.plugins))}` : "";
-  const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses, ...(c.plugins.length ? { plugins: c.plugins } : {}) }));
+  const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens, ...(Object.keys(settings).length ? { settings } : {}) }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses, ...(c.plugins.length ? { plugins: c.plugins } : {}) }));
   const mediaHash = sha1(JSON.stringify(mediaSizes));
   let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):

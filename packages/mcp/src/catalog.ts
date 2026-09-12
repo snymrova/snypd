@@ -35,7 +35,7 @@ const TYPE_ = str("Content type: `post`, `page`, `author` (snypd://types lists t
 
 /** Words `find_tools` matches on beyond the name and description — what an agent would actually type. */
 export const KEYWORDS: Record<string, string[]> = {
-  theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance"],
+  theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance", "setting", "logo", "tagline", "show dates", "date format", "social links", "footer"],
   site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "ship", "name", "domain", "host", "cloudflare", "vercel"],
   bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y"],
   "content.explain": ["explain", "why", "what ran", "pipeline", "stages", "transform", "filter", "slot", "hook", "plugin", "debug", "trace", "inspect", "autolink", "changed my post", "unexpected", "link appeared", "route key", "cache"],
@@ -43,11 +43,12 @@ export const KEYWORDS: Record<string, string[]> = {
 
 export const CATALOG: Tool[] = [
   { name: "theme",
-    description: "Change how the site looks: switch theme, retune its tokens, or scaffold a new one. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed, snypd://theme/tokens for every knob and its default, and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
+    description: "Change how the site looks: switch theme, retune its tokens, or scaffold a new one. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
     inputSchema: S({
-      action: str("`set` a different theme · `set_tokens` to retune the active one · `scaffold` a new theme that extends an existing one", { enum: ["set", "set_tokens", "scaffold"] }),
+      action: str("`set` a different theme · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one", { enum: ["set", "set_tokens", "set_settings", "scaffold"] }),
       name: str("`set`: the theme to use. `scaffold`: the name of the new theme (also its directory under themes/)"),
       tokens: { type: "object", description: "`set_tokens`: token name → value, e.g. {\"color.accent\": \"#8a3324\"}. A token set to null goes back to the theme's default. Only tokens declared `customisable` can be set — snypd://theme/tokens lists them" },
+      settings: { type: "object", description: "`set_settings`: setting id → value, e.g. {\"showDates\": false, \"tagline\": \"Notes on building\"}. A setting set to null goes back to the theme's default. Each is checked against the type the theme declared — snypd://theme/settings lists them with their types and what they mean" },
       extends: str("`scaffold`: the theme the new one inherits every layout, primitive and token from. Default `base`"),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
@@ -243,6 +244,40 @@ export async function call(root: string, name: string, args: Record<string, unkn
           const git = await commit([...new Set(paths)], `theme: tokens (${entries.map(([k]) => k).join(", ")})`);
           return text([`${entries.length} token${entries.length === 1 ? "" : "s"} set`, ...done.map((d) => `  ${d}`), git].join("\n"), { ok: true, tokens: Object.fromEntries(entries) });
         }
+        // U3. The same shape as set_tokens — read the table, refuse the whole patch before writing any of
+        // it, then one `setConfig` per key so each is its own rollback. The difference is that a setting
+        // is *typed*: `set_tokens` can only ask whether a token exists and may be moved, and this can ask
+        // whether `showDates: "yes"` is a boolean, which is the point of having declared it.
+        if (action === "set_settings") {
+          const patch = args.settings;
+          if (!patch || typeof patch !== "object" || Array.isArray(patch)) return fail("settings required", "An object of setting → value, e.g. {\"showDates\": false}.");
+          const cfg = cfgOf();
+          const rows = c.themeSettings(cfg);
+          if (!rows.length) return fail(`theme \`${cfg.config.theme.use}\` declares no settings`, "It is tokens and parts only — `theme` › set_tokens is the knob it does have, and snypd://theme/tokens lists them.");
+          const table = new Map(rows.map((r) => [r.id, r]));
+          const entries = Object.entries(patch as Record<string, unknown>);
+          if (!entries.length) return fail("settings required", `Nothing to set. ${cfg.config.theme.use} declares: ${rows.map((r) => r.id).join(", ")}.`);
+          const unknown = entries.filter(([k]) => !table.has(k)).map(([k]) => k);
+          if (unknown.length) return fail(`unknown setting${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}`, `\`${cfg.config.theme.use}\` declares ${rows.map((r) => `${r.id} (${r.type})`).join(", ")}. snypd://theme/settings says what each one means.`);
+          const refused = entries.flatMap(([k, v]) => {
+            if (v === null) return [];
+            const r = c.settingValue(table.get(k)!, v);
+            return r.ok ? [] : [`${k}: ${r.why}`];
+          });
+          if (refused.length) return fail(refused.join("; "), "Nothing was written. The theme declares what each setting is; snypd://theme/settings has the type and, for a select, the options.");
+          const paths: string[] = [], done: string[] = [];
+          for (const [k, v] of entries) {
+            const row = table.get(k)!;
+            const w = c.setConfig(root, c.pathKey(["theme", "settings", k]), v);
+            paths.push(...w.paths);
+            const to = v === null ? `${row.default === undefined ? "unset" : JSON.stringify(row.default)} (default)` : JSON.stringify(v);
+            done.push(`${k}: ${row.value === undefined ? "unset" : JSON.stringify(row.value)} → ${to}`);
+          }
+          const git = await commit([...new Set(paths)], `theme: settings (${entries.map(([k]) => k).join(", ")})`);
+          return text([`${entries.length} setting${entries.length === 1 ? "" : "s"} set`, ...done.map((d) => `  ${d}`), git,
+            "A setting is read by the theme's parts, so content.render_preview is how to see what it did."].join("\n"), { ok: true, settings: Object.fromEntries(entries) });
+        }
+
         if (action === "scaffold") {
           const newName = need(args, "name");
           if (!/^[a-z][a-z0-9-]*$/.test(newName)) return fail(`"${newName}" is not a theme name`, "Lowercase letters, digits and hyphens — it is also the directory name.");
@@ -258,6 +293,9 @@ export async function call(root: string, name: string, args: Record<string, unkn
 # vocabulary. Redeclare a token here to change its default; set \`customisable: true\` to let snypd.yaml
 # move it. \`snypd://theme/tokens\` lists what you inherited. To change the header or footer, override
 # one part and no layout: \`parts: { header: ./parts/header.tsx }\` — snypd://theme/coverage lists the four.
+# To let a site choose something without writing CSS — a logo, a date format, social links — declare it:
+# \`settings: [{ id: showDates, type: boolean, label: "Show dates", default: true }]\`, and read it in a part
+# with \`settingFlag(ctx, "showDates", true)\`. snypd://theme/settings is what an agent sees.
 theme: ${newName}
 version: 0.1.0
 spec: ^1
@@ -282,7 +320,7 @@ tokens: {}
             `\`theme\` › set ${newName} makes it active; content.render_preview shows it.`,
           ].join("\n"), { ok: true, theme: newName, extends: parent, dir: `themes/${newName}`, files: paths, inheritedTokens: tokens.length });
         }
-        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, scaffold.");
+        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold.");
       }
 
       case "site": {
@@ -642,6 +680,19 @@ async function doctor(root: string): Promise<ToolResult> {
 
   const stranded = c.themeTokens(cfg).filter((t) => t.overridden && !t.customisable);
   if (stranded.length) warn(`${stranded.length} token override${stranded.length === 1 ? "" : "s"} the theme does not declare: ${stranded.map((t) => t.name).join(", ")}`);
+
+  // The settings the theme offers and what this site has answered (U3). A theme with none prints no row:
+  // most themes will have none for a while, and a row that says "0 declared" is a line every session
+  // pays for to learn nothing.
+  const settings = c.themeSettings(cfg);
+  if (settings.length) {
+    const answered = settings.filter((x) => x.set);
+    const refused = settings.filter((x) => x.invalid);
+    if (refused.length) bad(`${refused.length} setting value${refused.length === 1 ? "" : "s"} the theme refuses`, refused.map((x) => `theme.settings.${x.id}: ${x.invalid}`).join("\n"));
+    ok(`settings: ${settings.length} declared by \`${cfg.config.theme.use}\`, ${answered.length} set${answered.length ? ` (${answered.map((x) => x.id).join(", ")})` : ""} — snypd://theme/settings`);
+  }
+  const strandedSet = c.strandedSettings(cfg);
+  if (strandedSet.length) warn(`${strandedSet.length} setting value${strandedSet.length === 1 ? "" : "s"} \`${cfg.config.theme.use}\` does not declare, left by another theme: ${strandedSet.join(", ")} — \`site\` › set_config theme.settings.<id> null removes one`);
 
   const index = await c.SiteIndex.open(root);
   let lint: Awaited<ReturnType<Core["lintSite"]>>;

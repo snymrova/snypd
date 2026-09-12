@@ -12,7 +12,7 @@ import { describeSource, getPath, mergeLayer, type Layer, type LayerName, type P
 import { BUNDLED } from "./bundled";
 import { bundledDir, themeFile, themeHas } from "./themefs";
 import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
-import { ConfigSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, type Config } from "./schema";
+import { ConfigSchema, SettingDeclSchema, settingValue, ThemeYamlSchema, THEME_UNBUILT_KEYS, type Config, type SettingDecl } from "./schema";
 import { loadPlugin, type LoadedPlugin } from "./plugins";
 
 export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string;
@@ -26,6 +26,13 @@ export interface LoadedConfig {
   provenance: Provenance; layers: LayerInfo[]; diagnostics: Diagnostic[];
   /** Every plugin `plugins:` names, in order, found or not, loaded or refused (docs/10 §4.1; `plugins.ts`). */
   plugins: LoadedPlugin[];
+  /**
+   * What the theme chain declares a site may set (U3, docs/09 §4.2), parent first, a child's
+   * redeclaration in its parent's place. Read off the `theme.yaml` docs the chain walk already parsed,
+   * so it costs nothing extra; the *values* are `config.theme.settings` and `themeSettings()` puts the
+   * two together.
+   */
+  settingDecls: SettingDecl[];
   explain(path: string | Path): string;
   source(path: string | Path): Source | undefined;
   render(): string;
@@ -167,7 +174,12 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   // 2. theme.yaml → under `theme`, ancestors first so the child overrides (`extends:`, docs/04)
   const { chain: themeChain, errors: themeErrors, parsed: themeParsed } = resolveThemeChain(themeName, search, root);
   for (const e of themeErrors) diags.push({ level: "warning", path: "theme.use", message: e, source: prov.get("theme.use") });
-  for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, (v) => ({ theme: v }), themeParsed.get(link.yamlFile)), prov);
+  // Every root key of a theme.yaml merges into `theme.*` — except `settings:`, which is a declaration
+  // and not a value (U3). `theme.settings` is the map a site answers with, and a declaration list
+  // merged onto the same key would be an array where every reader expects a map. The plugin manifest's
+  // rule, one file earlier: root keys merge, the block about itself does not (docs/10 §4.1).
+  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; return { theme: o }; };
+  for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, withoutDecls, themeParsed.get(link.yamlFile)), prov);
   // Every theme.yaml in the chain is validated, strictly, with file:line (decision 73). A key docs/04
   // documents and nothing reads is a warning that says so; any other unknown key, or a wrong shape, is an
   // error — the treatment snypd.yaml has had since S4, and the reason a mistyped `layout:` stopped
@@ -195,6 +207,21 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
       }
     }
   }
+  // The declarations, parent first so a child's `id` lands where its parent's was — the same "nearest
+  // declarer wins" the chain gives a part, with the list's order kept. Anything that does not parse has
+  // already been reported by the strict pass above, so it is left out rather than reported twice.
+  const settingDecls: SettingDecl[] = [];
+  for (const link of [...themeChain].reverse()) {
+    const v = link.yamlFile ? themeParsed.get(link.yamlFile)?.value : undefined;
+    if (!isObj(v) || !Array.isArray(v.settings)) continue;
+    for (const raw of v.settings) {
+      const r = SettingDeclSchema.safeParse(raw);
+      if (!r.success) continue;
+      const at = settingDecls.findIndex((d) => d.id === r.data.id);
+      if (at >= 0) settingDecls[at] = r.data; else settingDecls.push(r.data);
+    }
+  }
+
   const self = themeChain[0];
   const inherited = themeChain.slice(1).map((l) => l.name);
   layers.push({ name: "theme", from: themeName, file: self?.yamlFile ? rel(root, self.yamlFile) : undefined, found: !!self, dir: self?.dir, chain: themeChain,
@@ -266,6 +293,17 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     if (!config.statuses[config.initialStatus]) err("initialStatus", `unknown status "${config.initialStatus}"`);
     if (!config.site.locales.includes(config.site.defaultLocale)) err("site.defaultLocale", `"${config.site.defaultLocale}" is not in site.locales`);
     for (const [n, t] of Object.entries(config.taxonomies)) if (!Object.values(config.types).some((x) => x.taxonomies.includes(n)) && t.attaches.length === 0) warn(`taxonomies.${n}`, "attached to no type");
+    // Theme settings (U3): the value against the declaration. An id the chain does not declare is a
+    // warning — a theme switch leaves values behind exactly as it leaves token overrides behind, and
+    // neither should stop a site from building. A value of the *wrong shape* is an error, because the
+    // theme said what shape it is: `setConfig` re-loads and rolls back, so `theme.settings.showDates:
+    // "yes"` is refused at the write rather than quietly read as true at the render.
+    for (const [id, v] of Object.entries(config.theme.settings)) {
+      const decl = settingDecls.find((d) => d.id === id);
+      if (!decl) { warn(`theme.settings.${id}`, `theme \`${themeName}\` declares no setting "${id}"${settingDecls.length ? ` — it declares ${settingDecls.map((d) => d.id).join(", ")}` : " (it declares none)"}`); continue; }
+      const r = settingValue(decl, v);
+      if (!r.ok) err(`theme.settings.${id}`, `${r.why} (${decl.type}${decl.options ? `: ${decl.options.join(" | ")}` : ""})`);
+    }
   }
 
   // A plugin's error refuses the plugin, not the site (docs/10 §4.1: "a plugin with bad options is not
@@ -280,7 +318,7 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     const s = prov.get(key) ?? nearest(prov, key);
     return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}`;
   };
-  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
+  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, settingDecls, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
 }
 
 function nearest(prov: Provenance, key: string): Source | undefined {

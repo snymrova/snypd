@@ -540,6 +540,70 @@ describe("find_tools + the catalogue", () => {
     expect(existsSync(`${site}/content/nav/header.yaml`)).toBe(false);
   });
 
+  test("U3: set_settings writes what the theme declared, refuses what it did not, and snypd://theme/settings reads it back", async () => {
+    const site = "corpora/_test/mcp-settings";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(site, { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    const [, , listed, unset, written, unknown, wrongType, refusedSelect, set, doctor, back] = await session([
+      req(1, "initialize"),
+      call(0, "site", { action: "init", name: "Set", url: "https://set.example", theme: "editorial" }),
+      req(2, "resources/list"),
+      req(3, "resources/read", { uri: "snypd://theme/settings" }),
+      call(4, "theme", { action: "set_settings", settings: { tagline: "Notes on building", dateFormat: "long" } }),
+      call(5, "theme", { action: "set_settings", settings: { tagLine: "typo" } }),
+      call(6, "theme", { action: "set_settings", settings: { showDates: "yes" } }),
+      call(7, "theme", { action: "set_settings", settings: { dateFormat: "medium" } }),
+      req(8, "resources/read", { uri: "snypd://theme/settings" }),
+      call(9, "site", { action: "doctor" }),
+      call(10, "theme", { action: "set_settings", settings: { dateFormat: null } }),
+    ], site);
+
+    // A resource, so it is free until read (T2) — and listed only by a theme that has some to offer.
+    expect(listed.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/settings");
+    expect(unset.result.contents[0].text).toContain("6 declared, 0 set here");
+    expect(unset.result.contents[0].text).toContain("type: select [iso, long, short]");
+
+    expect(structured(written)).toMatchObject({ ok: true, settings: { tagline: "Notes on building", dateFormat: "long" } });
+    expect(written.result.content[0].text).toContain("dateFormat: \"iso\" → \"long\"");
+    expect(written.result.content[0].text).toContain("committed");
+    expect(readFileSync(`${site}/snypd.yaml`, "utf8")).toContain("tagline: Notes on building");
+
+    // An id the theme does not declare, and a value of the wrong shape: both refused, and the second is
+    // the thing `set_tokens` could never check, because a token has no declared type and a setting does.
+    expect(unknown.result.isError).toBe(true);
+    expect(unknown.result.content[0].text).toContain("unknown setting: tagLine");
+    expect(unknown.result.content[0].text).toContain("showDates (boolean)");
+    expect(wrongType.result.isError).toBe(true);
+    expect(wrongType.result.content[0].text).toContain("showDates: expected true or false");
+    expect(refusedSelect.result.content[0].text).toContain("expected one of iso | long | short");
+    expect(readFileSync(`${site}/snypd.yaml`, "utf8")).not.toContain("showDates");   // nothing was written
+
+    expect(set.result.contents[0].text).toContain("6 declared, 2 set here");
+    expect(set.result.contents[0].text).toContain("value: \"long\"   # set in snypd.yaml");
+    expect(doctor.result.content[0].text).toContain("settings: 6 declared by `editorial`, 2 set (tagline, dateFormat)");
+
+    // null is the way back to the theme's default, as it is for a token.
+    expect(back.result.content[0].text).toContain("dateFormat: \"long\" → \"iso\" (default)");
+    expect(readFileSync(`${site}/snypd.yaml`, "utf8")).not.toContain("dateFormat");
+
+    // On to `base`, which declares none: the resource is not listed, the tool says what the theme does
+    // have instead of failing blankly, and the value left behind is a warning with a way to remove it.
+    const [, , baseList, noSettings, baseDoctor] = await session([
+      req(1, "initialize"),
+      call(2, "theme", { action: "set", name: "base" }),
+      req(3, "resources/list"),
+      call(4, "theme", { action: "set_settings", settings: { tagline: "x" } }),
+      call(5, "site", { action: "doctor" }),
+    ], site);
+    expect(baseList.result.resources.map((r: any) => r.uri)).not.toContain("snypd://theme/settings");
+    expect(noSettings.result.isError).toBe(true);
+    expect(noSettings.result.content[0].text).toContain("theme `base` declares no settings");
+    expect(noSettings.result.content[0].text).toContain("set_tokens");
+    expect(baseDoctor.result.content[0].text).toContain("1 setting value `base` does not declare, left by another theme: tagline");
+    expect(baseDoctor.result.content[0].text).not.toContain("settings: 0 declared");
+  });
+
   /**
    * D10 (docs/10 §7.1): a plugin in a site's own `plugins/` dir — not bundled, not on npm — loads by the
    * same path and passes the same gates, and `snypd://plugins` names its source as `plugins/`. Doctor
@@ -825,6 +889,9 @@ describe("find_tools + the catalogue", () => {
     ], "corpora/theme");
 
     expect(theme.result.contents[0].text).toContain("active: editorial");
+    // U3: the summary an agent reads at session start says the theme has settings, because a surface
+    // nobody can find is a surface nobody uses. One line, and only from a theme that declares some.
+    expect(theme.result.contents[0].text).toContain("settings: 6 declared, 0 set here — snypd://theme/settings");
     expect(tokens.result.contents[0].text).toContain("color.accent");
     const cov = JSON.parse(coverage.result.contents[0].text);
     expect(cov.summary.own + cov.summary.inherited + cov.summary.fallback + cov.summary.missing).toBe(cov.summary.total);

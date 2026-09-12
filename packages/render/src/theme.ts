@@ -10,7 +10,7 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
-import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LoadedConfig, type NavLink, type ThemeLink, type ThemeYaml } from "@snypd/core";
+import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 import type { Hooks } from "./hooks";
 
@@ -45,6 +45,44 @@ export interface SiteCtx {
    * `slot(ctx, "head", …)`; a site with no decorating plugin carries `EMPTY_HOOKS` and pays nothing.
    */
   hooks: Hooks;
+  /**
+   * The theme's settings, resolved (U3, docs/09 §4.2): the site's answers over the declared defaults,
+   * by id, with anything unanswered left out. A theme that declares none gets `{}`, which is why a part
+   * reads one as `settingFlag(ctx, "showDates", true)` — the fallback is what the part did before the
+   * setting existed, so declaring it changes a theme and not the ones that did not.
+   */
+  settings: Record<string, SettingValue>;
+}
+
+/**
+ * Reading a setting from a part. `ctx.settings` is plain data — a union of the types a declaration can
+ * take — so these three are the cast, in one place, with the part's own fallback beside it.
+ */
+export const settingText = (ctx: SiteCtx, id: string): string | undefined => (typeof ctx.settings[id] === "string" ? ctx.settings[id] as string : undefined);
+export const settingFlag = (ctx: SiteCtx, id: string, fallback: boolean): boolean => (typeof ctx.settings[id] === "boolean" ? ctx.settings[id] as boolean : fallback);
+export const settingLinks = (ctx: SiteCtx, id: string): LinkItem[] => (Array.isArray(ctx.settings[id]) ? ctx.settings[id] as LinkItem[] : []);
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/**
+ * A date, written the way the `dateFormat` setting asks (U3). English month names, from the string's own
+ * digits — never `toLocaleDateString`, whose answer depends on the ICU data of the machine that ran the
+ * build, which would make the same content two different pages on two different boxes. That is the same
+ * class of bug as the absolute paths in `snypd://config` (S18d′), and the same rule applies: what the
+ * build emits may not depend on where the build ran.
+ *
+ * **Why there is no `relative`.** docs/09 §4.2 listed one. A statically built page cannot carry a
+ * relative date honestly — "2 days ago" is baked into the HTML and is wrong on day three, and the two
+ * ways to keep it true are client JS (this product ships none) or rebuilding the site daily (which an
+ * incremental build would skip, because nothing changed). `short` takes its place in the option list.
+ */
+export function formatDate(value: string, format = "iso"): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m || format === "iso") return m ? m[0]! : value;
+  const [, y, mo, d] = m;
+  const month = MONTHS[Number(mo) - 1];
+  if (!month) return m[0]!;
+  const day = String(Number(d));
+  return format === "short" ? `${day} ${month.slice(0, 3)} ${y}` : `${day} ${month} ${y}`;
 }
 export interface Entry {
   route: string; type: string; slug: string; title: string;

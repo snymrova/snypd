@@ -1816,3 +1816,95 @@ describe("D9 (P4): removing a plugin removes every byte it added", () => {
     expect(diff(baseline, snapshot())).toEqual({ added: [], removed: [], changed: [] });
   });
 });
+
+// ── U3: the settings a theme declares, resolved and rendered (docs/09 §4.2) ──────────────────────
+describe("settings (U3): one declaration, the renderer's reading of it", () => {
+  const root = "corpora/_test/u3-settings";
+  const dist = join(root, "dist");
+  const snap = (): Map<string, string> => {
+    const out = new Map<string, string>();
+    const walk = (d: string) => { for (const f of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, f.name);
+      if (f.isDirectory()) walk(p); else out.set(relative(dist, p).split("\\").join("/"), Bun.hash(readFileSync(p)).toString(16));
+    } };
+    walk(dist);
+    return new Map([...out].sort((a, b) => a[0].localeCompare(b[0])));
+  };
+  const config = (theme: string, settings = "") =>
+    writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: Settings, url: https://s.example, description: From the site }\ntheme:\n  use: ${theme}\n${settings ? `  settings:\n${settings}` : ""}`);
+  const page = (p: string) => readFileSync(join(dist, p), "utf8");
+
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "content/posts"), { recursive: true });
+    mkdirSync(join(root, "content/media"), { recursive: true });
+    writeFileSync(join(root, "content/media/logo.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 20"><rect width="60" height="20"/></svg>');
+    writeFileSync(join(root, "content/posts/one.md"), "---\ntitle: One\ndate: 2026-09-12\nstatus: published\n---\n\nA post with a date on it.\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("a theme that declares none is unaffected, values or no values", async () => {
+    config("base");
+    await build(root);
+    const baseline = snap();
+    expect(page("posts/one/index.html")).toContain('<time datetime="2026-09-12">2026-09-12</time>');
+    expect(page("posts/one/index.html")).not.toContain("snypd-social");
+    // A value `base` does not declare is a stranded value: a warning, not an error, and not one byte of
+    // output. This is the U3 exit — a theme with no `settings:` renders exactly what it rendered before
+    // the schema existed, which is what lets `base`'s parts read ids `base` itself never declares.
+    config("base", "    showDates: false\n    footerNote: Not mine\n");
+    const cfg = loadConfig(root);
+    expect(cfg.ok).toBe(true);
+    expect(cfg.diagnostics.filter((d) => d.level === "warning").map((d) => d.path)).toEqual(["theme.settings.showDates", "theme.settings.footerNote"]);
+    await build(root);
+    expect(snap()).toEqual(baseline);
+  });
+
+  test("editorial declares six, and every one of them changes the page it belongs to", async () => {
+    config("editorial");
+    await build(root);
+    const bare = snap();
+    // Unset: the masthead sets the site's name, the tagline falls back to the site description, dates
+    // are ISO, and the footer has neither a note nor a social row.
+    let post = page("posts/one/index.html");
+    expect(post).toContain(">Settings</a>");
+    expect(post).toContain("From the site");
+    expect(post).toContain('<time datetime="2026-09-12">2026-09-12</time>');
+    expect(post).not.toContain("snypd-logo");
+
+    config("editorial", `    logo: /media/logo.svg
+    tagline: Notes on building
+    dateFormat: long
+    footerNote: "Text and code are *CC BY 4.0*."
+    social: [{ label: Mastodon, url: "https://m.example/@s" }]
+`);
+    await build(root);
+    post = page("posts/one/index.html");
+    // logo: the wordmark is gone and the image carries the intrinsic size `ctx.media` knows (S13)
+    expect(post).toContain('<img class="snypd-logo" src="/media/logo.svg" alt="Settings" decoding="async" width="60" height="20">');
+    expect(post).not.toContain(">Settings</a>");
+    expect(post).toContain("Notes on building");
+    expect(post).not.toContain("From the site");
+    // dateFormat: the reader's date changes, the machine's does not — `datetime` stays ISO either way
+    expect(post).toContain('<time datetime="2026-09-12">12 September 2026</time>');
+    // richtext is markdown, rendered here rather than trusted as markup
+    expect(post).toContain('<p class="snypd-footer-note">Text and code are <em>CC BY 4.0</em>.</p>');
+    expect(post).toContain('<ul class="snypd-social"><li><a href="https://m.example/@s" rel="me">Mastodon</a></li></ul>');
+    // and the index list honours the same date format, because it is the same setting read by a part
+    expect(page("index.html")).toContain("12 September 2026");
+
+    // showDates off: no date on the byline, none in the list, and the `<time>` goes with it
+    config("editorial", "    showDates: false\n");
+    await build(root);
+    expect(page("posts/one/index.html")).not.toContain("<time");
+    expect(page("index.html")).not.toContain("<time");
+
+    // A setting is in the route key: changing one re-renders, and putting it back is the bytes it was.
+    config("editorial", "    dateFormat: short\n");
+    await build(root);
+    expect(page("posts/one/index.html")).toContain(">12 Sep 2026</time>");
+    config("editorial");
+    await build(root);
+    expect(snap()).toEqual(bare);
+  });
+});

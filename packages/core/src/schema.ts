@@ -42,6 +42,84 @@ export const ROLES = ["subscriber", "contributor", "author", "editor", "admin"] 
 export const TokenDeclSchema = z.object({ default: z.union([z.string(), z.number()]), customisable: z.boolean().optional(), kind: z.string().optional(), description: z.string().optional() }).strict();
 export type TokenDecl = z.infer<typeof TokenDeclSchema>;
 
+// ── Theme settings (docs/09 §4.2, U3) ────────────────────────────────────────────────────────────
+/**
+ * The closed type list for v0.1.5, minus one. docs/09 §4.2 wrote `relative` into `dateFormat`'s options
+ * as an *example value*, not a type, and the type list itself is adopted as written — except that a
+ * theme's settings are declared in a file and rendered into a static page, so every type here has to
+ * mean the same thing an hour after the build as it did during it.
+ */
+export const SETTING_TYPES = ["text", "textarea", "richtext", "url", "number", "boolean", "select", "color", "size", "font", "image", "link_list"] as const;
+export type SettingType = (typeof SETTING_TYPES)[number];
+/** One item of a `link_list` setting: a label and a url, verbatim — a menu is `content/nav/<location>.yaml` (U2) and this is not one. */
+export const LinkItemSchema = z.object({ label: z.string().min(1), url: z.string().min(1), rel: z.string().optional() }).strict();
+export type LinkItem = z.infer<typeof LinkItemSchema>;
+export type SettingValue = string | number | boolean | LinkItem[];
+/**
+ * One `settings:` entry in `theme.yaml` — what the theme says a site may set, beside `tokens:` and not
+ * inside it (docs/09 §4.2: tokens compile to CSS custom properties and settings do not, which is a
+ * difference in what the value is *for*). A list rather than a map because order is the declaration's
+ * own: it is the order `snypd://theme/settings` prints and the order a form would take. Strict, so a
+ * misspelled key names the theme and the line, like every other key in this file.
+ */
+export const SettingDeclSchema = z.object({
+  id: z.string().regex(/^[a-z][a-zA-Z0-9]*$/, "id: lowerCamelCase, letters and digits"),
+  type: z.enum(SETTING_TYPES),
+  label: z.string().min(1),
+  group: z.string().min(1).optional(),
+  /** One line for whoever is choosing the value — an agent reading the resource, or a person reading a form. */
+  info: z.string().optional(),
+  default: z.unknown().optional(),
+  /** `select` only, and required there: the closed list of values this setting takes. */
+  options: z.array(z.string().min(1)).min(1).optional(),
+  /** `number` only. */
+  min: z.number().optional(),
+  max: z.number().optional(),
+}).strict().superRefine((v, ctx) => {
+  if (v.type === "select" && !v.options) ctx.addIssue({ code: "custom", path: ["options"], message: `setting "${v.id}": a select declares its options` });
+  if (v.type !== "select" && v.options) ctx.addIssue({ code: "custom", path: ["options"], message: `setting "${v.id}": options belong to a select, not a ${v.type}` });
+  if (v.type !== "number" && (v.min !== undefined || v.max !== undefined)) ctx.addIssue({ code: "custom", path: ["min"], message: `setting "${v.id}": min and max belong to a number, not a ${v.type}` });
+});
+export type SettingDecl = z.infer<typeof SettingDeclSchema>;
+
+/**
+ * A site's answer, checked against what the theme declared. Returns the coerced value or why it was
+ * refused — one function, so `set_settings` refuses before it writes, `loadConfig` refuses a hand edit,
+ * and the renderer never has to ask a second time.
+ */
+export function settingValue(decl: SettingDecl, v: unknown): { ok: true; value: SettingValue } | { ok: false; why: string } {
+  const no = (why: string) => ({ ok: false as const, why });
+  const str = (what: string) => (typeof v === "string" ? { ok: true as const, value: v } : no(`expected ${what}, got ${typeof v}`));
+  switch (decl.type) {
+    case "text": case "textarea": case "richtext": case "font": case "color": case "size":
+      return str("a string");
+    case "url": {
+      if (typeof v !== "string") return no(`expected a url, got ${typeof v}`);
+      return /^(https?:\/\/|mailto:|\/)/.test(v) ? { ok: true, value: v } : no(`expected a url — https://…, mailto:… or a site-relative /path`);
+    }
+    case "image": {
+      if (typeof v !== "string") return no(`expected the url of an image, got ${typeof v}`);
+      return /^(https?:\/\/|\/)/.test(v) ? { ok: true, value: v } : no(`expected a site-relative url like /media/logo.svg (put the file in content/media/) or an absolute one`);
+    }
+    case "number": {
+      if (typeof v !== "number" || Number.isNaN(v)) return no(`expected a number, got ${typeof v}`);
+      if (decl.min !== undefined && v < decl.min) return no(`${v} is below the minimum ${decl.min}`);
+      if (decl.max !== undefined && v > decl.max) return no(`${v} is above the maximum ${decl.max}`);
+      return { ok: true, value: v };
+    }
+    case "boolean":
+      return typeof v === "boolean" ? { ok: true, value: v } : no(`expected true or false, got ${JSON.stringify(v)}`);
+    case "select": {
+      const opts = decl.options ?? [];
+      return typeof v === "string" && opts.includes(v) ? { ok: true, value: v } : no(`expected one of ${opts.join(" | ")}, got ${JSON.stringify(v)}`);
+    }
+    case "link_list": {
+      const r = z.array(LinkItemSchema).safeParse(v);
+      return r.success ? { ok: true, value: r.data } : no(`expected a list of { label, url, rel? } — ${r.error.issues[0]?.message ?? "invalid"}`);
+    }
+  }
+}
+
 /**
  * `theme.yaml`, validated (docs/09 decision 73). Strict: a mistyped `layout:` is a diagnostic naming
  * file and line, not a key silently discarded. The keys docs/04 documents and nothing reads yet —
@@ -63,6 +141,14 @@ export const ThemeYamlSchema = z.object({
   parts: z.record(z.string(), slot).optional(),
   /** Nav locations this theme renders — one `content/nav/<location>.yaml` each (docs/09 §4.3, U2). Arrays append up the chain, so a child inherits its parent's and may add its own. */
   locations: z.array(z.string().regex(/^[a-z][a-z0-9-]*$/i, "location: letters, digits, dashes")).optional(),
+  /**
+   * What a site may set about this theme without writing CSS (docs/09 §4.2, U3). Declared here; the
+   * *values* live in `snypd.yaml › theme.settings` and nowhere else, which is why this key alone of
+   * `theme.yaml`'s does not merge into the config: `theme.settings` is the value map, and a declaration
+   * list landing on the same key would be a list where the renderer reads a map. Lists append up the
+   * chain, and a child redeclaring an `id` replaces its parent's entry where it stands.
+   */
+  settings: z.array(SettingDeclSchema).optional(),
   tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).optional(),
   /** One stylesheet, theme-relative; emitted after the token vars as assets/theme.css. */
   css: z.string().min(1).optional(),
@@ -171,7 +257,14 @@ export const ConfigSchema = z.object({
     use: z.string().default("base"),
     /** `snypd.yaml` sets scalars; `theme.yaml` declares `{ default, customisable, kind, description }` (docs/04). */
     tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).default({}),
-  }).passthrough().default({ use: "base", tokens: {} }),
+    /**
+     * Values for the settings the theme declares (U3), by id — and only values: the declaration list is
+     * read off `theme.yaml` and never merged here, so this map is always the site's own answers. A value
+     * for an id the theme does not declare is a warning (a theme switch leaves them behind, like a
+     * stranded token); a value of the wrong type is an error, because the declaration said what it is.
+     */
+    settings: z.record(z.string(), z.unknown()).default({}),
+  }).passthrough().default({ use: "base", tokens: {}, settings: {} }),
   types: z.record(slug, TypeSchema).default({}),
   taxonomies: z.record(slug, TaxonomySchema).default({}),
   statuses: z.record(slug, StatusSchema).default({}),

@@ -55,6 +55,33 @@ export function handlers(root: string): Handlers {
         `# with \`theme\` › set_tokens; the rest are structure, not taste. Every one is emitted as a CSS custom\n` +
         `# property (\`color.accent\` → \`--color-accent\`), which is what a theme's stylesheet reads.\ntokens:\n${body}\n`];
     }
+    // The settings table (U3, docs/09 §4.2). A resource and not a tool for the reason the tokens table
+    // is one (decision 38): an agent that is not restyling never reads it and never pays for it.
+    if (part === "settings") {
+      const rows = c.themeSettings(cfg);
+      const stranded = c.strandedSettings(cfg);
+      if (!rows.length) return [YAML, `# ${cfg.config.theme.use} declares no settings — it is tokens and parts only.\n` +
+        `# A theme declares them in theme.yaml: \`settings: [{ id, type, label, group?, default?, info? }]\`.\nsettings: {}\n` +
+        (stranded.length ? `# ${stranded.length} value${stranded.length === 1 ? "" : "s"} in snypd.yaml this theme does not declare: ${stranded.join(", ")}\n` : "")];
+      const set = rows.filter((r) => r.set).length;
+      const body = rows.map((r) => [
+        `  ${r.id}:`,
+        `    type: ${r.type}${r.options ? ` [${r.options.join(", ")}]` : ""}`,
+        `    label: ${JSON.stringify(r.label)}`,
+        r.group ? `    group: ${r.group}` : "",
+        `    value: ${r.value === undefined ? "null   # unset" : JSON.stringify(r.value)}${r.set ? "   # set in snypd.yaml" : ""}`,
+        r.default !== undefined && r.set ? `    default: ${JSON.stringify(r.default)}` : "",
+        r.invalid ? `    refused: ${JSON.stringify(r.invalid)}   # the value in snypd.yaml; this reads the default` : "",
+        r.declaredBy && r.declaredBy !== cfg.config.theme.use ? `    declaredBy: ${r.declaredBy}` : "",
+        r.info ? `    info: ${JSON.stringify(r.info)}` : "",
+      ].filter(Boolean).join("\n")).join("\n");
+      return [YAML, `# Settings of theme \`${cfg.config.theme.use}\`: what it lets this site choose without writing CSS.\n` +
+        `# ${rows.length} declared, ${set} set here. Write one with \`theme\` › set_settings; a value set to null goes\n` +
+        `# back to the theme's default. The palette is a separate read (snypd://theme/tokens) because a token\n` +
+        `# becomes a CSS custom property and a setting does not — a part reads it and decides what it means.\n` +
+        `settings:\n${body}\n` +
+        (stranded.length ? `# ${stranded.length} value${stranded.length === 1 ? "" : "s"} in snypd.yaml this theme does not declare, left from another one: ${stranded.join(", ")}\n` : "")];
+    }
     if (part === "coverage") {
       const { loadTheme } = await import("@snypd/render");
       const t = await loadTheme(cfg);
@@ -68,7 +95,7 @@ export function handlers(root: string): Handlers {
         note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout",
       }, null, 2)];
     }
-    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /coverage)`);
+    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /settings, /coverage)`);
     return [YAML, c.renderThemeSummary(root, cfg)];
   };
   return {
@@ -82,6 +109,7 @@ export function handlers(root: string): Handlers {
         ...Object.keys(c.config.taxonomies).map((n) => ({ uri: `snypd://taxonomies/${n}`, name: `taxonomies/${n}`, mimeType: JSON_, description: `Merged schema for taxonomy ${n}` })),
         { uri: "snypd://theme", name: "theme", mimeType: YAML, description: "The active theme: what it inherits, how it means to read, and what else is installed — read this with the config" },
         { uri: "snypd://theme/tokens", name: "theme/tokens", mimeType: YAML, description: "Every token the theme declares, with its value, default and whether it may be set from snypd.yaml — the knobs that change how the site looks without writing CSS" },
+        ...(c.settingDecls.length ? [{ uri: "snypd://theme/settings", name: "theme/settings", mimeType: YAML, description: "What this theme lets the site choose without writing CSS — each setting's type, what it means, and what it is set to now; `theme` › set_settings writes one" }] : []),
         { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives and 4 parts (shell, header, footer, entries) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
         { uri: "snypd://nav", name: "nav", mimeType: YAML, description: "The menus: which locations the theme renders (header, footer) and what each content/nav/<location>.yaml holds, every `ref` resolved to its route — `site` › set_nav writes one" },

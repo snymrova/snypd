@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { callPluginTool, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
+import { callPluginTool, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -506,5 +506,108 @@ describe("plugins (P1)", () => {
     expect(c.plugins[0]!.manifest).toBeUndefined();
     expect(warnings(c)).toEqual(["plugins[bare]: plugins/bare/snypd.yaml has no `plugin:` block — loaded as a plugin that only declares; add `plugin: { name: bare, version: 0.1.0, api: 1 }` so doctor can describe it (plugins/bare/snypd.yaml)"]);
     expect(renderPlugins(c.plugins)).toContain("version: unknown   # no plugin: block");
+  });
+});
+
+// ── U3: the settings schema (docs/09 §4.2) ───────────────────────────────────────────────────────
+describe("theme settings (U3)", () => {
+  const R = "corpora/_test/settings";
+  const site = (theme: string, extra = "") => { mkdirSync(R, { recursive: true }); writeFileSync(join(R, "snypd.yaml"), `snypd: 1\nsite: { name: S, url: https://s.example }\ntheme:\n  use: ${theme}\n${extra}`); };
+  const theme = (name: string, text: string) => { mkdirSync(join(R, "themes", name), { recursive: true }); writeFileSync(join(R, "themes", name, "theme.yaml"), text); };
+  const errors = (c: ReturnType<typeof loadConfig>) => c.diagnostics.filter((d) => d.level === "error").map((d) => `${d.path}: ${d.message}`);
+  const warnings = (c: ReturnType<typeof loadConfig>) => c.diagnostics.filter((d) => d.level === "warning").map((d) => `${d.path}: ${d.message}`);
+  const SIX = `settings:
+  - { id: logo,       type: image,     label: Logo, group: Identity }
+  - { id: tagline,    type: text,      label: Tagline, group: Identity }
+  - { id: showDates,  type: boolean,   label: Dates, group: Posts, default: true }
+  - { id: dateFormat, type: select,    label: Format, group: Posts, default: iso, options: [iso, long, short] }
+  - { id: footerNote, type: richtext,  label: Note, group: Footer }
+  - { id: social,     type: link_list, label: Social, group: Footer }
+`;
+  beforeAll(() => rmSync(R, { recursive: true, force: true }));
+  afterAll(() => rmSync(R, { recursive: true, force: true }));
+
+  test("declared in theme.yaml, never merged into the config", () => {
+    theme("six", `theme: six\nlayouts: [post]\n${SIX}`);
+    site("six");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    expect(c.settingDecls.map((d) => d.id)).toEqual(["logo", "tagline", "showDates", "dateFormat", "footerNote", "social"]);
+    // The one rule this key has that no other theme.yaml key has: it does not merge. `theme.settings` is
+    // the value map and nothing else, so a site that has answered nothing has an empty one.
+    expect(c.config.theme.settings).toEqual({});
+    expect(JSON.stringify(c.raw)).not.toContain("footerNote");
+    // Free of charge: the declarations come off the parse the chain walk already did.
+    expect(themeSettings(c).map((s) => `${s.id}:${s.type}`)).toEqual(["logo:image", "tagline:text", "showDates:boolean", "dateFormat:select", "footerNote:richtext", "social:link_list"]);
+    expect(settingValues(c)).toEqual({ showDates: true, dateFormat: "iso" });   // the two with defaults
+  });
+
+  test("a declaration is strict, and a select declares its options", () => {
+    theme("bad", `theme: bad\nsettings:\n  - { id: logo, type: image, label: Logo, lable: typo }\n  - { id: pick, type: select, label: Pick }\n  - { id: n, type: number, label: N, options: [a] }\n  - { id: fine, type: text, label: Fine }\n`);
+    site("bad");
+    const c = loadConfig(R);
+    const e = errors(c).join("\n");
+    expect(e).toContain(`unknown key "lable" in theme.yaml`);
+    expect(e).toContain("a select declares its options");
+    expect(e).toContain("options belong to a select, not a number");
+    // An entry that does not validate is refused whole — a declaration with a key the loader does not
+    // understand is a declaration nobody can rely on — and the sound ones around it still load.
+    expect(c.settingDecls.map((d) => d.id)).toEqual(["fine"]);
+  });
+
+  test("a child appends to its parent's list and replaces an id where it stands", () => {
+    theme("parent", `theme: parent\nlayouts: [post]\n${SIX}`);
+    theme("child", `theme: child\nextends: parent\nsettings:\n  - { id: dateFormat, type: select, label: Format, default: long, options: [long, short] }\n  - { id: accentWords, type: boolean, label: Accent, default: false }\n`);
+    site("child");
+    const c = loadConfig(R);
+    expect(c.settingDecls.map((d) => d.id)).toEqual(["logo", "tagline", "showDates", "dateFormat", "footerNote", "social", "accentWords"]);
+    const rows = themeSettings(c);
+    const fmt = rows.find((s) => s.id === "dateFormat")!;
+    expect([fmt.default, fmt.options, fmt.declaredBy]).toEqual(["long", ["long", "short"], "child"]);
+    expect(rows.find((s) => s.id === "showDates")!.declaredBy).toBe("parent");
+  });
+
+  test("a value is checked against the declaration: wrong shape is an error, unknown id a warning", () => {
+    theme("six", `theme: six\nlayouts: [post]\n${SIX}`);
+    site("six", `  settings:\n    showDates: "yes"\n    dateFormat: medium\n    social: [{ label: Mastodon, url: "https://m.example/@s" }]\n    leftover: 3\n`);
+    const c = loadConfig(R);
+    expect(errors(c)).toEqual([
+      `theme.settings.showDates: expected true or false, got "yes" (boolean)`,
+      `theme.settings.dateFormat: expected one of iso | long | short, got "medium" (select: iso | long | short)`,
+    ]);
+    // A theme switch leaves values behind exactly as it leaves token overrides behind: a warning, never
+    // a reason a site stops building.
+    expect(warnings(c).join("\n")).toContain(`theme \`six\` declares no setting "leftover"`);
+    expect(strandedSettings(c)).toEqual(["leftover"]);
+    expect(c.ok).toBe(false);   // and `setConfig` rolls back on that, which is why a hand edit is caught
+    const rows = themeSettings(c);
+    expect(rows.find((s) => s.id === "showDates")!.invalid).toBe(`expected true or false, got "yes"`);
+    expect(rows.find((s) => s.id === "showDates")!.value).toBe(true);        // the refused value reads the default
+    expect(rows.find((s) => s.id === "social")!.value).toEqual([{ label: "Mastodon", url: "https://m.example/@s" }]);
+    expect(rows.find((s) => s.id === "social")!.set).toBe(true);
+  });
+
+  test("a theme with no settings is unaffected", () => {
+    theme("plain", `theme: plain\nlayouts: [post]\ntokens: { color.accent: "#000" }\n`);
+    site("plain");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    expect(c.settingDecls).toEqual([]);
+    expect(themeSettings(c)).toEqual([]);
+    expect(settingValues(c)).toEqual({});
+    expect(strandedSettings(c)).toEqual([]);
+  });
+
+  test("every type refuses what it is not", () => {
+    const decl = (type: string, extra: object = {}) => ({ id: "x", type, label: "X", ...extra }) as Parameters<typeof settingValue>[0];
+    expect(settingValue(decl("text"), 3)).toEqual({ ok: false, why: "expected a string, got number" });
+    expect(settingValue(decl("url"), "example.com").ok).toBe(false);
+    expect(settingValue(decl("url"), "/contact")).toEqual({ ok: true, value: "/contact" });
+    expect(settingValue(decl("image"), "logo.svg").ok).toBe(false);       // site-relative, or a host: never a bare filename
+    expect(settingValue(decl("number", { min: 1, max: 3 }), 4)).toEqual({ ok: false, why: "4 is above the maximum 3" });
+    expect(settingValue(decl("number"), "2").ok).toBe(false);             // a string that looks like one is not one
+    expect(settingValue(decl("boolean"), "true").ok).toBe(false);
+    expect(settingValue(decl("link_list"), [{ label: "X" }]).ok).toBe(false);
+    expect(settingValue(decl("link_list"), [{ label: "X", url: "https://x.example", rel: "me" }]).ok).toBe(true);
   });
 });

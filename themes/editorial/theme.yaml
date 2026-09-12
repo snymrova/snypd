@@ -20,6 +20,19 @@ parts:
   header: ./parts/header.tsx
 # No `locations:` of its own: `header` and `footer` are inherited from `base`, and the masthead renders
 # the header menu beside the brand (U2).
+# What this theme lets a site choose without writing CSS (U3, docs/09 §4.2). Declared here, answered in
+# `snypd.yaml › theme.settings`, read by the parts — `logo` and `tagline` by this theme's masthead,
+# the other four by `base`'s footer, entry list and post byline, which honour them without being forked.
+# Tokens are the palette and become CSS custom properties; these do not, because a part decides what
+# each one means.
+settings:
+  - { id: logo,       type: image,     label: Logo,           group: Identity, info: "Site-relative url of an image — put the file in content/media/. Without one the masthead sets the site's name in type." }
+  - { id: tagline,    type: text,      label: Tagline,        group: Identity, info: "One line under the name. Defaults to the site's own description." }
+  - { id: showDates,  type: boolean,   label: "Show dates",   group: Posts,    default: true,  info: "Off hides the date on the byline and in every list — for a site whose posts are not news." }
+  - { id: dateFormat, type: select,    label: "Date format",  group: Posts,    default: iso, options: [iso, long, short], info: "2026-09-12 · 12 September 2026 · 12 Sep 2026. English month names; the <time> element always carries the machine-readable date." }
+  - { id: footerNote, type: richtext,  label: "Footer note",  group: Footer,   info: "One line of markdown above the site name — a licence, a colophon, a copyright." }
+  - { id: social,     type: link_list, label: "Social links", group: Footer,   info: "[{ label, url }] in the footer. Links off this site, so they are urls and not refs — a menu of your own pages is content/nav/footer.yaml." }
+
 personality: >-
   Long-form reading. One serif column at a comfortable measure, generous leading, a single accent used
   sparingly. Figures, charts, diagrams and flows break out of the column; nothing else does. Zero JS.

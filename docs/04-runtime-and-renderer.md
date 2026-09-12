@@ -107,6 +107,9 @@ layouts: [post, page, index, term, author]
 parts:                                   # U1 (docs/09 §4.1): the document around the layouts, one file each, resolved like primitives
   header:  ./parts/header.tsx            # override one and no layout; shell, footer and entries stay inherited
 locations: [header, footer]              # nav locations, one content/nav/<location>.yaml each (docs/09 §4.3, U2); arrays append up the chain
+settings:                                # U3 (docs/09 §4.2): what a site may choose without writing CSS. The values live in
+  - { id: showDates, type: boolean, label: "Show dates", group: Posts, default: true }        # snypd.yaml › theme.settings and this key
+  - { id: social, type: link_list, label: "Social links", group: Footer }                     # alone does not merge into the config
 variants: { callout: [soft, loud], cover: [text-only, image-left, image-full] }   # NOT BUILT — docs/09 §4.5, deferred; warns since U1
 primitives:
   cover:   ./primitives/Cover.tsx
@@ -119,7 +122,9 @@ patterns:                                # NOT BUILT — docs/09 §4.5, deferred
 personality: Editorial, serif, wide margins, asides in the gutter. Prefers few callouts.
 ```
 
-**Validated since U1 (6 Sep 2026, docs/09 decision 73).** `theme.yaml` is strict Zod: a mistyped key is an error naming file and line, and the four keys above that are documented and not yet read are a *warning* that says which session builds them, rather than a key silently discarded. **Parts** (`shell`, `header`, `footer`, `entries`) resolve up the chain exactly as primitives do and appear in `snypd://theme/coverage`; a layout takes `part(ctx, "shell")` from `@snypd/render` instead of importing `./shell`, which is what lets a child theme replace the header with one file. The shell also emits social metadata — `og:*`, `article:*`, `twitter:card` — from frontmatter (`cover.image`, `cover.alt`, `date`, `updated`) and `site.image` as the fallback image (docs/10 §5.1, decision 90).
+**Settings since U3 (12 Sep 2026, docs/09 §4.2, decisions 113–116).** Twelve types (`text textarea richtext url number boolean select color size font image link_list`), declared as a list so the order is the theme's own, appended parent-first up the chain with a child's `id` replacing its parent's entry in place. Three things follow from a setting being *declared*: `ctx.settings` is typed and defaulted for the renderer (`settingText` / `settingFlag` / `settingLinks`), `snypd://theme/settings` and `theme` › set_settings are the agent's read and write, and a value of the wrong shape is an error at config load rather than something the renderer discovers — which is the one check `set_tokens` cannot make, because a token has no declared type. `settings:` is the only key in this file that does **not** merge into `theme.*`: the declarations are a list and `theme.settings` is the site's value map, so the loader reads it and drops it, exactly as it reads and drops a plugin's `plugin:` block (docs/10 §4.1).
+
+**Validated since U1 (6 Sep 2026, docs/09 decision 73).** `theme.yaml` is strict Zod: a mistyped key is an error naming file and line, and the three keys above that are documented and not yet read (`variants`, `patterns`, `client` — `locations` became real in U2) are a *warning* that says which session builds them, rather than a key silently discarded. **Parts** (`shell`, `header`, `footer`, `entries`) resolve up the chain exactly as primitives do and appear in `snypd://theme/coverage`; a layout takes `part(ctx, "shell")` from `@snypd/render` instead of importing `./shell`, which is what lets a child theme replace the header with one file. The shell also emits social metadata — `og:*`, `article:*`, `twitter:card` — from frontmatter (`cover.image`, `cover.alt`, `date`, `updated`) and `site.image` as the fallback image (docs/10 §5.1, decision 90).
 
 Layout resolution: `frontmatter.layout` → `type.layout` → theme default; `theme.which_layout(slug)` prints it. Child themes via `extends:`; `theme.coverage` shows overridden / inherited / fallback per primitive.
 

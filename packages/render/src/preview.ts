@@ -11,7 +11,7 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadConfig, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, fireEvent, eventLines, changedContent, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { loadConfig, settingValues, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, fireEvent, eventLines, changedContent, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, renderDoc, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./theme";
 import { loadHooks, EMPTY_HOOKS, type Hooks } from "./hooks";
@@ -238,7 +238,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   const siteCtx = (): SiteCtx => {
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
     const css = tokensCss(tokens) + (theme.css ?? "");
-    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks };
+    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks, settings: settingValues(cfg) };
   };
 
   const shell = (title: string, body: Html, route: string) => {
