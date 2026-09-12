@@ -68,6 +68,17 @@ export interface EmitCtx { site: SiteCtx["site"]; config: Config; root: string; 
 export type EmitFn = (ctx: EmitCtx) => EmitFile[] | Promise<EmitFile[]>;
 
 export interface HookDiagnostic { plugin: string; hook: string; route?: string; message: string }
+/**
+ * One hook actually running (P4) — what `content.explain` prints.
+ *
+ * The diagnostics array records only what went *wrong*, which is the right default: a build should not
+ * pay to describe every slot that worked. But §4.7's honesty claim is "what it declared and what it did
+ * are both inspectable", and a declaration table is only the first half — a filter declared and never
+ * reached, or reached and returning the value untouched, look identical from the manifest. So a run is
+ * recorded when someone asks for it and never otherwise: `record` is absent on every build but the one
+ * `content.explain` makes, and the runners check for it with the same length check they already make.
+ */
+export interface HookRun { plugin: string; hook: string; route?: string; /** the value or tree came back different */ changed: boolean; /** what changed, in one clause, when it can be said cheaply */ note?: string }
 interface Contributor<F> { plugin: string; options: Record<string, unknown>; fn: F; file: string; /** emit only: the prefixes it may write under */ prefixes?: string[] }
 export interface Hooks {
   /** Contributors per slot, in `plugins:` order. */
@@ -81,6 +92,8 @@ export interface Hooks {
   plugins: string[];
   /** What went wrong in a hook during the last build; the build empties it at the start and carries it out at the end. */
   diagnostics: HookDiagnostic[];
+  /** Present only when someone asked what ran (`loadHooks(cfg, { record: true })`, P4): every hook that ran, in order. Absent means record nothing. */
+  record?: HookRun[];
   /** True when nothing is hooked — `slot()` and `applyFilter()` short-circuit on it. */
   empty: boolean;
 }
@@ -104,6 +117,12 @@ const loaded = new Map<string, Hooks & { stamp: string }>();
 export interface LoadHooksOptions {
   /** Bundle the hook modules before importing them, so an edit to a file they import is picked up in-process (`snypd dev`). */
   bundle?: boolean;
+  /**
+   * Record every hook that runs (P4, `content.explain`). Returns a shallow copy with its own `record`
+   * and its own `diagnostics`, so a recording build cannot make every other build record — the cache
+   * keeps the plain one, which is the one `snypd build` and `snypd dev` get.
+   */
+  record?: boolean;
 }
 
 /**
@@ -113,11 +132,11 @@ export interface LoadHooksOptions {
  */
 export async function loadHooks(cfg: LoadedConfig, opts: LoadHooksOptions = {}): Promise<Hooks> {
   const plugins = cfg.plugins.filter((p) => p.loaded && p.dir && (Object.keys(p.slots).length || Object.keys(p.filters).length || Object.keys(p.stages).length));
-  if (!plugins.length) return EMPTY_HOOKS;
+  if (!plugins.length) return opts.record ? recording(EMPTY_HOOKS) : EMPTY_HOOKS;
   const dirs = plugins.map((p) => p.dir!);
   const stamp = `${themeStamp(dirs)}|${plugins.map((p) => `${p.name}:${JSON.stringify(p.options)}:${JSON.stringify(p.slots)}:${JSON.stringify(p.filters)}:${JSON.stringify(p.stages)}:${p.emitPrefixes.join()}`).join("|")}`;
   const hit = loaded.get(cfg.root);
-  if (hit && hit.stamp === stamp) return hit;
+  if (hit && hit.stamp === stamp) return opts.record ? recording(hit) : hit;
 
   const hash = themeHash(dirs);
   const bust = `?v=${hash.slice(0, 8)}`;
@@ -161,10 +180,15 @@ export async function loadHooks(cfg: LoadedConfig, opts: LoadHooksOptions = {}):
   const table = hooksOf(cfg.plugins);
   for (const n of SLOT_NAMES) if (hooks.slots[n].map((c) => c.plugin).join() !== table.slots[n].join()) throw new Error(`internal: slot ${n} resolved ${hooks.slots[n].map((c) => c.plugin).join(",")} but the manifest table says ${table.slots[n].join(",")}`);
   loaded.set(cfg.root, hooks);
-  return hooks;
+  return opts.record ? recording(hooks) : hooks;
 }
 
+/** The same resolved functions, with their own diagnostics and a record to fill — what `content.explain` builds with. */
+const recording = (h: Hooks): Hooks => ({ ...h, diagnostics: [], record: [] });
+
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e)).split("\n")[0]!;
+/** Note one hook run, when anyone is recording. One `if` on a build that is not. */
+const noteRun = (hooks: Hooks, run: HookRun) => { hooks.record?.push(run); };
 /**
  * One line per distinct failure. A filter runs wherever its value is read — a title is read by the page,
  * every list that shows it and the surface — so the same broken filter would otherwise say the same thing
@@ -186,8 +210,10 @@ export function slot(ctx: SiteCtx, name: SlotName, props: Omit<SlotProps, "ctx" 
   for (const c of list) {
     try {
       const v = c.fn({ ctx, ...props, options: c.options, plugin: c.plugin });
-      if (v === null || v === undefined) continue;
-      out += typeof v === "string" ? v : typeof (v as Html).html === "string" ? (v as Html).html : String(v);
+      if (v === null || v === undefined) { noteRun(hooks, { plugin: c.plugin, hook: `slots.${name}`, route: props.route, changed: false, note: "rendered nothing" }); continue; }
+      const html = typeof v === "string" ? v : typeof (v as Html).html === "string" ? (v as Html).html : String(v);
+      out += html;
+      noteRun(hooks, { plugin: c.plugin, hook: `slots.${name}`, route: props.route, changed: !!html, note: html ? `${html.length} bytes of markup` : "rendered nothing" });
     } catch (e) {
       report(hooks, { plugin: c.plugin, hook: `slots.${name}`, route: props.route, message: message(e) });
     }
@@ -213,6 +239,11 @@ export function applyFilter<T>(hooks: Hooks, name: FilterName, value: T, ctx: Om
     try {
       const next = (c.fn as FilterFn<unknown>)(v, { name, ...ctx, options: c.options, plugin: c.plugin });
       if (!FILTER_KIND[name](next)) { report(hooks, { plugin: c.plugin, hook: `filters.${name}`, route: ctx.route, message: `returned ${next === undefined ? "undefined" : Array.isArray(next) ? "an array" : `a ${typeof next}`} where ${name} expects ${name === "entries" || name === "jsonLd" ? "an array" : name === "route" ? "a route starting with /" : "a string"}; value left as it was` }); continue; }
+      if (hooks.record) {
+        const changed = Array.isArray(next) || Array.isArray(v) ? JSON.stringify(next) !== JSON.stringify(v) : next !== v;
+        noteRun(hooks, { plugin: c.plugin, hook: `filters.${name}`, route: ctx.route, changed,
+          note: !changed ? "returned it unchanged" : typeof next === "string" && typeof v === "string" ? `${JSON.stringify(v)} → ${JSON.stringify(next)}` : Array.isArray(next) && Array.isArray(v) ? `${v.length} → ${next.length} items` : undefined });
+      }
       v = next;
     } catch (e) {
       report(hooks, { plugin: c.plugin, hook: `filters.${name}`, route: ctx.route, message: message(e) });
@@ -236,9 +267,14 @@ export function applyTransforms(hooks: Hooks, root: Root, ctx: Omit<TransformCtx
   for (const c of hooks.transforms) {
     const work = structuredClone(tree);
     try {
+      const before = hooks.record ? JSON.stringify(tree) : "";
       const next = c.fn(work, { ...ctx, options: c.options, plugin: c.plugin });
-      if (next === undefined || next === null) { tree = work; continue; }
+      if (next === undefined || next === null) {
+        if (hooks.record) noteRun(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, changed: JSON.stringify(work) !== before, note: "changed the tree in place" });
+        tree = work; continue;
+      }
       if (!isRoot(next)) { report(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, message: `returned ${Array.isArray(next) ? "an array" : `a ${typeof next}`} where transform returns the root (or nothing, having changed it in place); tree left as it was` }); continue; }
+      if (hooks.record) noteRun(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, changed: JSON.stringify(next) !== before, note: "returned a tree" });
       tree = next;
     } catch (e) {
       report(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, message: message(e) });
@@ -274,6 +310,7 @@ export async function runEmits(hooks: Hooks, ctx: Omit<EmitCtx, "options" | "plu
       if (!prefixes.some((p) => path.startsWith(p))) { refuse(`outside the plugin's emit prefix${prefixes.length === 1 ? "" : "es"} ${prefixes.join(", ")} (capabilities.emit in its snypd.yaml)`, path); continue; }
       if (claimed.has(path)) { refuse(out.some((o) => o.path === path) ? "already emitted by an earlier plugin" : "a route or site artefact already produces this file", path); continue; }
       claimed.add(path);
+      noteRun(hooks, { plugin: c.plugin, hook: "stages.emit", route: `/${path}`, changed: true, note: `${typeof bytes === "string" ? Buffer.byteLength(bytes) : bytes.length} bytes` });
       out.push({ plugin: c.plugin, path, bytes });
     }
   }

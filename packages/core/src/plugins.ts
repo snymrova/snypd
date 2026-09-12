@@ -30,12 +30,13 @@
  * own name when it says nothing). Tiers 1 and 2 run in `@snypd/render` (hooks.ts), tier 3 in `events.ts`
  * here. The keys of tier 4 (`tools`, `prompts`) parse and warn that they are not built, naming P4.
  */
-import { join, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { join, resolve, sep } from "node:path";
 import { z } from "zod";
 import type { Diagnostic } from "./config";
 import { describeSource, type Layer, type Source } from "./merge";
 import { clientKbOf, FILTER_NAMES, PLUGIN_API, PLUGIN_UNBUILT_KEYS, PluginManifestSchema, SLOT_NAMES, type PluginManifest } from "./schema";
-import { bundledPluginDir, bundledPluginNames, themeFile, themeHas } from "./themefs";
+import { bundledPluginDir, bundledPluginNames, isBundledDir, themeFile, themeHas, themeModule, themeSignature } from "./themefs";
 import { parseYaml, pathKey, type Origin, type Path } from "./yaml";
 
 /** Where a plugin was found. `site` is the unpublished local plugin (WordPress's mu-plugins without the folklore). */
@@ -82,6 +83,10 @@ export interface LoadedPlugin {
   stages: Partial<Record<StageName, string>>;
   /** Event → plugin-relative module (P3): `publish` after an item lands, `push` after the branch is sent. */
   events: Partial<Record<EventName, string>>;
+  /** The plugin-relative module of MCP tools (P4, tier 4), when it declares one — one catalogue tool named after the plugin. */
+  tools?: string;
+  /** The plugin-relative module of MCP prompts (P4, tier 4), when it declares one. */
+  prompts?: string;
   /** Hosts the plugin's `ctx.fetch` may reach (`capabilities.network`); `[]` refuses every fetch. */
   network: string[];
   /** `dist/`-relative prefixes its `emit` stage may write under (`capabilities.emit`, default `<name>/`), each ending in `/`. */
@@ -234,11 +239,24 @@ function loadPluginInner(input: PluginLoadInput): { plugin: LoadedPlugin; layer?
       diagnostics.push({ level: "error", path: path(["plugin", kind, hook]), message: `${file} is missing from ${plugin.where === "bundled" ? "the bundled plugin" : plugin.where} — ${kind === "events" ? "an" : "a"} ${noun[kind]} names a module relative to the plugin's own directory`, source: src, where: describeSource(src) });
       missing.push(`${kind}.${hook}`);
     }
+    // Tier 4 (P4, §4.2): `tools` and `prompts` are one module each rather than a map, so they are checked
+    // beside the hook maps and not inside them — same rule, same moment. A plugin that says it speaks and
+    // has no module to speak from is refused here, not at the agent's first `find_tools`.
+    for (const kind of ["tools", "prompts"] as const) {
+      const file = r.data[kind];
+      if (typeof file !== "string") continue;
+      if (themeHas(found.dir, file)) continue;
+      const src = at(["plugin", kind]);
+      diagnostics.push({ level: "error", path: path(["plugin", kind]), message: `${file} is missing from ${plugin.where === "bundled" ? "the bundled plugin" : plugin.where} — \`${kind}\` names one module relative to the plugin's own directory`, source: src, where: describeSource(src) });
+      missing.push(kind);
+    }
     if (missing.length) { refuse(`${missing.length === 1 ? "a hook module is" : `${missing.length} hook modules are`} missing (${missing.join(", ")})`, ["plugin"], at(["plugin"])); return { plugin }; }
     plugin.slots = { ...(r.data.slots ?? {}) } as LoadedPlugin["slots"];
     plugin.filters = { ...(r.data.filters ?? {}) } as LoadedPlugin["filters"];
     plugin.stages = { ...(r.data.stages ?? {}) } as LoadedPlugin["stages"];
     plugin.events = { ...(r.data.events ?? {}) } as LoadedPlugin["events"];
+    if (typeof r.data.tools === "string") plugin.tools = r.data.tools;
+    if (typeof r.data.prompts === "string") plugin.prompts = r.data.prompts;
     plugin.network = [...(r.data.capabilities?.network ?? [])];
     // The emit prefixes (P3, decision 86): declared, or the plugin's own directory in dist/. Normalised to
     // `a/b/` so the write-time check is one `startsWith`; a prefix of `/` or `.` would be "anywhere", which
@@ -314,6 +332,25 @@ export const clientKbDeclared = (plugins: LoadedPlugin[]): number => +plugins.fi
 /** Directories whose bytes are the plugin half of every route key (decision 95): the loaded plugins, in order. */
 export const pluginDirs = (plugins: LoadedPlugin[]): string[] => plugins.filter((p) => p.loaded && p.dir).map((p) => p.dir!);
 
+const modules = new Map<string, Promise<unknown>>();
+/**
+ * A plugin's module through the same seam themes use (decision 83) — the one loader every tier that runs
+ * plugin code shares: `events.ts` for its handlers, `speak.ts` for tier 4's tools and prompts.
+ *
+ * A bundled plugin resolves through the barrel; one on disk is imported by absolute path and hash-busted
+ * on the plugin directory's change signal, so an edit is picked up without restarting the server — which
+ * is what makes `plugins/<name>/` the place a site's own plugin is written rather than installed.
+ */
+export async function pluginModule(p: Pick<LoadedPlugin, "dir">, rel: string): Promise<unknown> {
+  if (isBundledDir(p.dir!)) return themeModule(p.dir!, rel);
+  const abs = resolve(join(p.dir!, rel));
+  const bust = `?v=${createHash("sha1").update(themeSignature(p.dir!)).digest("hex").slice(0, 8)}`;
+  const key = abs + bust;
+  let m = modules.get(key);
+  if (!m) { m = import(key).then((x) => (x as { default: unknown }).default); modules.set(key, m); }
+  return m;
+}
+
 /**
  * `snypd://plugins` as text. Short on purpose, like `snypd://theme`: the manifest, where it was found, what
  * it declares, and the bundled set an agent can enable with one line. Diagnostics are here too, because
@@ -346,6 +383,8 @@ export function renderPlugins(plugins: LoadedPlugin[], opts: { /** the site's `b
     if (Object.keys(p.filters).length) lines.push(`    filters: ${map(p.filters)}`);
     if (Object.keys(p.stages).length) lines.push(`    stages: ${map(p.stages)}${p.stages.emit ? `   # writes under ${p.emitPrefixes.join(", ")}` : ""}`);
     if (Object.keys(p.events).length) lines.push(`    events: ${map(p.events)}${p.network.length ? `   # may fetch ${p.network.join(", ")}` : "   # no network: its ctx.fetch refuses every host"}`);
+    if (p.tools) lines.push(`    tools: ${p.tools}   # one catalogue tool named \`${p.name}\`, found with find_tools — never in the always-listed set (D11)`);
+    if (p.prompts) lines.push(`    prompts: ${p.prompts}   # prompts/list carries them beside snypd's own`);
     lines.push(`    status: ${p.loaded ? "loaded" : `refused — ${p.why}`}`);
   }
   const bundled = bundledPluginNames();
@@ -359,6 +398,14 @@ export function renderPlugins(plugins: LoadedPlugin[], opts: { /** the site's `b
     lines.push(`  filters: { ${FILTER_NAMES.map((n) => `${n}: ${list(h.filters[n])}`).join(", ")} }`);
     if (Object.values(h.stages).some((x) => x.length)) lines.push(`  stages: { ${STAGE_NAMES.map((n) => `${n}: ${list(h.stages[n])}`).join(", ")} }   # transform runs per document before render; emit once per build, files written by core`);
     if (Object.values(h.events).some((x) => x.length)) lines.push(`  events: { ${EVENT_NAMES.map((n) => `${n}: ${list(h.events[n])}`).join(", ")} }   # fire after the act; a handler that fails is a line, never a failed publish (decision 87)`);
+  }
+  // Tier 4 (P4): what the MCP gained, listed apart from the hook table because these run in a session and
+  // not in a build — and because the whole point of them is that `tools/list` does not grow until asked.
+  const speaks = plugins.filter((p) => p.loaded && (p.tools || p.prompts));
+  if (speaks.length) {
+    lines.push("speaks:   # the MCP surface these plugins add (docs/10 §4.2 tier 4)");
+    lines.push(`  tools: ${list(speaks.filter((p) => p.tools).map((p) => p.name))}   # one tool each, behind find_tools; \`${speaks.find((p) => p.tools)?.name ?? "name"}\` is the tool and its actions are the verbs`);
+    lines.push(`  prompts: ${list(speaks.filter((p) => p.prompts).map((p) => p.name))}`);
   }
   const declared = clientKbDeclared(plugins);
   if (declared || opts.jsKb) lines.push(`client: { declared: ${declared}, budget: ${opts.jsKb ?? 0} }   # KB of client JS; declared by plugins, afforded by bench.budgets.jsKb, measured by page.js.kb (decision 84)`);

@@ -86,6 +86,14 @@ export function handlers(root: string): Handlers {
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
         { uri: "snypd://nav", name: "nav", mimeType: YAML, description: "The menus: which locations the theme renders (header, footer) and what each content/nav/<location>.yaml holds, every `ref` resolved to its route — `site` › set_nav writes one" },
         { uri: "snypd://bench/latest", name: "bench/latest", mimeType: MD, description: "The last full benchmark report: every speed and size budget with its measured value" },
+        // One per plugin that reacts (P4, docs/10 §4.5): what it said the last few times an event fired.
+        // Listed rather than left to the template, because a plugin's own resource is only discoverable
+        // if it is named — and `indexnow`'s is the answer to "did the ping go out?", which is the first
+        // question anyone asks after a push.
+        ...c.plugins.filter((p) => p.loaded && Object.keys(p.events).length).map((p) => ({
+          uri: `snypd://${p.name}/last`, name: `${p.name}/last`, mimeType: YAML,
+          description: `What the \`${p.name}\` plugin said the last few times it reacted — the rows it wrote to .snypd/events.json, newest first, with what it answered and how long it took`,
+        })),
       ];
     },
     async listTemplates() {
@@ -93,6 +101,7 @@ export function handlers(root: string): Handlers {
         { uriTemplate: "snypd://content/{type}/{slug}", name: "content", mimeType: YAML, description: "One content item: its frontmatter, then the markdown body. Add `.md` for the file exactly as it is on disk" },
         { uriTemplate: "snypd://history/{type}/{slug}", name: "history", mimeType: JSON_, description: "Commits touching one item, newest first, each with the principal that made it (docs/02 §7)" },
         { uriTemplate: "snypd://lint/{type}/{slug}", name: "lint", mimeType: JSON_, description: "Lint diagnostics for one content file: rule id, severity, line, message and a fix hint (docs/01 editorial lint)" },
+        { uriTemplate: "snypd://{plugin}/last", name: "plugin/last", mimeType: YAML, description: "What one plugin said the last few times an event fired at it (P4): its rows from the event ring, newest first. `snypd://plugins` names the plugins that react" },
       ];
     },
     async readResource(uri) {
@@ -147,6 +156,41 @@ export function handlers(root: string): Handlers {
         const schema = (n: string) => ({ $schema: "https://json-schema.org/draft/2020-12/schema", $id: `snypd://${kind}/${n}.json`, title: n, ...s.fieldsToJsonSchema(table[n]!.fields as never), ...(kind === "types" ? { "x-type": { ...table[n], fields: undefined } } : {}) });
         if (!name) { if (kind === "taxonomies") throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri}`); return text(JSON_, JSON.stringify(Object.fromEntries(Object.keys(table).map((n) => [n, schema(n)])), null, 2)); }
         if (table[name]) return text(JSON_, JSON.stringify(schema(name), null, 2));
+      }
+      /**
+       * `snypd://<plugin>/last` (P4) — one plugin's rows from the event ring, newest first.
+       *
+       * Resolved last, after every built-in pattern, so a plugin named `theme` or `types` cannot take a
+       * URI the server already owns: it loses the resource and keeps every other tier, the same rule a
+       * name collision gets in the tool catalogue. And it is a *view*, not a store: `indexnow` persists
+       * nothing of its own, so the honest answer to "what did the last ping say" is the line it wrote
+       * when it said it — one file, written by whichever process fired (decision 101), not a second
+       * record kept beside it that can disagree.
+       */
+      const lastM = /^snypd:\/\/([a-z][a-z0-9-]*)\/last$/i.exec(uri);
+      if (lastM) {
+        const c = await loadCore(), cfg = await config();
+        const name = lastM[1]!;
+        const p = cfg.plugins.find((x) => x.name === name);
+        if (!p?.loaded) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no loaded plugin \`${name}\`; snypd://plugins lists this site's)`);
+        const rows = c.readEvents(root).filter((r) => r.plugin === name).reverse();
+        const head = [
+          rows.length
+            ? `# What \`${name}\` said the last ${rows.length === 1 ? "time an event fired at it" : `${rows.length} times an event fired at it`} — .snypd/events.json, newest first.`
+            : `# What \`${name}\` says when an event fires at it — .snypd/events.json. Nothing yet.`,
+          "# A handler that fails is a line here and never a failed publish (docs/10 §4.5, decision 87); the ring keeps the last 100 rows.",
+          `plugin: ${JSON.stringify(name)}`,
+          `listens: [${Object.keys(p.events).join(", ")}]${Object.keys(p.events).length ? "" : "   # nothing — this plugin does not react, so it writes no rows"}`,
+        ];
+        if (!rows.length) return text(YAML, `${head.join("\n")}\nlast: {}   # no event has fired at it yet on this machine\n`);
+        const body = rows.map((r) => [
+          `  - at: ${r.at}`,
+          `    event: ${r.event}`,
+          `    ok: ${r.ok}`,
+          `    message: ${JSON.stringify(r.message)}`,
+          `    ms: ${r.ms}`,
+        ].join("\n")).join("\n");
+        return text(YAML, `${head.join("\n")}\nlast:\n${body}\n`);
       }
       throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri}`);
     },

@@ -97,13 +97,15 @@ export const BUNDLED_PLUGINS: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "indexnow": {
-    hash: "32986d0216ab927edcdebd54ad9c4a4bc865f976",
+    hash: "718dee5ba7421bf40ef78eaa9a2751d653f6f7f0",
     files: {
       "snypd.yaml": _plugin_indexnow_snypd_yaml,
     },
     modules: {
       "emit.ts": () => import("../../../plugins/indexnow/emit.ts"),
+      "prompts.ts": () => import("../../../plugins/indexnow/prompts.ts"),
       "push.ts": () => import("../../../plugins/indexnow/push.ts"),
+      "tools.ts": () => import("../../../plugins/indexnow/tools.ts"),
     },
   },
 };

@@ -18,7 +18,7 @@ import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type Author
 import { Html } from "./jsx-runtime";
 import { resolveTokens, tokensCss, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
-import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic } from "./hooks";
+import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic, type HookRun } from "./hooks";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
@@ -34,8 +34,8 @@ export interface BuildResult {
   emitted: number;
   phases: { config: number; theme: number; sync: number; plan: number; render: number };
   theme: { name: string; coverage: Theme["coverage"] };
-  /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. */
-  hooks: { plugins: string[]; diagnostics: HookDiagnostic[] };
+  /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. `record` is present only when the caller asked for one (P4, `content.explain`). */
+  hooks: { plugins: string[]; diagnostics: HookDiagnostic[]; record?: HookRun[] };
 }
 
 /**
@@ -332,7 +332,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics] } };
+  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
 }
 
 /**

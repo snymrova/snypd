@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { defaultStatus, loadConfig, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, REPLACE } from "./index";
+import { callPluginTool, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -259,12 +259,15 @@ describe("plugins (P1)", () => {
     expect(renderPlugins(c.plugins)).toContain("status: refused — manifest speaks plugin api 2; this snypd speaks 1");
   });
 
-  test("the manifest is strict with file:line; a not-yet-built key warns and names its session; a bad manifest is not loaded", () => {
+  test("the manifest is strict with file:line; every key it accepts is a key that runs; a bad manifest is not loaded", () => {
     rmSync(R, { recursive: true, force: true });
     site("  - typo\n  - early\n", "bench: { budgets: { jsKb: 1 } }\n");
-    // `early` declares P2 hooks and P3 stages/events, which are real now: their modules must exist (a missing one refuses the plugin — tested below)
+    // `early` declares all five tiers, and since P4 every one of them is real: each module must exist
+    // (a missing one refuses the plugin — tested below). `PLUGIN_UNBUILT_KEYS` is empty for the first
+    // time since P1 wrote it, so this test's "declared but not built yet" warning is gone with it.
     mkdirSync(join(R, "plugins/early"), { recursive: true });
     for (const f of ["head.tsx", "beacon.tsx", "title.ts", "transform.ts", "push.ts"]) writeFileSync(join(R, "plugins/early", f), "export default () => null;\n");
+    writeFileSync(join(R, "plugins/early/tools.ts"), "export default { actions: [{ name: \"go\", description: \"does the thing\", run: () => \"done\" }] };\n");
     plugin("plugins/typo", "plugin:\n  name: typo\n  version: 1.0.0\n  api: 1\n  descripton: oops\n  slots: { sidebar: ./x.tsx }\n  capabilities: { client: lots }\ntaxonomies:\n  topic: { attaches: [post] }\n");
     plugin("plugins/early", "plugin:\n  name: early\n  version: 1.0.0\n  api: 1\n  slots: { head: ./head.tsx, body-end: ./beacon.tsx }\n  filters: { title: ./title.ts }\n  stages: { transform: ./transform.ts }\n  events: { push: ./push.ts }\n  tools: ./tools.ts\n  capabilities: { network: [plausible.io], client: 1kb }\ntaxonomies:\n  topic: { attaches: [post] }\n");
     const c = loadConfig(R);
@@ -274,13 +277,11 @@ describe("plugins (P1)", () => {
     expect(e).toContainEqual(expect.stringMatching(/^plugins\[typo\]\.plugin\.capabilities\.client: .*1kb.* \(plugins\/typo\/snypd\.yaml:7 \(plugin typo\)\)$/));
     expect(e).toContainEqual("plugins[typo].plugin: manifest does not validate — not loaded (plugins/typo/snypd.yaml)");
     expect(c.plugins[0]!.loaded).toBe(false);
-    // `early` is a complete P2–P4 manifest: it parses, loads as Tier 0–3, and the one key that does not run yet (P4) says so
-    expect(c.plugins[1]).toMatchObject({ loaded: true, tiers: ["declares", "decorates", "transforms", "reacts", "speaks"], clientKb: 1, slots: { head: "./head.tsx", "body-end": "./beacon.tsx" }, filters: { title: "./title.ts" }, stages: { transform: "./transform.ts" }, events: { push: "./push.ts" }, network: ["plausible.io"], emitPrefixes: ["early/"] });
+    // `early` is a complete five-tier manifest: it parses, and since P4 it loads with nothing ignored
+    expect(c.plugins[1]).toMatchObject({ loaded: true, tiers: ["declares", "decorates", "transforms", "reacts", "speaks"], clientKb: 1, slots: { head: "./head.tsx", "body-end": "./beacon.tsx" }, filters: { title: "./title.ts" }, stages: { transform: "./transform.ts" }, events: { push: "./push.ts" }, tools: "./tools.ts", network: ["plausible.io"], emitPrefixes: ["early/"] });
     expect(c.config.taxonomies.topic).toBeDefined();
-    const w = warnings(c).filter((x) => x.startsWith("plugins[early]"));
-    expect(w).toEqual([
-      "plugins[early].plugin.tools: `tools` is declared but not built yet (plugin tools in the catalogue — docs/10 §4.2 tier 4, lands in P4); ignored (plugins/early/snypd.yaml:9 (plugin early))",
-    ]);
+    expect(warnings(c).filter((x) => x.startsWith("plugins[early]"))).toEqual([]);
+    expect(PLUGIN_UNBUILT_KEYS).toEqual({});
     const text = renderPlugins(c.plugins, { jsKb: 1 });
     expect(text).toContain('capabilities: {"network":["plausible.io"],"client":"1kb"}');
     // the hook table (docs/09 §4.4 rule 3): every slot, filter, stage and event, with who fills it, in order
@@ -292,7 +293,71 @@ describe("plugins (P1)", () => {
     expect(text).toContain("  stages: { transform: [early], emit: [] }");
     expect(text).toContain("  events: { publish: [], push: [early] }");
     expect(text).toContain("client: { declared: 1, budget: 1 }");
+    // tier 4 is inspectable the way the others are: the module per plugin, and the MCP surface it adds
+    expect(text).toContain("    tools: ./tools.ts");
+    expect(text).toContain("  tools: [early]");
+    expect(text).toContain("  prompts: []");
     expect(hooksOf(c.plugins)).toMatchObject({ any: true, slots: { head: ["early"], "body-end": ["early"] }, filters: { title: ["early"] }, stages: { transform: ["early"], emit: [] }, events: { publish: [], push: ["early"] } });
+  });
+
+  test("P4: a missing tools or prompts module refuses the plugin; a module of the wrong shape is a diagnostic and every other tier still runs", async () => {
+    rmSync(R, { recursive: true, force: true });
+    site("  - notool\n  - noprompt\n  - junk\n  - dupe\n  - speaker\n");
+    // the two that name a module which is not there: found at load, not at the agent's first find_tools
+    plugin("plugins/notool", "plugin:\n  name: notool\n  version: 1.0.0\n  api: 1\n  tools: ./tools.ts\n");
+    plugin("plugins/noprompt", "plugin:\n  name: noprompt\n  version: 1.0.0\n  api: 1\n  prompts: ./prompts.ts\n");
+    // and three whose module is there: one that is not a tools module at all, one that declares the same
+    // action twice, and one that is right — each a diagnostic or a tool, never an exception
+    plugin("plugins/junk", "plugin:\n  name: junk\n  version: 1.0.0\n  api: 1\n  tools: ./tools.ts\ntaxonomies:\n  topic: { attaches: [post] }\n");
+    writeFileSync(join(R, "plugins/junk/tools.ts"), "export default \"not a module\";\n");
+    plugin("plugins/dupe", "plugin:\n  name: dupe\n  version: 1.0.0\n  api: 1\n  tools: ./tools.ts\n");
+    writeFileSync(join(R, "plugins/dupe/tools.ts"), "const a = { name: \"go\", description: \"d\", run: () => \"ok\" };\nexport default { actions: [a, a] };\n");
+    plugin("plugins/speaker", "plugin:\n  name: speaker\n  version: 1.0.0\n  api: 1\n  description: Says things.\n  tools: ./tools.ts\n  prompts: ./prompts.ts\n");
+    writeFileSync(join(R, "plugins/speaker/tools.ts"),
+      "export default { description: \"Two verbs.\", keywords: [\"shout\"], actions: [\n" +
+      "  { name: \"say\", description: \"says it\", input: { what: { type: \"string\" } }, required: [\"what\"], run: (a) => `said ${a.what}` },\n" +
+      "  { name: \"count\", description: \"counts the pages\", run: (_a, ctx) => ({ ok: true, message: `${ctx.pages().length} pages`, data: { n: ctx.pages().length } }) },\n" +
+      "  { name: \"boom\", description: \"throws\", run: () => { throw new Error(\"handler broke\") } },\n] };\n");
+    writeFileSync(join(R, "plugins/speaker/prompts.ts"),
+      "export default { prompts: [{ name: \"walk\", description: \"Walks through it.\", arguments: [{ name: \"topic\" }], render: (a, ctx) => `walk ${a.topic ?? \"?\"} on ${ctx.site.name}` }] };\n");
+
+    const c = loadConfig(R);
+    const e = errors(c);
+    expect(e).toContainEqual("plugins[notool].plugin.tools: ./tools.ts is missing from plugins/notool — `tools` names one module relative to the plugin's own directory (plugins/notool/snypd.yaml:5 (plugin notool))");
+    expect(e).toContainEqual("plugins[noprompt].plugin.prompts: ./prompts.ts is missing from plugins/noprompt — `prompts` names one module relative to the plugin's own directory (plugins/noprompt/snypd.yaml:5 (plugin noprompt))");
+    expect(c.plugins[0]).toMatchObject({ found: true, loaded: false, why: "a hook module is missing (tools)" });
+    expect(c.plugins[1]).toMatchObject({ found: true, loaded: false, why: "a hook module is missing (prompts)" });
+    // `junk` loads — the module exists, so the manifest is honest; what is wrong with it is found when
+    // the tool is asked for, and it costs `junk` its tool and not its taxonomy
+    expect(c.plugins[2]).toMatchObject({ loaded: true, tiers: ["declares", "speaks"] });
+    expect(c.config.taxonomies.topic).toBeDefined();
+    expect(c.plugins[4]).toMatchObject({ loaded: true, tiers: ["speaks"], tools: "./tools.ts", prompts: "./prompts.ts" });
+
+    const { sets, diagnostics } = await loadPluginTools(R, c);
+    expect(diagnostics.map((d) => `${d.plugin}: ${d.message}`)).toEqual([
+      expect.stringContaining("junk: ./tools.ts default-exports a string where a tools module exports { description?, keywords?, actions }"),
+      expect.stringContaining("dupe: ./tools.ts declares the action `go` twice"),
+    ]);
+    // every diagnostic says the same thing about blast radius: one tier lost, the rest untouched
+    for (const d of diagnostics) expect(d.message).toContain("every other tier of this plugin still runs");
+    // `dupe` keeps the first `go` rather than losing the tool: a duplicate is a mistake in the second one
+    expect(sets.map((x) => x.name)).toEqual(["dupe", "speaker"]);
+    const speaker = sets.find((x) => x.name === "speaker")!;
+    expect(speaker).toMatchObject({ plugin: "speaker", description: "Two verbs.", keywords: ["shout"] });
+    expect(speaker.actions.map((a) => a.name)).toEqual(["say", "count", "boom"]);
+
+    // the call: a string reply, a structured one, a required argument, and a handler that throws
+    expect(await callPluginTool(speaker, "say", { what: "hi" })).toEqual({ ok: true, message: "said hi" });
+    expect(await callPluginTool(speaker, "say", {})).toMatchObject({ ok: false, message: "what required for speaker › say" });
+    expect(await callPluginTool(speaker, "count", {})).toMatchObject({ ok: true, message: "0 pages", data: { n: 0 } });
+    expect(await callPluginTool(speaker, "boom", {})).toEqual({ ok: false, message: "handler broke" });
+    expect(await callPluginTool(speaker, "nope", {})).toMatchObject({ ok: false, message: expect.stringContaining('unknown action "nope"') });
+
+    // prompts are namespaced, so a plugin cannot shadow `get-started`
+    const p = await loadPluginPrompts(R, c);
+    expect(p.diagnostics).toEqual([]);
+    expect(p.sets.map((x) => x.name)).toEqual(["speaker.walk"]);
+    expect(p.sets[0]!.render({ topic: "tiers" })).toBe("walk tiers on P");
   });
 
   test("P3: a stage or event module that is not there refuses the plugin; emit prefixes default to the plugin's name, are normalised, and cannot be `/`", () => {

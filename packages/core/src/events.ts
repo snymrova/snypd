@@ -28,15 +28,13 @@
  * button under `snypd dev`. An append-only ring of the last hundred rows, written by whichever process
  * fired the event, is the shape a history has; a heartbeat is not.
  */
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { LoadedConfig } from "./config";
 import { ensureDisposableDir, INDEX_DIR } from "./paths";
-import type { EventName, LoadedPlugin } from "./plugins";
+import { pluginModule, type EventName, type LoadedPlugin } from "./plugins";
 import type { PushCommit } from "./push";
 import type { Config } from "./schema";
-import { isBundledDir, themeModule, themeSignature } from "./themefs";
 
 /** One handler's answer, as recorded: who, to what, whether it worked, and what it said. */
 export interface EventRow { at: string; event: EventName; plugin: string; ok: boolean; message: string; ms: number }
@@ -123,17 +121,8 @@ const normalise = (reply: unknown, plugin: string): { ok: boolean; message: stri
   return { ok: false, message: `plugin ${plugin} returned ${Array.isArray(reply) ? "an array" : `a ${typeof reply}`} where an event handler returns { ok, message } or a string` };
 };
 
-const modules = new Map<string, Promise<unknown>>();
-/** The handler module through the same seam themes use (decision 83); on disk, hash-busted by the plugin's change signal so an edit is seen without a restart. */
-async function eventModule(p: LoadedPlugin, rel: string): Promise<unknown> {
-  if (isBundledDir(p.dir!)) return themeModule(p.dir!, rel);
-  const abs = resolve(join(p.dir!, rel));
-  const bust = `?v=${createHash("sha1").update(themeSignature(p.dir!)).digest("hex").slice(0, 8)}`;
-  const key = abs + bust;
-  let m = modules.get(key);
-  if (!m) { m = import(key).then((x) => (x as { default: unknown }).default); modules.set(key, m); }
-  return m;
-}
+/** The handler module through the loader every plugin tier shares (`plugins.ts` `pluginModule`, decision 83). */
+const eventModule = (p: LoadedPlugin, rel: string): Promise<unknown> => pluginModule(p, rel);
 
 export interface FireOptions { timeoutMs?: number; /** for a test that wants the rows and not the file */ record?: boolean }
 

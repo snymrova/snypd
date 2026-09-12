@@ -47,7 +47,7 @@ describe("stdio", () => {
       req(3, "resources/read", { uri: "snypd://lint/post/post-00005" }),
       req(4, "resources/read", { uri: "snypd://lint/post/nope" }),
     ]);
-    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}"]);
+    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}", "snypd://{plugin}/last"]);
     const lintRes = JSON.parse(lintOk.result.contents[0].text);
     expect(lintRes.file).toBe("content/posts/post-00005.md");
     expect(lintRes.errors).toBe(0); expect(lintRes.diagnostics).toEqual([]); expect(lintRes.words).toBeGreaterThan(100);
@@ -457,7 +457,7 @@ describe("find_tools + the catalogue", () => {
     // Only what matched joins the list: finding the theme tool must not drag the bench tool in with it.
     expect(names(after)).not.toContain("bench");
     expect(structured(unmatched)).toMatchObject({ count: 0 });
-    expect(structured(unmatched).available).toEqual(["theme", "site", "bench"]);
+    expect(structured(unmatched).available).toEqual(["theme", "site", "bench", "content.explain"]);
   });
 
   test("a catalogue tool is callable before it was ever listed", async () => {
@@ -676,6 +676,131 @@ describe("find_tools + the catalogue", () => {
     expect(html).toContain('<a href="/tag/snypd/">snypd</a>');
     expect(readFileSync(join(site, "dist/hello/marker.txt"), "utf8")).toBe("hi");
     expect(readFileSync(join(site, "dist/index.html"), "utf8")).not.toBe("evil");
+  });
+
+  test("P4: a plugin's tool is found, never listed, and callable; its prompt is namespaced; snypd://<plugin>/last is its own rows; content.explain says what ran", async () => {
+    const site = "corpora/_test/mcp-p4";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(join(site, "plugins/speaker"), { recursive: true });
+    const { initRepo, git } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    // A site-local plugin, not bundled and not on npm (D10), that speaks: one tool with two verbs and one
+    // prompt. `keywords` is what makes it findable in the agent's own words rather than in ours.
+    writeFileSync(join(site, "plugins/speaker/snypd.yaml"), "plugin:\n  name: speaker\n  version: 0.0.1\n  api: 1\n  description: Fallback description.\n  tools: ./tools.ts\n  prompts: ./prompts.ts\n");
+    writeFileSync(join(site, "plugins/speaker/tools.ts"),
+      "export default { description: \"Counts and greets.\", keywords: [\"greet\", \"hello there\", \"count pages\"], actions: [\n" +
+      "  { name: \"greet\", description: \"greets whoever is named\", input: { who: { type: \"string\", description: \"`greet`: who\" } }, required: [\"who\"], run: (a, ctx) => `hello ${a.who} from ${ctx.site.name}` },\n" +
+      "  { name: \"count\", description: \"counts this site's pages\", run: (_a, ctx) => ({ ok: true, message: `${ctx.pages().length} pages`, data: { pages: ctx.pages().length } }) },\n] };\n");
+    writeFileSync(join(site, "plugins/speaker/prompts.ts"),
+      "export default { prompts: [{ name: \"walk\", description: \"Walks the tiers.\", arguments: [{ name: \"topic\", required: false }], render: (a, ctx) => `Walk ${a.topic ?? \"the tiers\"} on ${ctx.site.name}.` }] };\n");
+    await session([req(1, "initialize"), call(0, "site", { action: "init", name: "P4", url: "https://p4.example" })], site);
+    writeFileSync(join(site, "snypd.yaml"), readFileSync(join(site, "snypd.yaml"), "utf8") + "plugins:\n  - autolink\n  - speaker\n  - indexnow: { key: 0123456789abcdef0123456789abcdef }\n");
+    git(site, "add", "-A"); git(site, "commit", "-q", "-m", "init with a plugin that speaks");
+
+    const { CORE_TOOLS } = await import("./tools");
+    // filtered by id: `find_tools` announces the list grew, and a notification in the stream would
+    // otherwise shift every reply after it by one
+    const out = await session([
+      req(1, "initialize"),
+      req(2, "tools/list"),
+      call(3, "find_tools", { query: "ping search engines" }),
+      req(4, "tools/list"),
+      call(5, "speaker", { action: "greet", who: "tier four" }),
+      call(6, "speaker", { action: "shout" }),
+      req(7, "prompts/list"),
+      req(8, "prompts/get", { name: "speaker.walk", arguments: { topic: "speaking" } }),
+      call(9, "content.create", { type: "post", frontmatter: { title: "Speaks", tags: ["snypd"] }, body: "A plugin can speak, and snypd is what it speaks to.\n" }),
+      call(10, "content.explain", { type: "post", slug: "speaks" }),
+    ], site);
+    const [, listed, found, after, called, badAction, prompts, got, created, explained] = out.filter((m: any) => m.id !== undefined);
+    expect(out.filter((m: any) => m.method === "notifications/tools/list_changed")).toHaveLength(1);
+    const names = (m: any) => m.result.tools.map((t: any) => t.name);
+
+    // **D11, byte for byte.** Three plugins are on, one of which declares a tool, and the surface an
+    // agent pays for on every turn is the same object it would have been with none.
+    expect(listed.result.tools).toEqual(CORE_TOOLS);
+    expect(names(listed)).not.toContain("speaker");
+    expect(names(listed)).not.toContain("indexnow");
+
+    // the exit criterion: a plugin's tool competes with the built-ins on the query an agent would type
+    expect(structured(found).tools.map((t: any) => t.name)).toEqual(["indexnow"]);
+    expect(structured(found).tools[0].inputSchema.properties.action.enum).toEqual(["ping"]);
+    expect(found.result.content[0].text).toContain("Added by the `indexnow` plugin");
+    // …and only what matched: finding indexnow must not hand over the plugin next to it
+    expect(names(after)).toContain("indexnow");
+    expect(names(after)).not.toContain("speaker");
+
+    // callable before it was ever listed, exactly as a catalogue tool is; the module's own description wins
+    expect(called.result.isError).toBeUndefined();
+    expect(called.result.content[0].text).toBe("speaker › greet: hello tier four from P4");
+    expect(structured(called)).toMatchObject({ ok: true, plugin: "speaker", action: "greet" });
+    // a verb that does not exist is snypd refusing and says what the verbs are — not the plugin answering
+    expect(badAction.result.isError).toBe(true);
+    expect(badAction.result.content[0].text).toBe('unknown action "shout" for speaker — it has: greet, count');
+
+    // prompts: namespaced, described as the plugin's, and rendered with the site in hand
+    const pnames = prompts.result.prompts.map((x: any) => x.name);
+    // snypd's two first, then the plugins' in `plugins:` order, each namespaced by its plugin
+    expect(pnames).toEqual(["get-started", "write-post", "speaker.walk", "indexnow.get-indexed"]);
+    expect(prompts.result.prompts[2].description).toContain("(from the `speaker` plugin)");
+    expect(got.result.messages[0].content.text).toBe("Walk speaking on P4.");
+
+    // content.explain: what ran, not what was declared — and the real index is untouched by the scratch build
+    expect(structured(created)).toMatchObject({ ok: true, slug: "speaks" });
+    const x = explained.result.content[0].text as string;
+    expect(x).toContain("post/speaks → /posts/speaks");
+    expect(x).toContain("autolink — transforms: stages transform");
+    expect(x).toContain("speaker — speaks: tools");
+    expect(x).toContain("✎ autolink stages.transform — changed the tree in place");
+    expect(x).toContain("✎ indexnow stages.emit → indexnow/0123456789abcdef0123456789abcdef.txt");
+    expect(x).toContain("dist/ and the site's index are untouched.");
+    expect(structured(explained).ran.map((r: any) => `${r.plugin} ${r.hook}`)).toContain("autolink stages.transform");
+    expect(structured(explained).key).toMatch(/^[0-9a-f]{40}$/);
+    expect(existsSync(join(site, "dist"))).toBe(false);   // explaining a post does not build the site
+
+    // doctor names the verbs, not just the word "speaks" — and says why the tool list did not grow
+    const [, doctor] = (await session([req(1, "initialize"), call(2, "site", { action: "doctor" })], site)).filter((m: any) => m.id !== undefined);
+    const dd = doctor.result.content[0].text as string;
+    expect(dd).toContain("✅ plugin `speaker` 0.0.1 speaks (plugins/speaker)");
+    expect(dd).toContain("✅ `speaker` speaks: `speaker` › greet · `speaker` › count · prompt speaker.walk — found with find_tools, so tools/list did not grow (D11)");
+    expect(dd).toContain("✅ `indexnow` speaks: `indexnow` › ping · prompt indexnow.get-indexed");
+    expect(structured(doctor).ok).toBe(true);
+
+    // `snypd://indexnow/last` is listed because indexnow reacts, and reads as the ring's view of it
+    const [, res, last, absent] = (await session([
+      req(1, "initialize"),
+      req(2, "resources/list"),
+      req(3, "resources/read", { uri: "snypd://indexnow/last" }),
+      req(4, "resources/read", { uri: "snypd://speaker/last" }),
+    ], site)).filter((m: any) => m.id !== undefined);
+    const uris = res.result.resources.map((r: any) => r.uri);
+    expect(uris).toContain("snypd://indexnow/last");
+    expect(uris).not.toContain("snypd://autolink/last");   // autolink transforms; it never reacts, so it has no rows
+    expect(uris).not.toContain("snypd://speaker/last");
+    expect(last.result.contents[0].text).toContain("listens: [push]");
+    expect(last.result.contents[0].text).toContain("no event has fired at it yet");
+    // A loaded plugin that does not react is not listed — it can write no rows — but reading it answers
+    // that question rather than 404ing on it, which is the more useful of the two for whoever asked.
+    expect(absent.result.contents[0].text).toContain("listens: []   # nothing — this plugin does not react");
+    // a name that is not a plugin of this site is a miss, with the resource that lists them in the message
+    const [, missing] = (await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://nosuch/last" })], site)).filter((m: any) => m.id !== undefined);
+    expect(missing.error.code).toBe(-32002);
+    expect(missing.error.message).toContain("snypd://plugins lists this site's");
+
+    // …and with rows in the ring it is the rows, newest first, failures included — the P3 event log read
+    // per plugin rather than whole, which is the only place a failed ping is written down
+    const { recordEvents } = await import("@snypd/core");
+    recordEvents(site, [
+      { at: "2026-09-12T10:00:00.000Z", event: "push", plugin: "indexnow", ok: false, message: "api.indexnow.org answered 403 Forbidden for 2 URLs", ms: 91 },
+      { at: "2026-09-12T10:05:00.000Z", event: "push", plugin: "autolink", ok: true, message: "not mine", ms: 1 },
+      { at: "2026-09-12T10:10:00.000Z", event: "push", plugin: "indexnow", ok: true, message: "pinged api.indexnow.org with 2 URLs (200)", ms: 143 },
+    ]);
+    const [, rows] = (await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://indexnow/last" })], site)).filter((m: any) => m.id !== undefined);
+    const r = rows.result.contents[0].text as string;
+    expect(r).toContain("the last 2 times an event fired at it");
+    expect(r).toContain('message: "pinged api.indexnow.org with 2 URLs (200)"');
+    expect(r).toContain('message: "api.indexnow.org answered 403 Forbidden for 2 URLs"');
+    expect(r.indexOf("(200)")).toBeLessThan(r.indexOf("403"));   // newest first
+    expect(r).not.toContain("not mine");                          // one plugin's own rows, not the ring
   });
 
   test("switching to a theme that does not declare a token you set says so rather than losing it", async () => {

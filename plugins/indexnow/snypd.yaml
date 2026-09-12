@@ -41,3 +41,7 @@ plugin:
     emit: ./emit.ts
   events:
     push: ./push.ts
+  # Tier 4 (P4): one catalogue tool named `indexnow`, whose actions are its verbs. Behind find_tools,
+  # so enabling this plugin does not grow the tool list an agent pays for on every turn (D11).
+  tools: ./tools.ts
+  prompts: ./prompts.ts

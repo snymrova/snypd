@@ -152,12 +152,29 @@ type Catalog = typeof import("./catalog");
 let catalog: Catalog | undefined;
 const loadCatalog = async () => (catalog ??= await import("./catalog"));
 
+type PluginTools = typeof import("./plugintools");
+let plugintools: PluginTools | undefined;
+const loadPluginTools = async () => (plugintools ??= await import("./plugintools"));
+
 /**
  * Tools `find_tools` has handed over this session. Session-scoped rather than global: two roots served by
  * one process must not leak each other's unlocked surface, and a fresh session starts back at the small list.
  */
 export function handlers(root: string, notify?: (method: string, params?: Record<string, unknown>) => void): Pick<Handlers, "listTools" | "callTool"> {
   const unlocked = new Set<string>();
+  /**
+   * The plugin tools this site offers (P4, tier 4), resolved at most once per session.
+   *
+   * Cached because resolving them reads the config and imports a module per plugin, and `find_tools` plus
+   * the calls that follow it would otherwise pay that each time. Session-scoped like `unlocked`, and not
+   * refreshed: a plugin enabled mid-session arrives when the harness reconnects, which is the same rule
+   * `.mcp.json` and every other manifest in this system follows.
+   */
+  let speaking: Promise<Awaited<ReturnType<PluginTools["pluginTools"]>>> | undefined;
+  const speak = async () => {
+    const { pluginTools } = await loadPluginTools();
+    return (speaking ??= pluginTools(root));
+  };
   const cfgOf = async () => {
     const c = await loadCore();
     const cfg = c.loadConfig(root);
@@ -208,20 +225,30 @@ export function handlers(root: string, notify?: (method: string, params?: Record
 
   return {
     async listTools() {
+      // The always-listed surface, byte for byte, until `find_tools` has handed something over — with
+      // every plugin on. A plugin tool is unlockable, never listed by default (D11, docs/10 §4.2).
       if (!unlocked.size) return CORE_TOOLS;
       const { CATALOG } = await loadCatalog();
-      return [...CORE_TOOLS, ...CATALOG.filter((t) => unlocked.has(t.name))];
+      const listed = [...CORE_TOOLS, ...CATALOG.filter((t) => unlocked.has(t.name))];
+      const { tools } = await speak();
+      return [...listed, ...tools.filter((p) => unlocked.has(p.tool.name) && !CATALOG.some((t) => t.name === p.tool.name)).map((p) => p.tool)];
     },
 
     async callTool(name, args): Promise<ToolResult> {
       // Before the core import: finding a tool is the one call that needs nothing but the catalogue.
       if (name === "find_tools") {
-        const { search, CATALOG } = await loadCatalog();
+        const { CATALOG } = await loadCatalog();
+        const { searchAll } = await loadPluginTools();
         const q = typeof args.query === "string" ? args.query : "";
-        const found = search(q);
+        // The plugin tools of this site join the search (P4). A site with none pays one config read on
+        // the first find_tools of the session and nothing after it; a site with one gets `indexnow`
+        // ranked against `site` and `theme` by the same scoring, not appended behind them.
+        const { tools: added } = await speak();
+        const found = searchAll(added, q);
+        const all = [...CATALOG.map((t) => t.name), ...added.map((p) => p.tool.name).filter((n) => !CATALOG.some((t) => t.name === n))];
         if (!found.length)
-            return text(`nothing matches "${q}"\nThere are ${CATALOG.length} tools here: ${CATALOG.map((t) => t.name).join(", ")}. Call find_tools with no query to see them all.`,
-              { ok: true, count: 0, available: CATALOG.map((t) => t.name) });
+            return text(`nothing matches "${q}"\nThere are ${all.length} tools here: ${all.join(", ")}. Call find_tools with no query to see them all.`,
+              { ok: true, count: 0, available: all });
         const fresh = found.filter((t) => !unlocked.has(t.name));
         for (const t of found) unlocked.add(t.name);
         // Tell the client its list grew. A client that acts on it can call these natively; one that
@@ -411,6 +438,12 @@ export function handlers(root: string, notify?: (method: string, params?: Record
             // A catalogue tool is callable whether or not `find_tools` listed it first: the schema is the
             // same either way, and refusing here would only punish a client that read the schema and acted.
             if (CATALOG_NAMES.has(name)) { unlocked.add(name); return await call(root, name, args); }
+            // …and a plugin's tool the same way (P4). Checked after the built-ins, so a plugin named
+            // `site` cannot take the call — it loses the name and keeps every other tier.
+            const { callPlugin } = await loadPluginTools();
+            const { tools } = await speak();
+            const p = tools.find((x) => x.tool.name === name);
+            if (p) { unlocked.add(name); return await callPlugin(p, args); }
             return fail(`unknown tool "${name}"`, `Listed: ${CORE_TOOLS.map((t) => t.name).join(", ")}. Everything else is behind find_tools.`);
           }
         }

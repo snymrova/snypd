@@ -1689,3 +1689,130 @@ describe("stages (P3): transform on a copy, emit through core, autolink as the p
     expect(read("posts/a")).toBe(plainA);
   });
 });
+
+/**
+ * **D9's other half** (P4, docs/10 §7.1). The gate reads: "four first-party plugins, one per tier,
+ * bundled; `plugins: [analytics]` works on a fresh `init` with no install; **removing a plugin from the
+ * list removes every byte it added**". The P-series exits prove the first two clauses one tier at a time.
+ * The third is a claim about `dist/`, and no session after this one claims it — P4 is the last P session —
+ * so it is tested here, once, over all four plugins.
+ *
+ * The method is the only one that can be believed: build with nothing on and hash every byte; enable one
+ * plugin, build, diff; disable it, build again, and assert the tree is **byte-identical to the baseline**.
+ * That last build is the one that matters. A plugin whose file is pruned but whose `<script>` is still in
+ * a cached page passes every other test in this file and fails this one — which is the failure a person
+ * would hit the first time they tried a plugin and changed their mind.
+ */
+describe("D9 (P4): removing a plugin removes every byte it added", () => {
+  const root = "corpora/_test/d9-plugins";
+  const dist = join(root, "dist");
+
+  /** Every file under `dist/`, dist-relative, with a hash of its bytes — the shape a diff can be taken over. */
+  const snapshot = (): Map<string, string> => {
+    const out = new Map<string, string>();
+    const walk = (d: string) => {
+      for (const f of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, f.name);
+        if (f.isDirectory()) walk(p);
+        else out.set(relative(dist, p).split("\\").join("/"), Bun.hash(readFileSync(p)).toString(16));
+      }
+    };
+    walk(dist);
+    return new Map([...out].sort((a, b) => a[0].localeCompare(b[0])));
+  };
+  const diff = (before: Map<string, string>, after: Map<string, string>) => ({
+    added: [...after.keys()].filter((k) => !before.has(k)),
+    removed: [...before.keys()].filter((k) => !after.has(k)),
+    changed: [...after].filter(([k, v]) => before.has(k) && before.get(k) !== v).map(([k]) => k),
+  });
+  const config = (plugins: string) =>
+    writeFileSync(join(root, "snypd.yaml"),
+      `snypd: 1\nsite: { name: D9, url: https://d9.example }\nbench: { budgets: { jsKb: 3 } }\n${plugins ? `plugins:\n${plugins}` : ""}`);
+
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "content/taxonomies/category"), { recursive: true });
+    mkdirSync(join(root, "content/posts"), { recursive: true });
+    writeFileSync(join(root, "content/taxonomies/category/building-in-public.md"), "---\ntitle: Building in public\n---\n");
+    // a term in the prose for `autolink`, a product ref for nothing, and enough text to render a real page
+    writeFileSync(join(root, "content/posts/one.md"), "---\ntitle: One\ndate: 2026-09-12\nstatus: published\ncategory: building-in-public\n---\n\nWe are building in public, and that is the whole idea.\n");
+    writeFileSync(join(root, "content/posts/two.md"), "---\ntitle: Two\ndate: 2026-09-11\nstatus: published\n---\n\nA second page, so the lists have two rows.\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("each of the four, on then off, against a byte-for-byte baseline", async () => {
+    config("");
+    await build(root);
+    const baseline = snapshot();
+    expect(baseline.size).toBeGreaterThan(10);
+
+    // What each plugin is allowed to be responsible for. `changelog` declares a type and a taxonomy with
+    // no content in either, so it adds the surfaces those produce and touches no page; `analytics` adds
+    // bytes to every rendered page and no file; `autolink` changes exactly the one page with the term in
+    // it; `indexnow` adds one file under its own prefix and changes nothing.
+    const cases: { plugins: string; expect: (d: ReturnType<typeof diff>) => void }[] = [
+      { plugins: "  - changelog\n", expect: (d) => {
+        expect(d.removed).toEqual([]);
+        expect(d.added.length).toBeGreaterThan(0);
+        // every added file belongs to the type or the taxonomy it declares — nothing else moved
+        for (const f of d.added) expect(f).toMatch(/changelog|product|llms\.txt|sitemap\.xml|api\//);
+      } },
+      { plugins: "  - analytics: { provider: plausible }\n", expect: (d) => {
+        expect(d.added).toEqual([]);
+        expect(d.removed).toEqual([]);
+        // a beacon is in the document, so every html page changed and nothing else did
+        expect(d.changed.length).toBeGreaterThan(0);
+        for (const f of d.changed) expect(f.endsWith(".html")).toBe(true);
+        expect(readFileSync(join(dist, "posts/one/index.html"), "utf8")).toContain("plausible.io/js/script.js");
+      } },
+      { plugins: "  - autolink\n", expect: (d) => {
+        expect(d.added).toEqual([]);
+        expect(d.removed).toEqual([]);
+        /**
+         * Only the page that mentions the term — not the other post, not the lists, and **not the `.md`
+         * twin**, which P4 checked on purpose rather than assuming.
+         *
+         * The twin is the source file byte for byte (build.ts, and docs/01 §2: "the source file *is* the
+         * agent `.md` twin"), so with a transform on, the twin and the HTML deliberately disagree. That
+         * is the right way round: the twin is what an agent would read and write back, and a twin that
+         * carried the transform's output would let an agent bake it into the source — where it would then
+         * be transformed again on the next build. That is decision 102's failure arriving by another
+         * door, and the source staying the source is what keeps a transform a view.
+         */
+        expect(d.changed).toEqual(["posts/one/index.html"]);
+        expect(readFileSync(join(dist, "posts/one/index.html"), "utf8")).toContain('<a href="/category/building-in-public/">building in public</a>');
+        expect(readFileSync(join(dist, "posts/one/index.md"), "utf8")).toBe(readFileSync(join(root, "content/posts/one.md"), "utf8"));
+        expect(readFileSync(join(dist, "posts/one/index.md"), "utf8")).not.toContain("/category/building-in-public/");
+      } },
+      { plugins: "  - indexnow: { key: 0123456789abcdef0123456789abcdef }\n", expect: (d) => {
+        expect(d.added).toEqual(["indexnow/0123456789abcdef0123456789abcdef.txt"]);
+        expect(d.removed).toEqual([]);
+        expect(d.changed).toEqual([]);   // an emit is beside the pages, never inside one
+      } },
+    ];
+
+    for (const c of cases) {
+      config(c.plugins);
+      await build(root);
+      c.expect(diff(baseline, snapshot()));
+      // …and off again: the same incremental index that cached the plugin's output has to give the
+      // baseline back, file for file and byte for byte. This is the assertion D9 is actually about.
+      config("");
+      await build(root);
+      expect(diff(baseline, snapshot())).toEqual({ added: [], removed: [], changed: [] });
+    }
+
+    // all four at once, then all four off — the combination, because four prunes in one build is not
+    // four builds with one prune each, and `shared` outputs are where a prune goes wrong (P2 found one)
+    config("  - changelog\n  - analytics: { provider: plausible }\n  - autolink\n  - indexnow: { key: 0123456789abcdef0123456789abcdef }\n");
+    const withAll = await build(root);
+    expect(withAll.hooks.plugins).toEqual(["analytics", "autolink", "indexnow"]);   // changelog declares only
+    expect(withAll.emitted).toBe(1);
+    const all = diff(baseline, snapshot());
+    expect(all.added).toContain("indexnow/0123456789abcdef0123456789abcdef.txt");
+    expect(all.changed).toContain("posts/one/index.html");
+    config("");
+    await build(root);
+    expect(diff(baseline, snapshot())).toEqual({ added: [], removed: [], changed: [] });
+  });
+});

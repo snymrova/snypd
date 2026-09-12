@@ -252,7 +252,7 @@ Four rules, which are the whole of the difference from WordPress:
    `addFilter()`, no global registry, and nothing can be added at runtime by anything.
 2. **Ordered by the `plugins:` array.** No priority numbers. To reorder, edit one list in `snypd.yaml`.
 3. **Inspectable.** `site › doctor` lists every slot and filter with the plugin that fills it;
-   `content.explain(slug)` prints what ran over that item (docs/02 §9 already promises this).
+   `content.explain(slug)` prints what ran over that item (docs/02 §9 already promises this; **built in P4** — docs/10 §7.2).
 4. **Free when unused.** A site with no plugins resolves nothing and pays nothing — the same property
    `loadTheme` already has for a theme with no `css:`. This is a `mcp.coldStart` and `build.cold.100`
    requirement, not an aspiration, and §6 gates it.

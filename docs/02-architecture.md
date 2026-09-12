@@ -89,7 +89,7 @@ emit       site → artefacts                 .md twins, llms.txt, feeds, JSON A
 publish    event                            webhooks, IndexNow, cross-post
 ```
 
-Lifecycle events: `onCreate, onUpdate, onStatusChange, onPublish, onDelete`. Stages are pure `(input, ctx) → output`; plugins register in declared order; `content.explain(slug)` prints the pipeline a post went through.
+Lifecycle events: `onCreate, onUpdate, onStatusChange, onPublish, onDelete` — **two of them opened** (`publish`, `push`; docs/10 §4.5, P3), the rest deliberately not. Stages are pure `(input, ctx) → output`; two of the six take plugins (`transform`, `emit`; docs/10 §4.4, P3) in declared order; `content.explain(type, slug)` prints the pipeline a post went through — **built in P4**, as a catalogue tool, and it builds the site into a scratch directory with its own index to report what *ran* rather than what was declared (docs/10 decisions 111–112).
 
 **Not built.** The stages exist as functions and nothing can register into them. docs/09 §4.4 (U5) is the plan: slots and filters, *declared* in YAML rather than registered, ordered by the `plugins:` array, with no priority numbers and no global registry — decision 76.
 

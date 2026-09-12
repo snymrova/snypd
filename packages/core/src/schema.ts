@@ -94,8 +94,9 @@ export const clientKbOf = (v: number | string | undefined): number => (v === und
  * `options` is JSON Schema, and the site's `plugins: [{ name: {…} }]` entry is validated against it at
  * load (§4.1); `capabilities` is what doctor and `snypd://plugins` print beside the version (§4.7).
  * `slots` and `filters` run since P2 (§4.3): each names a module, relative to the plugin's own directory,
- * that must exist at load. Tiers 2 and 3 (`stages`, `events`) run since P3. The keys of tier 4 (`tools`, `prompts`) are in the schema
- * so a manifest written for P3–P4 parses today; `loadConfig` warns that each is not built yet.
+ * that must exist at load. Tiers 2 and 3 (`stages`, `events`) run since P3, and tier 4 (`tools`, `prompts`)
+ * since P4 — so every key here is a key this binary runs, and `PLUGIN_UNBUILT_KEYS` is empty for the first
+ * time since P1 wrote it.
  */
 export const PluginManifestSchema = z.object({
   name: slug,
@@ -129,15 +130,27 @@ export const PluginManifestSchema = z.object({
   stages: z.object({ transform: pluginPath.optional(), emit: pluginPath.optional() }).strict().optional(),
   /** Event → module (P3, `@snypd/core` events.ts): `publish` after an item lands, `push` after the branch is sent; each `(payload, ctx) => { ok, message }`. */
   events: z.object({ publish: pluginPath.optional(), push: pluginPath.optional() }).strict().optional(),
+  /**
+   * One module of MCP tools (P4, docs/10 §4.2 tier 4). Its default export is a `PluginToolsModule`:
+   * a description, search keywords, and the named actions the agent may call. The plugin contributes
+   * exactly one catalogue tool, named after the plugin, with those actions as its `action` enum — the
+   * same shape `theme`, `site` and `bench` have, and for the same reason (one description, not nine).
+   * Never in the always-listed set: a plugin tool is found through `find_tools`, so `tokens.tools` does
+   * not move when a plugin is enabled (D11).
+   */
   tools: pluginPath.nullable().optional(),
+  /** One module of MCP prompts (P4): its default export is a `PluginPromptsModule` — named prompts, each returning the opening turn of a conversation. */
   prompts: pluginPath.nullable().optional(),
 }).strict();
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
-/** Manifest keys the contract names and this build does not run yet, and the session that builds each (docs/10 §7.2). */
-export const PLUGIN_UNBUILT_KEYS: Record<string, string> = {
-  tools: "plugin tools in the catalogue — docs/10 §4.2 tier 4, lands in P4",
-  prompts: "plugin prompts — docs/10 §4.2 tier 4, lands in P4",
-};
+/**
+ * Manifest keys the contract names and this build does not run yet, and the session that builds each
+ * (docs/10 §7.2). **Empty since P4**, which built the last two (`tools`, `prompts`) — every key
+ * `PluginManifestSchema` accepts is now a key that runs. Kept, with the loader's warning around it,
+ * because the next key the contract names before it runs belongs here rather than in a comment: a
+ * manifest written ahead of the binary should parse, say so, and be ignored, not be refused.
+ */
+export const PLUGIN_UNBUILT_KEYS: Record<string, string> = {};
 
 export const ConfigSchema = z.object({
   snypd: z.literal(1),

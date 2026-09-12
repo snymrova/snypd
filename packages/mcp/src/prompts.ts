@@ -103,13 +103,39 @@ function writePost(args: Record<string, unknown>): GetPromptResult {
   };
 }
 
-export function handlers(_root: string): Pick<Handlers, "listPrompts" | "getPrompt"> {
+/**
+ * A plugin's prompts (P4, tier 4), named `<plugin>.<name>` so nothing a plugin declares can shadow the
+ * two above. Resolved once per session and only when asked: `prompts/list` is not on the `initialize`
+ * path, so this costs a config read on a call a client makes once — and nothing at all on a site whose
+ * plugins do not speak.
+ */
+type PromptSets = Awaited<ReturnType<typeof import("@snypd/core").loadPluginPrompts>>["sets"];
+
+export function handlers(root: string): Pick<Handlers, "listPrompts" | "getPrompt"> {
+  // Session-scoped, not module-scoped: one process can serve two roots, and neither may see the other's
+  // plugins — the same rule `find_tools`'s unlocked set follows (tools.ts).
+  let speaking: Promise<PromptSets> | undefined;
+  const pluginPrompts = async (): Promise<PromptSets> => (speaking ??= (async () => {
+    try {
+      const c = await import("@snypd/core");
+      const cfg = c.loadConfig(root);
+      if (!cfg.plugins.some((p) => p.loaded && p.prompts)) return [];
+      return (await c.loadPluginPrompts(root, cfg)).sets;
+    } catch { return []; }   // a config that does not load is every other surface's error to report, not this one's
+  })());
   return {
-    async listPrompts() { return PROMPTS; },
+    async listPrompts() {
+      const added = await pluginPrompts();
+      if (!added.length) return PROMPTS;
+      return [...PROMPTS, ...added.map((p) => ({ name: p.name, description: `${p.description} (from the \`${p.plugin}\` plugin)`, arguments: p.arguments }))];
+    },
     async getPrompt(name, args) {
       if (name === "get-started") return getStarted(args);
       if (name === "write-post") return writePost(args);
-      throw new Error(`unknown prompt "${name}" — this server has: ${PROMPTS.map((p) => p.name).join(", ")}`);
+      const added = await pluginPrompts();
+      const p = added.find((x) => x.name === name);
+      if (p) return { description: p.description, messages: user(p.render(args)) };
+      throw new Error(`unknown prompt "${name}" — this server has: ${[...PROMPTS.map((x) => x.name), ...added.map((x) => x.name)].join(", ")}`);
     },
   };
 }

@@ -20,7 +20,8 @@
  * This module is imported only when `find_tools` runs or one of its tools is called, so nothing here is on
  * the path `mcp.coldStart` measures.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { activitySnapshot, type Tool, type ToolResult } from "./protocol";
 
@@ -30,12 +31,14 @@ const loadCore = async () => (core ??= await import("@snypd/core"));
 
 const str = (description: string, extra: Record<string, unknown> = {}) => ({ type: "string", description, ...extra });
 const S = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object" as const, properties, required });
+const TYPE_ = str("Content type: `post`, `page`, `author` (snypd://types lists them)");
 
 /** Words `find_tools` matches on beyond the name and description — what an agent would actually type. */
 export const KEYWORDS: Record<string, string[]> = {
   theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance"],
   site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "ship", "name", "domain", "host", "cloudflare", "vercel"],
   bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y"],
+  "content.explain": ["explain", "why", "what ran", "pipeline", "stages", "transform", "filter", "slot", "hook", "plugin", "debug", "trace", "inspect", "autolink", "changed my post", "unexpected", "link appeared", "route key", "cache"],
 };
 
 export const CATALOG: Tool[] = [
@@ -76,6 +79,11 @@ export const CATALOG: Tool[] = [
       b: str("`compare`: path to the new report JSON"),
     }, ["action"]),
     annotations: { readOnlyHint: true, idempotentHint: false } },
+
+  { name: "content.explain",
+    description: "Explain one item's pipeline: which plugin stages, filters and slots actually ran over it, what each of them changed, the route key that decides whether it re-renders, and the files plugins emitted beside it. Read this when a post came out different from what was written — a link that appeared in the prose, a title that is not the one in the frontmatter — or before trusting a plugin you have just enabled. It builds the site into a scratch directory to find out, so it reports what ran and not what was declared; `dist/` and the site's index are untouched. Every other content tool is always listed; this one is here because it is read once when something is surprising, not on the turn a post is written.",
+    inputSchema: S({ type: TYPE_, slug: str("The item's slug — its filename without `.md`") }, ["type", "slug"]),
+    annotations: { readOnlyHint: true, idempotentHint: true } },
 ];
 
 export const CATALOG_NAMES = new Set(CATALOG.map((t) => t.name));
@@ -90,13 +98,24 @@ const STOP = new Set(["the", "a", "an", "and", "or", "for", "to", "of", "in", "o
  * split — the agent would pay for all of it anyway, just one call later.
  */
 export function search(query: string): Tool[] {
+  return rank(CATALOG, (t) => KEYWORDS[t.name] ?? [], query);
+}
+
+/**
+ * The ranking itself, over any list of tools and any keyword source — the static catalogue above, and
+ * since P4 the plugin tools merged with it (plugintools.ts). One function rather than two, because a
+ * plugin's tool has to compete with `site` and `theme` on the same terms or `find_tools` has two
+ * standards: "ping search engines" must reach `indexnow` past three built-ins that mention pushing.
+ */
+export function rank(list: Tool[], keywordsOf: (t: Tool) => string[], query: string): Tool[] {
   const q = query.trim().toLowerCase();
-  if (!q) return CATALOG;
-  const words = q.split(/[^a-z0-9.]+/).filter((w) => w && !STOP.has(w) && (w.length > 2 || CATALOG_NAMES.has(w)));
-  if (!words.length) return CATALOG;
-  const scored = CATALOG.map((t) => {
+  if (!q) return list;
+  const names = new Set(list.map((t) => t.name));
+  const words = q.split(/[^a-z0-9.]+/).filter((w) => w && !STOP.has(w) && (w.length > 2 || names.has(w)));
+  if (!words.length) return list;
+  const scored = list.map((t) => {
     const hay = `${t.name} ${t.description ?? ""}`.toLowerCase();
-    const keys = KEYWORDS[t.name] ?? [];
+    const keys = keywordsOf(t).map((k) => k.toLowerCase());
     let score = 0;
     for (const w of words) {
       if (t.name === w) score += 10;
@@ -455,12 +474,106 @@ tokens: {}
         }
         return fail(`unknown action "${action}"`, "bench takes: run, compare.");
       }
+      case "content.explain": return await explain(root, need(args, "type"), need(args, "slug"));
     }
     return fail(`unknown tool "${name}"`);
   } catch (e) {
     const err = e as Error & { hint?: string };
     return fail(err.message, err.hint);
   }
+}
+
+/**
+ * `content.explain` — what actually ran over one item (P4, docs/02 §9, docs/10 §4.7).
+ *
+ * The declaration is already readable: `snypd://plugins` prints every stage, filter and slot a plugin
+ * says it fills, and doctor prints it beside the version. What no table can say is which of them *ran*
+ * and which of them *changed something* — a filter declared and never reached, and one reached that
+ * returned the value untouched, look identical from a manifest. §4.7 makes a claim that rests on this:
+ * snypd does not sandbox a plugin, and what it offers instead is that "what it declared and what it did
+ * are both inspectable". This is the second half of that sentence.
+ *
+ * So it builds, rather than describes. A build is the only honest source: a transform's inputs include
+ * the site's whole term list, the `entries` filter runs on lists this item merely appears in, and a route
+ * key is computed from the theme, the plugins and the config together. The build goes to a **scratch
+ * directory with its own index**, so neither `dist/` nor `.snypd/index.sqlite` is touched — a diagnostic
+ * that leaves the real incremental state believing files exist which do not would break the next real
+ * build, and explaining a post must not be a way to break a site. Drafts are on: an unpublished post is
+ * exactly the one somebody is asking about.
+ */
+async function explain(root: string, type: string, slug: string): Promise<ToolResult> {
+  const c = await loadCore();
+  const cfg = c.loadConfig(root);
+  if (!cfg.ok) return fail(`snypd.yaml is invalid: ${c.formatDiagnostics(cfg.diagnostics)}`);
+  if (!cfg.config.types[type]) return fail(`unknown type "${type}"`, `Known types: ${Object.keys(cfg.config.types).join(", ")}`);
+  const t = c.target(root, cfg, type, slug);
+  if (!existsSync(t.file)) return fail(`no ${type} with slug "${slug}"`, "content.query lists what exists.");
+
+  const { build, loadHooks } = await import("@snypd/render");
+  const scratch = mkdtempSync(join(tmpdir(), "snypd-explain-"));
+  let result: Awaited<ReturnType<typeof build>>;
+  let key: string | undefined, outputs: string[] = [];
+  try {
+    const hooks = await loadHooks(cfg, { record: true });
+    const index = await c.SiteIndex.open(root, join(scratch, "index.sqlite"));
+    try {
+      result = await build(root, { out: join(scratch, "dist"), cfg, index, hooks, drafts: true });
+      const row = index.route(t.route);
+      key = row?.key; outputs = row?.outputs ?? [];
+    } finally { index.close(); }
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+
+  const runs = result.hooks.record ?? [];
+  const here = runs.filter((r) => r.route === t.route);
+  const emits = runs.filter((r) => r.hook === "stages.emit");
+  const elsewhere = runs.length - here.length - emits.length;
+  const plugins = cfg.plugins.filter((p) => p.loaded);
+  const mark = (r: { changed: boolean }) => (r.changed ? "✎" : "·");
+
+  const lines = [`${type}/${slug} → ${t.route}`];
+  if (!plugins.length) {
+    lines.push("", "No plugin is enabled on this site, so nothing but the theme touched this page.",
+      "`snypd://plugins` lists the bundled ones; `plugins: [autolink]` in snypd.yaml enables one with no install.");
+  } else {
+    lines.push("", `declared, in \`plugins:\` order — ${plugins.length} plugin${plugins.length === 1 ? "" : "s"} loaded:`);
+    for (const p of plugins) {
+      const what = [
+        Object.keys(p.stages).length && `stages ${Object.keys(p.stages).join(", ")}`,
+        Object.keys(p.slots).length && `slots ${Object.keys(p.slots).join(", ")}`,
+        Object.keys(p.filters).length && `filters ${Object.keys(p.filters).join(", ")}`,
+        Object.keys(p.events).length && `events ${Object.keys(p.events).join(", ")}`,
+        p.tools && "tools",
+      ].filter(Boolean).join(" · ");
+      lines.push(`  ${p.name} — ${p.tiers.join(" + ")}${what ? `: ${what}` : " (root keys only — nothing runs per page)"}`);
+    }
+    lines.push("", here.length ? `what ran over ${t.route}, in order:` : `nothing ran over ${t.route} — every declared hook above is for a value or a place this page does not have.`);
+    for (const r of here) lines.push(`  ${mark(r)} ${r.plugin} ${r.hook}${r.note ? ` — ${r.note}` : ""}`);
+    if (emits.length) {
+      lines.push("", "emitted beside the pages, once per build:");
+      for (const r of emits) lines.push(`  ✎ ${r.plugin} ${r.hook} → ${r.route?.replace(/^\//, "")}${r.note ? ` (${r.note})` : ""}`);
+    }
+    if (elsewhere) lines.push("", `${elsewhere} more hook run${elsewhere === 1 ? "" : "s"} on other routes this build — a filter runs wherever its value is read, so a list this item appears in ran its own.`);
+  }
+
+  if (result.hooks.diagnostics.length) {
+    lines.push("", "a hook failed, and the page rendered without it:");
+    for (const d of result.hooks.diagnostics) lines.push(`  ❌ ${d.plugin} ${d.hook}${d.route ? ` on ${d.route}` : ""}: ${d.message}`);
+  }
+
+  lines.push("", `route key: ${key ?? "not planned — this item produced no route"}`);
+  lines.push("  # the whole input to whether this page re-renders: its source, the theme's bytes, the plugins' bytes, the config, and — while a transform is on — every term the site uses, because adding a term elsewhere changes this page (decision 95).");
+  if (outputs.length) lines.push(`outputs: ${outputs.join(", ")}`);
+
+  const rows = c.readEvents(root).filter((r) => r.event === "publish").slice(-3).reverse();
+  lines.push("", rows.length ? "the last publishes a plugin reacted to:" : "no plugin has reacted to a publish on this machine yet (snypd://<plugin>/last is one plugin's own rows).");
+  for (const r of rows) lines.push(`  ${r.ok ? "✓" : "⚠"} ${r.plugin}: ${r.message} (${r.at})`);
+
+  lines.push("", `built ${result.routes} routes + ${result.artefacts} artefacts in a scratch directory, which is gone — dist/ and the site's index are untouched.`);
+  return text(lines.join("\n"), {
+    ok: true, type, slug, route: t.route, key, outputs,
+    declared: plugins.map((p) => ({ plugin: p.name, tiers: p.tiers, stages: Object.keys(p.stages), slots: Object.keys(p.slots), filters: Object.keys(p.filters), events: Object.keys(p.events), tools: !!p.tools })),
+    ran: here, emitted: emits, elsewhere, diagnostics: result.hooks.diagnostics,
+  });
 }
 
 /** `site` › doctor: everything that decides whether this repo is a working site, in one read. */
@@ -499,6 +612,26 @@ async function doctor(root: string): Promise<ToolResult> {
       ].filter(Boolean).join("; ");
       const allowed = [p.clientKb ? `client ${p.clientKb} KB` : "", p.stages.emit ? `writes ${p.emitPrefixes.join(", ")}` : "", p.events.publish || p.events.push ? (p.network.length ? `fetches ${p.network.join(", ")}` : "no network") : ""].filter(Boolean).join(" · ");
       ok(`plugin \`${p.name}\` ${p.manifest?.version ?? "(no plugin: block)"} ${p.tiers.join(" + ") || "declares nothing"} (${p.where})${hooks ? ` — ${hooks}` : ""}${allowed ? ` · ${allowed}` : ""}`);
+    }
+  }
+  /**
+   * Tier 4 (P4): the verbs, not just the word "speaks".
+   *
+   * The lines above are read from the manifest, which is why they are free. This one has to import the
+   * plugin's module to know what is in it — so it is here, in the call whose whole job is to be thorough,
+   * and nowhere on the path a session pays for. It is also the only surface a broken tools module has:
+   * `loadPluginTools` refuses it with a diagnostic rather than throwing, and a refusal nobody prints is
+   * a plugin that silently does four of its five tiers.
+   */
+  const speaks = cfg.plugins.filter((p) => p.loaded && (p.tools || p.prompts));
+  if (speaks.length) {
+    const [t, pr] = await Promise.all([c.loadPluginTools(root, cfg), c.loadPluginPrompts(root, cfg)]);
+    for (const d of [...t.diagnostics, ...pr.diagnostics]) bad(`plugin \`${d.plugin}\` ${d.message}`, `${d.path}: ${d.message}`);
+    for (const p of speaks) {
+      const verbs = t.sets.find((x) => x.plugin === p.name)?.actions.map((a) => `\`${p.name}\` › ${a.name}`) ?? [];
+      const names = pr.sets.filter((x) => x.plugin === p.name).map((x) => x.name);
+      if (!verbs.length && !names.length) continue;
+      ok(`\`${p.name}\` speaks: ${[verbs.join(" · "), names.length ? `prompt${names.length === 1 ? "" : "s"} ${names.join(", ")}` : ""].filter(Boolean).join(" · ")} — found with find_tools, so tools/list did not grow (D11)`);
     }
   }
   // The client-JS line (P2, decision 84): what the plugins declared against what the site afforded. Only
