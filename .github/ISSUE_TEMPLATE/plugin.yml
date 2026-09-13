@@ -1,0 +1,34 @@
+name: Plugin contract
+description: A plugin cannot declare, decorate, transform or react the way the contract says
+labels: [plugin]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The contract is [`docs/10` §4](../../docs/10-plugins-and-launch.md) and it is **experimental
+        through 0.x**. Every manifest carries `api: 1`. There is no sandbox — that is the documented
+        model, not a bug ([`SECURITY.md`](../../SECURITY.md)).
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Which tier
+      options:
+        - "1 — declares (types, taxonomies, config)"
+        - "2 — decorates (slots, filters)"
+        - "3 — transforms and emits (stages)"
+        - "4 — speaks (tools, prompts, resources)"
+        - "events (publish, push)"
+        - not sure
+    validations: { required: true }
+  - type: textarea
+    id: manifest
+    attributes:
+      label: The relevant part of your snypd.yaml
+      render: yaml
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What you expected, and what happened
+      description: "`snypd://plugins` and `site › doctor` both print what was loaded and what was refused — paste the relevant rows."
+    validations: { required: true }

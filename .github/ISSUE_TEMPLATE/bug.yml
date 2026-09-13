@@ -1,0 +1,44 @@
+name: Bug
+description: Something in snypd does not do what it says
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a security issue, do not file it here — use
+        [private reporting](https://github.com/snymrova/snypd/security/advisories/new) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, what you got, and the exact command or tool call.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: |
+        The smallest site that shows it. A `content/` file plus the relevant part of `snypd.yaml` is
+        usually enough. If `site › doctor` says something, paste that too — it knows about themes,
+        plugins, menus and budgets.
+      render: shell
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: snypd version
+      description: "`snypd --version`, or the `@snypd/cli` version your host builds with."
+      placeholder: "0.1.4"
+    validations: { required: true }
+  - type: input
+    id: env
+    attributes:
+      label: Bun version and OS
+      placeholder: "Bun 1.4.0 · Linux x64"
+    validations: { required: true }
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface
+      options: [MCP tools, build / render, a theme, a plugin, the Desk or dev server, the CLI, packaging or install, not sure]
+    validations: { required: true }

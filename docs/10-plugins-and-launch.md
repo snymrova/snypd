@@ -297,7 +297,7 @@ Fourteen sessions. Public embarrassment first, then the contract in dependency o
 | 13 | **S22 · L1** | The bench page (S22) + `/themes` and `/plugins` (§6) + the gallery screenshots script | D12 |
 | 14 | **L2** | Launch assets (D13); clean-machine runs on three platforms; the maker post drafted on snypd.rocks as an unpublished draft — S19d's branch preview is how Sunny reads it | D13; **Gate D** |
 
-**Calendar.** Fourteen sessions at the two-a-day pace docs/07 assumes is seven working days; at one a day it is three weeks. From 7 Sep that puts Gate D between **18 and 25 Sep**, plus a week of slack for CI, screenshots and the recording. **Launch date: Tuesday 29 September 2026, 00:01 Pacific (12:31 IST) — chosen by Sunny on 6 Sep 2026; Tuesday 6 October is the fallback.** Not announced anywhere until D7–D13 are green (decision 93 still holds: the date is a target, the gate is the gate). Product Hunt launches land Tuesday to Thursday, 00:01 Pacific; the maker should be awake for the first twelve hours, which is evening in India — that is Sunny's constraint to weigh, not this document's.
+**Calendar.** Fourteen sessions at the two-a-day pace docs/07 assumes is seven working days; at one a day it is three weeks. From 7 Sep that puts Gate D between **18 and 25 Sep**, plus a week of slack for CI, screenshots and the recording. **Launch date: ~~Tuesday 29 September 2026~~ — moved 13 Sep 2026 to the fallback this paragraph already named: Tuesday 6 October 2026, 00:01 Pacific (12:31 IST).** Decision 117 (docs/11): the extra week buys the hardening and theme sessions rather than a smaller Gate D, and the date had never been announced, so the move cost nothing. docs/11 §7 carries the session order from here. Not announced anywhere until D7–D13 are green (decision 93 still holds: the date is a target, the gate is the gate). Product Hunt launches land Tuesday to Thursday, 00:01 Pacific; the maker should be awake for the first twelve hours, which is evening in India — that is Sunny's constraint to weigh, not this document's.
 
 **What does not block launch:** `migrate-from-wordpress` (a week of WXR edge cases nobody runs on launch day; it is the first post-launch session because it will be the first comment), `newsletter`, `og-image` unless the spike is clean, i18n, HTTP transport, workspaces, adapters.
 
@@ -377,7 +377,7 @@ Continuing docs/07 §7 and docs/09 §9. These override 02, 04 and 09 where they 
 
 Answered 6 Sep 2026 (1, 2, 4, 5) and 10 Sep 2026 (3), in the order they were asked; nothing is open.
 
-1. ~~**Launch date and time zone.**~~ **29 September 2026**, 00:01 Pacific, 6 October fallback — recorded in §7.2's calendar. Sunny's answer to "say the word" was "start", so H1 stays third as scheduled.
+1. ~~**Launch date and time zone.**~~ **29 September 2026**, 00:01 Pacific, 6 October fallback — recorded in §7.2's calendar. **Re-answered 13 Sep 2026: the fallback, taken deliberately — 6 October (docs/11 decision 117).** Sunny's answer to "say the word" was "start", so H1 stays third as scheduled.
 2. ~~**H1 before P1?**~~ Stays third, as scheduled (no objection raised; the schedule stands).
 3. ~~**`og-image` — spike or skip?**~~ **Spiked 10 Sep 2026; it waits** (decision 105). `Bun.Image` has no text; the stop rule in §4.8 fired inside the hour.
 4. ~~**Windows in D13?**~~ **"All Bun provides":** the copy names all five targets, Windows included, and L2's clean-machine runs include it — D13 and the risk table say so.

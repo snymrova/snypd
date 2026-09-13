@@ -2,7 +2,9 @@
 
 An open-source CMS whose **only interface is MCP**. Write, edit, theme and publish a site from the harness you already live in. Markdown + YAML in a git repo you own; one Bun binary; static HTML with zero JS by default; charts, diagrams and flows rendered to SVG at build time.
 
-**Status:** v0.1 in progress — see [`docs/07-delivery-plan.md`](docs/07-delivery-plan.md). Every speed claim links to [`bench/latest.md`](bench/latest.md).
+**Status:** v0.1 in progress — see [`docs/07-delivery-plan.md`](docs/07-delivery-plan.md) for delivery and [`docs/11-hardening-and-themes.md`](docs/11-hardening-and-themes.md) for what is being hardened before launch. Every speed claim links to [`bench/latest.md`](bench/latest.md).
+
+MIT ([LICENSE](LICENSE)). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md) — the design set in [`docs/`](docs/) is the answer to "why is it like this". Vulnerabilities: [SECURITY.md](SECURITY.md), which says plainly what is enforced and what is not.
 
 **Start here — paste this into the harness you already have open:**
 

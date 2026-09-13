@@ -1,0 +1,35 @@
+name: Primitive request (RFC)
+description: The vocabulary cannot express something real
+labels: [rfc, primitive]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The vocabulary is closed at roughly 35 primitives on purpose.** Every one an agent has to
+        learn costs tokens on every session, forever, and a vocabulary that grows on request is a
+        vocabulary no theme can implement completely. Most good ideas here turn out to be a *theme*
+        problem — the same primitive, styled differently — so this template asks you to rule that out.
+  - type: textarea
+    id: content
+    attributes:
+      label: The content that cannot be expressed
+      description: Real posts, please — a link to three pages that need it beats a hypothetical.
+    validations: { required: true }
+  - type: textarea
+    id: closest
+    attributes:
+      label: The closest existing primitive, and why it does not work
+      description: "`snypd://spec/primitives` lists them all with their schemas."
+    validations: { required: true }
+  - type: dropdown
+    id: theme
+    attributes:
+      label: Could a theme solve this instead?
+      options: ["No — the structure is genuinely different", "Maybe, but the markup would be wrong", "I am not sure"]
+    validations: { required: true }
+  - type: textarea
+    id: schema
+    attributes:
+      label: A sketch of the schema
+      description: Fields, which are required, and what a theme would have to render.
+      render: yaml

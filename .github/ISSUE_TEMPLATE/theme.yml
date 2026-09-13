@@ -1,0 +1,35 @@
+name: Theme or rendering
+description: A primitive renders wrong, or the theme contract will not let you do something
+labels: [theme]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The theme contract is [`docs/09`](../../docs/09-themes-and-ui.md): parts, settings, tokens,
+        nav locations, and layouts resolved up the `extends:` chain. If a child theme has to fork a
+        layout to do something reasonable, that is a contract bug and this is the right place for it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What you were trying to do
+    validations: { required: true }
+  - type: textarea
+    id: markup
+    attributes:
+      label: The content and the output
+      description: The markdown or directive you wrote, and the HTML you got.
+      render: markdown
+    validations: { required: true }
+  - type: input
+    id: theme
+    attributes:
+      label: Theme
+      placeholder: "base · editorial · your own, extending which?"
+    validations: { required: true }
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: "`site › doctor` shows the theme and its coverage, and I have pasted anything it flagged"
+        - label: This is not a request for a new primitive (those go in the Primitive request template)
