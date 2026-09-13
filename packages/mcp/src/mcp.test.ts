@@ -611,6 +611,88 @@ describe("find_tools + the catalogue", () => {
     expect(baseDoctor.result.content[0].text).not.toContain("settings: 0 declared");
   });
 
+  test("U6a: set takes a variation, refuses one the theme does not ship, and a theme switch clears it", async () => {
+    const site = "corpora/_test/mcp-variations";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(site, { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    const yaml = () => readFileSync(`${site}/snypd.yaml`, "utf8");
+
+    const [, , list, listed, described, chosen, again, unknown, chosenList] = await session([
+      req(1, "initialize"),
+      call(0, "site", { action: "init", name: "Look", url: "https://look.example", theme: "editorial" }),
+      req(1.5, "resources/list"),
+      req(2, "resources/read", { uri: "snypd://theme" }),
+      req(2.5, "resources/read", { uri: "snypd://theme/variations" }),
+      call(3, "theme", { action: "set", variation: "ink" }),
+      call(4, "theme", { action: "set", variation: "ink" }),
+      call(5, "theme", { action: "set", variation: "puce" }),
+      req(6, "resources/read", { uri: "snypd://theme" }),
+    ], site);
+
+    // `snypd://theme` is the read every session makes, so it carries the names and nothing else — unset,
+    // the first is marked active, because a theme lists its own defaults first. What each look *is* costs
+    // a sentence each and lives one read deeper, which is the bargain the palette has had since S16.
+    expect(listed.result.contents[0].text).toContain("variations: paper* ink broadsheet");
+    expect(listed.result.contents[0].text).not.toContain("Dark only");
+    expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/variations");
+    expect(described.result.contents[0].text).toContain("  paper:   # active");
+    expect(described.result.contents[0].text).toContain('description: "Dark only: a cool near-black, one cyan, the same measure."');
+    expect(described.result.contents[0].text).toContain("moves: [measure, font.heading,");
+
+    expect(structured(chosen)).toMatchObject({ ok: true, theme: "editorial", variation: "ink", changed: true });
+    expect(chosen.result.content[0].text).toContain("variation (the theme's own tokens) → ink");
+    expect(chosen.result.content[0].text).toContain("committed");
+    expect(structured(again)).toMatchObject({ changed: false });
+    expect(chosenList.result.contents[0].text).toContain("variations: paper ink* broadsheet");
+
+    // Refused by name, and nothing written — a bad variation does not leave the site somewhere else.
+    expect(unknown.result.isError).toBe(true);
+    expect(unknown.result.content[0].text).toContain(`ships no variation "puce"`);
+    expect(unknown.result.content[0].text).toContain("paper, ink, broadsheet");
+    expect(unknown.result.content[0].text).toContain("Nothing was written");
+    expect(yaml()).toContain("variation: ink");
+
+    // A site's own token still wins over the variation, and null is the way back to the theme's own
+    // tokens — the same shape `set_tokens` and `set_settings` already have.
+    const [, withToken, back] = await session([
+      req(1, "initialize"),
+      call(2, "theme", { action: "set_tokens", tokens: { "color.accent": "#123456" } }),
+      call(3, "theme", { action: "set", variation: null }),
+    ], site);
+    expect(structured(withToken)).toMatchObject({ ok: true });
+    expect(structured(back)).toMatchObject({ variation: null, fromVariation: "ink", changed: true });
+    expect(yaml()).toContain('color.accent: "#123456"');
+    expect(yaml()).not.toContain("variation:");
+
+    // Theme and look in one call, then a theme switch: a variation is a name in the *theme's* vocabulary,
+    // so switching theme clears it rather than carrying it to a theme that never heard of it and warning
+    // on every load afterwards. `base` ships none, so the resource says nothing about them at all.
+    const [, both, list2, moved, resource] = await session([
+      req(1, "initialize"),
+      call(2, "theme", { action: "set", name: "editorial", variation: "broadsheet" }),
+      req(3, "resources/read", { uri: "snypd://theme" }),
+      call(4, "theme", { action: "set", name: "base" }),
+      req(5, "resources/read", { uri: "snypd://theme" }),
+    ], site);
+    expect(structured(both)).toMatchObject({ theme: "editorial", variation: "broadsheet", changed: true });
+    expect(list2.result.contents[0].text).toContain("variations: paper ink broadsheet*");
+    expect(structured(moved)).toMatchObject({ theme: "base", from: "editorial", variation: null, fromVariation: "broadsheet" });
+    expect(moved.result.content[0].text).toContain("cleared by the theme switch");
+    expect(resource.result.contents[0].text).not.toContain("variations:");
+    expect(yaml()).not.toContain("variation:");
+
+    // `base` ships none: the resource is not listed, and reading it anyway says what a theme would
+    // declare rather than printing an empty heading — the treatment snypd://theme/settings already gives.
+    const [, baseList, none] = await session([
+      req(1, "initialize"),
+      req(2, "resources/list"),
+      req(3, "resources/read", { uri: "snypd://theme/variations" }),
+    ], site);
+    expect(baseList.result.resources.map((r: any) => r.uri)).not.toContain("snypd://theme/variations");
+    expect(none.result.contents[0].text).toContain("base ships no variations");
+  });
+
   /**
    * D10 (docs/10 §7.1): a plugin in a site's own `plugins/` dir — not bundled, not on npm — loads by the
    * same path and passes the same gates, and `snypd://plugins` names its source as `plugins/`. Doctor

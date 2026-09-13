@@ -43,6 +43,28 @@ export const ROLES = ["subscriber", "contributor", "author", "editor", "admin"] 
 export const TokenDeclSchema = z.object({ default: z.union([z.string(), z.number()]), customisable: z.boolean().optional(), kind: z.string().optional(), description: z.string().optional() }).strict();
 export type TokenDecl = z.infer<typeof TokenDeclSchema>;
 
+// ── Style variations (docs/10 §5.2, U6a) ─────────────────────────────────────────────────────────
+/**
+ * One `variations:` entry in `theme.yaml` — a named, complete look the theme ships, as a set of token
+ * *values* over its own defaults (decision 91). Values and not declarations: a variation retunes the
+ * palette, it cannot add a token, change a `kind`, or move `customisable`. That is the line between a
+ * variation and a child theme, and it is what makes "switching changes exactly the tokens it names"
+ * something a test can assert rather than a habit.
+ *
+ * `tokens` is optional because the theme's own defaults are themselves a look, and a theme that names
+ * them gets to describe them: `paper: { description: … }` is `editorial` as it already was.
+ */
+export const VariationSchema = z.object({
+  /** One line for whoever is choosing — an agent reading `snypd://theme`, or a caption under a gallery screenshot. */
+  description: z.string().min(1),
+  tokens: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+}).strict();
+export type Variation = z.infer<typeof VariationSchema>;
+/** A variation with its name and the theme in the chain that declared it — what `loadConfig` hands on. */
+export interface VariationDecl extends Variation { name: string; declaredBy?: string }
+/** A variation name: the same shape a theme name takes, because both end up in a URL and a screenshot filename. */
+export const VARIATION_NAME_RE = /^[a-z][a-z0-9-]*$/;
+
 // ── Theme settings (docs/09 §4.2, U3) ────────────────────────────────────────────────────────────
 /**
  * The closed type list for v0.1.5, minus one. docs/09 §4.2 wrote `relative` into `dateFormat`'s options
@@ -163,6 +185,13 @@ export const ThemeYamlSchema = z.object({
    * chain, and a child redeclaring an `id` replaces its parent's entry where it stands.
    */
   settings: z.array(SettingDeclSchema).optional(),
+  /**
+   * The named looks this theme ships (U6a, decision 91). A declaration like `settings:` and not a value,
+   * so it does not merge into the config either: `theme.variation` is the site's one-word answer and
+   * `theme.tokens` is where the chosen variation's tokens land. A map rather than a list because the
+   * name is the key a site writes; a child redeclaring a name replaces its parent's entry.
+   */
+  variations: z.record(z.string().regex(VARIATION_NAME_RE, "variation: lowercase letters, digits, dashes"), VariationSchema).optional(),
   tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).optional(),
   /** One stylesheet, theme-relative; emitted after the token vars as assets/theme.css. */
   css: z.string().min(1).optional(),
@@ -269,6 +298,14 @@ export const ConfigSchema = z.object({
   }).passthrough(),
   theme: z.object({
     use: z.string().default("base"),
+    /**
+     * The named look, of the ones the theme ships (U6a). One word, and the whole of what a site writes to
+     * change how it reads: the variation's tokens are merged between the theme's defaults and this site's
+     * own `theme.tokens`, so an override here still wins. A name the theme does not declare is a warning
+     * and the theme's defaults render — a variation is left stranded by a theme switch exactly as a token
+     * override is, and neither should stop a site from building.
+     */
+    variation: z.string().optional(),
     /** `snypd.yaml` sets scalars; `theme.yaml` declares `{ default, customisable, kind, description }` (docs/04). */
     tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).default({}),
     /**

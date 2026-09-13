@@ -434,7 +434,9 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.coverage.filter((c) => c.status === "inherited").length).toBe(13);
     expect(t.coverage.some((c) => c.status === "missing")).toBe(false);
     expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
-    expect(t.css).toContain("color-scheme: light dark");
+    // U6a: the scheme is a token so `ink` can commit to dark, and its default is what the line always said.
+    expect(t.css).toContain("color-scheme: var(--color-scheme)");
+    expect(resolveTokens(loadConfig(root).config.theme.tokens as Parameters<typeof resolveTokens>[0])["color.scheme"]).toBe("light dark");
     // H1 (finding 4): boxes and arrows shrink to the column down to 70 % of the drawn width; charts still scroll
     expect(t.css).toContain(".snypd-diagram .snypd-scroll, .snypd-flow .snypd-scroll { --viz-max-width: 100%; }");
     expect(t.css).toContain(".snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }");

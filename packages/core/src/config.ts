@@ -11,8 +11,8 @@ import { defaults as specDefaults, primitiveNames } from "@snypd/spec";
 import { describeSource, getPath, mergeLayer, type Layer, type LayerName, type Provenance, type Source } from "./merge";
 import { BUNDLED } from "./bundled";
 import { bundledDir, themeFile, themeHas } from "./themefs";
-import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
-import { ConfigSchema, SettingDeclSchema, settingValue, ThemeYamlSchema, THEME_UNBUILT_KEYS, type Config, type SettingDecl } from "./schema";
+import { parsePath, parseYaml, pathKey, type Origin, type Path } from "./yaml";
+import { ConfigSchema, SettingDeclSchema, settingValue, ThemeYamlSchema, THEME_UNBUILT_KEYS, VariationSchema, type Config, type SettingDecl, type VariationDecl } from "./schema";
 import { cssValue } from "./values";
 import { loadPlugin, type LoadedPlugin } from "./plugins";
 
@@ -34,13 +34,63 @@ export interface LoadedConfig {
    * two together.
    */
   settingDecls: SettingDecl[];
+  /**
+   * The named looks the theme chain ships (U6a, docs/10 §5.2), in declaration order, parent first with a
+   * child's redeclaration in its parent's place — the same walk `settingDecls` makes, over the same
+   * already-parsed docs. The *chosen* one is `config.theme.variation`, and its tokens are already merged
+   * into `config.theme.tokens` by the time anyone reads this: the list is for `snypd://theme`, `theme` ›
+   * set, and the gallery, not for the renderer, which never learns a variation was involved.
+   */
+  variations: VariationDecl[];
   explain(path: string | Path): string;
   source(path: string | Path): Source | undefined;
   render(): string;
 }
+/**
+ * The variations a resolved theme chain ships, parent first so a child's redeclaration lands where its
+ * parent's was — `settingDecls`' walk exactly, over the docs the chain walk already parsed (U6a).
+ *
+ * Separate from `loadConfig` because it has two callers with different questions. `loadConfig` asks about
+ * the theme the site is *on*, to apply the chosen one; `theme` › set asks about the theme it is switching
+ * *to*, so that `{ name, variation }` can be refused whole rather than leaving a theme switched and a
+ * variation unset. `origins` is what the first caller needs and the second ignores: applying a variation
+ * means re-attributing its tokens to the line in *its* theme.yaml that wrote them.
+ */
+export function collectVariations(chain: ThemeLink[], parsed: Map<string, Parsed>, relTo: (f: string) => string = (f) => f):
+  { variations: VariationDecl[]; origins: Map<string, { file: string; from: string; parsed: Parsed }> } {
+  const variations: VariationDecl[] = [];
+  const origins = new Map<string, { file: string; from: string; parsed: Parsed }>();
+  for (const link of [...chain].reverse()) {
+    const v = link.yamlFile ? parsed.get(link.yamlFile)?.value : undefined;
+    if (!isObj(v) || !isObj(v.variations)) continue;
+    for (const [name, raw] of Object.entries(v.variations)) {
+      const r = VariationSchema.safeParse(raw);
+      if (!r.success) continue;                       // the strict theme.yaml pass has the diagnostic already
+      const decl: VariationDecl = { name, ...r.data, declaredBy: link.name };
+      const at = variations.findIndex((x) => x.name === name);
+      if (at >= 0) variations[at] = decl; else variations.push(decl);
+      origins.set(name, { file: relTo(link.yamlFile!), from: link.name, parsed: parsed.get(link.yamlFile!)! });
+    }
+  }
+  return { variations, origins };
+}
+
 export interface LoadOptions { env?: string; /** extra dirs searched for `themes/<name>` and `plugins/<name>` (the monorepo adds its own) */ searchPaths?: string[] }
 
 const REPO = join(import.meta.dir, "..", "..", "..");
+
+/**
+ * The variations a theme ships, resolved from this root the way `loadConfig` resolves one — same search
+ * paths, `REPO` included, so a theme that only exists in a checkout's `themes/` is found here too.
+ *
+ * `theme` › set needs this for the theme it is switching *to*, which is not the one the loaded config is
+ * on: checking the pair before writing either is what stops `{ name, variation }` from leaving a site
+ * switched to a theme and asking for a look it does not have.
+ */
+export function variationsOf(root: string, themeName: string, opts: LoadOptions = {}): VariationDecl[] {
+  const { chain, parsed } = resolveThemeChain(themeName, [root, ...(opts.searchPaths ?? []), REPO], root);
+  return collectVariations(chain, parsed).variations;
+}
 /**
  * A provenance path an agent reads, and a *stable* one (S18d′).
  *
@@ -166,6 +216,12 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const envView = isObj(envLayer?.value) ? envLayer!.value : {};
   const themeOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.use === "string" ? v.theme.use : undefined);
   const themeName = themeOf(envView) ?? themeOf(siteView) ?? "base";
+  // The variation is read from the site the same way the theme's name is, and for the same reason: both
+  // decide what the *theme* layer contributes, so both have to be known before that layer merges. Env
+  // over site, as everywhere — which is what lets the benchmark's editorial lane pin a variation.
+  const variationOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.variation === "string" ? v.theme.variation : undefined);
+  const variationName = variationOf(envView) ?? variationOf(siteView);
+  const variationFrom = variationOf(envView) !== undefined ? envLayer : variationOf(siteView) !== undefined ? site : undefined;
   // Each entry remembers the line that wrote it: an options error is attributed to the site's line, which
   // is where the fix goes, not to the plugin's schema.
   const pluginEntries: { entry: unknown; origin: Source }[] = [];
@@ -179,7 +235,12 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   // and not a value (U3). `theme.settings` is the map a site answers with, and a declaration list
   // merged onto the same key would be an array where every reader expects a map. The plugin manifest's
   // rule, one file earlier: root keys merge, the block about itself does not (docs/10 §4.1).
-  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; return { theme: o }; };
+  // `variations:` joins `settings:` in being read rather than merged, and for the same reason one step
+  // further on: it is a declaration, and the value that answers it is `theme.variation`. Merging it would
+  // also let a site invent a variation in `snypd.yaml` that nothing could ever apply — the site layer
+  // merges at step 4 and the chosen variation's tokens land at step 2.5, below — which is a key that
+  // reads as configuration and is inert. Better to not have the key than to have to warn about it.
+  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; delete o.variations; return { theme: o }; };
   for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, withoutDecls, themeParsed.get(link.yamlFile)), prov);
   // Every theme.yaml in the chain is validated, strictly, with file:line (decision 73). A key docs/04
   // documents and nothing reads is a warning that says so; any other unknown key, or a wrong shape, is an
@@ -220,6 +281,43 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
       if (!r.success) continue;
       const at = settingDecls.findIndex((d) => d.id === r.data.id);
       if (at >= 0) settingDecls[at] = r.data; else settingDecls.push(r.data);
+    }
+  }
+
+  const { variations, origins: variationOrigins } = collectVariations(themeChain, themeParsed, (f) => rel(root, f));
+
+  // 2.5 the chosen variation → `theme.tokens`, between the theme's defaults and this site's overrides
+  // (decision 91). It is its own layer rather than a mutation of the merged map so that provenance keeps
+  // working: each token is re-attributed to the `variations.<name>.tokens.<key>` line that wrote it, so
+  // `snypd://config` and `site` › explain_config say `editorial/theme.yaml:104` and not "theme default".
+  // A site's own `theme.tokens` merges at step 4 and still wins, which is the whole precedence rule.
+  if (variationName !== undefined) {
+    const chosen = variations.find((v) => v.name === variationName);
+    const vSource: Source | undefined = variationFrom
+      ? { layer: variationFrom.name, file: variationFrom.file, line: variationFrom.origins?.get(pathKey(["theme", "variation"]))?.line }
+      : undefined;
+    if (!chosen) {
+      // A warning, not an error: a theme switch strands a variation name the way it strands a token
+      // override, and a site whose look reverts to the theme's defaults is still a site that builds.
+      diags.push({ level: "warning", path: "theme.variation", message: `theme \`${themeName}\` declares no variation "${variationName}"${variations.length ? ` — it ships ${variations.map((v) => v.name).join(", ")}` : " (it ships none)"}; rendering its own tokens`, source: vSource, where: describeSource(vSource) });
+    } else if (chosen.tokens) {
+      const o = variationOrigins.get(chosen.name)!;
+      const soFar = getPath(merged, ["theme", "tokens"]);
+      const declared = new Set(isObj(soFar) ? Object.keys(soFar) : []);
+      const origins = new Map<string, Origin>();
+      for (const k of Object.keys(chosen.tokens)) {
+        const at = o.parsed.origins.get(pathKey(["variations", chosen.name, "tokens", k]));
+        if (at) origins.set(pathKey(["theme", "tokens", k]), at);
+        // A variation may retune a token; it may not invent one, because an invented one has no `kind`,
+        // no description and no declaration for `theme` › set_tokens to check against — it would be a
+        // custom property the theme's own stylesheet never reads. Warned here with the line; X1's
+        // `theme check` is where the same finding stops a theme from reaching the shelf.
+        if (!declared.has(k)) {
+          const src: Source = { layer: "theme", from: o.from, file: o.file, line: at?.line };
+          diags.push({ level: "warning", path: pathKey(["theme", "variations", chosen.name, "tokens", k]), message: `variation \`${chosen.name}\` sets \`${k}\`, which theme \`${o.from}\` does not declare — a variation retunes the palette, it cannot add to it`, source: src, where: describeSource(src) });
+        }
+      }
+      merged = mergeLayer(merged, { name: "theme", from: `${o.from} › ${chosen.name}`, file: o.file, value: { theme: { tokens: chosen.tokens } }, origins }, prov);
     }
   }
 
@@ -329,7 +427,7 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     const s = prov.get(key) ?? nearest(prov, key);
     return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}`;
   };
-  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, settingDecls, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
+  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, settingDecls, variations, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
 }
 
 function nearest(prov: Provenance, key: string): Source | undefined {

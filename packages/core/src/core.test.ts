@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
+import { callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, themeVariations, strandedVariation, themeTokens, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -663,5 +663,144 @@ describe("theme settings (U3)", () => {
     const c2 = loadConfig(root);
     expect(c2.ok).toBe(false);
     expect(c2.diagnostics.find((x) => x.path === "theme.tokens[size.body]")!.where).toContain("theme.yaml:4");
+  });
+});
+
+// ── U6a: style variations (docs/10 §5.2, decision 91) ────────────────────────────────────────────
+describe("theme variations (U6a)", () => {
+  const R = "corpora/_test/variations";
+  const site = (theme: string, extra = "") => { mkdirSync(R, { recursive: true }); writeFileSync(join(R, "snypd.yaml"), `snypd: 1\nsite: { name: S, url: https://s.example }\ntheme:\n  use: ${theme}\n${extra}`); };
+  const theme = (name: string, text: string) => { mkdirSync(join(R, "themes", name), { recursive: true }); writeFileSync(join(R, "themes", name, "theme.yaml"), text); };
+  const errors = (c: ReturnType<typeof loadConfig>) => c.diagnostics.filter((d) => d.level === "error").map((d) => `${d.path}: ${d.message}`);
+  const warnings = (c: ReturnType<typeof loadConfig>) => c.diagnostics.filter((d) => d.level === "warning").map((d) => `${d.path}: ${d.message}`);
+  /** The five tokens every fixture below declares, so "exactly the ones it names" has something to be exact about. */
+  const FIVE = `tokens:
+  color.bg:     { default: "#fff", customisable: true, kind: color }
+  color.text:   { default: "#111", customisable: true, kind: color }
+  color.accent: { default: "#8a3324", customisable: true, kind: color }
+  measure:      { default: "34rem", customisable: true, kind: size }
+  radius:       { default: "4px", customisable: false, kind: size }
+variations:
+  paper: { description: "The defaults." }
+  ink:   { description: "Dark.", tokens: { color.bg: "#12110f", color.text: "#e8e4dc" } }
+`;
+  /** Flattened token values, which is what the renderer actually emits — the level "exactly" is measured at. */
+  const values = (c: ReturnType<typeof loadConfig>) =>
+    Object.fromEntries(Object.entries(c.config.theme.tokens as Record<string, unknown>)
+      .map(([k, v]) => [k, String(typeof v === "object" && v !== null ? (v as { default: unknown }).default : v)]));
+  beforeAll(() => rmSync(R, { recursive: true, force: true }));
+  afterAll(() => rmSync(R, { recursive: true, force: true }));
+
+  test("declared in theme.yaml, never merged into the config", () => {
+    theme("five", `theme: five\nlayouts: [post]\n${FIVE}`);
+    site("five");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    expect(c.variations.map((v) => v.name)).toEqual(["paper", "ink"]);
+    // `variations:` follows `settings:`: a declaration, so it does not become a config key. A site that
+    // could write `theme.variations` in snypd.yaml would be writing one nothing could ever apply — the
+    // site layer merges after the chosen variation has already landed.
+    expect(JSON.stringify(c.raw)).not.toContain("variations");
+    expect((c.config.theme as Record<string, unknown>).variations).toBeUndefined();
+    // Unset: the first variation is the active one, because a theme lists its own defaults first.
+    expect(themeVariations(c).map((v) => [v.name, v.active, v.tokenCount])).toEqual([["paper", true, 0], ["ink", false, 2]]);
+  });
+
+  test("switching changes exactly the tokens the variation names — the session's exit criterion", () => {
+    theme("five", `theme: five\nlayouts: [post]\n${FIVE}`);
+    site("five");
+    const before = values(loadConfig(R));
+    site("five", "  variation: ink\n");
+    const c = loadConfig(R);
+    const after = values(c);
+    expect(c.ok).toBe(true);
+    // Exactly: the set of keys whose value moved is the set of keys `ink` declares, and no token appeared
+    // or vanished. A variation that recoloured something it had not named would fail here, and so would
+    // one that added a token — which is why `VariationSchema` takes values and not declarations.
+    const moved = Object.keys(after).filter((k) => after[k] !== before[k]).sort();
+    expect(moved).toEqual(["color.bg", "color.text"]);
+    expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
+    expect([after["color.bg"], after["color.text"]]).toEqual(["#12110f", "#e8e4dc"]);
+    expect(after["color.accent"]).toBe("#8a3324");
+    // And it is the theme's own look, not this site's: `overridden` is what a theme switch reports as
+    // stranded, and eleven of `ink`'s tokens being called site overrides is the bug this asserts against.
+    const rows = themeTokens(c);
+    expect(rows.filter((t) => t.overridden)).toEqual([]);
+    expect(rows.find((t) => t.name === "color.bg")).toMatchObject({ variation: "ink", value: "#12110f", default: "#fff" });
+    expect(rows.find((t) => t.name === "color.accent")!.variation).toBeUndefined();
+    expect(themeVariations(c).map((v) => v.active)).toEqual([false, true]);
+  });
+
+  test("precedence: theme defaults ← variation ← the site's own tokens", () => {
+    theme("five", `theme: five\nlayouts: [post]\n${FIVE}`);
+    site("five", `  variation: ink\n  tokens:\n    color.bg: "#000000"\n`);
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    expect(values(c)["color.bg"]).toBe("#000000");        // the site wins over the variation
+    expect(values(c)["color.text"]).toBe("#e8e4dc");      // which it did not name, so the variation stands
+    const rows = themeTokens(c);
+    expect(rows.find((t) => t.name === "color.bg")).toMatchObject({ overridden: true, variation: undefined });
+    expect(rows.find((t) => t.name === "color.text")).toMatchObject({ overridden: false, variation: "ink" });
+    // Provenance names the line in the theme's own file that wrote the variation's value, and what it
+    // overrode — which is the whole reason the variation is a layer and not a mutation of the map.
+    expect(c.explain("theme.tokens[color.text]")).toContain("five/theme.yaml:");
+    expect(c.explain("theme.tokens[color.text]")).toContain("five › ink");
+    expect(c.explain("theme.tokens[color.bg]")).toContain("snypd.yaml:");
+  });
+
+  test("a name the theme does not ship is a warning, and its own tokens render", () => {
+    theme("five", `theme: five\nlayouts: [post]\n${FIVE}`);
+    site("five", "  variation: nope\n");
+    const c = loadConfig(R);
+    // A theme switch strands a variation exactly as it strands a token override, and neither is a reason
+    // a site stops building.
+    expect(c.ok).toBe(true);
+    expect(warnings(c).join("\n")).toContain(`theme \`five\` declares no variation "nope" — it ships paper, ink`);
+    expect(values(c)["color.bg"]).toBe("#fff");
+    expect(strandedVariation(c)).toBe("nope");
+    expect(themeVariations(c).some((v) => v.active)).toBe(false);
+  });
+
+  test("a variation may retune a token; it may not invent one, and its values are checked like any other", () => {
+    theme("odd", `theme: odd\nlayouts: [post]\ntokens:\n  color.bg: { default: "#fff", customisable: true, kind: color }\nvariations:\n  a: { description: "Invents.", tokens: { color.nope: "#000" } }\n  b: { description: "Closes the block.", tokens: { color.bg: "#fff } html { display: none" } }\n  c: { description: "Fetches.", tokens: { color.bg: "url(https://e.example/x.png)" } }\n`);
+    site("odd", "  variation: a\n");
+    const a = loadConfig(R);
+    // An invented token has no kind, no description and nothing for `theme` › set_tokens to check against
+    // — a custom property the theme's own stylesheet never reads. Warned with the line; X1's `theme check`
+    // is where the same finding stops a theme reaching the shelf.
+    expect(a.ok).toBe(true);
+    const w = a.diagnostics.find((d) => d.level === "warning" && d.path.includes("color.nope"))!;
+    expect(w.message).toContain("variation `a` sets `color.nope`, which theme `odd` does not declare");
+    expect(w.where).toMatch(/odd\/theme\.yaml:\d+/);
+    // Decision 120 covers a variation for free: its tokens land in `theme.tokens` like any other, so the
+    // one gate between a value and `:root { … }` is the one gate for these too.
+    site("odd", "  variation: b\n");
+    expect(errors(loadConfig(R)).join("\n")).toContain("cannot appear in a CSS value");
+    site("odd", "  variation: c\n");
+    expect(errors(loadConfig(R)).join("\n")).toContain("it would fetch");
+  });
+
+  test("a child inherits its parent's variations and replaces one where it stands", () => {
+    theme("parent", `theme: parent\nlayouts: [post]\n${FIVE}`);
+    theme("child", `theme: child\nextends: parent\nvariations:\n  ink:  { description: "Cooler.", tokens: { color.bg: "#0b0d10" } }\n  wide: { description: "Roomier.", tokens: { measure: "42rem" } }\n`);
+    site("child", "  variation: ink\n");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    // Nearest declarer wins, and the parent's order is kept — the rule a part, a primitive and a setting
+    // already follow (U1 decision 72, U3).
+    expect(c.variations.map((v) => [v.name, v.declaredBy])).toEqual([["paper", "parent"], ["ink", "child"], ["wide", "child"]]);
+    expect(values(c)["color.bg"]).toBe("#0b0d10");
+    // Replaced *whole*: the child's `ink` does not inherit the parent's `color.text`.
+    expect(values(c)["color.text"]).toBe("#111");
+  });
+
+  test("a theme with no variations is unaffected", () => {
+    theme("plain", `theme: plain\nlayouts: [post]\ntokens: { color.accent: "#000" }\n`);
+    site("plain");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(true);
+    expect(c.variations).toEqual([]);
+    expect(themeVariations(c)).toEqual([]);
+    expect(strandedVariation(c)).toBeUndefined();
   });
 });

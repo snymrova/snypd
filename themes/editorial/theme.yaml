@@ -7,9 +7,10 @@
 # `base` does.
 #
 # Dark mode costs nothing here: every colour token is a `light-dark()` pair and `theme.css` sets
-# `color-scheme: light dark`, so the browser picks. That also settles viz — `@snypd/viz` paints its label
-# halo in `Canvas` (docs/07 decision 18), the page's own background, which resolves per `color-scheme`
-# with no token declared.
+# `color-scheme: var(--color-scheme)`, which defaults to `light dark`, so the browser picks — and a
+# variation that wants to commit sets the one token instead of restating the palette (U6a). That also
+# settles viz — `@snypd/viz` paints its label halo in `Canvas` (docs/07 decision 18), the page's own
+# background, which resolves per `color-scheme` with no token declared.
 theme: editorial
 version: 0.1.0
 spec: ^1
@@ -33,12 +34,52 @@ settings:
   - { id: footerNote, type: richtext,  label: "Footer note",  group: Footer,   info: "One line of markdown above the site name — a licence, a colophon, a copyright." }
   - { id: social,     type: link_list, label: "Social links", group: Footer,   info: "[{ label, url }] in the footer. Links off this site, so they are urls and not refs — a menu of your own pages is content/nav/footer.yaml." }
 
+# ── The three looks this theme ships (U6a, docs/10 §5.2, decision 91). A variation is token *values* over
+# the defaults below: `theme.variation: ink` in snypd.yaml, or `theme` › set with `variation`, and nothing
+# else moves. A site's own `theme.tokens` still wins over whichever one is chosen, which is the whole
+# precedence rule — theme defaults ← variation ← site.
+#
+# Colour here is OKLCH, and derived where a value really is derived: `oklch(from var(--color-bg) calc(l +
+# 0.045) c h)` is "the background, lifted" and stays that as the background moves, where a second hex would
+# be a number to keep in sync by hand. That is also why `ink` is eleven tokens and not thirty — the viz
+# palette is light-dark() pairs, and `color.scheme: dark` resolves every one of them to its dark side.
+variations:
+  paper:
+    description: Warm cream, oxblood accent, serif throughout — the theme as written.
+  ink:
+    description: "Dark only: a cool near-black, one cyan, the same measure."
+    tokens:
+      color.scheme:          dark
+      color.bg:              "oklch(0.17 0.012 250)"
+      color.surface:         "oklch(from var(--color-bg) calc(l + 0.045) c h)"
+      color.text:            "oklch(0.91 0.008 250)"
+      color.muted:           "oklch(from var(--color-text) calc(l - 0.24) calc(c + 0.004) h)"
+      color.accent:          "oklch(0.79 0.12 205)"
+      color.on-accent:       "oklch(from var(--color-bg) calc(l - 0.02) c h)"
+      color.border:          "oklch(from var(--color-bg) calc(l + 0.1) c h)"
+      # The three viz tokens that are the page rather than the data: a node is a raised surface and a
+      # gridline is a hairline, so both follow the background the other ten series colours sit on.
+      color.viz.node:        "oklch(from var(--color-bg) calc(l + 0.045) c h)"
+      color.viz.node-stroke: "oklch(from var(--color-bg) calc(l + 0.13) c h)"
+      color.viz.grid:        "oklch(from var(--color-bg) calc(l + 0.08) c h)"
+  broadsheet:
+    description: A wider column, sans headlines, tighter leading, a press blue.
+    tokens:
+      measure:       "38rem"
+      font.heading:  "var(--font-ui)"
+      leading.body:  "1.5"
+      leading.tight: "1.05"
+      size.h1:       "clamp(2.4rem, 1.6rem + 3.6vw, 4rem)"
+      size.h2:       "clamp(1.5rem, 1.28rem + 1.1vw, 2.05rem)"
+      color.accent:  "light-dark(oklch(0.45 0.15 255), oklch(0.78 0.11 245))"
+
 personality: >-
   Long-form reading. One serif column at a comfortable measure, generous leading, a single accent used
   sparingly. Figures, charts, diagrams and flows break out of the column; nothing else does. Zero JS.
 
 tokens:
-  # ── Colour. Every value is a light-dark() pair; `color-scheme: light dark` in theme.css does the rest.
+  # ── Colour. Every value is a light-dark() pair; `color-scheme: var(--color-scheme)` in theme.css does the rest.
+  color.scheme:    { default: "light dark", customisable: true, kind: keyword, description: "What `color-scheme` this theme asks the browser for, and therefore which side of every light-dark() pair resolves. `light dark` follows the reader; `dark` or `light` commits." }
   color.bg:        { default: "light-dark(#fdfcfa, #12110f)", customisable: true, kind: color, description: "Page background." }
   color.surface:   { default: "light-dark(#f4f1ea, #1c1a17)", customisable: true, kind: color, description: "Raised blocks — callout, cta, tldr." }
   color.text:      { default: "light-dark(#1a1815, #e8e4dc)", customisable: true, kind: color, description: "Body text." }
@@ -66,6 +107,7 @@ tokens:
   font.body:    { default: "'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, ui-serif, serif", customisable: true, kind: font, description: "Prose." }
   font.ui:      { default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", customisable: true, kind: font, description: "Eyebrows, meta, nav, captions." }
   font.mono:    { default: "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", customisable: true, kind: font, description: "Code." }
+  font.heading: { default: "var(--font-body)", customisable: true, kind: font, description: "Headings. Defaults to the prose face, which is what this theme has always set them in; point it at font.ui for a sans-headline look." }
   size.body:    { default: "clamp(1.0625rem, 0.98rem + 0.42vw, 1.1875rem)", customisable: true, kind: size, description: "Body size; fluid between phone and desktop." }
   size.h1:      { default: "clamp(2.1rem, 1.55rem + 2.7vw, 3.4rem)", customisable: true, kind: size, description: "Post and index title." }
   size.h2:      { default: "clamp(1.45rem, 1.24rem + 1.05vw, 1.95rem)", customisable: true, kind: size, description: "Section heading." }

@@ -4,7 +4,11 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {
-  color-scheme: light dark;                 /* makes every light-dark() token resolve, and viz's Canvas halo with it */
+  /* A token so a variation can say `dark` and mean it (U6a): `ink` is not editorial's dark side, it is a
+     different palette, and a page that paints itself dark while the browser still thinks it is light gets
+     light form controls and a light scrollbar. Default `light dark`, which is what this line always said —
+     it makes every light-dark() token resolve, and viz's Canvas halo with it. */
+  color-scheme: var(--color-scheme);
   --content: min(100% - var(--space-4) * 2, var(--measure));
   --breakout: min(100% - var(--space-4) * 2, calc(var(--measure) + 14rem));
 }
@@ -74,7 +78,7 @@ body > footer nav a:hover, body > footer nav a[aria-current="page"] { color: var
 .snypd-footer-note a { color: inherit; }
 
 /* ── Prose. */
-h1, h2, h3, h4 { line-height: var(--leading-tight); font-weight: 600; text-wrap: balance; margin: 0; }
+h1, h2, h3, h4 { font-family: var(--font-heading); line-height: var(--leading-tight); font-weight: 600; text-wrap: balance; margin: 0; }
 h1 { font-size: var(--size-h1); letter-spacing: -0.02em; }
 h2 { font-size: var(--size-h2); letter-spacing: -0.01em; margin-top: var(--space-5); }
 h3 { font-size: var(--size-h3); margin-top: var(--space-4); }
