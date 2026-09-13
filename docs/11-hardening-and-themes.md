@@ -85,6 +85,9 @@ answer is not to sanitize (that breaks real embeds and contradicts docs/01 §2, 
 twin) but to make the claim self-enforcing on the user's own build. Finding 4 is the only one that would
 have found the other ten.
 
+**Closed since.** Findings 5, 2 and 10 in H0 (§7b, decisions 119, 120, 126). The other eight stand as
+written, and keep the sessions §7 gives them.
+
 **What the audit did not find** is worth recording so nobody re-audits it: escaping in the renderer is
 careful, every config surface is strict Zod with file:line provenance, `page.a11y.violations` is a gate at
 0 across 12 route/viewport pairs, `page.cls` is gated at 0, CI runs two Bun lanes, and a grep for
@@ -179,8 +182,8 @@ on**, and its rows interleave with docs/10 §7.2 rather than replacing them.
 | E1 | `main` is the branch a stranger clones | **green, 13 Sep 2026** — #8 → #17 fast-forwarded, CI green on both lanes |
 | E2 | The repository is legible as open source | **this session** — LICENSE, description, topics, SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, four issue templates and a PR template |
 | E3 | The published binary knows what the tree knows | npm `latest` ≥ the tree's version and snypd.rocks built with it — **blocked on the npm credential** (§2); carries D7 and half of D12 with it |
-| E4 | The cascade is a contract | `@layer` emitted; a child theme's plain selector beats a parent's compound one, asserted; the output byte-diff shows nothing else moved |
-| E5 | A value cannot change the meaning of the sheet | a token or setting that would close the block is refused, naming the token and the line |
+| E4 | The cascade is a contract | **green, 13 Sep 2026 (H0)** — `@layer snypd.tokens, snypd.base, snypd.theme, snypd.site;` emitted; a three-deep chain asserted, child's plain selector over parent's compound one; the `dist/` byte-diff on snypd.rocks moved one file, `assets/theme.css`, by 105 bytes |
+| E5 | A value cannot change the meaning of the sheet | **green, 13 Sep 2026 (H0)** — `cssValue` refuses at `loadConfig`, naming the token and `snypd.yaml:6, overrides themes/t/theme.yaml:3`; `set_tokens` refuses the whole patch before writing any of it |
 | E6 | The 0 KB claim enforces itself | a build emitting script beyond the declared client budget fails, **on the user's site, not the corpus** |
 | E7 | An incremental build equals a cold build | a property, under interruption and under concurrency — not an example |
 | E8 | A stranger's theme can be judged by a machine | `theme check` passes `base` and `editorial` and fails a deliberately broken fixture, naming which rule |
@@ -194,7 +197,7 @@ interleaved where its cost is lowest.
 | # | Session | Deliverable | Exit |
 |---|---|---|---|
 | 0 | **L0** | **this session** — the fast-forward, v0.1.4, the paperwork, this document | E1 ✅ · E2 · E3 ⏳ |
-| 1 | **H0** | `@layer` in the concatenated sheet (finding 5) + the value guards (findings 2, 10) | E4, E5 |
+| 1 | **H0** | `@layer` in the concatenated sheet (finding 5) + the value guards (findings 2, 10) | **E4 ✅ · E5 ✅**, 13 Sep — §7b |
 | 2 | **U6a** | Style variations (docs/10 §5.2) — `variations:`, `theme.variation`, `theme › set variation`, `editorial` × 3 — with OKLCH and relative colour | switching changes exactly the named tokens; `tokens.learn` ≤ 6,000 |
 | 3 | **B1** | The font pass: one subsetted variable WOFF2, metric-matched fallback, the `page.font.kb` lane | `page.cls` still 0; the lane is declared, not discovered |
 | 4 | **U6b** | `technical` from the contract + the `build-theme` prompt + the design pass at 390 and 1280; `text-wrap` and `@view-transition` fold in here | D8 |
@@ -213,6 +216,17 @@ from 13 Sep, which lands Gate D around **26 September** with a week of slack for
 recording. **Launch: Tuesday 6 October 2026, 00:01 Pacific** (decision 117). Findings 9 and 11 —
 the supply-chain rows and the deprecation policy — ride along in whichever session touches their files;
 neither is worth a session of its own.
+
+---
+
+## 7b. Session log
+
+The shape docs/07 §5 and docs/09 §7b use: one row, one PR, a bench diff, and what it found. A session
+with no bench diff is a session that did not measure.
+
+| S | Date | PR | Bench diff | Notes |
+|---|---|---|---|---|
+| H0 | 2026-09-13 | #19 | **From CI on this tree** (run 34744620791, green on both lanes, 1.4.0 and 1.3.14): `build.cold.100` **296.1 ms** / 2000 · `build.incremental.100` **10.6 ms** / 300 · `lint.100` **8.4 ms** / 100 · `page.js.kb` **0** / 0 · `page.cls` **0** / 0.05 · `page.a11y.violations` **0** across 12 route/viewport pairs — a cascade layer moved no vital, which is the whole claim of decision 119 being a no-op today. No clocks from this box (memory: not comparable). `bench --quick` here, against the U3 record: `tokens.tools` 2230 → **2230**, `tokens.learn` 4564 → **4564**, `tokens.learn.editorial` 4708 → **4708**, `tokens.page.md` 510 → **510**, `tokens.page.html` 1510 → **1510** — every agent-facing row byte-identical, because a cascade layer is CSS and an agent reads neither. Every gated row green, none within 80 % of budget. The one number that moved is not a bench row: `assets/theme.css` on snypd.rocks, **11,387 → 11,492 bytes** (+105, the layer statement and three wrappers), and nothing else in `dist/` moved at all. tests 368 → 374 (373 pass, 1 todo), 0 fail; typecheck clean | **The cascade is a contract, and a value cannot rewrite the sheet it lands in.** Three of the eleven findings close. **Finding 5 (decision 119):** `styleSheet()` is now the one place the stylesheet is assembled — the build and both preview paths called `tokensCss(tokens) + theme.css` separately, which was three places to forget the layer statement — and it emits `@layer snypd.tokens, snypd.base, snypd.theme, snypd.site;` first. `loadTheme` wraps each sheet as it concatenates: the chain's *root* is `snypd.base`, and every theme extending it takes its own sublayer of `snypd.theme`, named for itself. The sublayer per theme is the part a two-theme tree would not have caught — with `mid` and `top` sharing one layer, a three-deep chain is back where the two-deep one started, and the E4 test is three deep for that reason. `snypd.site` is declared and empty: naming it now is what stops adding a site stylesheet later from being a breaking change, and unlayered CSS still beats all four, which is the escape hatch a person editing their own site should keep. **Finding 2 (decision 120):** `cssValue` in `@snypd/core` — a character allow list (no `{ } ; < @ \\ !`), balanced brackets and quotes, no comment sequences, and a **function allow list** rather than a deny list, because a deny list is wrong the day CSS adds a fifty-first function. It runs over every token in the merged map, so a theme's own default and a site's override are checked on the same pass and provenance names whichever file wrote the refused one; over `color`, `size` and `font` settings; and over a `set_tokens` patch *before* any of it is written. **Finding 10:** `link_list` items get the `url` setting's scheme rule; markdown links and images get CommonMark's own — a deny list there, because content links are `../about` and `#top` as often as they are absolute, and an allow list would refuse the web. The renderer drops the attribute and keeps the words; lint rule 12 `unsafe-url` is what tells the author. **Three things H0 found:** (1) an `@import` inside a cascade layer is invalid CSS and is dropped *silently*, so wrapping a stranger's sheet would have broken it with no diagnostic — hence decision 126, and `atImport` scans rather than greps, because `content: "@import"` is text; (2) escaping was never the defence anyone thought it was — `<a href="javascript:…">` was well-formed and escaped the whole time, and the two shapes that reach the renderer as `javascript:` are a pointed destination holding a tab, which browsers ignore inside a scheme, and a character reference, which micromark decodes before anything downstream sees it; both are in the test; (3) `set_tokens` wrote key by key while `set_settings` refused the whole patch first, so a two-token patch whose second value was refused left the first one written — the rule was already next door in the same file, and now there is something for it to check. No post: decision 97 |
 
 ---
 
@@ -254,6 +268,13 @@ written down.
 **125. L0 is a session.** A licence file and a merged `main` are launch blockers in a way a third theme is
 not, and the work was invisible precisely because no session owned it.
 
+**126. A theme's stylesheet may not `@import`.** An `@import` inside a cascade layer is invalid CSS and
+is dropped without a word, so decision 119 would have silently unloaded any sheet that had one. Refused by
+name and line at `loadTheme`, which is the treatment every other bad theme file gets — and it is the
+honest rule anyway: a theme ships one stylesheet, decision 118's budget counts what that sheet ships, and
+an import is the network arriving somewhere nothing measures. `@font-face` inside a layer is valid and
+untouched, so B1 is unaffected. X1's `theme check` inherits the rule.
+
 ---
 
 ## 9. Risks
@@ -286,5 +307,6 @@ not, and the work was invisible precisely because no session owned it.
 
 ## 11. Ready to start
 
-Session 1 is **H0**, and it needs nothing from anyone: `@layer` and the value guards are both changes to
-files that already exist, with tests that already have a home.
+~~Session 1 is **H0**~~ — landed 13 Sep (§7b). Session 2 is **U6a**, and it needs nothing from anyone
+either: H0 gave it the guard that makes a variation's tokens checkable and the layer the variation sheet
+belongs in.

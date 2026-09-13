@@ -472,7 +472,7 @@ describe("find_tools + the catalogue", () => {
   });
 
   test("init → set_config → redirect → tokens → scaffold, each validated before it sticks", async () => {
-    const [, init, dupeInit, renamed, bad, explained, unknownToken, redirected, loop, scaffolded, activated] = await session([
+    const [, init, dupeInit, renamed, bad, explained, unknownToken, hostileToken, redirected, loop, scaffolded, activated] = await session([
       req(1, "initialize"),
       call(2, "site", { action: "init", name: "S16", url: "https://s16.example", description: "A test." }),
       call(3, "site", { action: "init", name: "again", url: "https://s16.example" }),
@@ -480,6 +480,8 @@ describe("find_tools + the catalogue", () => {
       call(5, "site", { action: "set_config", path: "site.url", value: "not a url" }),
       call(6, "site", { action: "explain_config", path: "site.name" }),
       call(7, "theme", { action: "set_tokens", tokens: { "color.nope": "#000" } }),
+      // H0 / E5: two tokens, the second refused. The first must not be written either.
+      call(71, "theme", { action: "set_tokens", tokens: { "color.accent": "#123456", "color.bg": "#fff } html { display: none" } }),
       call(8, "site", { action: "set_redirect", from: "/posts/old", to: "/posts/new" }),
       call(9, "site", { action: "set_redirect", from: "/posts/new", to: "/posts/old" }),
       call(10, "theme", { action: "scaffold", name: "scratchy", extends: "editorial" }),
@@ -499,6 +501,11 @@ describe("find_tools + the catalogue", () => {
 
     expect(unknownToken.result.isError).toBe(true);
     expect(unknownToken.result.content[0].text).toContain("color.accent");   // the hint names real ones
+
+    expect(hostileToken.result.isError).toBe(true);
+    expect(hostileToken.result.content[0].text).toContain("color.bg");
+    expect(hostileToken.result.content[0].text).toContain("Nothing was written");
+    expect(readFileSync(`${site}/snypd.yaml`, "utf8")).not.toContain("#123456");   // not even the good one
 
     expect(structured(redirected)).toMatchObject({ from: "/posts/old", to: "/posts/new" });
     expect(loop.result.isError).toBe(true);

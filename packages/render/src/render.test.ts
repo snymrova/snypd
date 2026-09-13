@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
-import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, resolveTokens } from "./index";
+import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens } from "./index";
 import { loadConfig, initRepo, lintSite, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
 import { deskPage, type DeskOnboarding } from "./desk";
@@ -32,6 +32,19 @@ describe("mdast → html", () => {
     expect(html("## Same\n\n## Same\n")).toBe('<h2 id="same">Same</h2>\n<h2 id="same-1">Same</h2>\n');
     expect(slugify("Héllo, Wörld!")).toBe("héllo-wörld");
     expect(excerpt(parseMarkdown("---\nt: 1\n---\n\n## H\n\nFirst para here. More.\n").tree, 12)).toBe("First para…");
+  });
+  test("H0 (finding 10): a scheme that executes loses its attribute, and keeps its words", () => {
+    // Escaping made this a well-formed attribute; it never made it a link. The renderer is the last
+    // thing between a `.md` file and a page, so it drops the href here as well as warning in lint.
+    expect(html("[click me](javascript:fetch('/x'))\n")).toBe("<p><a>click me</a></p>\n");
+    expect(html("[click](<java\tscript:alert(1)>)\n")).toBe("<p><a>click</a></p>\n");
+    expect(html("[r][d]\n\n[d]: javascript:x\n")).toBe("<p><a>r</a></p>\n");                    // a reference is a link too
+    expect(html("![a shot](data:text/html;base64,PHNjcmlwdD4=)\n")).toBe("<p>a shot</p>\n");   // the alt survives; the src does not
+    // The web that does not execute is untouched, including the one data: form an `<img>` cannot run.
+    expect(html("[a](/posts/a)\n")).toBe('<p><a href="/posts/a">a</a></p>\n');
+    expect(html("[a](#top)\n")).toBe('<p><a href="#top">a</a></p>\n');
+    expect(html("[a](mailto:x@y.example)\n")).toBe('<p><a href="mailto:x@y.example">a</a></p>\n');
+    expect(html("![p](data:image/png;base64,iVBORw0KGgo=)\n")).toBe('<p><img src="data:image/png;base64,iVBORw0KGgo=" alt="p"></p>\n');
   });
   test("directives go to onBlock with the typed block; without a handler they get a labelled wrapper", () => {
     const md = ":::callout{kind=\"tip\" title=\"T\"}\nbody *x*\n:::\n";
@@ -222,15 +235,19 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
   });
   test("S7 tokens → CSS vars: theme.yaml declares, snypd.yaml overrides, assets/theme.css is emitted and linked", async () => {
     expect(resolveTokens({ "color.accent": { default: "#111" }, "content.width": "64ch", n: 3 })).toEqual({ "color.accent": "#111", "content.width": "64ch", n: "3" });
-    expect(tokensCss({ "color.accent": "#111", "font.heading": "Newsreader, serif" })).toBe(":root {\n  --color-accent: #111;\n  --font-heading: Newsreader, serif;\n}\n");
+    expect(tokensCss({ "color.accent": "#111", "font.heading": "Newsreader, serif" })).toBe("@layer snypd.tokens {\n:root {\n  --color-accent: #111;\n  --font-heading: Newsreader, serif;\n}\n}\n");
     expect(tokensCss({})).toBe("");
+    expect(styleSheet({}, undefined)).toBe("");                                     // no tokens and no sheet is no stylesheet, layer statement included
+    expect(styleSheet({ a: "1" }, undefined).startsWith(CSS_LAYERS)).toBe(true);
     const ty = join(root, "themes/base/theme.yaml");
     writeFileSync(ty, readFileSync(ty, "utf8") + 'css: ./styles.css\ntokens:\n  color.accent: { default: "#1a1a1a", customisable: true, description: Links }\n  content.width: { default: 64ch }\n');
     writeFileSync(join(root, "themes/base/styles.css"), "a { color: var(--color-accent) }\n");
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T2, url: https://t.example, description: A test site }\ntheme: { use: base, tokens: { color.accent: \"#f00\" } }\ntypes: { author: { layout: author } }\n");
     const r = await build(root);
     expect(r.artefacts).toBe(11);
-    expect(read("assets", "theme.css")).toBe(":root{--color-accent: #f00;--content-width: 64ch}a{color: var(--color-accent)}");   // S14: minified on the way out
+    // S14: minified on the way out. H0: the layer statement first, the tokens in `snypd.tokens`, the
+    // chain's only sheet in `snypd.base` — `base` is the root of its own chain.
+    expect(read("assets", "theme.css")).toBe("@layer snypd.tokens,snypd.base,snypd.theme,snypd.site;@layer snypd.tokens{:root{--color-accent: #f00;--content-width: 64ch}}@layer snypd.base{a{color: var(--color-accent)}}");
     expect(read("about")).toContain('<link rel="stylesheet" href="/assets/theme.css">');
     expect(read("", "llms.txt")).toContain("# T2\n\n> A test site\n");
     expect(JSON.parse(read("api", "site.json")).description).toBe("A test site");
@@ -340,6 +357,57 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(tok["color.accent"]).toBe("blue");
     expect(tok["size.body"]).toBe("1rem");
     expect(t.css!.indexOf(".p{}")).toBeLessThan(t.css!.indexOf(".c{}"));
+    // H0 / E4 (decision 119): the chain's root is `snypd.base` and each theme that extends it takes its
+    // own sublayer of `snypd.theme`, so the order is the layer statement's and not the specificity of
+    // whatever selectors the two authors happened to write.
+    expect(t.css).toContain("@layer snypd.base {\n.p{}");
+    expect(t.css).toContain("@layer snypd.theme.child {\n.c{}");
+  });
+
+  test("E4 the cascade is a contract: a child's plain selector beats a parent's compound one", async () => {
+    const root = "corpora/_test/theme-layers";
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "themes/deep/layouts"), { recursive: true });
+    mkdirSync(join(root, "themes/mid"), { recursive: true });
+    mkdirSync(join(root, "themes/top"), { recursive: true });
+    mkdirSync(join(root, "content/pages"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: L, url: https://l.example }\ntheme: { use: top }\n");
+    // deep ← mid ← top. The deepest writes the *most specific* selector; the shallowest writes the least.
+    writeFileSync(join(root, "themes/deep/theme.yaml"), "theme: deep\nlayouts: [page]\ncss: ./s.css\n");
+    writeFileSync(join(root, "themes/deep/layouts/page.tsx"), 'export default () => "p";');
+    writeFileSync(join(root, "themes/deep/s.css"), "html body article.entry h2.title { color: red }\n");
+    writeFileSync(join(root, "themes/mid/theme.yaml"), "theme: mid\nextends: deep\ncss: ./s.css\n");
+    writeFileSync(join(root, "themes/mid/s.css"), "article .title { color: green }\n");
+    writeFileSync(join(root, "themes/top/theme.yaml"), "theme: top\nextends: mid\ncss: ./s.css\n");
+    writeFileSync(join(root, "themes/top/s.css"), ".title { color: blue }\n");
+
+    const t = await loadTheme(loadConfig(root));
+    const css = t.css!;
+    // Three sheets, three layers, in inheritance order — and `mid` and `top` are not in one shared
+    // layer, which is what would put the three-deep chain back where the two-deep one started.
+    expect(css.indexOf("@layer snypd.base {")).toBe(0);
+    expect(css.indexOf("@layer snypd.theme.mid {")).toBeLessThan(css.indexOf("@layer snypd.theme.top {"));
+    // The order statement is the sheet's, not the theme's: `styleSheet` is what a page loads.
+    expect(styleSheet({}, css).startsWith(CSS_LAYERS)).toBe(true);
+    // The claim, stated as the cascade resolves it: later layer wins whatever the selectors weigh.
+    const layerOf = (sel: string) => css.slice(0, css.indexOf(sel)).match(/@layer (snypd[\w.]*) \{/g)!.pop()!;
+    expect(layerOf("html body article.entry h2.title")).toBe("@layer snypd.base {");
+    expect(layerOf(".title { color: blue }")).toBe("@layer snypd.theme.top {");
+  });
+
+  test("H0: a theme stylesheet with an @import is refused, because an @import inside a layer never loads", async () => {
+    expect(atImport("a { color: red }")).toBe(0);
+    expect(atImport('a { content: "@import x" }')).toBe(0);          // a string is text
+    expect(atImport("/* @import x */\na{}")).toBe(0);                // so is a comment
+    expect(atImport("a{}\n\n@import url(x.css);")).toBe(3);          // and this is not
+    const root = "corpora/_test/theme-import";
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "themes/imp/layouts"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: I, url: https://i.example }\ntheme: { use: imp }\n");
+    writeFileSync(join(root, "themes/imp/theme.yaml"), "theme: imp\nlayouts: [page]\ncss: ./s.css\n");
+    writeFileSync(join(root, "themes/imp/layouts/page.tsx"), 'export default () => "p";');
+    writeFileSync(join(root, "themes/imp/s.css"), "a{}\n@import url('https://fonts.example/x.css');\n");
+    expect(loadTheme(loadConfig(root))).rejects.toThrow(/theme imp: \.\/s\.css:2 has an @import/);
   });
   test("extends: the parent's bytes are in the child's hash, and a cycle is reported not thrown", async () => {
     const root = "corpora/_test/theme-extends";

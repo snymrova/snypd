@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { callPluginTool, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
+import { callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -609,5 +609,59 @@ describe("theme settings (U3)", () => {
     expect(settingValue(decl("boolean"), "true").ok).toBe(false);
     expect(settingValue(decl("link_list"), [{ label: "X" }]).ok).toBe(false);
     expect(settingValue(decl("link_list"), [{ label: "X", url: "https://x.example", rel: "me" }]).ok).toBe(true);
+    // H0 / finding 10: the item in a list of links is a link, and gets the `url` setting's scheme rule.
+    expect(settingValue(decl("link_list"), [{ label: "X", url: "javascript:fetch(1)" }]).ok).toBe(false);
+    expect(settingValue(decl("link_list"), [{ label: "X", url: "mailto:a@b.example" }]).ok).toBe(true);
+  });
+
+  // ── H0 / E5 (decision 120) ──────────────────────────────────────────────────────────────────────
+  test("E5 a value may not change the meaning of the sheet", () => {
+    const decl = (type: string) => ({ id: "x", type, label: "X" }) as Parameters<typeof settingValue>[0];
+    // Everything `editorial` actually ships passes — the grammar is a floor, not a taste.
+    for (const v of ["light-dark(#fdfcfa, #12110f)", "clamp(1.0625rem, 0.98rem + 0.42vw, 1.1875rem)",
+                     "'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, ui-serif, serif",
+                     "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
+                     "0.8125rem", "34rem", "4px", "oklch(from var(--color-accent) calc(l - .08) c h)",
+                     "color-mix(in oklab, var(--a) 40%, white)", "Söhne, sans-serif"])
+      expect(cssValue(v)).toEqual({ ok: true, value: v });
+    expect(cssValue(1.65)).toEqual({ ok: true, value: "1.65" });
+
+    // …and the six shapes that would close the block, comment out what follows, or reach the network.
+    const why = (v: unknown) => { const r = cssValue(v); expect(r.ok).toBe(false); return (r as { why: string }).why; };
+    expect(why("red } body { display: none } :root { --x: red")).toContain("would end the declaration");
+    expect(why("red; background: black")).toContain("would end the declaration");
+    expect(why("red</style>")).toContain("would end the declaration");     // the sheet is inlined in the preview
+    expect(why("red /* ")).toContain("comment out what follows");
+    expect(why("light-dark(#fff, #000")).toContain("unbalanced `(`");
+    expect(why("url(/media/x.png)")).toContain("a value is not where a site reaches the network");
+    expect(why("url(https://evil.example/?leak)")).toContain("`url()` is not a CSS function");
+    expect(why("")).toContain("empty string");
+    expect(why("a".repeat(300))).toContain("stops at 256");
+    // The three kinds that reach a stylesheet go through it; the three that are prose do not.
+    expect(settingValue(decl("color"), "red } body {").ok).toBe(false);
+    expect(settingValue(decl("size"), "url(x)").ok).toBe(false);
+    expect(settingValue(decl("font"), "'Iowan Old Style', serif").ok).toBe(true);
+    expect(settingValue(decl("richtext"), "a } b {").ok).toBe(true);      // markdown, not CSS
+  });
+
+  test("E5 a refused token names the token and the line that wrote it", () => {
+    const root = "corpora/_test/token-guard";
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "themes/t"), { recursive: true });
+    writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\ntokens:\n  color.accent: { default: \"#8a3324\" }\n  size.body: { default: 1rem }\n");
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T, url: https://t.example }\ntheme:\n  use: t\n  tokens:\n    color.accent: \"red } body { display: none\"\n");
+    const c = loadConfig(root);
+    expect(c.ok).toBe(false);
+    const d = c.diagnostics.find((x) => x.path === "theme.tokens[color.accent]")!;
+    expect(d.level).toBe("error");
+    expect(d.message).toContain("token `color.accent`");
+    expect(d.where).toContain("snypd.yaml:6");                            // the site's line, not the theme's
+    expect(d.where).toContain("overrides themes/t/theme.yaml:3");         // and the default it displaced
+    // A theme's own default is checked on the same pass, and then the theme's file is the one named.
+    writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\ntokens:\n  color.accent: { default: \"#8a3324\" }\n  size.body: { default: \"1rem; } html { display: none\" }\n");
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T, url: https://t.example }\ntheme: { use: t }\n");
+    const c2 = loadConfig(root);
+    expect(c2.ok).toBe(false);
+    expect(c2.diagnostics.find((x) => x.path === "theme.tokens[size.body]")!.where).toContain("theme.yaml:4");
   });
 });

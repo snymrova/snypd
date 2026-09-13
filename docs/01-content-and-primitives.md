@@ -72,7 +72,7 @@ Deliberately absent: `grid`, `columns`, `hero-with-three-cards`. Layout is the t
 
 ## Editorial lint (the vocabulary's rules, enforced)
 
-Unknown block · missing required prop · unsourced `stat`/`chart` · image without alt · dead internal link · heading hierarchy skips · `dateModified` older than a substantive edit · slop-phrase list · more than N callouts per 1,000 words · a slug change without a redirect · a tag used once. Each rule has an id, a severity, and a fix hint the agent can act on.
+Unknown block · missing required prop · unsourced `stat`/`chart` · image without alt · dead internal link · heading hierarchy skips · `dateModified` older than a substantive edit · slop-phrase list · more than N callouts per 1,000 words · a slug change without a redirect · a tag used once · a link or image whose scheme executes rather than navigates. Each rule has an id, a severity, and a fix hint the agent can act on.
 
 ## Versioning
 

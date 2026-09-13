@@ -178,6 +178,26 @@ describe("lint rules", () => {
     expect(rules(`${FM}${c.repeat(3)}`)).toEqual([]);
     expect(rules(`${FM}${c.repeat(4)}`, { maxCalloutsPer1000: 4 })).toEqual([]);
   });
+  // ── H0 / docs/11 finding 10 ───────────────────────────────────────────────────────────────────
+  test("12 unsafe-url: a scheme that executes is refused; the web that does not is left alone", () => {
+    const d = find(`${FM}[click](javascript:fetch('/x'))\n`, "unsafe-url")!;
+    expect(d.severity).toBe("error");
+    expect(d.message).toContain("`javascript:`");
+    expect(d.line).toBe(7);
+    // The two shapes a naive `startsWith` misses, both of which reach the renderer as `javascript:`:
+    // a pointed destination may hold a tab, which browsers ignore inside a scheme, and micromark
+    // decodes character references before anything downstream sees the url.
+    expect(find(`${FM}[a](<java\tscript:alert(1)>)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}[a](&#106;avascript:alert&#40;1&#41;)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}[a](JAVASCRIPT:x)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}[a](VBScript:x)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}![shot](data:text/html;base64,PHNjcmlwdD4=)\n`, "unsafe-url")!.message).toContain("loads");
+    // …and everything a post actually contains stays a link.
+    for (const md of ["[a](/posts/a)", "[a](../about)", "[a](#top)", "[a](https://x.example)", "[a](mailto:a@b.example)", "[a](tel:+15551234)"])
+      expect(find(`${FM}${md}\n`, "unsafe-url")).toBeUndefined();
+    expect(find(`${FM}![p](data:image/png;base64,iVBORw0KGgo=)\n`, "unsafe-url")).toBeUndefined();
+  });
+
   test("diagnostics are sorted by line, carry file and fix hints", () => {
     const r = lintMarkdown(`${FM}::hero\n\n::stat{value="1" label="l"}\n`, { file: "p.md", type: POST_TYPE as never, routes: new Set() });
     expect(r.diagnostics.map((d) => [d.file, d.line, d.n])).toEqual([["p.md", 7, 1], ["p.md", 9, 3]]);

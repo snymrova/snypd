@@ -16,7 +16,7 @@ import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps } from "./theme";
 import { Html } from "./jsx-runtime";
-import { resolveTokens, tokensCss, minifyCss } from "./tokens";
+import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
 import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic, type HookRun } from "./hooks";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
@@ -83,7 +83,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const settings = settingValues(cfg);
   // The *source* sheet: what the artefact is keyed on, and what `minifyCss` runs over — but only inside
   // the artefact's thunk, so a no-op build does not pay ~3 ms to re-minify a sheet it is not writing.
-  const css = tokensCss(tokens) + (theme.css ?? "");
+  const css = styleSheet(tokens, theme.css);
   // media: `content/media/**` → `dist/media/**`, byte for byte (docs/02 "content/media/"). This is the
   // minimum that makes `figure` — a spec primitive with a required `src` — usable end to end; the manifest,
   // the derivatives and the licence lint that docs/02 describes are v0.2, and nothing here presumes them.

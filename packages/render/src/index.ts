@@ -5,7 +5,7 @@ export { loadTheme, themeHash, genericPrimitive, part, Part, menu, settingText, 
 export { Html, raw, escape, escapeText, jsx, jsxs, Fragment } from "./jsx-runtime";
 // P2: slots and filters (docs/10 §4.3) — a theme renders a slot, a plugin fills it, the build applies the filters.
 export { loadHooks, slot, Slot, applyFilter, applyTransforms, runEmits, EMPTY_HOOKS, type Hooks, type HookDiagnostic, type HookRun, type LoadHooksOptions, type SlotProps, type SlotComponent, type FilterCtx, type FilterFn, type SlotName, type FilterName, type TransformCtx, type TransformFn, type EmitCtx, type EmitFn, type EmitFile, type EmittedFile } from "./hooks";
-export { resolveTokens, tokensCss, cssVar, minifyCss } from "./tokens";
+export { resolveTokens, tokensCss, styleSheet, cssVar, minifyCss, atImport, layerIdent, CSS_LAYERS } from "./tokens";
 export { llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, flowSteps, jsonLd, absolute, plural, titleCase, type SurfaceEntry, type SurfaceSite } from "./emit";
 // `preview` is deliberately NOT re-exported here: `snypd build` imports this index, and the preview
 // server has no business loading on a build (S11 measured it on the cold-build path). Import it from

@@ -13,6 +13,7 @@ import { BUNDLED } from "./bundled";
 import { bundledDir, themeFile, themeHas } from "./themefs";
 import { parsePath, parseYaml, pathKey, type Path } from "./yaml";
 import { ConfigSchema, SettingDeclSchema, settingValue, ThemeYamlSchema, THEME_UNBUILT_KEYS, type Config, type SettingDecl } from "./schema";
+import { cssValue } from "./values";
 import { loadPlugin, type LoadedPlugin } from "./plugins";
 
 export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string;
@@ -298,6 +299,16 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     // neither should stop a site from building. A value of the *wrong shape* is an error, because the
     // theme said what shape it is: `setConfig` re-loads and rolls back, so `theme.settings.showDates:
     // "yes"` is refused at the write rather than quietly read as true at the render.
+    // Token values (decision 120). Every token in the merged map, whatever declared it: a theme's own
+    // default and a site's override land on the same key, and `where()` names whichever file wrote the
+    // one that is refused. This is the only gate — `tokensCss` interpolates straight into `:root { … }`
+    // and a build stops on `!cfg.ok`, so a value that would close that block never reaches a sheet.
+    for (const [name, decl] of Object.entries(config.theme.tokens)) {
+      const key = pathKey(["theme", "tokens", name]);
+      const v = isObj(decl) ? decl.default : decl;
+      const r = cssValue(v);
+      if (!r.ok) err(key, `token \`${name}\`: ${r.why}`);
+    }
     for (const [id, v] of Object.entries(config.theme.settings)) {
       const decl = settingDecls.find((d) => d.id === id);
       if (!decl) { warn(`theme.settings.${id}`, `theme \`${themeName}\` declares no setting "${id}"${settingDecls.length ? ` — it declares ${settingDecls.map((d) => d.id).join(", ")}` : " (it declares none)"}`); continue; }

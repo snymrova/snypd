@@ -12,6 +12,7 @@ import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
 import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
+import { atImport, layerIdent } from "./tokens";
 import type { Hooks } from "./hooks";
 
 export interface SiteCtx {
@@ -394,15 +395,28 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
     partCoverage.push(cover(n, d));
   }
 
-  // Ancestors' stylesheets first, so a child's rules cascade over what it inherits.
+  // Ancestors' stylesheets first, so a child's rules cascade over what it inherits — and since decision
+  // 119, each one is wrapped in its own cascade layer as it is concatenated. The chain's root is
+  // `snypd.base` (for the pair this repo ships, that is literally `base`); every theme that extends it
+  // takes a sublayer of `snypd.theme`, in the order it inherits. What that buys is the thing source
+  // order could not: a child's plain `.entry` beats a parent's `article .entry h2`, so overriding a
+  // parent is a selector a theme author would write anyway rather than a specificity arms race.
+  // WordPress got `!important` culture from exactly this, and it got it before it had layers to use.
   const sheets: string[] = [];
-  for (const { link, yaml: y } of [...links].reverse()) {
-    if (!y.css) continue;
+  const ordered = [...links].reverse();                       // root ancestor first
+  ordered.forEach(({ link, yaml: y }, i) => {
+    if (!y.css) return;
     const src = themeFile(link.dir, y.css);
     if (src === undefined) throw new Error(`theme ${link.name}: css "${y.css}" is declared in theme.yaml but ${y.css} is missing`);
-    sheets.push(links.length > 1 ? `/* ${link.name} */\n${src}` : src);
-  }
-  const css = sheets.length ? sheets.join("\n") : undefined;
+    // An `@import` inside a layer block is invalid CSS and is dropped without a word — so a theme that
+    // has one has to hear about it here rather than discover it as a stylesheet that silently did not
+    // load. A theme's sheet is one file on purpose (decision 118's budget counts what it ships), and an
+    // import is the network arriving in a place nothing measures.
+    const at = atImport(src);
+    if (at) throw new Error(`theme ${link.name}: ${y.css}:${at} has an @import — a theme ships one stylesheet, and an @import inside a cascade layer never loads`);
+    sheets.push(`@layer ${i === 0 ? "snypd.base" : `snypd.theme.${layerIdent(link.name)}`} {\n${src}\n}\n`);
+  });
+  const css = sheets.length ? sheets.join("") : undefined;
 
   const theme = { name, dir, chain, hash, yaml, css, layouts, primitives, coverage, parts, partCoverage, stamp };
   loaded.set(dir, theme);
