@@ -5,7 +5,7 @@
  * the vocabulary is enforced by lint, not by the renderer.
  */
 import type { Root, Node, Parent, Literal, Heading, Code, Link, Image, List, ListItem, Table, TableCell, Definition, FootnoteDefinition, FootnoteReference, LinkReference, ImageReference } from "mdast";
-import { parseMarkdown, type Block } from "@snypd/core";
+import { parseMarkdown, safeContentUrl, type Block } from "@snypd/core";
 import { Html, escape, escapeText, raw } from "./jsx-runtime";
 
 export interface HtmlOptions {
@@ -43,6 +43,14 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
 
   const kids = (n: Parent, tight = false): string => n.children.map((c) => node(c, tight)).join("");
   const attr = (k: string, v: string | null | undefined) => (v ? ` ${k}="${escape(v)}"` : "");
+  // docs/11 finding 10. Escaping made `javascript:alert(1)` a well-formed attribute; it did not make it
+  // a link. The scheme is checked here as well as in lint because lint is advice and this is the last
+  // thing between a `.md` file and a page — and a link an agent wrote after reading the open web
+  // (decision 80) arrives through the same door as one a person wrote.
+  // The text survives either way: the renderer drops the attribute, never the author's words.
+  const href = (u: string) => (safeContentUrl(u, "link") ? ` href="${escape(u)}"` : "");
+  const img = (u: string, alt: string, title?: string | null) =>
+    safeContentUrl(u, "image") ? `<img src="${escape(u)}" alt="${escape(alt)}"${attr("title", title)}>` : escapeText(alt);
 
   const node = (n: Node, tight = false): string => {
     switch (n.type) {
@@ -60,10 +68,10 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
       case "break": return "<br>\n";
       case "thematicBreak": return "<hr>\n";
       case "blockquote": return `<blockquote>\n${kids(n as Parent)}</blockquote>\n`;
-      case "link": { const l = n as Link; return `<a href="${escape(l.url)}"${attr("title", l.title)}>${kids(l)}</a>`; }
-      case "image": { const i = n as Image; return `<img src="${escape(i.url)}" alt="${escape(i.alt ?? "")}"${attr("title", i.title)}>`; }
-      case "linkReference": { const l = n as LinkReference; const d = defs.get(l.identifier); return d ? `<a href="${escape(d.url)}"${attr("title", d.title)}>${kids(l)}</a>` : `[${kids(l)}]`; }
-      case "imageReference": { const i = n as ImageReference; const d = defs.get(i.identifier); return d ? `<img src="${escape(d.url)}" alt="${escape(i.alt ?? "")}"${attr("title", d.title)}>` : `![${escape(i.alt ?? "")}]`; }
+      case "link": { const l = n as Link; return `<a${href(l.url)}${attr("title", l.title)}>${kids(l)}</a>`; }
+      case "image": { const i = n as Image; return img(i.url, i.alt ?? "", i.title); }
+      case "linkReference": { const l = n as LinkReference; const d = defs.get(l.identifier); return d ? `<a${href(d.url)}${attr("title", d.title)}>${kids(l)}</a>` : `[${kids(l)}]`; }
+      case "imageReference": { const i = n as ImageReference; const d = defs.get(i.identifier); return d ? img(d.url, i.alt ?? "", d.title) : `![${escape(i.alt ?? "")}]`; }
       case "list": { const l = n as List; const tag = l.ordered ? "ol" : "ul"; const start = l.ordered && l.start && l.start !== 1 ? ` start="${l.start}"` : ""; return `<${tag}${start}>\n${l.children.map((c) => node(c, !l.spread)).join("")}</${tag}>\n`; }
       case "listItem": { const li = n as ListItem; const box = li.checked === null || li.checked === undefined ? "" : `<input type="checkbox" disabled${li.checked ? " checked" : ""}> `; return `<li>${box}${li.children.map((c) => node(c, tight && c.type === "paragraph")).join("")}</li>\n`; }
       case "table": { const t = n as Table; const rows = t.children; const cell = (c: TableCell, i: number, th: boolean) => { const a = t.align?.[i]; return `<${th ? "th" : "td"}${a ? ` align="${a}"` : ""}>${kids(c)}</${th ? "th" : "td"}>`; };

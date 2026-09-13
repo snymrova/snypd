@@ -235,6 +235,13 @@ export async function call(root: string, name: string, args: Record<string, unkn
           if (unknown.length) return fail(`unknown token${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}`, `snypd://theme/tokens lists every token this theme declares. Closest: ${[...table.keys()].filter((k) => unknown.some((u) => k.includes(u.split(".")[0] ?? ""))).slice(0, 6).join(", ") || "none"}`);
           const locked = entries.filter(([k, v]) => v !== null && !table.get(k)!.customisable).map(([k]) => k);
           if (locked.length) return fail(`${locked.join(", ")} ${locked.length === 1 ? "is" : "are"} not customisable`, "The theme declares these as fixed — they are structure, not taste. Scaffold a theme that extends this one to change them.");
+          // H0, decision 120: the whole patch is refused before any of it is written. `setConfig` would
+          // roll back the offending key on its own — it re-loads and restores — but it rolls back *that*
+          // key, and a two-token patch whose second value is refused would otherwise leave the first
+          // one written. `set_settings` below has always worked this way; this is the same rule, and
+          // now there is something for it to check.
+          const refused = entries.flatMap(([k, v]) => { if (v === null) return []; const r = c.cssValue(v); return r.ok ? [] : [`${k}: ${r.why}`]; });
+          if (refused.length) return fail(refused.join("; "), "Nothing was written. A token becomes a CSS custom property in `:root`, so its value has to be one — a colour, a length, a font stack, or a calc/clamp/light-dark of them.");
           const paths: string[] = [], done: string[] = [];
           for (const [k, v] of entries) {
             const w = c.setConfig(root, c.pathKey(["theme", "tokens", k]), v);

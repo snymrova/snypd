@@ -1,6 +1,7 @@
 /** @snypd/core — YAML layering → validated Config with provenance (docs/02 §1–§2). */
 export { loadConfig, renderConfig, formatDiagnostics, resolveThemeChain, PLACEHOLDER_URL, isPlaceholderUrl, type Diagnostic, type LoadedConfig, type LoadOptions, type LayerInfo, type ThemeLink } from "./config";
 export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, SettingDeclSchema, SETTING_TYPES, LinkItemSchema, settingValue, PluginManifestSchema, PLUGIN_API, PLUGIN_UNBUILT_KEYS, SLOT_NAMES, FILTER_NAMES, clientKbOf, ROLES, type TokenDecl, type ThemeYaml, type SettingDecl, type SettingType, type SettingValue, type LinkItem, type PluginManifest, type Config, type TypeDef, type TaxonomyDef } from "./schema";
+export { cssValue, safeContentUrl, CSS_FUNCTIONS, SETTING_URL_RE } from "./values";
 export { describeSource, type Source, type Provenance, type LayerName } from "./merge";
 export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "./yaml";
 // The theme filesystem seam (decision 46): every theme read on the runtime path, disk or binary.

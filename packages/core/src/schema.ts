@@ -4,6 +4,7 @@
  * (`bench.budgets`, `jobs`, plugin options). Cross-references are checked in config.ts with provenance.
  */
 import { z } from "zod";
+import { cssValue, SETTING_URL_RE } from "./values";
 
 const slug = z.string().regex(/^[a-z][a-z0-9-]*$/i, "identifier: letters, digits, dashes");
 
@@ -52,7 +53,13 @@ export type TokenDecl = z.infer<typeof TokenDeclSchema>;
 export const SETTING_TYPES = ["text", "textarea", "richtext", "url", "number", "boolean", "select", "color", "size", "font", "image", "link_list"] as const;
 export type SettingType = (typeof SETTING_TYPES)[number];
 /** One item of a `link_list` setting: a label and a url, verbatim — a menu is `content/nav/<location>.yaml` (U2) and this is not one. */
-export const LinkItemSchema = z.object({ label: z.string().min(1), url: z.string().min(1), rel: z.string().optional() }).strict();
+export const LinkItemSchema = z.object({
+  label: z.string().min(1),
+  /** Scheme-checked like the `url` setting it sits beside (docs/11 finding 10): a list of links is a
+   *  list of links, and `javascript:` in one of them is the same hole in a different key. */
+  url: z.string().min(1).refine((u) => SETTING_URL_RE.test(u), "expected a url — https://…, mailto:… or a site-relative /path"),
+  rel: z.string().optional(),
+}).strict();
 export type LinkItem = z.infer<typeof LinkItemSchema>;
 export type SettingValue = string | number | boolean | LinkItem[];
 /**
@@ -91,11 +98,18 @@ export function settingValue(decl: SettingDecl, v: unknown): { ok: true; value: 
   const no = (why: string) => ({ ok: false as const, why });
   const str = (what: string) => (typeof v === "string" ? { ok: true as const, value: v } : no(`expected ${what}, got ${typeof v}`));
   switch (decl.type) {
-    case "text": case "textarea": case "richtext": case "font": case "color": case "size":
+    case "text": case "textarea": case "richtext":
       return str("a string");
+    // The three that reach a stylesheet (decision 120). A part interpolates them into a `style`
+    // attribute or a theme reads them into a custom property, and either way the value has to be a
+    // value: `settingValue` is the only gate between `set_settings` and the page.
+    case "font": case "color": case "size": {
+      const r = cssValue(v);
+      return r.ok ? { ok: true, value: r.value } : no(r.why);
+    }
     case "url": {
       if (typeof v !== "string") return no(`expected a url, got ${typeof v}`);
-      return /^(https?:\/\/|mailto:|\/)/.test(v) ? { ok: true, value: v } : no(`expected a url — https://…, mailto:… or a site-relative /path`);
+      return SETTING_URL_RE.test(v) ? { ok: true, value: v } : no(`expected a url — https://…, mailto:… or a site-relative /path`);
     }
     case "image": {
       if (typeof v !== "string") return no(`expected the url of an image, got ${typeof v}`);

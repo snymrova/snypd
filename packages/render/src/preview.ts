@@ -17,7 +17,7 @@ import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./th
 import { loadHooks, EMPTY_HOOKS, type Hooks } from "./hooks";
 import { Html, escape } from "./jsx-runtime";
 import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts, type DeskOnboarding, type DeskPush } from "./desk";
-import { resolveTokens, tokensCss } from "./tokens";
+import { resolveTokens, styleSheet } from "./tokens";
 
 export interface PreviewOptions {
   port?: number; out?: string; hostname?: string; watch?: boolean;
@@ -237,7 +237,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   // ── the review page ────────────────────────────────────────────────────────
   const siteCtx = (): SiteCtx => {
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
-    const css = tokensCss(tokens) + (theme.css ?? "");
+    const css = styleSheet(tokens, theme.css);
     return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks, settings: settingValues(cfg) };
   };
 
@@ -395,7 +395,7 @@ Write something. There is no file to delete.
         return { type: f.type, slug: f.slug, title: f.title, status: f.status, route: f.route, reviewUrl: reviewPath(f.type, f.slug), ready: check.ok, state, updated: f.mtime };
       });
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
-    const css = tokensCss(tokens) + (theme.css ?? "");
+    const css = styleSheet(tokens, theme.css);
     const facts = onboardingFacts(root, { cfg, items: index.files({}).filter((f) => f.status !== "trashed").length });
     return {
       onboarding: onboarding(facts),

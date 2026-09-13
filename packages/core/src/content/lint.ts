@@ -14,12 +14,14 @@
  *  9 callout-density    more than N callouts per 1,000 words
  * 10 slug-change        route changed since the file was first indexed and nothing redirects the old one   (lintSite, from the index)
  * 11 tag-once           a tag no other post uses                                                          (lintSite)
+ * 12 unsafe-url          a link or image whose scheme executes rather than navigates
  */
 import type { Node, Parent, Heading, Link, Image, Text } from "mdast";
 import type { FieldSpec } from "@snypd/spec";
 import type { ParsedDoc } from "./parse";
 import { frontmatterKeyLine } from "./parse";
 import { checkProp, type Block, type Diagnostic, type PrimitiveTree } from "./tree";
+import { safeContentUrl } from "../values";
 
 export interface TypeShape { fields: Record<string, FieldSpec>; taxonomies?: string[] }
 export interface LintOptions {
@@ -133,6 +135,8 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
   let words = 0, lastLevel = 1;
   const prose: { text: string; line: number }[] = [];
   const links: { url: string; line: number }[] = [];
+  /** Rule 12's own list: the urls this document *wrote*, link and image, before the cta hrefs join `links`. */
+  const urls: { url: string; line: number; what: "Link" | "Image" }[] = [];
   walk(doc.tree, (n, parent) => {
     if (n.type === "yaml" || n.type === "code" || n.type === "inlineCode" || n.type === "html") return;
     if (n.type === "heading") {
@@ -141,7 +145,8 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
       else if (h.depth > lastLevel + 1) out.push(D("heading-skip", 6, "warning", `Heading level jumps from h${lastLevel} to h${h.depth}`, `Use h${lastLevel + 1}, or promote this heading`, line));
       lastLevel = h.depth;
     }
-    if (n.type === "link") links.push({ url: (n as Link).url, line: n.position?.start.line ?? 0 });
+    if (n.type === "link") { links.push({ url: (n as Link).url, line: n.position?.start.line ?? 0 }); urls.push({ url: (n as Link).url, line: n.position?.start.line ?? 0, what: "Link" }); }
+    if (n.type === "image") urls.push({ url: (n as Image).url, line: n.position?.start.line ?? 0, what: "Image" });
     if (n.type === "image" && !((n as Image).alt ?? "").trim()) out.push(D("image-alt", 4, "error", "Image has no alt text", "Write `![what the image shows](src)`", n.position?.start.line ?? 0));
     if (n.type === "text" && parent?.type !== "yaml") {
       const t = (n as Text).value;
@@ -161,6 +166,18 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
       if (!opts.routes.has(path)) out.push(D("dead-internal-link", 5, "error", `Internal link \`${url}\` resolves to no route`, `Check the slug (\`snypd://config\` lists url patterns); use an absolute URL for external pages`, line));
     }
   } else skipped.push("dead-internal-link");
+
+  // ── 12 unsafe url ──────────────────────────────────────────────────────────
+  // docs/11 finding 10. `[click](javascript:fetch(...))` is valid CommonMark and the renderer used to
+  // emit it escaped and intact — escaping stops a value ending the attribute, not the attribute meaning
+  // what it says. The renderer drops the href either way (render/html.ts); this is what tells the author,
+  // and it is an error rather than a warning because nothing legitimate is written this way by accident.
+  for (const { url, line, what } of urls) {
+    if (safeContentUrl(url, what === "Image" ? "image" : "link")) continue;
+    const scheme = url.replace(/[\u0000-\u0020]/g, "").split(":")[0]!.toLowerCase();
+    out.push(D("unsafe-url", 12, "error", `${what} uses the \`${scheme}:\` scheme, which executes rather than ${what === "Image" ? "loads" : "navigates"}`,
+      what === "Image" ? "Put the file in content/media/ and point at /media/…, or use an https:// url — the renderer drops this image" : "Use https://…, a site path like /about, or mailto: — the renderer drops this href and keeps the text", line));
+  }
 
   // ── 7 stale updated ────────────────────────────────────────────────────────
   const asDate = (v: unknown) => v instanceof Date ? v : typeof v === "string" ? new Date(v) : undefined;
