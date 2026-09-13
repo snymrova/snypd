@@ -1,1 +1,1 @@
-{ "name": "@snypd/runtime", "version": "0.1.3", "type": "module", "main": "src/index.ts", "license": "MIT" }
+{ "name": "@snypd/runtime", "version": "0.1.4", "type": "module", "main": "src/index.ts", "license": "MIT" }
