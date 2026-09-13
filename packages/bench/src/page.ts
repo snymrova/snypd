@@ -2,7 +2,11 @@
  * `snypd bench page` (S13) — the delivered *page*, measured in a real browser: the Phase-3 exit criteria
  * that no other suite can see (docs/07 §4: "coverage 100 %, Lighthouse ≥ 98, a11y 100, 0 KB JS").
  *
- * Two of those three are measured here and gated:
+ * Two of those three are measured here and gated, and since B1 a third budget stands beside them:
+ *   `page.font.kb`           bytes of webfont the page loads (B1, decision 118) — budget is the *theme's*
+ *                            own `font.kb`, not a constant: a theme declares what its face costs, at most
+ *                            40 KB, and a face that grew past its own claim fails here. A theme that
+ *                            ships none gets a budget of 0, which is the lane `base` has to keep.
  *   `page.js.kb`             bytes of JavaScript the page loads or inlines — budget `bench.budgets.jsKb`,
  *                            0 unless the site raised it to afford a plugin (P2, decision 84): declared by
  *                            the plugin, afforded by the site, measured here — a plugin whose script weighs
@@ -144,7 +148,7 @@ async function measure(page: Page, url: string, route: string, view: (typeof VIE
  * Chrome is a machine dependency, not a package one: without it the suite returns a single report-only
  * metric saying so rather than failing a build that has nothing wrong with it.
  */
-export async function pageSuite(opts: { root: string; dist?: string; routes?: string[]; label?: string; url?: string; prefix?: string; /** the site's `bench.budgets.jsKb`; 0 when absent */ jsKb?: number } = { root: "." }): Promise<{ metrics: Metric[]; pages: PageResult[]; browser?: string }> {
+export async function pageSuite(opts: { root: string; dist?: string; routes?: string[]; label?: string; url?: string; prefix?: string; /** the site's `bench.budgets.jsKb`; 0 when absent */ jsKb?: number; /** the theme's declared `font.kb` (B1); 0 when it ships no font */ fontKb?: number } = { root: "." }): Promise<{ metrics: Metric[]; pages: PageResult[]; browser?: string }> {
   const dist = opts.dist ?? join(opts.root, "dist");
   // S18b: the Desk is a *live* route, not a file in `dist`, so the suite has to be able to measure a
   // server somebody else started. The metrics get their own namespace with it (`desk.*`), because
@@ -173,6 +177,7 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
 
   const worstBy = <T,>(pick: (p: PageResult) => number) => pages.reduce((a, b) => (pick(b) > pick(a) ? b : a));
   const js = worstBy((p) => p.bytes.js + p.inlineJsBytes);
+  const font = worstBy((p) => p.bytes.font);
   const a11y = worstBy((p) => p.violations.length);
   const heavy = worstBy((p) => p.bytes.total);
   const lcp = worstBy((p) => p.vitals.lcp);
@@ -188,10 +193,24 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
     metrics: [
       { name: `${prefix}.js.kb`, value: KB(js.bytes.js + js.inlineJsBytes), unit: "KB", budget: opts.jsKb ?? 0,
         note: `${seen}; worst ${at(js)} (${js.bytes.js} B loaded + ${js.inlineJsBytes} B inline/handlers). JSON-LD excluded: it is data${opts.jsKb ? `; budget ${opts.jsKb} KB is bench.budgets.jsKb — what the site afforded its plugins` : ""}` },
+      // B1, decision 118. Worst route, like every other lane here: a budget only the index meets is not
+      // one, and a face preloaded in the shell is on every page by construction — so a route that weighs
+      // more than the rest is a route that pulled in a *second* face, which is exactly the thing the
+      // "one webfont" rule exists to catch.
+      // `exact`, and the one lane here that has earned it. `CI_FACTOR` is headroom for a *clock* — a
+      // runner is noisy, so a metric that must be under 50 ms is held to 40. A file is 31,056 bytes on
+      // every machine that ever reads it, and 80 % of a theme's declared 31 KB is 24.8 KB, which is a
+      // budget nobody wrote down and which decision 118 does not claim. The theme's `font.kb` already
+      // carries its own slack — the declaration is the round number above the file, and the file is
+      // what has to stay under it.
+      { name: `${prefix}.font.kb`, value: KB(font.bytes.font), unit: "KB", budget: opts.fontKb ?? 0, exact: true,
+        note: opts.fontKb
+          ? `worst ${at(font)}; budget ${opts.fontKb} KB is the theme's own font.kb — what it declared, not what the file happens to weigh`
+          : `worst ${at(font)}; no theme in the chain declares a font, so the budget is 0` },
       { name: `${prefix}.a11y.violations`, value: allViolations.length, unit: "violations", budget: 0,
         note: allViolations.length ? allViolations.map((v) => `${v.route} @ ${v.width} ${v.id} (${v.impact}, ${v.nodes} nodes)`).join(" · ") : `axe-core, 0 across ${pages.length} route/viewport pairs` },
       { name: `${prefix}.bytes.kb`, value: KB(heavy.bytes.total), unit: "KB",
-        note: `worst ${at(heavy)}: ${KB(heavy.bytes.html)} KB html + ${KB(heavy.bytes.css)} KB css + ${KB(heavy.bytes.image)} KB img, ${heavy.requests} requests — uncompressed, which no host serves; report-only` },
+        note: `worst ${at(heavy)}: ${KB(heavy.bytes.html)} KB html + ${KB(heavy.bytes.css)} KB css + ${KB(heavy.bytes.image)} KB img${heavy.bytes.font ? ` + ${KB(heavy.bytes.font)} KB font` : ""}, ${heavy.requests} requests — uncompressed, which no host serves; report-only` },
       { name: `${prefix}.lcp`, value: +lcp.vitals.lcp.toFixed(1), unit: "ms",
         note: `worst ${at(lcp)}; localhost, unthrottled — the shape of the page, not a field number; report-only` },
       // Gated from S14: layout shift is the one vital a localhost run measures honestly, because it is

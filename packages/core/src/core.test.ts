@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, themeVariations, strandedVariation, themeTokens, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
+import { callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, themeVariations, strandedVariation, themeTokens, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, MAX_FONT_KB, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -667,6 +667,65 @@ describe("theme settings (U3)", () => {
 });
 
 // ── U6a: style variations (docs/10 §5.2, decision 91) ────────────────────────────────────────────
+/**
+ * B1, decision 118 — the half of the webfont contract that lives in the config layer. What reaches `dist/`
+ * is `render.test.ts`'s "the webfont (B1)"; what a bad declaration does before anything reaches anywhere
+ * is here, because `theme.yaml` is validated strictly with file:line (decision 73) and a font is now one
+ * of the things it can get wrong.
+ */
+describe("the webfont declaration (B1)", () => {
+  const R = "corpora/_test/font-decl-core";
+  const site = (theme: string, extra = "") => { mkdirSync(R, { recursive: true }); writeFileSync(join(R, "snypd.yaml"), `snypd: 1\nsite: { name: S, url: https://s.example }\ntheme:\n  use: ${theme}\n${extra}`); };
+  const theme = (name: string, text: string) => { mkdirSync(join(R, "themes", name), { recursive: true }); writeFileSync(join(R, "themes", name, "theme.yaml"), text); };
+  const errors = (c: ReturnType<typeof loadConfig>) => c.diagnostics.filter((d) => d.level === "error").map((d) => `${d.path}: ${d.message}`);
+  const FONT = (extra: string) => `font:
+  family: T
+  file: ./fonts/t.woff2
+  ${extra}
+  fallback: { local: Georgia, size-adjust: 100%, ascent-override: 100%, descent-override: 30%, line-gap-override: 0% }
+`;
+  beforeEach(() => rmSync(R, { recursive: true, force: true }));
+
+  test("a face over decision 118's ceiling is an error, named and placed", () => {
+    theme("f", `theme: f\n${FONT("kb: 64")}`);
+    site("f");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(false);
+    expect(errors(c).join("\n")).toMatch(/theme\.font\.kb: at most 40/);
+    // MAX_FONT_KB is the one place the ceiling is written, so the message and the loader cannot disagree.
+    expect(MAX_FONT_KB).toBe(40);
+  });
+
+  test("one format, and it is the one every browser has read since 2020", () => {
+    theme("f", `theme: f\n${FONT("kb: 30").replace("t.woff2", "t.ttf")}`);
+    site("f");
+    expect(errors(loadConfig(R)).join("\n")).toMatch(/theme\.font\.file: a \.woff2/);
+  });
+
+  test("the fallback's overrides are required, because a face without them is the shift the budget bought off", () => {
+    theme("f", "theme: f\nfont: { family: T, file: ./fonts/t.woff2, kb: 30 }\n");
+    site("f");
+    expect(errors(loadConfig(R)).join("\n")).toMatch(/theme\.font\.fallback/);
+  });
+
+  test("decision 131: a declaration, so it does not merge — and a site cannot write one", () => {
+    theme("f", `theme: f\n${FONT("kb: 30")}`);
+    site("f");
+    const c = loadConfig(R);
+    // Nothing under `theme.font` in the merged config: `snypd://config` is what a site answered, and
+    // there is no question here for it to have answered.
+    expect((c.config.theme as Record<string, unknown>).font).toBeUndefined();
+    expect(c.ok).toBe(true);
+    // And the key has no meaning in snypd.yaml either, which is the other half of decision 128's rule:
+    // better to not have the key than to have to warn about one that could never be applied.
+    site("f", "  font: { family: Other }\n");
+    const c2 = loadConfig(R);
+    expect(c2.ok).toBe(true);                                          // inert, never fatal
+    expect(c2.diagnostics.map((d) => `${d.path}: ${d.message}`).join("\n"))
+      .toMatch(/theme\.font does nothing here/);
+  });
+});
+
 describe("theme variations (U6a)", () => {
   const R = "corpora/_test/variations";
   const site = (theme: string, extra = "") => { mkdirSync(R, { recursive: true }); writeFileSync(join(R, "snypd.yaml"), `snypd: 1\nsite: { name: S, url: https://s.example }\ntheme:\n  use: ${theme}\n${extra}`); };

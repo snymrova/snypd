@@ -138,6 +138,13 @@ export interface DeskFacts {
   previewUrl: string;
   /** The theme stylesheet, if the build emitted one. */
   css?: string;
+  /**
+   * The theme's webfont, if it ships one (B1). Here for the same reason the shell has it and not because
+   * the Desk is a page anybody rates: without the preload the face is found only once the stylesheet has
+   * parsed, and the bench measured the difference — `desk.cls` 0.0005 against the public routes' 0, on a
+   * localhost where the font arrives in a millisecond. The preload is what stops the swap being late.
+   */
+  font?: string;
   /** Seconds between self-refreshes. 0 disables it, which is how the bench measures a still page. */
   refresh?: number;
   /**
@@ -479,6 +486,7 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
     refresh > 0 ? `<meta http-equiv="refresh" content="${refresh}">` : "",
     `<title>Snypd Desk — ${escape(f.site.name)}</title>`,
     f.css ? `<link rel="stylesheet" href="${escape(f.css)}">` : "",
+    f.font ? `<link rel="preload" href="${escape(f.font)}" as="font" type="font/woff2" crossorigin="anonymous">` : "",
     `<style>${STYLE}</style>`,
     `</head><body>`,
     body,

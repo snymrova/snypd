@@ -83,7 +83,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const settings = settingValues(cfg);
   // The *source* sheet: what the artefact is keyed on, and what `minifyCss` runs over — but only inside
   // the artefact's thunk, so a no-op build does not pay ~3 ms to re-minify a sheet it is not writing.
-  const css = styleSheet(tokens, theme.css);
+  const css = styleSheet(tokens, theme.css, theme.font?.css);
   // media: `content/media/**` → `dist/media/**`, byte for byte (docs/02 "content/media/"). This is the
   // minimum that makes `figure` — a spec primitive with a required `src` — usable end to end; the manifest,
   // the derivatives and the licence lint that docs/02 describes are v0.2, and nothing here presumes them.
@@ -127,7 +127,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // A `ref` to a rerouted item follows the filter, because the menu must point where the page is.
   const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
   if (rerouted.size) for (const links of Object.values(nav.nav)) for (const l of links) if (l.route && rerouted.has(l.route)) { const r = rerouted.get(l.route)!; l.href = r === "/" ? "/" : `${r}/`; l.route = r; }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings };
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings };
   // The plugin graph (P1, decision 95): every loaded plugin's bytes, hashed the way the theme chain is,
   // and the site's options beside them in the config hash — a transform that changes output must
   // invalidate the cache, and P3's transforms are plugin files. Both are absent from the key when no
@@ -264,6 +264,17 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   for (const t of siteSurface.types) artefact(`api/${t.name}.json`, () => apiType(siteSurface, t));
   for (const t of siteSurface.taxonomies) artefact(`api/${t.name}.json`, () => apiTaxonomy(siteSurface, t));
   if (css) artefact("assets/theme.css", () => minifyCss(css), sha1(css));
+  /**
+   * The theme's webfont (B1, decision 118), and the licence it is redistributed under. Keyed on the
+   * theme hash, which already covers every byte in the theme dir — so replacing the .woff2 rewrites it
+   * and nothing else, and a build that did not touch the theme never reads the bytes at all.
+   */
+  if (theme.font) {
+    const f = theme.font;
+    const into = `assets/fonts/${f.url.split("/").pop()}`;
+    plan.push({ route: f.url, key: sha1(`${base}:font:${into}`), kind: "artefact", outputs: [into], render: () => ({ [into]: f.bytes }) });
+    if (f.licence) artefact(`assets/fonts/${f.licence.name}`, () => f.licence!.text, base);
+  }
 
   /**
    * Redirects last, so `routed` already holds every page the site really builds: a redirect whose old

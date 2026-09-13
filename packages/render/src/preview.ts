@@ -159,7 +159,7 @@ const LIVE = `<script data-snypd-live>(()=>{let d=0;const e=new EventSource(${JS
 const inject = (html: string, snippet: string) =>
   snippet === "" ? html : html.includes("</body>") ? html.replace("</body>", () => `${snippet}</body>`) : html + snippet;
 
-const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".json": "application/json", ".xml": "application/xml", ".txt": "text/plain; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml" };
+const MIME: Record<string, string> = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".json": "application/json", ".xml": "application/xml", ".txt": "text/plain; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
 const mimeOf = (f: string) => MIME[f.slice(f.lastIndexOf("."))] ?? "application/octet-stream";
 
 /** Who did it, when asked from a browser. Not an identity system: the audit trail is the git trailer. */
@@ -237,8 +237,8 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   // ── the review page ────────────────────────────────────────────────────────
   const siteCtx = (): SiteCtx => {
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
-    const css = styleSheet(tokens, theme.css);
-    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks, settings: settingValues(cfg) };
+    const css = styleSheet(tokens, theme.css, theme.font?.css);
+    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks, settings: settingValues(cfg) };
   };
 
   const shell = (title: string, body: Html, route: string) => {
@@ -395,7 +395,7 @@ Write something. There is no file to delete.
         return { type: f.type, slug: f.slug, title: f.title, status: f.status, route: f.route, reviewUrl: reviewPath(f.type, f.slug), ready: check.ok, state, updated: f.mtime };
       });
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
-    const css = styleSheet(tokens, theme.css);
+    const css = styleSheet(tokens, theme.css, theme.font?.css);
     const facts = onboardingFacts(root, { cfg, items: index.files({}).filter((f) => f.status !== "trashed").length });
     return {
       onboarding: onboarding(facts),
@@ -410,6 +410,7 @@ Write something. There is no file to delete.
       build: lastBuild,
       previewUrl: `http://${server.hostname ?? "localhost"}:${server.port}`,
       css: css ? "/assets/theme.css" : undefined,
+      font: theme.font?.url,
       refresh: opts.deskRefresh,
       push: pushFacts(drafts.length),
     };

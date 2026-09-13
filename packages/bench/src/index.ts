@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { build } from "@snypd/render";
+import { build, loadTheme } from "@snypd/render";
 import { preview } from "@snypd/render/preview";
 import { serve } from "@snypd/runtime";
 import { compile } from "./compile";
@@ -452,8 +452,13 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   const root = opts.root ?? themeFixture();
   ACTIVE = budgetsFor(root);
   await build(root);
-  const { metrics, browser } = await pageSuite({ root, label: "editorial", jsKb: ACTIVE.jsKb });
-  metrics.push(...(await deskLane(root)));
+  // The font budget is the *theme's*, not the site's (B1, decision 118): a site affords its plugins a
+  // script budget because it chose the plugins, and it affords its theme nothing because the theme is
+  // what it chose. Loading the theme here rather than reading the YAML is what makes the number the same
+  // one the build used — including whose theme in the chain declared it.
+  const fontKb = (await loadTheme(loadConfig(root))).font?.kb ?? 0;
+  const { metrics, browser } = await pageSuite({ root, label: "editorial", jsKb: ACTIVE.jsKb, fontKb });
+  metrics.push(...(await deskLane(root, fontKb)));
   metrics.push(...(await firstRunLane()));
   const report: Report = { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
   mkdirSync("bench", { recursive: true });
@@ -475,11 +480,11 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
  * with a stubbed harness so the connected branch — the one with the most markup in it — is the one
  * axe-core reads. `deskRefresh: 0` stops the meta refresh reloading Chrome mid-measurement.
  */
-async function deskLane(root: string): Promise<Metric[]> {
+async function deskLane(root: string, fontKb: number): Promise<Metric[]> {
   const now = Date.now();
   const s = await preview(root, { port: 0, watch: false, deskRefresh: 0, activity: () => ({ calls: 12, lastMethod: "tools/call", lastAt: now - 2000, since: now - 300000, client: "bench" }) });
   try {
-    return (await pageSuite({ root, url: s.url, routes: ["/_snypd", `/_snypd/review/post/${DESK_DRAFT}`], label: "desk", prefix: "desk" })).metrics;
+    return (await pageSuite({ root, url: s.url, routes: ["/_snypd", `/_snypd/review/post/${DESK_DRAFT}`], label: "desk", prefix: "desk", fontKb })).metrics;
   } finally { s.stop(); }
 }
 /** Generated into the fixture by `generateTheme`, not created here — the bench does not edit a corpus. */
@@ -507,9 +512,14 @@ async function firstRunLane(): Promise<Metric[]> {
   const { PROMPTS } = await import("@snypd/mcp/prompts");
   const dir = mkdtempSync(join(tmpdir(), "snypd-first-run-"));
   initSite(dir, { name: "A new site" });
+  // Its own theme's font, not the fixture's: a fresh `snypd init` gets whatever theme the scaffold picks,
+  // and a lane that inherited the fixture's budget would be checking one site's bytes against another's
+  // declaration. Today they are the same theme and the same number, which is exactly when a bug like
+  // that is invisible.
+  const fontKb = (await loadTheme(loadConfig(dir))).font?.kb ?? 0;
   const s = await preview(dir, { port: 0, watch: false, deskRefresh: 0, prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })) });
   try {
-    return (await pageSuite({ root: dir, url: s.url, routes: ["/_snypd", "/"], label: "first run", prefix: "desk.first" })).metrics;
+    return (await pageSuite({ root: dir, url: s.url, routes: ["/_snypd", "/"], label: "first run", prefix: "desk.first", fontKb })).metrics;
   } finally { s.stop(); rmSync(dir, { recursive: true, force: true }) }
 }
 
@@ -657,8 +667,9 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   if (!opts.quick) {   // the browser suite costs ~10 s and a Chrome; --quick is the inner-loop run
     const fixture = themeFixture();
     await build(fixture);
-    metrics.push(...(await pageSuite({ root: fixture, label: "editorial" })).metrics);
-    metrics.push(...(await deskLane(fixture)));   // S18b: the Desk under the same browser as the public routes
+    const fontKb = (await loadTheme(loadConfig(fixture))).font?.kb ?? 0;   // B1: the theme's declaration, not a constant
+    metrics.push(...(await pageSuite({ root: fixture, label: "editorial", fontKb })).metrics);
+    metrics.push(...(await deskLane(fixture, fontKb)));   // S18b: the Desk under the same browser as the public routes
     metrics.push(...(await firstRunLane()));      // S18f: the two states every user meets exactly once
   }
   const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };

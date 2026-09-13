@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
-import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens } from "./index";
+import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
 import { loadConfig, initRepo, lintSite, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
 import { deskPage, type DeskOnboarding } from "./desk";
@@ -393,6 +393,115 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const layerOf = (sel: string) => css.slice(0, css.indexOf(sel)).match(/@layer (snypd[\w.]*) \{/g)!.pop()!;
     expect(layerOf("html body article.entry h2.title")).toBe("@layer snypd.base {");
     expect(layerOf(".title { color: blue }")).toBe("@layer snypd.theme.top {");
+  });
+
+  /**
+   * B1 (decision 118). The webfont is a *file*, so every one of these is about what reaches `dist/` and
+   * what refuses to before it does. The fixture ships two bytes and calls them a font: nothing here parses
+   * one, and a test that needed a real 31 KB face to prove the copy happened would be a test that could
+   * only run in a checkout that had it.
+   */
+  describe("the webfont (B1)", () => {
+    const FONT = Buffer.from("wOF2-not-really");
+    const decl = (extra = "") => `font:\n  family: Test Serif\n  file: ./fonts/t.woff2\n  weight: 400 700\n  kb: 1\n${extra}  fallback:\n    local: Georgia\n    size-adjust: 106.2%\n    ascent-override: 97.6%\n    descent-override: 31.6%\n    line-gap-override: 0%\n`;
+    /**
+     * One theme over `base`, one page, one declared font — the smallest site that can carry one. It
+     * extends `base` rather than writing its own layout so the `<link rel="preload">` under test is the
+     * shell every site really gets, not one the fixture wrote to make itself pass.
+     */
+    const site = (root: string, theme: string, yaml: string, bytes: Buffer | null = FONT) => {
+      rmSync(root, { recursive: true, force: true });
+      mkdirSync(join(root, `themes/${theme}/fonts`), { recursive: true });
+      mkdirSync(join(root, "content/pages"), { recursive: true });
+      writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: F, url: https://f.example }\ntheme: { use: ${theme} }\n`);
+      writeFileSync(join(root, `themes/${theme}/theme.yaml`), yaml);
+      if (bytes) writeFileSync(join(root, `themes/${theme}/fonts/t.woff2`), bytes);
+      writeFileSync(join(root, "content/pages/a.md"), "---\ntitle: A\nstatus: published\n---\n\nhi\n");
+      return root;
+    };
+
+    test("the face and its fallback are emitted above the layer statement, and the file lands in dist", async () => {
+      const root = site("corpora/_test/font-ok", "f", `theme: f\nextends: base\n${decl()}`);
+      const t = await loadTheme(loadConfig(root));
+      expect(t.font!.url).toBe("/assets/fonts/t.woff2");
+      expect(t.font!.declaredBy).toBe("f");
+      const sheet = styleSheet({ "color.bg": "#fff" }, t.css, t.font!.css);
+      // Two faces: the webfont, and the metric-matched stand-in that holds its place until it arrives.
+      expect(sheet.indexOf("@font-face")).toBe(0);                       // before the layer statement
+      expect(sheet.indexOf(CSS_LAYERS)).toBeGreaterThan(0);
+      expect(sheet).toContain('src: url("/assets/fonts/t.woff2") format("woff2")');
+      expect(sheet).toContain("font-display: swap");
+      expect(sheet).toContain('font-family: "Test Serif fallback"');
+      expect(sheet).toContain('src: local("Georgia")');
+      expect(sheet).toContain("size-adjust: 106.2%");
+      // `woff2-variations` is a dead 2018 draft; a browser that does not know the format skips the source.
+      expect(sheet).not.toContain("woff2-variations");
+
+      await build(root);
+      expect(readFileSync(join(root, "dist/assets/fonts/t.woff2"))).toEqual(FONT);
+      // The preload is `base`'s shell, unchanged by this fixture — crossorigin included, without which
+      // the preload is a second download rather than the one the stylesheet then uses.
+      expect(readFileSync(join(root, "dist/a/index.html"), "utf8"))
+        .toContain('<link rel="preload" href="/assets/fonts/t.woff2" as="font" type="font/woff2" crossorigin="anonymous">');
+    });
+
+    test("nearest declarer wins, so a chain never ships two faces", async () => {
+      const root = "corpora/_test/font-chain";
+      site(root, "parent", `theme: parent\nextends: base\n${decl()}`);
+      mkdirSync(join(root, "themes/child/fonts"), { recursive: true });
+      writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: F, url: https://f.example }\ntheme: { use: child }\n");
+      // A child with no font of its own reads its parent's — and the url is still the parent's file.
+      writeFileSync(join(root, "themes/child/theme.yaml"), "theme: child\nextends: parent\n");
+      expect((await loadTheme(loadConfig(root))).font!.declaredBy).toBe("parent");
+      // A child that declares one wins outright: the parent's is not emitted beside it.
+      writeFileSync(join(root, "themes/child/fonts/t.woff2"), Buffer.from("child-face"));
+      writeFileSync(join(root, "themes/child/theme.yaml"), `theme: child\nextends: parent\n${decl().replace("Test Serif", "Child Serif")}`);
+      const t = await loadTheme(loadConfig(root));
+      expect(t.font!.declaredBy).toBe("child");
+      expect(t.font!.family).toBe("Child Serif");
+      expect(t.font!.css.match(/@font-face/g)!.length).toBe(2);          // its own pair, and only its own
+    });
+
+    test("a face that outgrew its own declaration is refused at load, not discovered in CI", async () => {
+      // The whole point of a declared lane: `kb:` is the claim, and the file has to stay under it.
+      const root = site("corpora/_test/font-fat", "f", `theme: f\nextends: base\n${decl()}`, Buffer.alloc(2048));
+      expect(loadTheme(loadConfig(root))).rejects.toThrow(/is 2 KB but theme\.yaml declares font\.kb: 1/);
+      // And a file the theme names and does not have says so, rather than emitting a broken url.
+      const gone = site("corpora/_test/font-missing", "f", `theme: f\nextends: base\n${decl()}`, null);
+      expect(loadTheme(loadConfig(gone))).rejects.toThrow(/font\.file "\.\/fonts\/t\.woff2" is declared/);
+    });
+
+    test("decision 131: `font:` is a declaration, so it never merges into the config", async () => {
+      const root = site("corpora/_test/font-decl", "f", `theme: f\nextends: base\n${decl()}`);
+      const cfg = loadConfig(root);
+      // `settings:` and `variations:` have the same rule, and for the same reason: there is nothing here
+      // for a site to answer, so `snypd://config` must not carry a block that reads like configuration.
+      expect((cfg.config.theme as Record<string, unknown>).font).toBeUndefined();
+      expect(cfg.ok).toBe(true);
+    });
+
+    test("a theme with no font emits no faces and no preload", async () => {
+      const root = site("corpora/_test/font-none", "f", "theme: f\nextends: base\n", null);
+      const t = await loadTheme(loadConfig(root));
+      expect(t.font).toBeUndefined();
+      expect(styleSheet({ "color.bg": "#fff" }, t.css, t.font?.css)).toStartWith(CSS_LAYERS);
+      await build(root);
+      expect(existsSync(join(root, "dist/assets/fonts"))).toBe(false);
+      expect(readFileSync(join(root, "dist/a/index.html"), "utf8")).not.toContain("rel=\"preload\"");
+    });
+
+    test("editorial ships one, under its own declaration, with the licence beside it", async () => {
+      const t = await loadTheme(loadConfig("corpora/theme"));
+      const f = t.font!;
+      expect(f.family).toBe("Source Serif 4");
+      // The claim and the file, checked against each other the way `loadTheme` checks them.
+      expect(f.bytes.length / 1024).toBeLessThanOrEqual(f.kb);
+      expect(f.kb).toBeLessThanOrEqual(40);                              // decision 118's ceiling
+      expect(f.bytes.subarray(0, 4).toString("latin1")).toBe("wOF2");    // a real WOFF2, not a renamed TTF
+      // The OFL requires the licence to travel with the font, and a built site redistributes it.
+      expect(f.licence!.name).toBe("OFL.txt");
+      expect(f.licence!.text).toContain("SIL Open Font License");
+    });
   });
 
   test("H0: a theme stylesheet with an @import is refused, because an @import inside a layer never loads", async () => {

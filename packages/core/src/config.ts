@@ -222,6 +222,25 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const variationOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.variation === "string" ? v.theme.variation : undefined);
   const variationName = variationOf(envView) ?? variationOf(siteView);
   const variationFrom = variationOf(envView) !== undefined ? envLayer : variationOf(siteView) !== undefined ? site : undefined;
+  /**
+   * The keys a *theme* declares and a site may not (U6a decision 128, B1 decision 131). `theme.*` is
+   * `passthrough` because every root key of a theme.yaml merges under it, which means a site writing one
+   * of these in `snypd.yaml` is accepted and then ignored — configuration that reads like configuration
+   * and does nothing, which is the shape decision 128 refused to ship and this is where it is refused.
+   * A warning and not an error: an inert key has never stopped a site from building, and it should not
+   * start now (the stranded-token rule, since S4).
+   */
+  for (const layer of [site, envLayer]) {
+    if (!layer || !isObj(layer.value) || !isObj(layer.value.theme)) continue;
+    const t = layer.value.theme;
+    for (const [key, why] of [["variations", "a theme's looks are declared in its theme.yaml; `theme.variation` is the one word a site writes"],
+                              ["font", "a webfont is a file in a theme's own directory, declared in its theme.yaml (decision 118)"]] as const) {
+      if (!(key in t)) continue;
+      const src: Source = { layer: layer.name, file: layer.file, line: layer.origins?.get(pathKey(["theme", key]))?.line };
+      diags.push({ level: "warning", path: `theme.${key}`, message: `theme.${key} does nothing here — ${why}`, source: src, where: describeSource(src) });
+    }
+  }
+
   // Each entry remembers the line that wrote it: an options error is attributed to the site's line, which
   // is where the fix goes, not to the plugin's schema.
   const pluginEntries: { entry: unknown; origin: Source }[] = [];
@@ -239,8 +258,14 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   // further on: it is a declaration, and the value that answers it is `theme.variation`. Merging it would
   // also let a site invent a variation in `snypd.yaml` that nothing could ever apply — the site layer
   // merges at step 4 and the chosen variation's tokens land at step 2.5, below — which is a key that
-  // reads as configuration and is inert. Better to not have the key than to have to warn about it.
-  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; delete o.variations; return { theme: o }; };
+  // reads as configuration and is inert. U6a left that at "better to not have the key than to warn about
+  // it"; B1 warns about it after all, a few lines above, because adding a second such key made the silence
+  // a pattern rather than an omission.
+  // `font:` is the third of them (B1, decision 131). It is a declaration about a *file* — a .woff2 in the
+  // theme's own directory, at a size the theme claims — and there is nothing about it for a site to
+  // answer, so `snypd.yaml` has no key for it and `snypd://config` should not carry a block that reads
+  // like one. It cost 14 tokens of `tokens.learn.editorial` on the way in, which is how it was found.
+  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; delete o.variations; delete o.font; return { theme: o }; };
   for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, withoutDecls, themeParsed.get(link.yamlFile)), prov);
   // Every theme.yaml in the chain is validated, strictly, with file:line (decision 73). A key docs/04
   // documents and nothing reads is a warning that says so; any other unknown key, or a wrong shape, is an

@@ -17,8 +17,15 @@ export const BUNDLED_NAMES = ["base", "editorial"] as const;
  * own `plugins/` and `node_modules/`, through the same loader, so a third-party plugin is never second-class.
  */
 export const BUNDLED_PLUGIN_NAMES = ["analytics", "autolink", "changelog", "indexnow"] as const;
-/** Text we can inline; everything else is a module and gets a lazy `import()` thunk. */
-const TEXT = [".yaml", ".css", ".json"];
+/** Text we can inline as a string. */
+const TEXT = [".yaml", ".css", ".json", ".txt"];
+/**
+ * Files that are neither text nor code — a theme's webfont (B1) and the licence it must travel with.
+ * Base64 in the generated source, because there is no directory inside a binary to read the bytes from
+ * and a .woff2 decoded as UTF-8 is not a font. ~33 % over the wire of the file itself, paid once in a
+ * binary that is already megabytes, and only by a theme that ships one.
+ */
+const BINARY = [".woff2", ".woff", ".png", ".jpg", ".webp", ".avif", ".svg"];
 
 const ident = (s: string) => "_" + s.replace(/[^a-z0-9]+/gi, "_");
 const walk = (dir: string, out: string[] = [], base = dir): string[] => {
@@ -37,13 +44,15 @@ export function generate(): string {
     const files = walk(dir);
     const h = createHash("sha1");
     for (const f of files) h.update(f).update(readFileSync(join(dir, f)));
-    const text: string[] = [], mods: string[] = [];
+    const text: string[] = [], mods: string[] = [], bin: string[] = [];
     for (const f of files) {
       const spec = JSON.stringify(`../../../${kind}/${name}/${f}`);
       if (TEXT.some((e) => f.endsWith(e))) {
         const id = ident(`${kind === "themes" ? "" : "plugin_"}${name}_${f}`);
         imports.push(`import ${id} from ${spec} with { type: "text" };`);
         text.push(`      ${JSON.stringify(f)}: ${id},`);
+      } else if (BINARY.some((e) => f.endsWith(e))) {
+        bin.push(`      ${JSON.stringify(f)}: ${JSON.stringify(readFileSync(join(dir, f)).toString("base64"))},`);
       } else {
         // A thunk, not a static import: nothing in a theme is evaluated until a render asks for it, so
         // `mcp.coldStart` (50 ms, docs/07 D2) pays nothing for the themes sitting in the binary.
@@ -54,6 +63,7 @@ export function generate(): string {
       `  ${JSON.stringify(name)}: {`,
       `    hash: ${JSON.stringify(h.digest("hex"))},`,
       `    files: {`, ...text, `    },`,
+      `    bytes: {`, ...bin, `    },`,
       `    modules: {`, ...mods, `    },`,
       `  },`,
     ].join("\n"));
@@ -76,6 +86,8 @@ export function generate(): string {
     "  hash: string;",
     "  /** Theme-relative path → contents, for the files that are text (theme.yaml, stylesheets). */",
     "  files: Readonly<Record<string, string>>;",
+    "  /** Theme-relative path → base64, for the files that are neither text nor code (a webfont). */",
+    "  bytes: Readonly<Record<string, string>>;",
     "  /** Theme-relative path → lazy loader, for the files that are modules (layouts, primitives). */",
     "  modules: Readonly<Record<string, () => Promise<unknown>>>;",
     "}",

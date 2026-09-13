@@ -16,6 +16,36 @@ version: 0.1.0
 spec: ^1
 extends: base
 css: ./theme.css
+# ── The one webfont this theme ships (B1, decision 118). Source Serif 4, Adobe's text serif, OFL 1.1 —
+# subsetted to Latin, `opsz` pinned, `wght` left as a 400–700 range so body, headings and `strong` all
+# come out of one file. 30.33 KB on the wire against a 40 KB lane; `scripts/vendor-font.sh` is what made
+# it and what reprints these numbers, so `kb:` below is a claim that can be checked rather than a memory.
+#
+# This reverses the comment that stood on `font.body` since this theme was written — *"a webfont is a
+# network round trip this theme will not spend"*. What it was aimed at was a 300 KB family from a third
+# party's origin, and neither half of that is what is here: 30 KB, self-hosted, preloaded, and swapped in
+# over a fallback whose metrics are overridden to match, which is the part that keeps `page.cls` at 0.
+#
+# **No italic, and that is the budget talking.** A Latin roman, its bold and its italic do not fit in
+# 40 KB: measured, this file is 30.33 KB and the matching italic is 19.43 KB. The pairs that do fit cost
+# something real — roman and italic as single weights is 38.95 KB with no bold at all, which is a
+# synthesised heading on every page against a synthesised `<em>` in some paragraphs. Emphasis is the
+# cheaper thing to lose, and if the lane ever moves, the italic is the first thing to buy with it. Note
+# that `theme.css` turns off synthesised *weight* and not synthesised *style*: 400–700 is real, so faux
+# bold would only ever be worse than the axis, while a slanted roman is the only emphasis `<em>` has.
+font:
+  family: Source Serif 4
+  file: ./fonts/source-serif-4-latin.woff2
+  weight: 400 700
+  kb: 31
+  # Computed from both fonts by `scripts/vendor-font.sh`, never by taste: Georgia's letters at this size
+  # are 6.2 % narrower than Source Serif's, and its line box is taller, so both are corrected here.
+  fallback:
+    local: Georgia
+    size-adjust: 106.2%
+    ascent-override: 97.6%
+    descent-override: 31.6%
+    line-gap-override: 0%
 # One part overridden, three inherited (U1). The shell, footer and entry list are `base`'s.
 parts:
   header: ./parts/header.tsx
@@ -103,8 +133,18 @@ tokens:
   color.viz.node:        { default: "light-dark(#f4f1ea, #1c1a17)", customisable: true, kind: color, description: "Node fill." }
   color.viz.node-stroke: { default: "light-dark(#c9c2b4, #3a362f)", customisable: true, kind: color, description: "Node outline." }
 
-  # ── Type. System stacks only: a webfont is a network round trip this theme will not spend.
-  font.body:    { default: "'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, Georgia, ui-serif, serif", customisable: true, kind: font, description: "Prose." }
+  # ── Type. One webfont (see `font:` below), then what is left of the stack this theme had before it.
+  # `Source Serif 4 fallback` is the generated face in between: Georgia, with its ascent, descent and
+  # width overridden to the webfont's, so the swap changes the letters and nothing about where the lines
+  # are. A site that points font.body somewhere else drops the face from the slot without the theme
+  # having to notice, and a browser that can have neither is exactly where it was.
+  #
+  # **Iowan Old Style and Palatino Linotype came out of this stack, and the webfont is why.** Iowan ships
+  # on macOS and Palatino Linotype on Windows, and both of those machines have Georgia — which the
+  # fallback face matches two entries earlier. Every machine that could have reached them now stops
+  # before them, so they were two names that could never be read again. What is behind Georgia is Linux
+  # and Android, where `Charter` is a real possibility and `serif` is a good one.
+  font.body:    { default: "'Source Serif 4', 'Source Serif 4 fallback', Charter, Georgia, ui-serif, serif", customisable: true, kind: font, description: "Prose." }
   font.ui:      { default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", customisable: true, kind: font, description: "Eyebrows, meta, nav, captions." }
   font.mono:    { default: "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", customisable: true, kind: font, description: "Code." }
   font.heading: { default: "var(--font-body)", customisable: true, kind: font, description: "Headings. Defaults to the prose face, which is what this theme has always set them in; point it at font.ui for a sans-headline look." }

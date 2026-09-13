@@ -1,11 +1,11 @@
 /** @snypd/core — YAML layering → validated Config with provenance (docs/02 §1–§2). */
 export { loadConfig, renderConfig, formatDiagnostics, resolveThemeChain, collectVariations, variationsOf, PLACEHOLDER_URL, isPlaceholderUrl, type Diagnostic, type LoadedConfig, type LoadOptions, type LayerInfo, type ThemeLink } from "./config";
-export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, SettingDeclSchema, SETTING_TYPES, LinkItemSchema, settingValue, VariationSchema, VARIATION_NAME_RE, PluginManifestSchema, PLUGIN_API, PLUGIN_UNBUILT_KEYS, SLOT_NAMES, FILTER_NAMES, clientKbOf, ROLES, type TokenDecl, type ThemeYaml, type SettingDecl, type SettingType, type SettingValue, type Variation, type VariationDecl, type LinkItem, type PluginManifest, type Config, type TypeDef, type TaxonomyDef } from "./schema";
+export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, SettingDeclSchema, SETTING_TYPES, LinkItemSchema, settingValue, VariationSchema, VARIATION_NAME_RE, ThemeFontSchema, MAX_FONT_KB, PluginManifestSchema, PLUGIN_API, PLUGIN_UNBUILT_KEYS, SLOT_NAMES, FILTER_NAMES, clientKbOf, ROLES, type TokenDecl, type ThemeYaml, type SettingDecl, type SettingType, type SettingValue, type Variation, type VariationDecl, type ThemeFont, type LinkItem, type PluginManifest, type Config, type TypeDef, type TaxonomyDef } from "./schema";
 export { cssValue, safeContentUrl, CSS_FUNCTIONS, SETTING_URL_RE } from "./values";
 export { describeSource, type Source, type Provenance, type LayerName } from "./merge";
 export { parseYaml, pathKey, parsePath, REPLACE, type Path, type Origin } from "./yaml";
 // The theme filesystem seam (decision 46): every theme read on the runtime path, disk or binary.
-export { themeFile, themeHas, themeFiles, themeBytes, themeModule, themeSignature, bundledDir, bundledNames, bundledPluginDir, bundledPluginNames, isBundledDir } from "./themefs";
+export { themeFile, themeHas, themeFiles, themeBytes, themeBinary, themeModule, themeSignature, bundledDir, bundledNames, bundledPluginDir, bundledPluginNames, isBundledDir } from "./themefs";
 // P1: the plugin contract (docs/10 §4.1, decisions 81–83) — the manifest, the loader, and the `snypd://plugins` text.
 export { loadPlugin, resolvePlugin, pluginCandidates, pluginDirs, pluginModule, renderPlugins, tiersOf, hooksOf, clientKbDeclared, shortName as pluginShortName, PLUGIN_TIERS, STAGE_NAMES, EVENT_NAMES, type LoadedPlugin, type PluginSource, type PluginTier, type ResolvedPlugin, type SlotName, type FilterName, type StageName, type EventName } from "./plugins";
 export * from "./content";
