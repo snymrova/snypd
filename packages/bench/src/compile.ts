@@ -22,10 +22,18 @@ import { dirname, join } from "node:path";
 export const REPO = join(import.meta.dir, "..", "..", "..");
 export const ENTRY = join(REPO, "packages", "cli", "src", "index.ts");
 
-/** `bun build --compile --splitting` → a single executable at `out`. Throws with the compiler's own output. */
-export async function compile(out: string, opts: { target?: string } = {}): Promise<string> {
+/**
+ * `bun build --compile --splitting` → a single executable at `out`. Throws with the compiler's own output.
+ *
+ * `entry` overrides what is compiled and nothing else, and exists for exactly one caller: the
+ * distribution lane compiles a one-line program through *this* function so the floor it subtracts was
+ * built by the same recipe as the thing it is subtracted from. Anything that changed a flag for the floor
+ * would be measuring the flag. Decision 47's "one recipe, three readers" is unaffected — there is still
+ * one list of flags, and it is this one.
+ */
+export async function compile(out: string, opts: { target?: string; entry?: string } = {}): Promise<string> {
   mkdirSync(dirname(out), { recursive: true });
-  const args = ["build", "--compile", "--splitting", ENTRY, "--outfile", out];
+  const args = ["build", "--compile", "--splitting", opts.entry ?? ENTRY, "--outfile", out];
   if (opts.target) args.push(`--target=${opts.target}`);
   const p = Bun.spawnSync([process.execPath, ...args], { cwd: REPO, stdout: "pipe", stderr: "pipe" });
   if (p.exitCode !== 0) throw new Error(`bun build --compile failed:\n${p.stderr.toString()}${p.stdout.toString()}`);
