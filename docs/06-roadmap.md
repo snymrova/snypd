@@ -24,7 +24,7 @@
 
 **The v0.1 test.** Take three existing plain-markdown posts. From a fresh harness with only the MCP: `suggest_blocks`, accept, swap between the two themes, change tokens, publish — never opening an editor. Then write a *new* post the same way. If that is not obviously faster and better than a markdown folder + Claude Code (which is already excellent), the primitives are wrong — fix them or stop. The bar is not "better than WordPress."
 
-**v0.2 — the model**: remaining primitives; `series`, `cluster`; `review` + `/_snypd/review`; history tools; media manifest + `Bun.Image`; `render_preview` screenshots via `Bun.WebView`; visual-regression bench; plugin manifest with `tools`; `seo` + `newsletter` plugins; `themes/technical`; `build-theme` and `migrate-from-wordpress` prompts.
+**v0.2 — the model**: remaining primitives; `series`, `cluster`; history tools; media manifest + `Bun.Image`; `render_preview` screenshots via `Bun.WebView`; visual-regression bench; `seo` + `newsletter` plugins; `migrate-from-wordpress` prompt. ~~`review` + `/_snypd/review`~~ landed in S17b/S18b; ~~plugin manifest with `tools`~~ in P4; ~~`themes/technical`~~ and ~~the `build-theme` prompt~~ in U6b, and the theme/plugin **checker and scaffolds** in X1 — `snypd new` and `snypd check`, the gate docs/10 §6's shelf runs (all 13 Sep 2026, docs/11 §7b). Five were pulled forward into v0.1 because the launch needed them.
 
 **v0.3 — beyond one machine**: Streamable HTTP + OAuth; workspaces; i18n; `Bun.cron()` jobs; `astro-adapter` / `next-adapter`; public read-only MCP per site; agent-analytics plugin; published benchmark page.
 

@@ -3,8 +3,9 @@ import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, r
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
-import { loadConfig, initRepo, lintSite, LIVE_ROUTE } from "@snypd/core";
+import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
+import { checkTheme, checkPlugin, formatCheck } from "./check";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
@@ -2276,3 +2277,156 @@ The second heading with this text, which is what makes the id de-duplication wor
   });
 });
 
+/**
+ * X1 — E8: a stranger's theme, judged by a machine.
+ *
+ * Two halves, and the second is the one that matters. Every rule passing on `base`, `editorial` and
+ * `technical` proves only that the checker is not hostile; a checker that returns "pass" unconditionally
+ * would do as well. So each rule also gets a fixture built to break it *and only it*, and the assertion
+ * is on the rule's name — because decision 123 makes this the gate for the shelf, and a refusal a
+ * submitter cannot argue with by name is a refusal that will be argued with by email.
+ */
+describe("`check theme` and `check plugin` (X1): every rule, on a theme that passes and one that does not", () => {
+  const root = "corpora/_test/x1";
+  const theme = (name: string, files: Record<string, string>) => {
+    for (const [f, body] of Object.entries(files)) {
+      const p = join(root, "themes", name, f);
+      mkdirSync(join(p, ".."), { recursive: true });
+      writeFileSync(p, body);
+    }
+  };
+  /** A palette that clears 4.5:1 everywhere, so a fixture about something else is not also a contrast fixture. */
+  const PALETTE = `  color.bg:        { default: "light-dark(#ffffff, #14161a)", customisable: true, kind: color, description: "Page background." }
+  color.surface:   { default: "light-dark(#f4f5f7, #1d2026)", customisable: true, kind: color, description: "Raised blocks." }
+  color.text:      { default: "light-dark(#16181d, #e6e8ec)", customisable: true, kind: color, description: "Body text." }
+  color.muted:     { default: "light-dark(#5b6068, #9aa0aa)", customisable: true, kind: color, description: "Captions." }
+  color.accent:    { default: "light-dark(#1f5fbf, #7fb0f2)", customisable: true, kind: color, description: "Links." }
+  color.on-accent: { default: "light-dark(#ffffff, #14161a)", customisable: true, kind: color, description: "On an accent fill." }
+`;
+  const head = (name: string) => `theme: ${name}\nversion: 0.1.0\nspec: ^1\nextends: base\ncss: ./theme.css\npersonality: A fixture, and it says so.\n`;
+  const rule = (r: { rules: { rule: string; status: string; detail: string }[] }, name: string) => r.rules.find((x) => x.rule === name)!;
+
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "content/posts"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: X1, url: https://x1.example }\ntheme:\n  use: base\n`);
+    // The real themes, so "passes" is a claim about what ships and not about a fixture written to pass.
+    for (const t of ["base", "editorial", "technical"]) cpSync(`themes/${t}`, join(root, `themes/${t}`), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+
+    // One fixture per rule, each breaking exactly one thing.
+    theme("no-face", { "theme.yaml": `${head("no-face")}tokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+    theme("dim", {
+      // Muted at #a8acb2 on white is 2.3:1 — the single most common real defect in a hand-made palette,
+      // and the one nothing in this product could see before today.
+      "theme.yaml": `${head("dim")}tokens:\n${PALETTE.replace('color.muted:     { default: "light-dark(#5b6068, #9aa0aa)"', 'color.muted:     { default: "light-dark(#a8acb2, #4a4e55)"')}`,
+      "theme.css": "body { color: var(--color-text); }\n",
+    });
+    theme("invented", {
+      "theme.yaml": `${head("invented")}tokens:\n${PALETTE}variations:\n  plain: { description: As declared }\n  bold:\n    description: A look that reaches past the palette\n    tokens:\n      color.accent: "#1f5fbf"\n      color.ring: "#ff0000"\n`,
+      "theme.css": "body { color: var(--color-text); }\n",
+    });
+    theme("importer", { "theme.yaml": `${head("importer")}tokens:\n${PALETTE}`, "theme.css": `@import url("other.css");\nbody { color: var(--color-text); }\n` });
+    theme("half-part", { "theme.yaml": `${head("half-part")}parts:\n  header: ./parts/header.tsx\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+    theme("typo", { "theme.yaml": `${head("typo")}layout: post\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+    theme("anonymous", { "theme.yaml": `theme: anonymous\nversion: 0.1.0\nextends: base\ncss: ./theme.css\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the three themes that ship pass every rule, and the numbers are in the output", async () => {
+    for (const name of ["base", "editorial", "technical"]) {
+      const r = await checkTheme(root, name);
+      expect({ name, ok: r.ok }).toEqual({ name, ok: true });
+      // No rule may pass by saying nothing: a row with an empty detail is a badge with no evidence.
+      for (const x of r.rules) expect(x.detail.length).toBeGreaterThan(0);
+    }
+    // `base` is the floor and declares no colours at all, so the contrast gate has nothing to measure —
+    // and says so rather than passing. `skip` is not `pass`, which is the whole of why it is a status.
+    const base = await checkTheme(root, "base");
+    expect(rule(base, "contrast.text").status).toBe("skip");
+    expect(rule(base, "contrast.text").detail).toContain("declares no `color.text`");
+
+    // `editorial` is the theme with a webfont, and all three font rules have something to say about it.
+    const ed = await checkTheme(root, "editorial");
+    expect(rule(ed, "font.budget").detail).toContain("30.33 KB");
+    expect(rule(ed, "font.used").status).toBe("pass");
+    // Every look, on every side of `light-dark()` it renders, with the ratio — `technical`'s `phosphor`
+    // commits to `color.scheme: dark`, so it is measured once and not twice.
+    const te = await checkTheme(root, "technical");
+    expect(rule(te, "contrast.muted").detail).toContain("phosphor dark");
+    expect(rule(te, "contrast.muted").detail).not.toContain("phosphor light");
+    expect(rule(te, "contrast.muted").detail).toMatch(/graphite light \d+\.\d\d:1/);
+  });
+
+  test("a dim palette fails `contrast.muted`, and only that", async () => {
+    const r = await checkTheme(root, "dim");
+    expect(r.ok).toBe(false);
+    expect(r.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["contrast.muted"]);
+    expect(rule(r, "contrast.muted").detail).toContain("below 4.5:1");
+    expect(rule(r, "contrast.text").status).toBe("pass");
+    // The same theme with a readable muted passes outright — so the rule is measuring the colour and not
+    // the fixture's other habits.
+    expect((await checkTheme(root, "no-face")).ok).toBe(true);
+  });
+
+  test("a variation that invents a token fails `variations.declared`, naming the token and the look", async () => {
+    const r = await checkTheme(root, "invented");
+    expect(rule(r, "variations.declared").status).toBe("fail");
+    expect(rule(r, "variations.declared").detail).toContain("bold sets `color.ring`");
+    // `color.accent` is retuned by the same variation and is not a finding: retuning is what a variation is.
+    expect(rule(r, "variations.declared").detail).not.toContain("color.accent");
+  });
+
+  test("the loader's own refusals arrive as `contract.loads`, with the message that names the file", async () => {
+    const imported = await checkTheme(root, "importer");
+    expect(rule(imported, "contract.loads").status).toBe("fail");
+    expect(rule(imported, "contract.loads").detail).toContain("@import");
+    const half = await checkTheme(root, "half-part");
+    expect(rule(half, "contract.loads").status).toBe("fail");
+    expect(rule(half, "contract.loads").detail).toContain(`part "header" is declared in theme.yaml`);
+  });
+
+  test("a mistyped key fails `contract.yaml` with its line, and a missing personality fails the shelf", async () => {
+    const typo = await checkTheme(root, "typo");
+    expect(rule(typo, "contract.yaml").status).toBe("fail");
+    expect(rule(typo, "contract.yaml").detail).toContain(`unknown key "layout"`);
+    expect(rule(typo, "contract.yaml").detail).toContain("theme.yaml");
+    const anon = await checkTheme(root, "anonymous");
+    expect(rule(anon, "meta.personality").status).toBe("fail");
+    expect(anon.ok).toBe(false);
+  });
+
+  test("a scaffolded theme is checkable, and fails on exactly the sentence the author has to write", async () => {
+    const r = scaffoldTheme(root, { name: "fresh" });
+    expect(r.extends).toBe("base");
+    // The scaffold's stylesheet names `--color-bg`; `base` declares no tokens; so the scaffold declares
+    // them. Before X1 it did not, and a theme made this way rendered with eight undefined properties.
+    expect(readFileSync(join(root, "themes/fresh/theme.yaml"), "utf8")).toContain("color.bg:");
+    const c = await checkTheme(root, "fresh");
+    expect(c.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["meta.personality"]);
+    expect(rule(c, "contrast.muted").status).toBe("pass");
+    // Write the one sentence and it is shelf-ready — which is the loop the two verbs exist to close.
+    const y = join(root, "themes/fresh/theme.yaml");
+    writeFileSync(y, readFileSync(y, "utf8").replace(/personality: >-[\s\S]*?\n\ntokens:/, "personality: Quiet, narrow, and grey.\n\ntokens:"));
+    expect((await checkTheme(root, "fresh")).ok).toBe(true);
+  });
+
+  test("`check plugin` passes a first-party plugin and fails a scaffolded one on its description", async () => {
+    const auto = await checkPlugin(".", "autolink");
+    expect(auto.ok).toBe(true);
+    expect(rule(auto, "contract.tiers").detail).toBe("transforms");
+    expect(rule(auto, "capabilities.client").detail).toContain("0 KB");
+    scaffoldPlugin(root, { name: "ribbon" });
+    const fresh = await checkPlugin(root, "ribbon");
+    expect(fresh.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["meta.description"]);
+    // A name nothing answers to is a fail with one rule and no guesswork.
+    const gone = await checkPlugin(root, "nothing-here");
+    expect(gone.rules).toEqual([{ rule: "contract.found", status: "fail", detail: expect.stringContaining("no plugin") }]);
+  });
+
+  test("formatCheck prints one line per rule, the rule's name first", async () => {
+    const out = formatCheck(await checkTheme(root, "dim"));
+    expect(out.split("\n")[0]).toContain("theme dim — themes/dim");
+    expect(out).toContain("contrast.muted");
+    expect(out.trimEnd().split("\n").at(-1)).toContain("1 failed");
+  });
+});

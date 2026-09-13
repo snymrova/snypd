@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 /**
  * `snypd init | dev | serve | build | bench` — five verbs since S18e (docs/00 §1, docs/06 §1, decision
- * 51), of which `serve` is the only one a person does not type: it is what `.mcp.json` spawns.
+ * 51), of which `serve` is the only one a person does not type: it is what `.mcp.json` spawns. X1 adds
+ * `new` and `check`, which are not a sixth and seventh of the same kind: those five are what a *site*
+ * needs, and these two are the whole of what a theme or plugin *author* does in a terminal (decision 139).
  *
  * The body is a function rather than top-level code for one reason: `bun build --compile --bytecode`
  * cannot compile a module with top-level `await`, and every verb here begins with one — the lazy
@@ -290,6 +292,79 @@ switch (verb) {
     }
     break;
   }
+  /**
+   * X1 — the two verbs a *theme author* types, and the only two.
+   *
+   * There is no `snypd theme` verb and no `snypd plugin` verb, which is a deliberate refusal: a noun as a
+   * verb promises a family (`theme set`, `theme list`, `theme install`), and that family exists over MCP
+   * and is never coming to the CLI — writing is over MCP and only over MCP (decision 51, docs/08 §2).
+   * What a terminal is for here is the one artefact that is not content. `new` makes one; `check` judges
+   * it, by rules with names, which is what decision 123 needs before `/themes` lists anything.
+   */
+  case "new": {
+    const { scaffoldTheme, scaffoldPlugin, Repo } = await import("@snypd/core");
+    const [kind, name] = args;
+    const root = rest.find((a) => a.startsWith("--root="))?.slice(7) ?? ".";
+    if (kind !== "theme" && kind !== "plugin") { console.error("usage: snypd new theme|plugin <name> [--extends=base] [--root=.]"); process.exit(1); }
+    if (!name) { console.error(`usage: snypd new ${kind} <name>`); process.exit(1); }
+    try {
+      const r = kind === "theme"
+        ? scaffoldTheme(root, { name, extends: rest.find((a) => a.startsWith("--extends="))?.slice(10) })
+        : scaffoldPlugin(root, { name, description: rest.find((a) => a.startsWith("--description="))?.slice(14) });
+      const say = [`${r.dir}/`, ...r.files.map((f) => `  ${f.slice(r.dir.length + 1)}`)];
+      // Committed for the same reason `init` commits its scaffold: a theme that is not in the repository
+      // is a theme the deploy does not build with, and finding that out is a round trip through a host.
+      const committed = Repo.open(root)?.commit(r.files, `${kind}: scaffold ${r.name}${r.extends ? ` extends ${r.extends}` : ""}`);
+      if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
+      say.push("", kind === "theme"
+        ? `Write theme.css. Everything else already renders — all 13 primitives and all 5 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
+        : `Write slots/note.tsx, then add \`${r.name}\` to \`plugins:\` in snypd.yaml. The manifest lists the other four tiers as one commented line each.`,
+        `\`snypd check ${kind} ${r.name}\` says whether it is shelf-ready; \`snypd dev\` shows it.`);
+      console.log(say.join("\n"));
+    } catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
+      process.exit(1);
+    }
+    break;
+  }
+  /**
+   * `snypd check theme|plugin [name|dir] [--all]` (X1, E8) — every rule by name, and exit 1 on a failure
+   * so a submission pipeline can be three lines of YAML rather than a reader.
+   */
+  case "check": {
+    const { checkTheme, checkPlugin, formatCheck } = await import("@snypd/render/check");
+    const { loadConfig, installedThemes } = await import("@snypd/core");
+    const { existsSync } = await import("node:fs");
+    const { basename, dirname, join, resolve } = await import("node:path");
+    const kind = args[0];
+    if (kind !== "theme" && kind !== "plugin") { console.error("usage: snypd check theme|plugin [name|directory] [--all] [--root=.]"); process.exit(1); }
+    let root = rest.find((a) => a.startsWith("--root="))?.slice(7) ?? ".";
+    let target = args[1];
+    // A path is accepted as well as a name, because a theme author's working directory is the theme and
+    // not the site. `themes/<name>` and `node_modules/<name>` are how the chain resolver looks for one,
+    // so the directory *above* the theme's own is the search root — which is all it needs to be told.
+    if (target && existsSync(join(target, kind === "theme" ? "theme.yaml" : "snypd.yaml"))) {
+      const dir = resolve(target), up = dirname(dir);
+      root = ["themes", "plugins", "node_modules"].includes(basename(up)) ? dirname(up) : up;
+      target = basename(dir);
+    }
+    const cfg = loadConfig(root);
+    const names = target ? [target]
+      : kind === "theme"
+        ? (flags.has("--all") ? installedThemes(root, cfg.config.theme.use).map((t) => t.name) : [cfg.config.theme.use])
+        : cfg.plugins.map((p) => p.entry);
+    if (!names.length) { console.log(`nothing to check: this site names no plugins`); break; }
+    let bad = 0;
+    for (const n of names) {
+      const r = kind === "theme" ? await checkTheme(root, n) : await checkPlugin(root, n);
+      console.log(formatCheck(r));
+      if (!r.ok) bad++;
+      if (names.length > 1) console.log("");
+    }
+    if (bad) { console.error(`${bad} of ${names.length} did not pass`); process.exit(1); }
+    break;
+  }
   // S18d′: a distributed binary is asked "which one is this?" by bug reports, package managers and
   // agents alike, and until now nothing answered. The import is lazy for the same reason every other one
   // here is (decision 49): `--version` must not put a module on the path `initialize` pays for.
@@ -300,13 +375,15 @@ switch (verb) {
   }
   default:
     console.log([
-      "usage: snypd <init|dev|serve|build|bench> [--version]",
+      "usage: snypd <init|dev|serve|build|bench|new|check> [--version]",
       "",
       "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--verbose]                                        content → dist/",
       "  snypd bench [agent|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
+      "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",
       "",
       "Writing is over MCP and only over MCP: start with `snypd init`, restart your harness, then ask it.",

@@ -29,11 +29,18 @@ bun run snypd serve my-site        # the MCP server on stdio — the only interf
 bun run snypd bench                # speed suite → bench/latest.md
 bun run snypd bench agent          # the kill test → bench/agent.md + a transcript
 bun run snypd bench onboard        # first run, walked end to end → bench/onboard.md
+bun run snypd new theme slate       # themes/slate/ — theme.yaml + one stylesheet, nothing else to write
+bun run snypd check theme slate     # every rule by name, including the contrast of the palette
 bun run snypd build corpora/100
 bun test
 bun run release                    # five platform packages + tarballs → dist/release
 bun run scratch                    # a real site in sites/, wired to this tree, with dev running
 ```
+
+`new` and `check` are the theme author's two verbs, and the only two — a theme is the one artefact that is
+not content, so it is the one thing a terminal makes. `check` is what [snypd.rocks/themes](https://snypd.rocks)
+runs before it lists anything: sixteen named rules over the contract, the metadata, the variations, the font
+against its own budget, and the WCAG ratio of every colour pair on every look the theme ships.
 
 `dev` is the one verb aimed at a person, and it writes nothing — it serves what a build already
 produced, opens the Desk, and records itself in `.snypd/dev.json` so the agent hands you *that* URL
