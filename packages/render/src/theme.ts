@@ -103,7 +103,13 @@ export interface TermLink { taxonomy: string; term: string; title: string; route
  */
 /** The post's author, with whether the author has a page: `types.author.layout` unset means there is no route to link, and the byline is a name. */
 export interface AuthorLink extends Entry { page: boolean }
-export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink }
+/**
+ * One heading in the body, as the renderer issued it (U6b): the `id` is the one on the element, so a toc
+ * built from these links to something that exists. `depth` is markdown's — `##` is 2 — and a body is
+ * expected to start at 2, because the page's h1 is the layout's title and lint rule 6 says so.
+ */
+export interface PageHeading { depth: number; id: string; text: string }
+export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink; /** The body's headings, in order (U6b) — what a `toc` part draws. Empty for a page with none. */ headings: PageHeading[] }
 export interface PrimitiveProps {
   name: string;
   /** Coerced props from the spec (tree.ts). */
@@ -142,18 +148,20 @@ export interface EntriesProps { ctx: SiteCtx; entries: Entry[] }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PartComponent = (p: any) => Html;
 /**
- * The four parts every theme is expected to have, typed; anything else a theme declares is reachable by
+ * The five parts every theme is expected to have, typed; anything else a theme declares is reachable by
  * name. `shell` is the document, `header` and `footer` are what every layout shows around its content,
- * `entries` is the list index, term and author layouts share.
+ * `entries` is the list index, term and author layouts share, and `toc` is the slot in the post layout
+ * that `base` fills with nothing (U6b).
  */
 export interface Parts {
   shell: (p: ShellProps) => Html;
   header: (p: PartProps) => Html;
   footer: (p: PartProps) => Html;
   entries: (p: EntriesProps) => Html;
+  toc: (p: PartProps) => Html;
   [name: string]: PartComponent;
 }
-export const PART_NAMES = ["shell", "header", "footer", "entries"] as const;
+export const PART_NAMES = ["shell", "header", "footer", "entries", "toc"] as const;
 /**
  * A part by name, with the failure named: a layout that asks for a part no theme in the chain declares
  * gets the theme and the part in the error, not `undefined is not a function` from inside a render.

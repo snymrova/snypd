@@ -892,9 +892,9 @@ describe("find_tools + the catalogue", () => {
 
     // prompts: namespaced, described as the plugin's, and rendered with the site in hand
     const pnames = prompts.result.prompts.map((x: any) => x.name);
-    // snypd's two first, then the plugins' in `plugins:` order, each namespaced by its plugin
-    expect(pnames).toEqual(["get-started", "write-post", "speaker.walk", "indexnow.get-indexed"]);
-    expect(prompts.result.prompts[2].description).toContain("(from the `speaker` plugin)");
+    // snypd's three first, then the plugins' in `plugins:` order, each namespaced by its plugin
+    expect(pnames).toEqual(["get-started", "write-post", "build-theme", "speaker.walk", "indexnow.get-indexed"]);
+    expect(prompts.result.prompts[3].description).toContain("(from the `speaker` plugin)");
     expect(got.result.messages[0].content.text).toBe("Walk speaking on P4.");
 
     // content.explain: what ran, not what was declared — and the real index is untouched by the scratch build
@@ -966,7 +966,7 @@ describe("find_tools + the catalogue", () => {
   });
 
   test("theme, tokens and coverage are resources, and prompts are scripts an agent can run", async () => {
-    const [, theme, tokens, coverage, badTheme, prompts, post, badPrompt] = await session([
+    const [, theme, tokens, coverage, badTheme, prompts, post, badPrompt, theme2] = await session([
       req(1, "initialize"),
       req(2, "resources/read", { uri: "snypd://theme" }),
       req(3, "resources/read", { uri: "snypd://theme/tokens" }),
@@ -975,6 +975,7 @@ describe("find_tools + the catalogue", () => {
       req(6, "prompts/list"),
       req(7, "prompts/get", { name: "write-post", arguments: { topic: "benchmarks" } }),
       req(8, "prompts/get", { name: "nope" }),
+      req(9, "prompts/get", { name: "build-theme", arguments: { extends: "editorial" } }),
     ], "corpora/theme");
 
     expect(theme.result.contents[0].text).toContain("active: editorial");
@@ -987,11 +988,18 @@ describe("find_tools + the catalogue", () => {
     expect(cov.summary.missing).toBe(0);
     expect(badTheme.error.code).toBe(-32002);
 
-    expect(prompts.result.prompts.map((p: any) => p.name)).toEqual(["get-started", "write-post"]);
+    expect(prompts.result.prompts.map((p: any) => p.name)).toEqual(["get-started", "write-post", "build-theme"]);
     // A prompt has to name the calls it wants made, or it is a paragraph rather than a workflow.
     expect(post.result.messages[0].content.text).toContain("benchmarks");
     expect(post.result.messages[0].content.text).toContain("content.suggest_blocks");
     expect(badPrompt.error).toBeDefined();
+    // U6b: the theme workflow names its calls and its reads, and carries the two rules a theme can only
+    // break once — every value is a var, and a layout is never forked.
+    const bt = theme2.result.messages[0].content.text;
+    expect(bt).toContain("theme` \u203a scaffold");
+    expect(bt).toContain("snypd://theme/coverage");
+    expect(bt).toContain("Never fork a layout");
+    expect(bt).toContain('extends: "editorial"');
   });
 });
 

@@ -11,6 +11,8 @@ import _base_theme_yaml from "../../../themes/base/theme.yaml" with { type: "tex
 import _editorial_fonts_OFL_txt from "../../../themes/editorial/fonts/OFL.txt" with { type: "text" };
 import _editorial_theme_css from "../../../themes/editorial/theme.css" with { type: "text" };
 import _editorial_theme_yaml from "../../../themes/editorial/theme.yaml" with { type: "text" };
+import _technical_theme_css from "../../../themes/technical/theme.css" with { type: "text" };
+import _technical_theme_yaml from "../../../themes/technical/theme.yaml" with { type: "text" };
 import _plugin_analytics_snypd_yaml from "../../../plugins/analytics/snypd.yaml" with { type: "text" };
 import _plugin_autolink_snypd_yaml from "../../../plugins/autolink/snypd.yaml" with { type: "text" };
 import _plugin_changelog_snypd_yaml from "../../../plugins/changelog/snypd.yaml" with { type: "text" };
@@ -28,7 +30,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "3529cde4c0817319e509a15cd6bdd99a9058d226",
+    hash: "4aeb17d26bc0cc5dd13e90dcff41c70747cd4a2e",
     files: {
       "theme.yaml": _base_theme_yaml,
     },
@@ -44,6 +46,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
       "parts/footer.tsx": () => import("../../../themes/base/parts/footer.tsx"),
       "parts/header.tsx": () => import("../../../themes/base/parts/header.tsx"),
       "parts/shell.tsx": () => import("../../../themes/base/parts/shell.tsx"),
+      "parts/toc.tsx": () => import("../../../themes/base/parts/toc.tsx"),
       "primitives/callout.tsx": () => import("../../../themes/base/primitives/callout.tsx"),
       "primitives/chart.tsx": () => import("../../../themes/base/primitives/chart.tsx"),
       "primitives/cover.tsx": () => import("../../../themes/base/primitives/cover.tsx"),
@@ -60,7 +63,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "802e246cebce0e0e3326e80042057b656867a25f",
+    hash: "5cc7a9ab803df4f43b84f70c0df672b0260af44c",
     files: {
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
@@ -71,6 +74,19 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
     modules: {
       "parts/header.tsx": () => import("../../../themes/editorial/parts/header.tsx"),
+    },
+  },
+  "technical": {
+    hash: "773a5a53c6d400c0fb6acd64a3f8d6dca3a61323",
+    files: {
+      "theme.css": _technical_theme_css,
+      "theme.yaml": _technical_theme_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+      "parts/header.tsx": () => import("../../../themes/technical/parts/header.tsx"),
+      "parts/toc.tsx": () => import("../../../themes/technical/parts/toc.tsx"),
     },
   },
 };

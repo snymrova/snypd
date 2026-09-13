@@ -556,18 +556,20 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(pc("shell")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("footer")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("entries")).toMatchObject({ status: "inherited", via: "base" });
-    expect(t.partCoverage.length).toBe(4);
+    // U6b adds a fifth — `toc`, base's empty contents slot, which editorial inherits and does not fill.
+    expect(pc("toc")).toMatchObject({ status: "inherited", via: "base" });
+    expect(t.partCoverage.length).toBe(5);
   });
-  test("U1 parts: base owns all four; a theme with no parts reports them missing; a part file that is missing is an error", async () => {
+  test("U1 parts: base owns all five; a theme with no parts reports them missing; a part file that is missing is an error", async () => {
     const root = "corpora/_test/theme-parts";
     rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "themes/bare"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: base }\n");
     const base = await loadTheme(loadConfig(root));
-    expect(base.partCoverage).toEqual(["shell", "header", "footer", "entries"].map((name) => ({ name, status: "own" })));
+    expect(base.partCoverage).toEqual(["shell", "header", "footer", "entries", "toc"].map((name) => ({ name, status: "own" })));
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: bare }\n");
     writeFileSync(join(root, "themes/bare/theme.yaml"), "theme: bare\nlayouts: []\n");
     const bare = await loadTheme(loadConfig(root));
-    expect(bare.partCoverage.map((c) => c.status)).toEqual(["missing", "missing", "missing", "missing"]);
+    expect(bare.partCoverage.map((c) => c.status)).toEqual(["missing", "missing", "missing", "missing", "missing"]);
     expect(() => part({ parts: bare.parts, theme: { name: "bare" } } as never, "header")).toThrow('theme bare: part "header" is not declared');
     writeFileSync(join(root, "themes/bare/theme.yaml"), "theme: bare\nlayouts: []\nparts: { header: ./parts/header.tsx }\n");
     await expect(loadTheme(loadConfig(root))).rejects.toThrow('part "header" is declared in theme.yaml but parts/header.tsx is missing');
@@ -2087,3 +2089,190 @@ describe("settings (U3): one declaration, the renderer's reading of it", () => {
     expect(snap()).toEqual(bare);
   });
 });
+
+/**
+ * U6b — the second theme, and the two pieces of machinery it needed.
+ *
+ * The question this session exists to answer is whether `theme.yaml` plus one stylesheet is enough to
+ * build a *different argument* rather than a recolour. The answer is almost: `technical` wanted a
+ * contents list, and a contents list needs two things nothing in the contract had — a slot in the post
+ * layout that is not a plugin slot, and the heading tree of the body it is drawing. Both are here, and
+ * both are shaped so that a theme which says nothing about them pays nothing for them.
+ */
+describe("the second theme (U6b): a contents slot, a heading tree, and `technical` from the contract", () => {
+  const root = "corpora/_test/u6b";
+  const dist = join(root, "dist");
+  const page = (p: string) => readFileSync(join(dist, p), "utf8");
+  /** A post whose body has a heading run, a repeated heading, and an `faq` with `###` questions in it. */
+  const BODY = `---
+title: One
+slug: one
+date: 2026-09-13
+status: published
+---
+
+Opening line.
+
+## First section
+
+Words.
+
+### A detail
+
+More words.
+
+## Notes
+
+Words.
+
+:::faq
+### A question inside a block
+An answer.
+
+### Another question inside a block
+Another answer.
+:::
+
+## Notes
+
+The second heading with this text, which is what makes the id de-duplication worth asserting.
+`;
+  const configure = (theme: string, settings = "") =>
+    writeFileSync(join(root, "snypd.yaml"),
+      `snypd: 1\nsite: { name: U, url: https://u.example }\ntheme:\n  use: ${theme}\n${settings ? `  settings:\n${settings}` : ""}`);
+
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "content/posts"), { recursive: true });
+    // The real themes, copied in, because the claim under test is about *these* two files and not about a
+    // fixture written to pass: `technical` is what a user installs and `base` is what it extends.
+    for (const t of ["base", "editorial", "technical"]) cpSync(`themes/${t}`, join(root, `themes/${t}`), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "content/posts/one.md"), BODY);
+    writeFileSync(join(root, "content/posts/prose.md"), "---\ntitle: Prose\nslug: prose\nstatus: published\n---\n\nJust a paragraph, and not a heading anywhere.\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("`base` declares the slot and fills it with nothing, so a theme that ignores it emits no byte", async () => {
+    configure("base");
+    await build(root);
+    const t = await loadTheme(loadConfig(root));
+    expect(t.partCoverage.map((p) => p.name)).toEqual(["shell", "header", "footer", "entries", "toc"]);
+    expect(t.partCoverage.find((p) => p.name === "toc")!.status).toBe("own");   // base's own, and it renders nothing
+    expect(page("posts/one/index.html")).not.toContain("snypd-toc");
+    // Between the byline and the first line of the body there is nothing at all — the part renders an
+    // empty fragment, so it leaves no element, no comment and no whitespace behind it.
+    expect(page("posts/one/index.html")).toContain('class="snypd-byline"><time datetime="2026-09-13">2026-09-13</time></p><p>Opening line.</p>');
+  });
+
+  test("the heading tree is the document's own, with the ids the renderer issued", async () => {
+    configure("technical");
+    await build(root);
+    const html = page("posts/one/index.html");
+    const toc = html.match(/<nav class="snypd-toc".*?<\/nav>/s)![0];
+    const hrefs = [...toc.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]);
+    // Four top-level headings, in document order, at two depths — and `notes-1` for the second "Notes",
+    // which is the id the renderer gave that element and not one a second pass could have guessed.
+    expect(hrefs).toEqual(["first-section", "a-detail", "notes", "notes-1"]);
+    for (const id of hrefs) expect(html).toContain(`id="${id}"`);
+    // The `faq`'s questions keep their ids — they are linkable — and stay out of the contents list, which
+    // is the document's spine and not an inventory of every h3 on the page.
+    expect(html).toContain('id="a-question-inside-a-block"');
+    expect(toc).not.toContain("inside a block");
+  });
+
+  test("a post with nothing to list renders no contents list at all", async () => {
+    configure("technical");
+    await build(root);
+    expect(page("posts/prose/index.html")).not.toContain("snypd-toc");
+  });
+
+  test("`tocDepth` is a setting, and 0 and 2 both mean what they say", async () => {
+    configure("technical", "    tocDepth: \"2\"\n");
+    await build(root);
+    // Depth 2 drops "A detail" — and with it the list is exactly the three `##` headings.
+    expect([...page("posts/one/index.html").match(/<nav class="snypd-toc".*?<\/nav>/s)![0].matchAll(/href="#([^"]+)"/g)].map((m) => m[1]))
+      .toEqual(["first-section", "notes", "notes-1"]);
+    configure("technical", "    tocDepth: \"0\"\n");
+    await build(root);
+    expect(page("posts/one/index.html")).not.toContain("snypd-toc");
+  });
+
+  /** D8: `technical` is built from the contract — parts and settings and variations — with no forked layout. */
+  test("D8: every layout and every primitive is inherited; two parts are its own and three are not", async () => {
+    configure("technical");
+    const t = await loadTheme(loadConfig(root));
+    expect(t.name).toBe("technical");
+    expect(t.chain.slice(1).map((l) => l.name)).toEqual(["base"]);
+    expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
+    // Nothing in `themes/technical` is a layout or a primitive: the yaml declares neither key, so every
+    // one of the eighteen resolves up `extends:` — which is the whole of what D8 asks for.
+    const yaml = readFileSync("themes/technical/theme.yaml", "utf8");
+    expect(yaml).not.toMatch(/^layouts:/m);
+    expect(yaml).not.toMatch(/^primitives:/m);
+    expect(t.coverage.length).toBe(13);
+    expect(t.coverage.every((c) => c.status === "inherited" && c.via === "base")).toBe(true);
+    expect(t.partCoverage).toEqual([
+      { name: "shell", status: "inherited", via: "base" },
+      { name: "header", status: "own" },
+      { name: "footer", status: "inherited", via: "base" },
+      { name: "entries", status: "inherited", via: "base" },
+      { name: "toc", status: "own" },
+    ]);
+  });
+
+  /**
+   * B1 made a webfont a declaration; this is the other half of that being true. A theme that declares
+   * none gets no `@font-face`, no preload, and a `page.font.kb` budget of 0 — which is the only thing
+   * that makes the budget mean anything for a theme that does declare one.
+   */
+  test("a theme that ships no font emits no face, no preload, and is budgeted at nothing", async () => {
+    configure("technical");
+    await build(root);
+    const t = await loadTheme(loadConfig(root));
+    expect(t.font).toBeUndefined();
+    expect(readFileSync("themes/technical/theme.yaml", "utf8")).not.toMatch(/^font:/m);
+    expect(page("posts/one/index.html")).not.toContain('rel="preload"');
+    const css = page("assets/theme.css");
+    expect(css).not.toContain("@font-face");
+    expect(existsSync(join(dist, "assets/fonts"))).toBe(false);
+  });
+
+  /**
+   * `@import` inside a cascade layer is invalid and is dropped silently (H0, decision 126), which made
+   * this the obvious next worry. It is not the same: `@view-transition` parses as a `CSSViewTransitionRule`
+   * inside `@layer` and inside `@media`, and a real cross-document navigation between two layered pages
+   * fires `pagereveal` carrying a `viewTransition` — measured in Chrome, not assumed. What this test
+   * holds is the half a unit test can: the declaration reaches the wire, inside the theme's own layer.
+   */
+  test("@view-transition survives the layer the theme's sheet is wrapped in", async () => {
+    for (const theme of ["editorial", "technical"]) {
+      configure(theme);
+      await build(root);
+      const css = page("assets/theme.css");
+      const layer = css.slice(css.indexOf(`@layer snypd.theme.${theme}{`));
+      expect(layer, theme).toContain("@view-transition{navigation: auto}");
+      // And off for a reader who asked for that, which is the pair and not the declaration.
+      expect(layer, theme).toContain("@view-transition{navigation: none}");
+    }
+  });
+
+  test("the two themes disagree about the page, which is the point of there being two", async () => {
+    configure("editorial");
+    await build(root);
+    const ed = page("posts/one/index.html"), edCss = page("assets/theme.css");
+    configure("technical");
+    await build(root);
+    const te = page("posts/one/index.html"), teCss = page("assets/theme.css");
+    // Same markup contract: the body of the post is the same bytes under both, because neither theme
+    // forked a layout and neither touched a primitive.
+    const body = (h: string) => h.slice(h.indexOf("<h2"), h.indexOf('<footer class="snypd-post-footer"'));
+    expect(body(te)).toBe(body(ed));
+    // And a different argument about it: one measure is 34rem and the other 44rem, one sets headings in
+    // the body face and the other in mono, and only one of them has a contents list.
+    expect(edCss).toContain("--measure: 34rem");
+    expect(teCss).toContain("--measure: 44rem");
+    expect(te).toContain("snypd-toc");
+    expect(ed).not.toContain("snypd-toc");
+  });
+});
+

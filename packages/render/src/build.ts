@@ -14,7 +14,7 @@ import { dirname, join, sep } from "node:path";
 import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
-import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps } from "./theme";
+import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps, type PageHeading } from "./theme";
 import { Html } from "./jsx-runtime";
 import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
@@ -209,12 +209,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
       const source = readFileSync(join(root, f.path), "utf8");
       const entry = entryOf(f);
-      const { body, cover, root: mdast, blocks } = renderBody(source, entry);
+      const { body, cover, root: mdast, blocks, headings } = renderBody(source, entry);
       const derived = blockSchemas(blocks);
       const fc = fctx(f.route, entry);
       const description = entry.description ?? applyFilter(hooks, "excerpt", excerpt(mdast), fc);
       const schemas = applyFilter(hooks, "jsonLd", [pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas], fc);
-      const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author };
+      const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings };
       const entries = layout === "author" ? applyFilter(hooks, "entries", published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf), fc) : [];
       const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
@@ -358,7 +358,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
  * dispatch would have been a second answer to "what does this theme do with a `stat-row`", which is the
  * one question the empty state exists to answer honestly.
  */
-export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: MdastCache; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[] } {
+export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: MdastCache; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[]; headings: PageHeading[] } {
   let { doc, tree } = o.cache.get(source);
   if (o.transform) {
     const next = o.transform(doc.tree, tree.all);
@@ -385,5 +385,9 @@ export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page:
   const coverBlock = lead?.name === "cover" ? lead : undefined;
   const cover = coverBlock ? renderBlock(coverBlock) : undefined;
   const root = coverBlock ? { ...doc.tree, children: doc.tree.children.filter((n) => n !== coverBlock.node) } as Root : doc.tree;
-  return { body: toHtml(root, { blocks, onBlock }), cover, root: doc.tree, blocks: tree.all };
+  // The heading tree, collected by the render that gave the ids out rather than by a second walk (U6b):
+  // a toc whose anchors came from anywhere else is a toc whose links can be wrong, and the ids are
+  // de-duplicated as they are issued, so only the renderer knows that the second "Notes" is `notes-1`.
+  const headings: PageHeading[] = [];
+  return { body: toHtml(root, { blocks, onBlock, headings }), cover, root: doc.tree, blocks: tree.all, headings };
 }

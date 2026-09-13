@@ -245,7 +245,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     const ctx = siteCtx();
     const layout = theme.layouts.page ?? theme.layouts.post;
     if (!layout) return new Html(`<!doctype html><meta charset="utf-8"><title>${escape(title)}</title>${body.html}`);
-    const page: Page = { route, type: "page", slug: "review", title, status: "draft", frontmatter: {}, body, terms: [], layout: "page", markdownUrl: "" };
+    const page: Page = { route, type: "page", slug: "review", title, status: "draft", frontmatter: {}, body, terms: [], layout: "page", markdownUrl: "", headings: [] };
     return layout({ ctx, kind: "page", route, title, description: "snypd review", page, entries: [] });
   };
 
