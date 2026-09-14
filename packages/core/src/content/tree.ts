@@ -9,6 +9,7 @@ import { primitive as specPrimitive, type Primitive, type FieldSpec } from "@sny
 import type { Root, Node, Parent } from "mdast";
 import type { ContainerDirective, LeafDirective, TextDirective } from "mdast-util-directive";
 import type { ParsedDoc } from "./parse";
+import { safeContentUrl } from "../values";
 
 export type Directive = ContainerDirective | LeafDirective | TextDirective;
 export type Severity = "error" | "warning";
@@ -60,6 +61,7 @@ function bodyOf(node: ContainerDirective, source: string): string {
 
 const URL_RE = /^(https?:\/\/[^\s]+|\/[^\s]*|\.\.?\/[^\s]*|#[^\s]*|mailto:[^\s]+)$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const unsafe = (raw: string) => `uses the \`${raw.replace(/[\u0000-\u0020]/g, "").split(":")[0]!.toLowerCase()}:\` scheme, which executes rather than navigates — dropped`;
 
 /** Check one attribute against its field spec; returns the coerced value and a problem, if any. */
 export function checkProp(f: FieldSpec, raw: string): { value: unknown; problem?: string } {
@@ -67,9 +69,17 @@ export function checkProp(f: FieldSpec, raw: string): { value: unknown; problem?
     case "number": { const v = Number(raw); return Number.isFinite(v) ? { value: v } : { value: raw, problem: `expected a number, got "${raw}"` }; }
     case "boolean": return raw === "true" || raw === "" ? { value: true } : raw === "false" ? { value: false } : { value: raw, problem: `expected true|false, got "${raw}"` };
     case "enum": return f.values.includes(raw) ? { value: raw } : { value: raw, problem: `expected one of ${f.values.join("|")}, got "${raw}"` };
-    case "url": return URL_RE.test(raw) ? { value: raw } : { value: raw, problem: `expected a URL or site path, got "${raw}"` };
+    // A scheme that executes is not passed on as the value: a theme writes a `url` prop straight into an
+    // `href` and an `image` prop into a `src`, and `<a href="javascript:…">` on a page is the thing rule 12
+    // and H0 (decision 126) already drop from a markdown link. Found by H4's parser property — a `chart`
+    // with `source="javascript:…"` rendered it as its source link (decision 155). The build's budget
+    // refuses such a page either way (E6); this stops a theme being the last thing between a prop lint
+    // refused and the page. The problem is an error, so lint names it; the value is gone, so no theme has to.
+    case "url": return !safeContentUrl(raw) ? { value: undefined, problem: unsafe(raw) } : URL_RE.test(raw) ? { value: raw } : { value: raw, problem: `expected a URL or site path, got "${raw}"` };
     case "date": return DATE_RE.test(raw) ? { value: raw } : { value: raw, problem: `expected YYYY-MM-DD, got "${raw}"` };
-    case "string": case "text": case "markdown": case "image": case "datetime": case "ref": {
+    case "image": if (!safeContentUrl(raw, "image")) return { value: undefined, problem: unsafe(raw) };
+    // falls through: an image is a string with a scheme rule
+    case "string": case "text": case "markdown": case "datetime": case "ref": {
       if (f.pattern && !new RegExp(f.pattern).test(raw)) return { value: raw, problem: `does not match /${f.pattern}/` };
       if (f.max !== undefined && raw.length > f.max) return { value: raw, problem: `is ${raw.length} characters; the limit is ${f.max}` };
       return { value: raw };
