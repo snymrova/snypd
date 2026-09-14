@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
@@ -1362,6 +1362,11 @@ describe("media (S13): copied verbatim, sized from its header, reserved in the m
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: M, url: https://m.example }\ntheme: { use: base }\n");
     writeFileSync(join(root, "content/media/shot.png"), png(64, 48, [1, 2, 3]));
     writeFileSync(join(root, "content/media/nested/logo.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"><rect width="30" height="20"/></svg>');
+    // Written a moment ago, which is inside the window a build distrusts (H4, decision 158): a media
+    // file that young is copied on every build. The steady state this suite is about is a file nobody
+    // touched, so both are dated as if they had been here a while.
+    const old = new Date(Date.now() - 60_000);
+    for (const f of ["content/media/shot.png", "content/media/nested/logo.svg"]) utimesSync(join(root, f), old, old);
     writeFileSync(join(root, "content/posts/p.md"),
       "---\ntitle: P\ndate: 2026-01-01\nstatus: published\n---\n\n## S\n\nText.\n\n"
       + '::figure{src="/media/shot.png" alt="A shot" caption="Cap."}\n\n'

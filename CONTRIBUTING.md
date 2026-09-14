@@ -68,6 +68,13 @@ without it; a bug fix needs the test that reproduces the bug. If your change aff
 disk, prefer an assertion on the bytes — several of this project's sharpest bugs were found by asserting
 that two builds are byte-identical.
 
+Six properties live in [`packages/bench/props/`](packages/bench/props/) (docs/11 decision 153): an
+incremental build equals a cold build for every site and edit sequence the generator can write, the
+parser, the config loader and the JSON-RPC surface never throw and never disagree with themselves.
+`bun test` runs them on a fixed seed; CI's `properties` job runs them at ten times the budget on a new
+seed every run and prints it first. To reproduce a red lane: `SNYPD_PROPS_SEED=<that seed> bun test props`.
+A counterexample a property finds goes into `props/corpus.ts` with the fix, so it is run first forever.
+
 ## Commit and PR style
 
 - Present tense, one line, saying what changed: `P3: stages and events — a transform on a copy, an emit

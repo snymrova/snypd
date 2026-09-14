@@ -11,7 +11,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, RACY_MS, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt } from "./html";
 import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps, type PageHeading } from "./theme";
@@ -112,7 +112,13 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     if (size) mediaSizes[url] = size;
     // Keyed on size + mtime rather than a content hash: hashing every image on every build would cost more
     // than the copy it is trying to avoid, and a touched file recopying is the same trade `build.noop` makes.
-    mediaFiles.push({ rel, src, url, key: sha1(`${OUTPUT_FORMAT}:media:${rel}:${st.size}:${st.mtimeMs}`) });
+    // Except a file written inside the window the index distrusts (RACY_MS before this sync began): its
+    // stat vouches for nothing, so it is copied again — not hashed, copied, which is cheaper than a hash
+    // and is only ever paid for the file being replaced right now. Decision 150 left this to H4's
+    // property, and the property found it: a same-size replacement in the same tick left `dist/` serving
+    // the old image for as long as nothing else touched it (decision 158).
+    const racy = st.mtimeMs >= sync.at - RACY_MS;
+    mediaFiles.push({ rel, src, url, key: sha1(`${OUTPUT_FORMAT}:media:${rel}:${st.size}:${st.mtimeMs}${racy ? `:racy:${sync.at}` : ""}`) });
   }
   const isPublic = (f: IndexedFile) => c.statuses[f.status]?.public === true;
   const visible = (f: IndexedFile) => (opts.drafts ? f.status !== "trashed" : isPublic(f));
@@ -225,7 +231,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     const s = surfaceOf(f, terms, author);
     surface.push(s);
     lastmod.set(f.route, f.updated ?? f.date);
-    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}`);
+    // An author page is a list as much as a page (H1): what it shows is every published post by that
+    // author, so those entries are in its key the way the index's are in the index's. Found by H4's first
+    // property on its first run — trashing a post left its author's page listing it until the author's
+    // own file changed, which is the stale page a cold build would never have written (decision 154).
+    const byAuthor = layout === "author" ? published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf) : [];
+    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" ? `:${listKey(byAuthor)}` : ""}`);
     contentRoutes.add(f.route);
     const dir = routeDir(f.route);
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
@@ -237,7 +248,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const description = entry.description ?? applyFilter(hooks, "excerpt", excerpt(mdast), fc);
       const schemas = applyFilter(hooks, "jsonLd", [pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas], fc);
       const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings };
-      const entries = layout === "author" ? applyFilter(hooks, "entries", published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf), fc) : [];
+      const entries = layout === "author" ? applyFilter(hooks, "entries", byAuthor, fc) : [];
       const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });

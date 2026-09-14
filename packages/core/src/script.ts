@@ -57,6 +57,8 @@ const URL_ATTRS = new Set(["href", "src", "xlink:href", "action", "formaction", 
 
 /** An open tag with its attributes. The quoted alternatives are what lets an attribute value hold a `>`. */
 const OPEN_TAG = /<([a-zA-Z][a-zA-Z0-9:-]*)((?:[^>"']|"[^"]*"|'[^']*')*?)\/?>/g;
+/** A tag that opens after the last complete one and runs to the end of the text without a `>` to close it. */
+const DANGLING_TAG = /<([a-zA-Z][a-zA-Z0-9:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)$/;
 const ATTR = /([a-zA-Z_:@][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 const CONTROL = /[\u0000-\u0020]/g;
 
@@ -75,15 +77,16 @@ export const local = (url: string): boolean => !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test
  *
  * A `<script>` with a `src` weighs its `src` and not its body: the browser ignores the body when the
  * attribute is there, and counting both would refuse a page for bytes nobody ever fetches.
+ *
+ * A tag that opens and never closes — `<script` as the last thing in a file — is a site too, and the
+ * reason is the two callers. On the fragment, lint saw no `>` and said nothing; on the page, the
+ * layout's own markup supplied one (`<script\n</article>` is an open tag with a strange attribute), and
+ * the build refused what lint had passed. In a browser it is the same tag, and everything after it is
+ * script text until a `</script>` nobody wrote. Found by H4's parser property (decision 156).
  */
 export function scriptSites(html: string): ScriptSite[] {
   const out: ScriptSite[] = [];
-  OPEN_TAG.lastIndex = 0;
-  for (let m = OPEN_TAG.exec(html); m; m = OPEN_TAG.exec(html)) {
-    const tag = m[1]!.toLowerCase();
-    const attrs = m[2] ?? "";
-    const at = m.index;
-
+  const site = (tag: string, attrs: string, at: number, after: number) => {
     if (tag === "script") {
       let type = "";
       let src: string | undefined;
@@ -95,16 +98,15 @@ export function scriptSites(html: string): ScriptSite[] {
         else if (name === "src") src = value.trim();
       }
       // A data block is not script, and `type` is the browser's own test — so it is this one too.
-      if (!EXECUTABLE_TYPE.test(type)) continue;
+      if (!EXECUTABLE_TYPE.test(type)) return;
       if (src !== undefined) {
         out.push({ kind: "src", what: `<script src="${cut(src, 60)}">`, url: src, text: src, offset: at });
       } else {
-        const after = m.index + m[0].length;
         const close = html.slice(after).search(/<\/script\s*>/i);
         const body = close === -1 ? html.slice(after) : html.slice(after, after + close);
         out.push({ kind: "inline", what: `<script>${cut(body.trim())}</script>`, bytes: bytesOf(body), text: body, offset: at });
       }
-      continue;
+      return;
     }
 
     ATTR.lastIndex = 0;
@@ -120,7 +122,12 @@ export function scriptSites(html: string): ScriptSite[] {
       if (URL_ATTRS.has(name) && EXECUTES.test(value.replace(CONTROL, "")))
         out.push({ kind: "url", what: `${name}="${cut(value)}"`, bytes: bytesOf(value), text: `${name}=${value}`, offset: at + a.index });
     }
-  }
+  };
+  OPEN_TAG.lastIndex = 0;
+  let end = 0;
+  for (let m = OPEN_TAG.exec(html); m; m = OPEN_TAG.exec(html)) { site(m[1]!.toLowerCase(), m[2] ?? "", m.index, m.index + m[0].length); end = OPEN_TAG.lastIndex; }
+  const dangling = DANGLING_TAG.exec(html.slice(end));
+  if (dangling) site(dangling[1]!.toLowerCase(), dangling[2] ?? "", end + dangling.index, html.length);
   return out;
 }
 
