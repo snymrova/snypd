@@ -76,6 +76,62 @@ const PAIRS: { rule: string; fg: string; bg: string; min: number; what: string }
   { rule: "contrast.on-accent", fg: "color.on-accent", bg: "color.accent", min: 4.5, what: "text on an accent fill" },
 ];
 
+/**
+ * The tier rule (U7, docs/14 §3 and §7 call 1), as data. A CSS feature is Baseline and may be used
+ * anywhere; or it is two engines of three and goes under `@supports`, never for anything the reader
+ * needs to reach content; or it is one engine and goes under `@supports` where the fallback is *nothing
+ * happens*. This is the list of the second and third kinds this build knows about, each with the
+ * `@supports` test a theme would write. Revised when Baseline moves — a row leaves this list the day
+ * the third engine ships, which is the only way a list like this stays honest.
+ *
+ * What is *not* here, and why: `text-wrap: pretty` and every other unsupported *value* — a browser drops
+ * the declaration and the page is the page it was, so a guard would say nothing.
+ */
+export const GUARDED_CSS: { pattern: RegExp; what: string; tier: "two engines" | "one engine"; test: string }[] = [
+  { pattern: /\banimation-timeline\s*:|\b(?:scroll|view)-timeline(?:-name|-axis)?\s*:/i, what: "scroll-driven animations", tier: "two engines", test: "(animation-timeline: scroll())" },
+  { pattern: /::scroll-(?:marker|button)\b|\bscroll-marker-group\s*:/i, what: "CSS carousels", tier: "two engines", test: "selector(::scroll-marker)" },
+  { pattern: /\btext-box(?:-trim|-edge)?\s*:/i, what: "text-box-trim", tier: "two engines", test: "(text-box: trim-both cap alphabetic)" },
+  { pattern: /\bscroll-target-group\s*:|:target-current\b/i, what: "scroll-target-group / :target-current", tier: "one engine", test: "(scroll-target-group: auto)" },
+  { pattern: /\bscroll-state\(/i, what: "scroll-state() queries", tier: "one engine", test: "(container-type: scroll-state)" },
+  { pattern: /\binterpolate-size\s*:|\bcalc-size\(/i, what: "interpolate-size / calc-size()", tier: "one engine", test: "(interpolate-size: allow-keywords)" },
+  { pattern: /\bsibling-(?:index|count)\(/i, what: "sibling-index() / sibling-count()", tier: "one engine", test: "(animation-delay: calc(sibling-index() * 1ms))" },
+  { pattern: /(?<![\w-])if\(/i, what: "if()", tier: "one engine", test: "(width: if(style(--x): 1px; else: 2px))" },
+  { pattern: /@function\b/i, what: "@function", tier: "one engine", test: "at-rule(@function)" },
+  { pattern: /\bcorner-shape\s*:/i, what: "corner-shape", tier: "one engine", test: "(corner-shape: squircle)" },
+];
+
+/**
+ * Every use of a guarded feature outside an `@supports` block, with its line. Comments and strings are
+ * blanked first — `content: "if("` is text — and so is the body of every `@supports` block, brace-matched,
+ * so what is left is exactly the CSS a browser without the feature would try to apply.
+ */
+export function unguardedCss(css: string): { line: number; what: string; tier: string; test: string }[] {
+  // Blank comments and strings in place so offsets, and therefore line numbers, survive.
+  let plain = "";
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i]!;
+    if (c === '"' || c === "'") { const q = c; let j = i + 1; while (j < css.length && css[j] !== q) { if (css[j] === "\\") j++; j++; } plain += css.slice(i, j + 1).replace(/[^\n]/g, " "); i = j; continue; }
+    if (c === "/" && css[i + 1] === "*") { const end = css.indexOf("*/", i + 2); const j = end < 0 ? css.length : end + 2; plain += css.slice(i, j).replace(/[^\n]/g, " "); i = j - 1; continue; }
+    plain += c;
+  }
+  // Blank every `@supports … { … }` block, nested ones included, by matching its braces.
+  const SUPPORTS = /@supports\b/gi;
+  for (let m = SUPPORTS.exec(plain); m; m = SUPPORTS.exec(plain)) {
+    const open = plain.indexOf("{", m.index);
+    if (open < 0) break;
+    let depth = 0, end = open;
+    for (; end < plain.length; end++) { if (plain[end] === "{") depth++; else if (plain[end] === "}" && --depth === 0) break; }
+    plain = plain.slice(0, m.index) + plain.slice(m.index, end + 1).replace(/[^\n]/g, " ") + plain.slice(end + 1);
+    SUPPORTS.lastIndex = end;
+  }
+  const out: { line: number; what: string; tier: string; test: string }[] = [];
+  for (const g of GUARDED_CSS) {
+    const re = new RegExp(g.pattern.source, g.pattern.flags.includes("g") ? g.pattern.flags : g.pattern.flags + "g");
+    for (let m = re.exec(plain); m; m = re.exec(plain)) out.push({ line: plain.slice(0, m.index).split("\n").length, what: g.what, tier: g.tier, test: g.test });
+  }
+  return out.sort((a, b) => a.line - b.line);
+}
+
 /** The theme's own view of its tokens: declared defaults plus the chosen variation, with the site read out. */
 function themeView(cfg: LoadedConfig): Record<string, string> {
   const out: Record<string, string> = {};
@@ -222,6 +278,22 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
       used ? `\`${theme.font.family}\` is named by a token, so something renders in it`
         : `\`${theme.font.family}\` is declared and no token names it — the face downloads and nothing is set in it`);
     add("font.fallback", "pass", `metric-matched fallback: size-adjust ${theme.font.fallback["size-adjust"]}, ascent ${theme.font.fallback["ascent-override"]}`);
+  }
+
+  // ── the tier rule (U7, docs/14 §7 call 1) ──────────────────────────────────────────────────────
+  // A two-engine or one-engine feature outside `@supports` is a finding with a line: not a failure,
+  // because whether the fallback is "today's page" or "the menu is gone" is what the author has to
+  // look at, and this rule is the list of where to look. The theme's own sheet only — a parent's is
+  // the parent's finding, and it was checked when the parent was.
+  const ownCss = typeof yaml.css === "string" ? themeFile(self.dir, yaml.css) : undefined;
+  if (ownCss === undefined) add("css.enhancement-guarded", "skip", "this theme has no stylesheet of its own");
+  else {
+    const loose = unguardedCss(ownCss);
+    add("css.enhancement-guarded", loose.length ? "warn" : "pass",
+      loose.length
+        ? `${loose.length} use${loose.length === 1 ? "" : "s"} of a ${[...new Set(loose.map((l) => l.tier))].join("/")} feature outside \`@supports\`: ${loose.slice(0, 6).map((l) => `${basename(String(yaml.css))}:${l.line} ${l.what} — \`@supports ${l.test}\``).join("; ")}${loose.length > 6 ? `; +${loose.length - 6} more` : ""} — fine when the fallback is the page as it is; a finding when a reader needs it`
+        : `every two-engine and one-engine feature this build knows is under \`@supports\`, or absent (${GUARDED_CSS.length} checked)`,
+      String(yaml.css));
   }
 
   // ── contrast (docs/11 §5 item 4) ───────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ props:
   alt: { type: string, required: true, description: What the image shows, for readers who cannot see it. Lint fails when empty. }
   caption: { type: markdown }
   width: { type: enum, values: [content, wide, full], default: content }
+  lightbox: { type: boolean, default: true, description: Click opens it full-size. }
 intent: Show a thing the text refers to; the caption says why it matters.
 anti-intent: Not decoration. Not screenshots of text (write the text). Not for charts (use chart).
 example: |

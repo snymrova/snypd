@@ -13,7 +13,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { dirname, join, sep } from "node:path";
 import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, RACY_MS, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
-import { toHtml, excerpt } from "./html";
+import { toHtml, excerpt, type Sectioned } from "./html";
 import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps, type PageHeading } from "./theme";
 import { Html } from "./jsx-runtime";
 import { resolveTokens, styleSheet, minifyCss } from "./tokens";
@@ -430,11 +430,13 @@ export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page:
     if (next !== doc.tree) { doc = { ...doc, tree: next }; tree = buildTree(doc, source); }
   }
   const blocks = new Map<Node, Block>(tree.all.map((b) => [b.node, b]));
-  const renderBlock = (b: Block): Html => onBlock(b, () => toHtml({ type: "root", children: (b.node as { children?: Node[] }).children ?? [] } as Root, { blocks, onBlock, headingIds: false }));
-  const onBlock = (b: Block, body: () => Html): Html => {
+  // A block rendered on its own (a `stat` inside its row, the lifted cover) goes through the same door as
+  // one met in the document: a root holding the block, so `onBlock` gets the same `body` and `sections`.
+  const renderBlock = (b: Block): Html => toHtml({ type: "root", children: [b.node as Node] } as Root, { blocks: blocks.has(b.node) ? blocks : new Map([...blocks, [b.node, b]]), onBlock, headingIds: false });
+  const onBlock = (b: Block, body: () => Html, sections: () => Sectioned): Html => {
     const comp = o.theme.primitives[b.name];
     if (!comp) return new Html("");
-    const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx: o.ctx, page: o.page };
+    const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx: o.ctx, page: o.page, sections };
     return comp(p);
   };
   // A leading `cover` is the page's header, not its first paragraph (spec: "at most one, first in the

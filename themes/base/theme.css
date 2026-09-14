@@ -1,0 +1,92 @@
+/* base — the behaviour of base's markup, and none of its looks (U7, docs/14).
+
+   `base` had no stylesheet until the markup grew things that *do* something: a menu that waits behind a
+   button on a phone, a picture that opens in a dialog, a footnote that stands in the margin, a question
+   that unfolds. Each of those is the platform's own mechanism — popover, dialog, details, anchor
+   positioning — and each arrives with user-agent styling a theme would otherwise have to know about
+   before its menu stopped being a fixed grey box in the middle of the page. So this sheet is the user-
+   agent sheet for snypd's markup: display, position, a reset, the breakpoint at which a menu is a row.
+   No colour that is not a system colour, no type, no space a theme would recognise as a decision.
+
+   It sits in the `snypd.base` cascade layer, under every theme's own (decision 119), so a theme
+   overrides any line here with a plain selector. The `!important`s on the phone menu are the exception
+   and are marked: a lower layer's important declaration beats a higher layer's normal one, which is
+   exactly the tool for "on a phone the closed menu is hidden and the open one is a sheet, whatever
+   `nav ul { display: flex }` a theme wrote for the desktop". A theme that wants a different phone menu
+   overrides the header part. */
+
+/* ── The header menu on a phone (docs/14 §4.6). Below 34rem the `<ul popover>` is a sheet the button
+   opens; above it the popover's user-agent styling is taken back off and the list is in flow, and the
+   button is gone. `popover` alone would have hidden the menu everywhere until pressed. */
+.snypd-menu-button { display: none; font: inherit; color: inherit; background: none; border: 1px solid currentColor; border-radius: 0.25em; padding: 0.3em 0.7em; cursor: pointer; }
+@media (max-width: 34rem) {
+  .snypd-menu-button { display: inline-block; }
+  #snypd-menu:not(:popover-open) { display: none !important; }
+  /* The sheet's *layout* is important on purpose: a theme's `nav ul { display: flex; padding: 0 }`,
+     written for the desktop row, would otherwise reach the open sheet too. Its colour and type are
+     the theme's, and a theme that wants a different sheet altogether overrides the header part. */
+  #snypd-menu:popover-open {
+    display: grid !important; gap: 0.75em;
+    position: fixed !important; inset: auto 0 0 0 !important; margin: 0 !important; width: auto !important;
+    max-height: 80vh; overflow: auto;
+    padding: 1.25em 1.25em max(1.25em, env(safe-area-inset-bottom)) !important;
+    border: 0; border-radius: 0.75em 0.75em 0 0;
+    color: CanvasText; background: Canvas;
+    list-style: none;
+    transition: translate 200ms ease-out, opacity 200ms ease-out;
+    @starting-style { translate: 0 100%; opacity: 0; }
+  }
+  #snypd-menu::backdrop { background: rgb(0 0 0 / 0.35); }
+}
+@media (min-width: 34.01rem) {
+  #snypd-menu { display: block; position: static; inset: auto; margin: 0; width: auto; height: auto; overflow: visible; border: 0; padding: 0; color: inherit; background: none; }
+}
+
+/* ── The figure's lightbox (docs/14 §4.2). The button *is* the picture: its chrome comes off here, the
+   dialog is the platform's — top layer, focus trapped, Escape closes — and the image inside it fits the
+   viewport. `@starting-style` is the open animation; a browser without it opens the dialog cut. */
+.snypd-figure-open { display: block; width: 100%; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: inherit; cursor: zoom-in; }
+.snypd-lightbox {
+  max-width: min(96vw, 96dvw); max-height: 96dvh; padding: 0; border: 0; background: none;
+  overflow: visible; transition: opacity 200ms ease-out, scale 200ms ease-out;
+  @starting-style { opacity: 0; scale: 0.96; }
+}
+.snypd-lightbox img { display: block; max-width: 96vw; max-height: 90dvh; width: auto; height: auto; margin: 0 auto; object-fit: contain; }
+.snypd-lightbox::backdrop { background: rgb(0 0 0 / 0.75); backdrop-filter: blur(6px); }
+.snypd-lightbox-close { position: absolute; inset: 0.5em 0.5em auto auto; font: inherit; color: CanvasText; background: Canvas; border: 0; border-radius: 0.25em; padding: 0.3em 0.7em; cursor: pointer; }
+
+/* ── The FAQ's questions (docs/14 §4.3). A heading inside `<summary>` is inline so the marker sits on
+   its line; the answer fades in. `interpolate-size` lets the height animate in a browser that has it
+   (Chrome); the others open cut, which is what they did before this sheet existed. */
+.snypd-faq-item summary { cursor: pointer; }
+.snypd-faq-item summary > :is(h2, h3, h4, h5, h6) { display: inline; margin: 0; font-size: inherit; }
+.snypd-faq-item::details-content {
+  opacity: 0; block-size: 0; overflow-y: clip;
+  transition: content-visibility 250ms allow-discrete, opacity 250ms ease-out, block-size 250ms ease-out;
+}
+.snypd-faq-item[open]::details-content { opacity: 1; block-size: auto; }
+@supports (interpolate-size: allow-keywords) { .snypd-faq-item { interpolate-size: allow-keywords; } }
+
+/* ── Footnotes (docs/14 §4.1). The card beside a mark is `hidden` in the markup — this is the sheet that
+   shows it, two ways. Where the pointer can hover, it is a card above the mark, anchored to it, and
+   `position-try-fallbacks` keeps it on screen at the top of a page. A theme with a wide margin makes
+   it a sidenote instead (`editorial` does); a touch screen with no hover gets the link to the end,
+   which is what every browser got before. `:focus-within` is keyboard: Tab to the mark, read the note. */
+@media (hover: hover) {
+  .snypd-fnref .snypd-fn-card {
+    display: none; position: absolute; position-area: block-start span-all; margin-block-end: 0.5em;
+    position-try-fallbacks: flip-block;
+    width: max-content; max-width: min(22rem, 90vw); padding: 0.6em 0.8em;
+    color: CanvasText; background: Canvas; border: 1px solid; border-radius: 0.25em;
+    font-size: 0.8125rem; line-height: 1.4; text-align: start; text-wrap: pretty;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.15); z-index: 1;
+    transition: opacity 150ms ease-out, display 150ms allow-discrete;
+    @starting-style { opacity: 0; }
+  }
+  .snypd-fnref:is(:hover, :focus-within) .snypd-fn-card { display: block; }
+}
+
+/* ── Reduced motion: nothing above animates for a reader who asked for that. */
+@media (prefers-reduced-motion: reduce) {
+  .snypd-lightbox, #snypd-menu:popover-open, .snypd-faq-item::details-content, .snypd-fn-card { transition: none; }
+}

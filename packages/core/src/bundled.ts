@@ -7,6 +7,7 @@
  * sha1 of the theme's bytes at generation time — it stands in for `themeHash` where there is no file
  * to stat, and it cannot go stale there, because a theme inside a binary cannot change.
  */
+import _base_theme_css from "../../../themes/base/theme.css" with { type: "text" };
 import _base_theme_yaml from "../../../themes/base/theme.yaml" with { type: "text" };
 import _editorial_fonts_OFL_txt from "../../../themes/editorial/fonts/OFL.txt" with { type: "text" };
 import _editorial_theme_css from "../../../themes/editorial/theme.css" with { type: "text" };
@@ -30,8 +31,9 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "4aeb17d26bc0cc5dd13e90dcff41c70747cd4a2e",
+    hash: "2635f8e38964759314037d7890d1d8ada346c2aa",
     files: {
+      "theme.css": _base_theme_css,
       "theme.yaml": _base_theme_yaml,
     },
     bytes: {
@@ -63,7 +65,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "5cc7a9ab803df4f43b84f70c0df672b0260af44c",
+    hash: "58ecb9eec7b692d12ee63437d49847914c35dfe6",
     files: {
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
@@ -77,7 +79,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "technical": {
-    hash: "773a5a53c6d400c0fb6acd64a3f8d6dca3a61323",
+    hash: "dd0bbe1ff9e3c24f704783510e06f84bc5c07525",
     files: {
       "theme.css": _technical_theme_css,
       "theme.yaml": _technical_theme_yaml,

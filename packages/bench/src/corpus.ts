@@ -225,14 +225,17 @@ export function generateTheme(root = "corpora/theme") {
     + "cover: { image: /media/cover.png, alt: A flat block of colour standing in for a cover photograph, eyebrow: Notes }\n---\n\n"
     + "Most posts are not a tour of the vocabulary. They are headings, paragraphs, a list, a link and a code\n"
     + "span, and a theme that only looks right when a post is full of blocks is a theme that looks wrong most\n"
-    + "of the time.\n\n"
+    + "of the time.[^1]\n\n"
     + "## Body copy\n\nThe measure, the leading and the space between a heading and the paragraph under it are\n"
     + "the whole design at this size. Everything else is decoration on top of a column of text.\n\n"
     + "- A list item, because lists are half of technical writing\n- A second one, to show the gap between them\n"
     + "- A [link](/about/) and a `code span`, which are the two things prose does that plain text cannot\n\n"
     + "## A quote\n\n> Long-form reading. One serif column at a comfortable measure, generous leading, a single\n"
     + "> accent used sparingly.\n\n"
-    + "```sh\nsnypd build\n```\n");
+    // A footnote, because prose has them and a theme has to decide where one goes (U7, docs/14 §4.1):
+    // a sidenote in the margin, a card over the mark, or the list at the end — this post is where to look.
+    + "```sh\nsnypd build\n```\n\n"
+    + "[^1]: Which is why the fixture has this post as well as the one with every block in it.\n");
 
   writeFileSync(join(root, "content/pages/about.md"),
     "---\ntitle: About this fixture\nstatus: published\ndescription: The `page` layout, with the prose a real page carries and nothing else.\n---\n\n"

@@ -5,7 +5,7 @@ import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
 import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
-import { checkTheme, checkPlugin, formatCheck } from "./check";
+import { checkTheme, checkPlugin, formatCheck, unguardedCss } from "./check";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
@@ -83,12 +83,12 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(r.rendered).toBe(r.routes + r.artefacts); expect(r.cached).toBe(0);
     // 2 posts + about + author + index + category/eng + tag/ai + tag/mcp = 8; the draft is not built
     expect(r.routes).toBe(8);
-    // llms.txt feed.xml sitemap.xml robots.txt api/site.json api/{post,page,author}.json api/{category,tag}.json; no css (base has no tokens)
-    expect(r.artefacts).toBe(10);
+    // llms.txt feed.xml sitemap.xml robots.txt api/site.json api/{post,page,author}.json api/{category,tag}.json + assets/theme.css (base has no tokens, and since U7 one sheet of behaviour)
+    expect(r.artefacts).toBe(11);
     expect(existsSync(join(dist, "posts/d"))).toBe(false);
     expect(r.theme.coverage.every((c) => c.status === "own")).toBe(true); expect(r.theme.coverage.length).toBe(13);
     const w = await build(root);
-    expect(w.rendered).toBe(0); expect(w.cached).toBe(18);
+    expect(w.rendered).toBe(0); expect(w.cached).toBe(19);
   });
   test("S7 surface: llms.txt, feed, sitemap, robots, JSON API, JSON-LD", () => {
     const llms = read("", "llms.txt");
@@ -125,7 +125,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(JSON.parse(read("api", "tag.json")).terms[1]).toEqual({ term: "mcp", title: "Model Context Protocol", route: "/tag/mcp", url: "https://t.example/tag/mcp/", count: 1 });
     const html = read("posts/a");
     expect(html).toContain('<link rel="alternate" type="application/rss+xml" title="T" href="/feed.xml">');
-    expect(html).not.toContain('rel="stylesheet"');
+    expect(html).toContain('<link rel="stylesheet" href="/assets/theme.css">');   // base's own sheet (U7)
     const ld = /<script type="application\/ld\+json">([^]*?)<\/script>/.exec(html)![1]!;
     const obj = JSON.parse(ld);
     expect(obj).toMatchObject({ "@type": "BlogPosting", headline: "Post A", datePublished: "2026-03-02", dateModified: "2026-03-02", author: { "@type": "Person", name: "Sunny" }, keywords: "eng, ai, Model Context Protocol" });
@@ -155,14 +155,14 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(a).toContain('<a href="/tag/mcp/" rel="tag">Model Context Protocol</a>');
     expect(a).toContain('by <a href="/authors/sunny/" rel="author">Sunny</a>');
     // S14: one cover, and the tag row and the twin link are one footer instead of two loose lines.
-    expect(a).toContain('<header class="snypd-cover"><h1>Post A</h1></header><p class="snypd-byline">');
+    expect(a).toContain('<header class="snypd-cover"><h1 style="view-transition-name: post-a; view-transition-class: snypd-title">Post A</h1></header><p class="snypd-byline">');
     expect(a).toContain('<footer class="snypd-post-footer"><ul class="snypd-terms">');
     expect(a).toContain('<p class="snypd-twin"><a href="/posts/a/index.md" type="text/markdown">Markdown twin</a></p></footer>');
     expect(read("posts/a", "index.md")).toBe(readFileSync(join(root, "content/posts/a.md"), "utf8"));
     expect(read("")).toMatch(/Post A[\s\S]*Post B/);   // a is newer
     expect(read("")).not.toContain("About");
     expect(read("tag/mcp")).toContain("<p>The protocol.</p>");
-    expect(read("authors/sunny")).toContain('<a href="/posts/a/">Post A</a>');
+    expect(read("authors/sunny")).toContain('<a href="/posts/a/" style="view-transition-name: post-a; view-transition-class: snypd-title">Post A</a>');
     expect(read("about")).toContain("<h1>About</h1>");
     // S14: the index and the feed list types that have a `date` field. The author has a layout and a page
     // of its own, and belongs in neither — an item with no date has nothing to be newest-first about.
@@ -197,7 +197,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
   test("a body edit re-renders exactly that route", async () => {
     writeFileSync(join(root, "content/posts/b.md"), post("b", "Post B", { body: "Changed body." }));
     const r = await build(root);
-    expect([r.rendered, r.cached]).toEqual([1, 17]);   // the surface did not change: no artefact rewritten
+    expect([r.rendered, r.cached]).toEqual([1, 18]);   // the surface did not change: no artefact rewritten
     expect(read("posts/b")).toContain("Changed body.");
   });
   test("a title edit re-renders the post and every list that shows it", async () => {
@@ -210,7 +210,8 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const f = join(root, "themes/base/parts/footer.tsx");
     writeFileSync(f, readFileSync(f, "utf8").replace("<p>{ctx.site.name}</p>", "<p>{ctx.site.name} · edited</p>"));
     const cli = Bun.spawnSync([process.execPath, "packages/cli/src/index.ts", "build", root]);   // `snypd build`: the real path, no module cache
-    expect(cli.stdout.toString()).toContain("built 8 routes + 10 artefacts (18 rendered, 0 cached");
+    // The one artefact cached is the stylesheet: a part edit changes the theme's hash and every route, not its CSS.
+    expect(cli.stdout.toString()).toContain("built 8 routes + 11 artefacts (18 rendered, 1 cached");
     expect(read("about")).toContain("T · edited");
     let r = await build(root);
     expect(r.rendered).toBe(0);
@@ -241,7 +242,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(styleSheet({}, undefined)).toBe("");                                     // no tokens and no sheet is no stylesheet, layer statement included
     expect(styleSheet({ a: "1" }, undefined).startsWith(CSS_LAYERS)).toBe(true);
     const ty = join(root, "themes/base/theme.yaml");
-    writeFileSync(ty, readFileSync(ty, "utf8") + 'css: ./styles.css\ntokens:\n  color.accent: { default: "#1a1a1a", customisable: true, description: Links }\n  content.width: { default: 64ch }\n');
+    writeFileSync(ty, readFileSync(ty, "utf8").replace("css: ./theme.css\n", "") + 'css: ./styles.css\ntokens:\n  color.accent: { default: "#1a1a1a", customisable: true, description: Links }\n  content.width: { default: 64ch }\n');
     writeFileSync(join(root, "themes/base/styles.css"), "a { color: var(--color-accent) }\n");
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T2, url: https://t.example, description: A test site }\ntheme: { use: base, tokens: { color.accent: \"#f00\" } }\ntypes: { author: { layout: author } }\n");
     const r = await build(root);
@@ -619,7 +620,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const all = r.rendered;   // routes and artefacts alike: every plan item is keyed on the plugin graph
     // the release: a post-layout page at the plugin's url pattern, filed under the plugin's taxonomy
     const release = readFileSync(join(dist, "changelog/1-2-0/index.html"), "utf8");
-    expect(release).toContain("<h1>1.2.0</h1>");
+    expect(release).toContain('<h1 style="view-transition-name: release-1-2-0; view-transition-class: snypd-title">1.2.0</h1>');
     expect(release).toContain("First release.");
     expect(release).toContain('href="/product/snypd/"');
     expect(has("product/snypd")).toBe(true);
@@ -629,15 +630,16 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     r = await build(root);
     expect(r.rendered).toBe(0);
     // an edit to a plugin's file — even a comment — is in the plugin graph hash, so every route re-renders (decision 95)
+    // — every item but the stylesheet, which is keyed on the theme and not on the plugins that decorate it (U7)
     local("# a comment is a byte\n");
     r = await build(root);
-    expect(r.rendered).toBe(all);
+    expect(r.rendered).toBe(all - 1);
     r = await build(root);
     expect(r.rendered).toBe(0);
     // the site's options for a plugin are in the config hash, so changing one re-renders too
     config("[changelog, { local: { label: x } }]");
     r = await build(root);
-    expect(r.rendered).toBe(all);
+    expect(r.rendered).toBe(all - 1);
     // drop the plugins: their routes go, and nothing in dist names what they added
     config("[]");
     r = await build(root);
@@ -721,7 +723,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(a).toMatch(/<!--footer-end:local:\/articles\/a:L-->\s*<\/footer>/);
     expect(a).toMatch(/<\/footer>\s*<!--body-end:local:\/articles\/a:L-->\s*<\/body>/);
     // filters, in order: local appends ★ (an entry) then second appends !; broken's 42 is refused and leaves the value
-    expect(a).toContain("<h1>Post A ★!</h1>");
+    expect(a).toContain('">Post A ★!</h1>');
     expect(a).toContain("<title>Post A ★! - N</title>");
     expect(a).toContain('<meta property="og:title" content="Post A ★!">');
     // excerpt: A has no description, so the excerpt is the description, filtered; B's frontmatter description is filtered as a description
@@ -761,7 +763,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     // reorder the list: the same hooks run in the new order — no priorities, one list
     config("[second, { local: { tag: L } }]");
     await build(root);
-    expect(read("articles/a")).toContain("<h1>Post A! ★</h1>");
+    expect(read("articles/a")).toContain('">Post A! ★</h1>');
     expect(read("articles/a")).toContain('<!--head:second:v2--><meta name="x-slot" content="local:L">');
 
     // ── editorial inherits every slot from base with no file of its own ──
@@ -842,7 +844,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     // base: a <nav> in the header and one in the footer, from the files, current page marked, dead ref absent
     let r = await build(root);
     const about = read("about");
-    expect(about).toContain('<nav aria-label="Site"><ul><li><a href="/">Home</a></li><li><a href="/about/" aria-current="page">About</a></li><li><a href="/posts/hello/">Hello</a></li><li><a href="https://github.com/x" rel="external">GitHub</a></li></ul></nav>');
+    expect(about).toContain('<nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover><li><a href="/">Home</a></li><li><a href="/about/" aria-current="page">About</a></li><li><a href="/posts/hello/">Hello</a></li><li><a href="https://github.com/x" rel="external">GitHub</a></li></ul></nav>');
     expect(about).not.toContain("Gone");
     expect(about).toContain('<footer><nav aria-label="Footer"><ul><li><a href="/feed.xml">Feed</a></li></ul></nav><p>N</p></footer>');
     expect(read("")).toContain('<a href="/" aria-current="page">Home</a>');            // the index is current for `/`
@@ -897,7 +899,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example, description: A tagline }\ntheme: { use: editorial }\n");
     await build(root);
     const ed = read("about-us");
-    expect(ed).toContain('<header class="snypd-masthead"><div class="snypd-brand"><a href="/" rel="home">N</a><p class="snypd-tagline">A tagline</p></div><nav aria-label="Site"><ul>');
+    expect(ed).toContain('<header class="snypd-masthead"><div class="snypd-brand"><a href="/" rel="home">N</a><p class="snypd-tagline">A tagline</p></div><nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover>');
     expect(ed).toContain('<a href="/about-us/" aria-current="page">About</a>');
     expect(ed).toContain('<nav aria-label="Footer">');
     const ctxNav = { header: [{ label: "Home", href: "/", route: "/" }] };
@@ -1699,16 +1701,16 @@ describe("the cover is the header, not the first paragraph (S14)", () => {
 
   test("a leading ::cover becomes the page header and the layout draws none of its own", () => {
     const h = read("posts/own");
-    expect(h).toContain('<header class="snypd-cover"><p class="snypd-eyebrow">Eng</p><h1>Own</h1>'
+    expect(h).toContain('<header class="snypd-cover"><p class="snypd-eyebrow">Eng</p><h1 style="view-transition-name: post-own; view-transition-class: snypd-title">Own</h1>'
       + '<p class="snypd-subtitle">A <code>code</code> subtitle</p>'
       + '<img src="/media/c.png" alt="Cover" decoding="async" fetchpriority="high" width="1200" height="630"></header>');
-    expect(h.match(/<h1>/g)!.length).toBe(1);                     // exactly one, wherever it came from
+    expect(h.match(/<h1[ >]/g)!.length).toBe(1);                  // exactly one, wherever it came from
     expect(h.match(/class="snypd-cover"/g)!.length).toBe(1);      // and exactly one cover: this was the S13 defect
     expect(h).toContain('</header><p class="snypd-byline">');     // the byline survives the author's cover
   });
   test("without one, the layout builds the cover from frontmatter — same markup, same single h1", () => {
     const h = read("posts/fm");
-    expect(h).toContain('<header class="snypd-cover"><p class="snypd-eyebrow">Notes</p><h1>Fm</h1>'
+    expect(h).toContain('<header class="snypd-cover"><p class="snypd-eyebrow">Notes</p><h1 style="view-transition-name: post-fm; view-transition-class: snypd-title">Fm</h1>'
       + '<img src="/media/c.png" alt="Cover" decoding="async" fetchpriority="high" width="1200" height="630"></header>');
     expect(h.match(/class="snypd-cover"/g)!.length).toBe(1);
   });
@@ -1716,10 +1718,98 @@ describe("the cover is the header, not the first paragraph (S14)", () => {
     // The spec says "at most one, first in the body" and lint says so too; the renderer does not rewrite
     // the page to make it true. So this post keeps the layout's header *and* renders the block in place.
     const h = read("posts/late");
-    expect(h).toContain("<header class=\"snypd-cover\"><h1>Late</h1></header>");
+    expect(h).toContain('<header class="snypd-cover"><h1 style="view-transition-name: post-late; view-transition-class: snypd-title">Late</h1></header>');
     expect(h).toContain("<p>Body first.</p>");
     expect(h.match(/class="snypd-cover"/g)!.length).toBe(2);
-    expect(h.match(/<h1>/g)!.length).toBe(2);
+    expect(h.match(/<h1[ >]/g)!.length).toBe(2);
+  });
+});
+
+/**
+ * U7 (docs/14): the platform as the runtime. Every one of these is markup `base` now emits — a footnote's
+ * definition beside its mark, a question in a `<details>`, a picture in a button that opens a `<dialog>`,
+ * a title that carries the same `view-transition-name` on the list and on the post, a menu behind a
+ * `popover` button — and the page still ships no script: the build's own gate (H2) runs on every one of
+ * these sites, and `scriptSites` has no row for `commandfor`, `command`, `popover` or `closedby`.
+ */
+describe("the runtime pass (U7): what base's markup does now, with no script", () => {
+  const root = "corpora/_test/u7";
+  const dist = join(root, "dist");
+  const read = (r: string) => readFileSync(join(dist, r, "index.html"), "utf8");
+  beforeAll(async () => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/media", "content/nav"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: U, url: https://u.example }\ntheme: { use: base }\n");
+    writeFileSync(join(root, "content/nav/header.yaml"), '- { label: "Home", ref: "/" }\n');
+    writeFileSync(join(root, "content/media/p.png"), png(640, 360, [1, 2, 3]));
+    writeFileSync(join(root, "content/posts/notes.md"),
+      "---\ntitle: Notes\ndate: 2026-09-01\nstatus: published\n---\n\n"
+      + "A phrase[^a] and a list[^b] and the phrase again[^a].\n\n"
+      + "[^a]: One *short* note.\n\n[^b]: A note with a list:\n\n    - which cannot sit inside a paragraph\n\n"
+      + ':::faq\nA lead paragraph.\n\n### Does it open?\nYes.\n\n### Only one at a time?\nAlso yes, `name=` says so.\n:::\n\n'
+      + ':::steps{title="Two"}\n1. One\n2. Two\n:::\n\n'
+      + '::figure{src="/media/p.png" alt="A picture" caption="Opens"}\n\n'
+      + '::figure{src="/media/p.png" alt="A picture" lightbox=false}\n');
+    for (let i = 1; i <= 8; i++) writeFileSync(join(root, `content/posts/p${i}.md`), `---\ntitle: P${i}\ndate: 2026-08-0${i}\nstatus: published\n---\n\nBody ${i}.\n`);
+    await build(root);
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("a footnote's definition is emitted beside its mark as a hidden, anchored card — when it is a phrase", () => {
+    const h = read("posts/notes");
+    expect(h).toContain('<sup class="snypd-fnref"><a href="#fn-a" id="fnref-a" style="anchor-name: --fnref-a">1</a>'
+      + '<small class="snypd-fn-card" role="note" hidden style="position-anchor: --fnref-a">One <em>short</em> note.</small></sup>');
+    // A definition that is not a phrase — a list would close the paragraph it sits in — gets the mark it always got and no card.
+    expect(h).toContain('<sup class="snypd-fnref"><a href="#fn-b" id="fnref-b">2</a></sup>');
+    // The list at the end is unchanged: the printable, linkable version, and the one every browser had.
+    expect(h).toContain('<section class="footnotes">\n<ol>\n<li id="fn-a"><p>One <em>short</em> note.</p>\n<a href="#fnref-a">↩</a></li>');
+    expect(h).toContain('<li id="fn-b"><p>A note with a list:</p>\n<ul>');
+  });
+
+  test("an faq is one <details name> per question, ids kept, lead kept, schema unchanged", () => {
+    const h = read("posts/notes");
+    expect(h).toContain('<section class="snypd-faq"><h2>FAQ</h2><p>A lead paragraph.</p>\n'
+      + '<details class="snypd-faq-item" name="faq-15"><summary><h3 id="does-it-open">Does it open?</h3></summary><div class="snypd-faq-answer"><p>Yes.</p>\n</div></details>'
+      + '<details class="snypd-faq-item" name="faq-15"><summary><h3 id="only-one-at-a-time">Only one at a time?</h3></summary>');
+    expect(h.match(/id="does-it-open"/g)!.length).toBe(1);   // one render, one id — `sections` did not walk the body twice
+    expect(h).toContain('"@type":"FAQPage"');
+    expect(h).toContain('"name":"Does it open?"');
+    // A container with no headings renders as it did: `steps` is untouched by the split.
+    expect(h).toContain('<section class="snypd-steps"><h2>Two</h2><ol>');
+  });
+
+  test("a figure is a button that opens a dialog, unless the author said not to", () => {
+    const h = read("posts/notes");
+    expect(h).toContain('<figure class="snypd-figure" data-width="content"><button type="button" class="snypd-figure-open" commandfor="lb-30" command="show-modal" aria-label="View larger: A picture">'
+      + '<img src="/media/p.png" alt="A picture" loading="lazy" decoding="async" width="640" height="360"></button><figcaption>Opens</figcaption>'
+      + '<dialog id="lb-30" class="snypd-lightbox" closedby="any" aria-label="A picture"><img src="/media/p.png" alt="A picture" loading="lazy" decoding="async" width="640" height="360">'
+      + '<button type="button" class="snypd-lightbox-close" commandfor="lb-30" command="close">Close</button></dialog></figure>');
+    expect(h).toContain('<figure class="snypd-figure" data-width="content"><img src="/media/p.png" alt="A picture" loading="lazy" decoding="async" width="640" height="360"></figure>');
+    expect(h.match(/<dialog /g)!.length).toBe(1);
+  });
+
+  test("the title carries one view-transition-name on the post and in the list, and the list names six", () => {
+    expect(read("posts/p3")).toContain('<h1 style="view-transition-name: post-p3; view-transition-class: snypd-title">P3</h1>');
+    const index = read("");
+    expect(index).toContain('<a href="/posts/p8/" style="view-transition-name: post-p8; view-transition-class: snypd-title">P8</a>');
+    expect(index).toContain('<a href="/posts/p4/" style="view-transition-name: post-p4; view-transition-class: snypd-title">P4</a>');
+    expect(index).toContain('<a href="/posts/p3/">P3</a>');   // the seventh and after: a page of forty named groups is not a transition
+    expect(index.match(/view-transition-name/g)!.length).toBe(6);
+  });
+
+  test("the menu is a popover behind a button, and base's own sheet ships in its layer", () => {
+    expect(read("")).toContain('<nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover><li><a href="/" aria-current="page">Home</a></li></ul></nav>');
+    const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
+    expect(css.startsWith("@layer snypd.tokens,snypd.base,snypd.theme,snypd.site;@layer snypd.base{")).toBe(true);
+    for (const rule of ["#snypd-menu:not(:popover-open){display: none !important}", ".snypd-figure-open{", ".snypd-lightbox::backdrop{", ".snypd-faq-item::details-content{", "position-area: block-start span-all", "@starting-style{"]) expect(css).toContain(rule);
+    expect(css).not.toContain("var(--");                 // behaviour, not looks: base declares no token and reads none
+  });
+
+  test("none of it is script: the pages pass the build's own gate at a budget of 0", () => {
+    // `build` threw if any page weighed more than `bench.budgets.jsKb`, which this site leaves at 0 — so
+    // reaching here is the assertion. Said again in one line, on the page with every new attribute on it:
+    expect(read("posts/notes")).not.toMatch(/<script(?![^>]*type="application\/ld\+json")/);
   });
 });
 
@@ -2334,6 +2424,12 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     theme("half-part", { "theme.yaml": `${head("half-part")}parts:\n  header: ./parts/header.tsx\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
     theme("typo", { "theme.yaml": `${head("typo")}layout: post\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
     theme("anonymous", { "theme.yaml": `theme: anonymous\nversion: 0.1.0\nextends: base\ncss: ./theme.css\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+    // U7: the masthead is hidden behind a scroll-driven animation with no `@supports`, so in Firefox it
+    // never appears — the exact defect the tier rule exists to name. The guarded one two lines down is fine.
+    theme("loose", {
+      "theme.yaml": `${head("loose")}tokens:\n${PALETTE}`,
+      "theme.css": `body { color: var(--color-text); }\n/* animation-timeline: in a comment */\nheader { opacity: 0; animation: reveal linear both; animation-timeline: scroll(root); }\n.toc a:target-current { color: red; }\n@supports (animation-timeline: scroll()) { .bar { animation-timeline: scroll(root); } }\n.x::after { content: "if("; }\n`,
+    });
   });
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
@@ -2428,6 +2524,23 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     expect(gone.rules).toEqual([{ rule: "contract.found", status: "fail", detail: expect.stringContaining("no plugin") }]);
   });
 
+  test("U7 `css.enhancement-guarded`: a two-engine or one-engine feature outside `@supports` is named with its line", async () => {
+    const loose = await checkTheme(root, "loose");
+    const r = rule(loose, "css.enhancement-guarded");
+    expect(r.status).toBe("warn");                       // to look at, not a refusal: the machine cannot tell load-bearing from decorative
+    expect(r.detail).toContain("theme.css:3 scroll-driven animations — `@supports (animation-timeline: scroll())`");
+    expect(r.detail).toContain("theme.css:4 scroll-target-group / :target-current");
+    expect(r.detail).not.toContain("theme.css:2");       // a comment is not a use
+    expect(r.detail).not.toContain("theme.css:5");       // guarded
+    expect(r.detail).not.toContain("if()");              // a string is not a use
+    expect(loose.ok).toBe(true);
+    // The unit underneath, on the shapes a sheet can take: nested `@supports`, a brace in a string.
+    expect(unguardedCss("@supports (a: b) { @media (x) { .a { animation-timeline: view(); } } }\n.b { interpolate-size: allow-keywords }")).toEqual([{ line: 2, what: "interpolate-size / calc-size()", tier: "one engine", test: "(interpolate-size: allow-keywords)" }]);
+    expect(unguardedCss(`.a::before { content: "}"; }\n@supports (x: y) { .b { corner-shape: squircle } }`)).toEqual([]);
+    // And the three themes that ship pass it: `base` guards `interpolate-size`, both themes guard the rest.
+    for (const name of ["base", "editorial", "technical"]) expect({ name, status: rule(await checkTheme(root, name), "css.enhancement-guarded").status }).toEqual({ name, status: "pass" });
+  });
+
   test("formatCheck prints one line per rule, the rule's name first", async () => {
     const out = formatCheck(await checkTheme(root, "dim"));
     expect(out.split("\n")[0]).toContain("theme dim — themes/dim");
@@ -2476,6 +2589,11 @@ describe("the client budget (H2): the build weighs the page it wrote, on the sit
     post(`<a href="javascript:alert(1)">x</a>`);
     expect(await refusal()).toContain(`href="javascript:alert(1)"`);
     post(`<script type="application/ld+json">{"@type":"Thing"}</script>\n\n<iframe src="https://www.youtube-nocookie.com/embed/x" title="v"></iframe>`);
+    expect(await refusal()).toBeUndefined();
+    // U7 (docs/14 §6): an invoker attribute is not a script site. `commandfor`, `command`, `popovertarget`,
+    // `popover`, `closedby` and a `style` holding an anchor name are what the platform runs, not the page —
+    // written raw in a post here, exactly as `base` emits them, and weighed at 0.
+    post(`<button commandfor="d" command="show-modal" popovertarget="p">o</button>\n<dialog id="d" closedby="any"><a href="#x" style="anchor-name: --a">x</a></dialog>\n<ul id="p" popover><li>on</li></ul>`);
     expect(await refusal()).toBeUndefined();
   });
 

@@ -27,7 +27,9 @@ export default function Header({ ctx, route }: PartProps): Html {
       </div>
       {items.length || repo ? (
         <nav aria-label="Site">
-          <ul>
+          {/* The same button and popover `base`'s header carries (U7): on a phone the list waits behind it. */}
+          <button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button>
+          <ul id="snypd-menu" popover>
             {items.map((i) => <li><a href={i.href} rel={i.rel} aria-current={i.current ? "page" : undefined}>{i.label}</a></li>)}
             {/* Last, and marked, because it is the one item in this menu that leaves the site. */}
             {repo ? <li class="snypd-repo"><a href={repo} rel="external">src</a></li> : null}
