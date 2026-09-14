@@ -402,7 +402,7 @@ link is the first thing a visitor sees. U3–U6 can land after Gate C without bl
 | ~~**U3**~~ | **done 12 Sep 2026** — the settings schema as §4.2 now records it: `settings:` in `theme.yaml` (strict Zod, twelve types, defaults, groups, appended up the chain), `ctx.settings`, `snypd://theme/settings`, `theme › set_settings`, and `editorial`'s first six. The log row is §7b | T2 green ✅ · an agent sets a setting it read from the resource ✅ · a theme with no `settings:` is byte-identical ✅ |
 | ~~**U4**~~ | **dropped, 1 Sep 2026** — the sequencing call §12 left to Sunny, answered *no*. The settings page is not built: configuration stays agent-and-file only, and decision 44 stands unamended (see decision 77 below). U1–U3 and U5 are unchanged, because the settings *schema* always had two readers — the agent and the renderer — and the page was only ever the third | — |
 | **U5** | **Moved to docs/10 as P2 (6 Sep 2026)** — it needs the plugin manifest (docs/10 P1) to have anything to declare in, the slot set becomes six (`body-end` added), the `seo` proof is replaced by `analytics` because social tags move into core (decision 90), and decision 78 is amended so a slot may add JS *inside a declared, budgeted `client:`* (decision 84). The design below is otherwise adopted as written. ~~**Slots and filters.** The five slots and six filters; declared in a plugin's `snypd.yaml`, resolved at load, ordered by the `plugins:` array; `site › doctor` lists them; `content.explain` prints what ran; one real plugin in-tree (`snypd-plugin-seo`, OG + Twitter tags in `head`) as the proof~~ | ~~T4 green · the seo plugin adds OG tags with no theme change · removing it from `plugins:` removes them~~ |
-| **U6** | **The design pass**, the way S14 was one: `base` and `editorial` headers, footers and menus reviewed at 390 px and 1280; the settings page given the same treatment; a third theme (`technical`, docs/06 v0.2) scaffolded as the real test of whether parts + settings + nav are enough to build a theme *without* touching `base` | a theme built from `scaffold` + settings + parts, no forked layouts · `page.*` and `settings.*` green at both viewports |
+| ~~**U6**~~ | **The design pass**, the way S14 was one: `base` and `editorial` headers, footers and menus reviewed at 390 px and 1280; the settings page given the same treatment; a third theme (`technical`, docs/06 v0.2) scaffolded as the real test of whether parts + settings + nav are enough to build a theme *without* touching `base` — **U6a done 13 Sep** (variations) and **U6b done 13 Sep** (`technical`, the `build-theme` prompt, the design pass), docs/11 §7b | **green** — `themes/technical` declares no `layouts:` and no `primitives:`, so all 13 and all five are `inherited via base`, checked through a compiled binary running where there is no `themes/` on disk. The design pass is a lane rather than a look: `tech.*` in `snypd bench page`, six routes × 390/1280, **0** JS · **0** axe violations · **0** CLS · **0** KB font, with `phosphor` run through the same suite out of band and horizontal overflow checked element by element at both widths in both colour schemes. The one thing the contract could *not* do was a contents list: docs/11 decisions 135 and 136 add a `toc` part with an empty default in `base` and `Page.headings` beside it, both free to a theme that ignores them |
 
 ---
 
@@ -495,8 +495,13 @@ Continuing `07` §7. These override `04` and `02` where they conflict.
   bare `<a rel=home>`.
 - **docs/02 §10's launch plugin set** — `seo` and `newsletter` both need a `head` slot and a filter over
   `jsonLd`; neither has anywhere to write today.
-- **docs/06 v0.2's `themes/technical`** — U6 is the test of whether a theme can be *built* from the contract
-  instead of forked from `base`, which is the only honest measure of whether any of this worked.
+- ~~**docs/06 v0.2's `themes/technical`**~~ — U6 was the test of whether a theme can be *built* from the
+  contract instead of forked from `base`, which is the only honest measure of whether any of this worked.
+  **Answered in U6b, 13 Sep: yes, once the post layout had a contents slot.** And since X1 the same
+  question has a machine-readable answer for a theme nobody here wrote: `snypd check theme <name>` reports
+  every part of this document's contract by rule — the chain, the five parts, the thirteen primitives, the
+  token declarations, the variations, the font and its budget — plus the contrast of the palette, which is
+  the one thing docs/09 never had a way to assert (docs/11 §7b, decisions 139–144).
 
 ---
 

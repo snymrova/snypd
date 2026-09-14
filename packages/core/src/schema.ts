@@ -43,6 +43,28 @@ export const ROLES = ["subscriber", "contributor", "author", "editor", "admin"] 
 export const TokenDeclSchema = z.object({ default: z.union([z.string(), z.number()]), customisable: z.boolean().optional(), kind: z.string().optional(), description: z.string().optional() }).strict();
 export type TokenDecl = z.infer<typeof TokenDeclSchema>;
 
+// ── Style variations (docs/10 §5.2, U6a) ─────────────────────────────────────────────────────────
+/**
+ * One `variations:` entry in `theme.yaml` — a named, complete look the theme ships, as a set of token
+ * *values* over its own defaults (decision 91). Values and not declarations: a variation retunes the
+ * palette, it cannot add a token, change a `kind`, or move `customisable`. That is the line between a
+ * variation and a child theme, and it is what makes "switching changes exactly the tokens it names"
+ * something a test can assert rather than a habit.
+ *
+ * `tokens` is optional because the theme's own defaults are themselves a look, and a theme that names
+ * them gets to describe them: `paper: { description: … }` is `editorial` as it already was.
+ */
+export const VariationSchema = z.object({
+  /** One line for whoever is choosing — an agent reading `snypd://theme`, or a caption under a gallery screenshot. */
+  description: z.string().min(1),
+  tokens: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+}).strict();
+export type Variation = z.infer<typeof VariationSchema>;
+/** A variation with its name and the theme in the chain that declared it — what `loadConfig` hands on. */
+export interface VariationDecl extends Variation { name: string; declaredBy?: string }
+/** A variation name: the same shape a theme name takes, because both end up in a URL and a screenshot filename. */
+export const VARIATION_NAME_RE = /^[a-z][a-z0-9-]*$/;
+
 // ── Theme settings (docs/09 §4.2, U3) ────────────────────────────────────────────────────────────
 /**
  * The closed type list for v0.1.5, minus one. docs/09 §4.2 wrote `relative` into `dateFormat`'s options
@@ -142,6 +164,60 @@ export function settingValue(decl: SettingDecl, v: unknown): { ok: true; value: 
  * key into an error.
  */
 const slot = z.union([z.string().min(1), z.object({ fallback: z.string().min(1) }).strict()]);
+/**
+ * **The webfont budget** (decision 118). Kilobytes of font a page may carry, measured on the wire by
+ * `page.font.kb` the way `page.js.kb` measures script. A theme that declares more than this is refused at
+ * load rather than discovered by a bench run in CI, because the person who finds out otherwise is a
+ * visitor on a train.
+ */
+export const MAX_FONT_KB = 40;
+
+/**
+ * **The metric-matched fallback face** (B1). The four descriptors that make the font a browser paints
+ * *before* the webfont arrives occupy exactly the space the webfont will, so `font-display: swap` swaps
+ * the letters and moves nothing else — which is the whole reason decision 118 could permit a webfont
+ * without trading `page.cls` away.
+ *
+ * Declared, not computed: working them out needs both fonts' `hmtx`, `OS/2` and `head` tables, and a
+ * static site generator that parsed fonts at build time would be carrying a font parser to re-derive four
+ * constants that never change. `scripts/vendor-font.sh` prints this block beside the .woff2 it subsets,
+ * so the numbers come from the two files rather than from taste, and regenerating the font reprints them.
+ */
+const FallbackSchema = z.object({
+  /** The installed face whose metrics these override — `local(…)` in the generated `@font-face`. */
+  local: z.string().min(1),
+  "size-adjust": z.string().regex(/^\d+(\.\d+)?%$/, "size-adjust: a percentage, like `106.2%`"),
+  "ascent-override": z.string().regex(/^\d+(\.\d+)?%$/, "ascent-override: a percentage"),
+  "descent-override": z.string().regex(/^\d+(\.\d+)?%$/, "descent-override: a percentage"),
+  "line-gap-override": z.string().regex(/^\d+(\.\d+)?%$/, "line-gap-override: a percentage"),
+}).strict();
+
+/**
+ * `font:` in `theme.yaml` — the one webfont a theme may ship (B1, decision 118). Self-hosted, subsetted,
+ * variable, WOFF2, with the fallback above. One per page: the nearest theme in the `extends:` chain that
+ * declares it wins, the same rule primitives, parts and tokens already follow, so a child inherits its
+ * parent's face until it names its own and two faces never stack up to 80 KB by inheritance.
+ *
+ * `kb` is the declaration the budget lane gates on — what the theme says the file costs, not what the
+ * file happens to weigh. That is the same bargain a plugin's `capabilities.client` makes (decision 84):
+ * a face that grows past its own claim fails `page.font.kb`, where a lane that measured the file against
+ * itself could never fail at all.
+ *
+ * The family name is CSS's, not the font's: it is what `font.body` and `font.heading` have to name, and
+ * `theme check` (X1) is where naming a family no token uses becomes a finding.
+ */
+export const ThemeFontSchema = z.object({
+  family: z.string().min(1),
+  /** Theme-relative path to the .woff2; emitted as `assets/fonts/<basename>` and preloaded. */
+  file: z.string().min(1).regex(/\.woff2$/i, "a .woff2 — decision 118 ships one, and WOFF2 is the only format every browser since 2020 reads"),
+  /** `font-weight` on the generated face: `400` for a static instance, `400 700` for a variable range. */
+  weight: z.union([z.string().regex(/^\d{3}( \d{3})?$/, "`400`, or a range: `400 700`"), z.number().int()]).optional(),
+  style: z.enum(["normal", "italic"]).optional(),
+  kb: z.number().positive().max(MAX_FONT_KB, `at most ${MAX_FONT_KB} — a theme ships one webfont, and it costs what decision 118 affords it`),
+  fallback: FallbackSchema,
+}).strict();
+export type ThemeFont = z.infer<typeof ThemeFontSchema>;
+
 export const ThemeYamlSchema = z.object({
   theme: z.string().min(1).optional(),
   version: z.string().optional(),
@@ -163,9 +239,18 @@ export const ThemeYamlSchema = z.object({
    * chain, and a child redeclaring an `id` replaces its parent's entry where it stands.
    */
   settings: z.array(SettingDeclSchema).optional(),
+  /**
+   * The named looks this theme ships (U6a, decision 91). A declaration like `settings:` and not a value,
+   * so it does not merge into the config either: `theme.variation` is the site's one-word answer and
+   * `theme.tokens` is where the chosen variation's tokens land. A map rather than a list because the
+   * name is the key a site writes; a child redeclaring a name replaces its parent's entry.
+   */
+  variations: z.record(z.string().regex(VARIATION_NAME_RE, "variation: lowercase letters, digits, dashes"), VariationSchema).optional(),
   tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).optional(),
   /** One stylesheet, theme-relative; emitted after the token vars as assets/theme.css. */
   css: z.string().min(1).optional(),
+  /** One webfont, theme-relative, declared and budgeted (B1, decision 118). See `ThemeFontSchema`. */
+  font: ThemeFontSchema.optional(),
   personality: z.string().optional(),
 }).strict();
 export type ThemeYaml = z.infer<typeof ThemeYamlSchema>;
@@ -269,6 +354,14 @@ export const ConfigSchema = z.object({
   }).passthrough(),
   theme: z.object({
     use: z.string().default("base"),
+    /**
+     * The named look, of the ones the theme ships (U6a). One word, and the whole of what a site writes to
+     * change how it reads: the variation's tokens are merged between the theme's defaults and this site's
+     * own `theme.tokens`, so an override here still wins. A name the theme does not declare is a warning
+     * and the theme's defaults render — a variation is left stranded by a theme switch exactly as a token
+     * override is, and neither should stop a site from building.
+     */
+    variation: z.string().optional(),
     /** `snypd.yaml` sets scalars; `theme.yaml` declares `{ default, customisable, kind, description }` (docs/04). */
     tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).default({}),
     /**

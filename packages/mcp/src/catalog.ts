@@ -43,10 +43,11 @@ export const KEYWORDS: Record<string, string[]> = {
 
 export const CATALOG: Tool[] = [
   { name: "theme",
-    description: "Change how the site looks: switch theme, retune its tokens, or scaffold a new one. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
+    description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, or scaffold a new one. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
     inputSchema: S({
-      action: str("`set` a different theme · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one", { enum: ["set", "set_tokens", "set_settings", "scaffold"] }),
-      name: str("`set`: the theme to use. `scaffold`: the name of the new theme (also its directory under themes/)"),
+      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one", { enum: ["set", "set_tokens", "set_settings", "scaffold"] }),
+      name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`: the name of the new theme (also its directory under themes/)"),
+      variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call"),
       tokens: { type: "object", description: "`set_tokens`: token name → value, e.g. {\"color.accent\": \"#8a3324\"}. A token set to null goes back to the theme's default. Only tokens declared `customisable` can be set — snypd://theme/tokens lists them" },
       settings: { type: "object", description: "`set_settings`: setting id → value, e.g. {\"showDates\": false, \"tagline\": \"Notes on building\"}. A setting set to null goes back to the theme's default. Each is checked against the type the theme declared — snypd://theme/settings lists them with their types and what they mean" },
       extends: str("`scaffold`: the theme the new one inherits every layout, primitive and token from. Default `base`"),
@@ -140,38 +141,6 @@ const need = (args: Record<string, unknown>, key: string): string => {
   return v;
 };
 
-/** The starter stylesheet a scaffolded theme gets: every token it can reach, as the vars it will use. */
-function starterCss(name: string, parent: string, tokens: { name: string; kind?: string }[]): string {
-  const varOf = (t: string) => `--${t.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
-  const colour = tokens.filter((t) => t.kind === "color").slice(0, 8);
-  return `/* ${name} — one stylesheet over \`${parent}\`'s markup. The build emits every token above this file
-   as a CSS custom property, so a value here is always a var(): recolour in snypd.yaml, never in here.
-   \`snypd://theme/tokens\` lists all ${tokens.length}; the ones this file starts with are below. */
-
-*, *::before, *::after { box-sizing: border-box; }
-
-:root {
-  color-scheme: light dark;
-  --content: min(100% - 2rem, var(--measure, 34rem));
-}
-
-body {
-  margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font: var(--size-body) / var(--leading-body) var(--font-body);
-}
-
-main { width: var(--content); margin-inline: auto; }
-
-a { color: var(--color-accent); }
-
-/* Available to you, straight from \`${parent}\`:
-${colour.map((t) => ` *   var(${varOf(t.name)})`).join("\n")}
- * …and the rest in snypd://theme/tokens. Style the primitives by their \`snypd-<name>\` class. */
-`;
-}
-
 export async function call(root: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {
   const c = await loadCore();
   const cfgOf = () => {
@@ -210,21 +179,66 @@ export async function call(root: string, name: string, args: Record<string, unkn
     switch (name) {
       case "theme": {
         const action = need(args, "action");
+        // `set` takes a theme, a variation, or both (U6a). Both are checked before either is written:
+        // switching to a theme and *then* discovering it does not ship the look that was asked for would
+        // leave the site somewhere nobody asked to be, which is decision 120's rule one surface over.
         if (action === "set") {
-          const want = need(args, "name");
-          const before = cfgOf().config.theme.use;
+          const wantTheme = typeof args.name === "string" && args.name ? args.name : undefined;
+          // `null` is a value here and not the absence of one — it is "back to the theme's own tokens" —
+          // so the key's presence and its value are two different questions all the way down.
+          const hasVariation = Object.hasOwn(args, "variation");
+          let wantVariation: string | null = null;
+          if (!wantTheme && !hasVariation) return fail("name or variation required", "`name` switches theme; `variation` switches to one of the looks the active theme ships (snypd://theme lists them). Both together is one call.");
+          if (hasVariation) {
+            if (typeof args.variation === "string" && args.variation) wantVariation = args.variation;
+            else if (args.variation !== null) return fail(`variation must be a name or null, got ${JSON.stringify(args.variation)}`, "snypd://theme lists what this theme ships; null goes back to its own tokens.");
+          }
+
+          const cfg0 = cfgOf();
+          const before = cfg0.config.theme.use;
+          const beforeVariation = cfg0.config.theme.variation;
           const installed = c.installedThemes(root, before);
-          const found = installed.find((t) => t.name === want);
-          if (!found) return fail(`no theme "${want}"`, `Installed: ${installed.map((t) => t.name).join(", ")}. \`theme\` › scaffold makes a new one.`);
-          if (before === want) return text(`${want} is already the active theme`, { ok: true, theme: want, changed: false });
-          const w = c.setConfig(root, "theme.use", want);
+          if (wantTheme && !installed.find((t) => t.name === wantTheme)) return fail(`no theme "${wantTheme}"`, `Installed: ${installed.map((t) => t.name).join(", ")}. \`theme\` › scaffold makes a new one.`);
+          const themeChanges = wantTheme !== undefined && wantTheme !== before;
+          const target = wantTheme ?? before;
+
+          // The variations of the theme we are *going* to be on, which is not the one loaded when both
+          // arguments are given. Resolving that chain is the only way to check the pair before writing.
+          const looks: { name: string; description: string }[] = themeChanges ? c.variationsOf(root, target) : c.themeVariations(cfg0);
+          if (wantVariation && !looks.some((v) => v.name === wantVariation))
+            return fail(`theme \`${target}\` ships no variation "${wantVariation}"`, looks.length
+              ? `It ships ${looks.map((v) => v.name).join(", ")} — snypd://theme/variations says what each one is. Nothing was written.`
+              : `It ships none: its tokens are its only look. \`theme\` › set_tokens is the knob it does have. Nothing was written.`);
+
+          // A theme switch with no variation named clears the old theme's: a variation is a name in the
+          // *theme's* vocabulary, and carrying `ink` across to a theme that never heard of it is how a
+          // site ends up with the stranded value `loadConfig` then has to warn about on every load.
+          const cleared = themeChanges && beforeVariation !== undefined && !hasVariation;
+          // What the site will be on when this returns. Spelled out rather than reached for with `??`,
+          // because `null` is a value here — "the theme's own tokens" — and not the absence of one.
+          const after: string | null = hasVariation ? wantVariation : cleared ? null : beforeVariation ?? null;
+          const variationChanges = after !== (beforeVariation ?? null);
+          if (!themeChanges && !variationChanges)
+            return text(`${target}${after ? ` › ${after}` : ""} is already active`, { ok: true, theme: target, variation: after, changed: false });
+
+          const paths: string[] = [], lines: string[] = [];
+          if (themeChanges) { paths.push(...c.setConfig(root, "theme.use", wantTheme!).paths); lines.push(`theme ${before} → ${wantTheme}`); }
+          if (variationChanges) {
+            const own = "(the theme's own tokens)";
+            paths.push(...c.setConfig(root, "theme.variation", after).paths);
+            lines.push(`variation ${beforeVariation ?? own} → ${after ?? own}${cleared ? " — cleared by the theme switch" : ""}`);
+          }
           const cfg = cfgOf();
           const stranded = c.themeTokens(cfg).filter((t) => t.overridden && !t.customisable);
-          const git = await commit(w.paths, `theme: use ${want}`);
-          const lines = [`theme ${before} → ${want}`, git];
-          if (stranded.length) lines.push(`⚠ ${stranded.length} token override${stranded.length === 1 ? "" : "s"} in snypd.yaml that ${want} does not declare: ${stranded.map((t) => t.name).join(", ")}`);
-          lines.push("Look at it with content.render_preview; snypd://theme/coverage says which primitives this theme implements itself.");
-          return text(lines.join("\n"), { ok: true, theme: want, from: before, changed: true, strandedTokens: stranded.map((t) => t.name) });
+          const git = await commit([...new Set(paths)], themeChanges ? `theme: use ${target}${after ? ` › ${after}` : ""}` : `theme: variation ${after ?? "cleared"}`);
+          lines.push(git);
+          if (stranded.length) lines.push(`⚠ ${stranded.length} token override${stranded.length === 1 ? "" : "s"} in snypd.yaml that ${target} does not declare: ${stranded.map((t) => t.name).join(", ")}`);
+          const moved = after ? looks.find((v) => v.name === after) : undefined;
+          if (moved) lines.push(`  ${moved.description.replace(/\s+/g, " ").trim()}`);
+          lines.push(themeChanges
+            ? "Look at it with content.render_preview; snypd://theme/coverage says which primitives this theme implements itself."
+            : "Look at it with content.render_preview. A variation moves only the tokens it names, and your own theme.tokens still win over it.");
+          return text(lines.join("\n"), { ok: true, theme: target, from: before, variation: after, fromVariation: beforeVariation ?? null, changed: true, strandedTokens: stranded.map((t) => t.name) });
         }
         if (action === "set_tokens") {
           const patch = args.tokens;
@@ -286,46 +300,20 @@ export async function call(root: string, name: string, args: Record<string, unkn
         }
 
         if (action === "scaffold") {
-          const newName = need(args, "name");
-          if (!/^[a-z][a-z0-9-]*$/.test(newName)) return fail(`"${newName}" is not a theme name`, "Lowercase letters, digits and hyphens — it is also the directory name.");
-          const parent = typeof args.extends === "string" && args.extends ? args.extends : "base";
-          const installed = c.installedThemes(root, cfgOf().config.theme.use);
-          if (installed.some((t) => t.name === newName)) return fail(`theme "${newName}" already exists`, `At ${installed.find((t) => t.name === newName)!.dir}.`);
-          if (!installed.some((t) => t.name === parent)) return fail(`no theme "${parent}" to extend`, `Installed: ${installed.map((t) => t.name).join(", ")}.`);
-          const dir = join(root, "themes", newName);
-          mkdirSync(dir, { recursive: true });
-          const tokens = c.themeTokens(cfgOf());
-          const yaml = `# ${newName} — extends \`${parent}\`, which brings every layout and all 13 primitives with it.
-# Nothing below is required: a theme that declares only \`extends:\` and \`css:\` already renders the whole
-# vocabulary. Redeclare a token here to change its default; set \`customisable: true\` to let snypd.yaml
-# move it. \`snypd://theme/tokens\` lists what you inherited. To change the header or footer, override
-# one part and no layout: \`parts: { header: ./parts/header.tsx }\` — snypd://theme/coverage lists the four.
-# To let a site choose something without writing CSS — a logo, a date format, social links — declare it:
-# \`settings: [{ id: showDates, type: boolean, label: "Show dates", default: true }]\`, and read it in a part
-# with \`settingFlag(ctx, "showDates", true)\`. snypd://theme/settings is what an agent sees.
-theme: ${newName}
-version: 0.1.0
-spec: ^1
-extends: ${parent}
-css: ./theme.css
-personality: >-
-  Describe how this theme reads, in one or two sentences. The renderer never uses this — an agent choosing
-  a theme does, and so does anyone deciding whether a change belongs in it.
-
-tokens: {}
-`;
-          writeFileSync(join(dir, "theme.yaml"), yaml);
-          writeFileSync(join(dir, "theme.css"), starterCss(newName, parent, tokens));
-          writeFileSync(join(dir, "package.json"), `{ "name": "@snypd/theme-${newName}", "version": "0.1.0", "type": "module", "license": "MIT" }\n`);
-          const paths = ["theme.yaml", "theme.css", "package.json"].map((f) => `themes/${newName}/${f}`);
-          const git = await commit(paths, `theme: scaffold ${newName} extends ${parent}`);
+          // The generator lives in core since X1, because `snypd new theme` is the same act from a
+          // terminal and two copies of a starter file is two starter files that drift. What stays here
+          // is what is different about this door: the commit, and a reply shaped for the caller.
+          let r;
+          try { r = c.scaffoldTheme(root, { name: need(args, "name"), extends: typeof args.extends === "string" ? args.extends : undefined }); }
+          catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
+          const git = await commit(r.files, `theme: scaffold ${r.name} extends ${r.extends}`);
           return text([
-            `scaffolded themes/${newName}/ extending ${parent}`,
-            `  theme.yaml   tokens and metadata; ${tokens.length} tokens inherited, none redeclared yet`,
-            `  theme.css    one stylesheet — the only file you have to write`,
+            `scaffolded ${r.dir}/ extending ${r.extends}`,
+            `  theme.yaml   tokens and metadata; ${r.inheritedTokens} tokens inherited, none redeclared yet`,
+            `  theme.css    one stylesheet \u2014 the only file you have to write`,
             git,
-            `\`theme\` › set ${newName} makes it active; content.render_preview shows it.`,
-          ].join("\n"), { ok: true, theme: newName, extends: parent, dir: `themes/${newName}`, files: paths, inheritedTokens: tokens.length });
+            `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,
+          ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens });
         }
         return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold.");
       }
@@ -700,6 +688,15 @@ async function doctor(root: string): Promise<ToolResult> {
   }
   const strandedSet = c.strandedSettings(cfg);
   if (strandedSet.length) warn(`${strandedSet.length} setting value${strandedSet.length === 1 ? "" : "s"} \`${cfg.config.theme.use}\` does not declare, left by another theme: ${strandedSet.join(", ")} — \`site\` › set_config theme.settings.<id> null removes one`);
+
+  // The look, and the same stranding story a third time (U6a). Only from a theme that ships variations,
+  // for the reason the settings row above gives — except the stranded warning, which is worth saying
+  // whatever the theme ships, because it is the one state where the site is not rendering what it asked for.
+  const looks = c.themeVariations(cfg);
+  const activeLook = looks.find((v) => v.active);
+  if (looks.length) ok(`variations: ${looks.length} shipped by \`${cfg.config.theme.use}\`, on \`${activeLook?.name ?? "none"}\`${activeLook && !activeLook.tokenCount ? " (the theme's own tokens)" : ""} — snypd://theme`);
+  const strandedLook = c.strandedVariation(cfg);
+  if (strandedLook) warn(`theme.variation is \`${strandedLook}\`, which \`${cfg.config.theme.use}\` does not ship${looks.length ? ` (it ships ${looks.map((v) => v.name).join(", ")})` : ""} — its own tokens are rendering; \`theme\` › set with variation null removes it`);
 
   const index = await c.SiteIndex.open(root);
   let lint: Awaited<ReturnType<Core["lintSite"]>>;

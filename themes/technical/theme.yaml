@@ -1,0 +1,121 @@
+# The technical theme: documentation, notes and release logs — a second *argument*, not a second palette.
+#
+# `editorial` is one serif column at 34rem with everything else deferring to the prose. This theme
+# disagrees about what a page is for. Reference is read by scanning, not by reading, so: a wider measure,
+# mono for every heading and every piece of chrome, a contents list built from the heading tree, and
+# tables and code blocks given the width they need instead of being squeezed into the reading column.
+# Same thirteen primitives, same five layouts, same markup — and that is the claim U6b is here to test.
+#
+# **It declares no layouts and no primitives, and one part beyond the masthead** (`toc`, U6b). Everything
+# else resolves up `extends:` to `base`, whose coverage report is what proves it (D8).
+#
+# **No webfont, deliberately** (B1 made that a declaration a theme can make). The face that carries this
+# theme is the monospace, and monospace is the one category where the system stack is already excellent
+# on every platform a reader has — SF Mono, Cascadia, JetBrains Mono, Consolas, DejaVu. Thirty kilobytes
+# to replace a good face with a different good face is thirty kilobytes for a preference. So `font:` is
+# absent, `ctx.assets.font` is undefined, the shell emits no preload, and `page.font.kb` gates this theme
+# at 0 — which is the budget `base` keeps and the one a theme that ships nothing should be held to.
+theme: technical
+version: 0.1.0
+spec: ^1
+extends: base
+css: ./theme.css
+# Two parts overridden, three inherited. `toc` is `base`'s empty slot in the post layout (U6b): this is
+# the theme that wanted a contents list, and the reason that slot exists rather than a forked layout.
+parts:
+  header: ./parts/header.tsx
+  toc:    ./parts/toc.tsx
+# What this theme lets a site choose without writing CSS (U3). Four of these are the ones `base`'s own
+# footer, entry list and byline read — declared again here because a theme's settings are its own, and a
+# theme that inherits parts and not their settings is a theme whose footer note silently stops working.
+# Two are this theme's: `repo`, which the masthead links, and `tocDepth`, which the contents list obeys.
+settings:
+  - { id: logo,       type: image,     label: Logo,             group: Identity, info: "Site-relative url of an image — put the file in content/media/. Without one the masthead sets the site's name in mono." }
+  - { id: tagline,    type: text,      label: Tagline,          group: Identity, info: "One line beside the name. Defaults to the site's own description." }
+  - { id: repo,       type: url,       label: "Source repository", group: Identity, info: "Linked from the masthead as `src`. A documentation site whose source is not one click away is documentation nobody corrects." }
+  - { id: tocDepth,   type: select,    label: "Contents depth", group: Posts,    default: "3", options: ["2", "3", "0"], info: "How deep the contents list on a post goes: 2 is section headings only, 3 includes their sub-headings, 0 turns it off." }
+  - { id: showDates,  type: boolean,   label: "Show dates",     group: Posts,    default: true,  info: "Off hides the date on the byline and in every list — for reference pages that are not news." }
+  - { id: dateFormat, type: select,    label: "Date format",    group: Posts,    default: iso, options: [iso, long, short], info: "2026-09-12 · 12 September 2026 · 12 Sep 2026. English month names; the <time> element always carries the machine-readable date." }
+  - { id: footerNote, type: richtext,  label: "Footer note",    group: Footer,   info: "One line of markdown above the site name — a licence, a colophon, a copyright." }
+  - { id: social,     type: link_list, label: "Social links",   group: Footer,   info: "[{ label, url }] in the footer. Links off this site, so they are urls and not refs — a menu of your own pages is content/nav/footer.yaml." }
+
+# ── The two looks this theme ships (U6a, docs/10 §5.2). Same rule as `editorial`: a variation is token
+# *values* over the defaults below, and a site's own `theme.tokens` still wins over whichever is chosen.
+variations:
+  graphite:
+    description: Cool neutral, one blue, follows the reader's light or dark — the theme as written.
+  phosphor:
+    description: "Dark only: amber on near-black, mono throughout, the terminal it is named for."
+    tokens:
+      color.scheme:          dark
+      # Mono for the prose as well as the headings — the one variation in either theme that changes what
+      # a paragraph is set in, which is the whole reason `font.body` is a token and not a stylesheet line.
+      font.body:             "var(--font-mono)"
+      size.body:             "clamp(0.95rem, 0.9rem + 0.28vw, 1.0375rem)"
+      leading.body:          "1.6"
+      color.bg:              "oklch(0.16 0.014 60)"
+      color.surface:         "oklch(from var(--color-bg) calc(l + 0.04) c h)"
+      color.text:            "oklch(0.88 0.03 80)"
+      color.muted:           "oklch(from var(--color-text) calc(l - 0.26) c h)"
+      color.accent:          "oklch(0.82 0.15 75)"
+      color.on-accent:       "oklch(from var(--color-bg) calc(l - 0.02) c h)"
+      color.border:          "oklch(from var(--color-bg) calc(l + 0.1) c h)"
+      color.viz.node:        "oklch(from var(--color-bg) calc(l + 0.04) c h)"
+      color.viz.node-stroke: "oklch(from var(--color-bg) calc(l + 0.13) c h)"
+      color.viz.grid:        "oklch(from var(--color-bg) calc(l + 0.07) c h)"
+
+personality: >-
+  Reference. A wide measure for scanning, mono headings and chrome, a contents list from the heading
+  tree, and tables and code blocks that take the width they need. Figures, charts, diagrams and flows
+  break out as they do everywhere. Zero JS.
+
+tokens:
+  # ── Colour. Every value is a light-dark() pair; `color-scheme: var(--color-scheme)` in theme.css does
+  # the rest, and `phosphor` commits to dark by setting the one token rather than restating the palette.
+  color.scheme:    { default: "light dark", customisable: true, kind: keyword, description: "What `color-scheme` this theme asks the browser for, and therefore which side of every light-dark() pair resolves. `light dark` follows the reader; `dark` or `light` commits." }
+  color.bg:        { default: "light-dark(#fbfbfc, #101114)", customisable: true, kind: color, description: "Page background." }
+  color.surface:   { default: "light-dark(#f1f2f5, #191b20)", customisable: true, kind: color, description: "Raised blocks — callout, cta, tldr, code, the contents list." }
+  color.text:      { default: "light-dark(#14161a, #e3e5ea)", customisable: true, kind: color, description: "Body text." }
+  color.muted:     { default: "light-dark(#5f646e, #949aa6)", customisable: true, kind: color, description: "Dates, captions, secondary labels, the contents list." }
+  color.accent:    { default: "light-dark(#1b5fd0, #77aaf5)", customisable: true, kind: color, description: "Links and the one emphatic colour." }
+  color.on-accent: { default: "light-dark(#fbfbfc, #101114)", customisable: true, kind: color, description: "Text on an accent fill." }
+  color.border:    { default: "light-dark(#dcdee4, #282b32)", customisable: true, kind: color, description: "Hairlines, table rules and block edges." }
+
+  # ── Viz. `@snypd/viz` reads these directly (docs/07 decision 17: the theme brings colour, never geometry).
+  color.viz.1:           { default: "light-dark(#1b5fd0, #77aaf5)", customisable: true, kind: color, description: "First series." }
+  color.viz.2:           { default: "light-dark(#0f7a6a, #52c2ae)", customisable: true, kind: color, description: "Second series." }
+  color.viz.3:           { default: "light-dark(#9a6b00, #dcae4a)", customisable: true, kind: color, description: "Third series." }
+  color.viz.4:           { default: "light-dark(#a2385c, #e888a7)", customisable: true, kind: color, description: "Fourth series." }
+  color.viz.5:           { default: "light-dark(#5a4bb8, #a79bf0)", customisable: true, kind: color, description: "Fifth series." }
+  color.viz.6:           { default: "light-dark(#4d6b1f, #a3c261)", customisable: true, kind: color, description: "Sixth series." }
+  color.viz.axis:        { default: "light-dark(#5f646e, #949aa6)", customisable: true, kind: color, description: "Axis lines." }
+  color.viz.grid:        { default: "light-dark(#e7e9ee, #22252b)", customisable: true, kind: color, description: "Gridlines." }
+  color.viz.tick:        { default: "light-dark(#5f646e, #949aa6)", customisable: true, kind: color, description: "Tick labels." }
+  color.viz.label:       { default: "light-dark(#14161a, #e3e5ea)", customisable: true, kind: color, description: "Node and edge labels." }
+  color.viz.edge:        { default: "light-dark(#868c98, #6b7280)", customisable: true, kind: color, description: "Diagram and flow edges." }
+  color.viz.node:        { default: "light-dark(#f1f2f5, #191b20)", customisable: true, kind: color, description: "Node fill." }
+  color.viz.node-stroke: { default: "light-dark(#c8ccd6, #333741)", customisable: true, kind: color, description: "Node outline." }
+
+  # ── Type. A system sans for prose, a system mono for everything that names something: headings, the
+  # contents list, the masthead, table headers, captions, code. No webfont — see the note at the top.
+  font.body:    { default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", customisable: true, kind: font, description: "Prose." }
+  font.ui:      { default: "var(--font-mono)", customisable: true, kind: font, description: "Eyebrows, meta, nav, captions. Mono here, which is most of what makes this theme look like itself — point it at font.body for a quieter version." }
+  font.mono:    { default: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Cascadia Mono', 'JetBrains Mono', 'DejaVu Sans Mono', 'Liberation Mono', monospace", customisable: true, kind: font, description: "Code, and by default every label in the theme." }
+  font.heading: { default: "var(--font-mono)", customisable: true, kind: font, description: "Headings. Mono, at a tighter tracking — the single most opinionated line in this theme." }
+  size.body:    { default: "clamp(1rem, 0.96rem + 0.22vw, 1.0625rem)", customisable: true, kind: size, description: "Body size; fluid between phone and desktop. Smaller than editorial's, because the measure is wider." }
+  size.h1:      { default: "clamp(1.7rem, 1.4rem + 1.5vw, 2.35rem)", customisable: true, kind: size, description: "Post and index title. Mono sets wide, so this is smaller than a serif h1 at the same authority." }
+  size.h2:      { default: "clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem)", customisable: true, kind: size, description: "Section heading." }
+  size.h3:      { default: "clamp(1.05rem, 1rem + 0.25vw, 1.175rem)", customisable: true, kind: size, description: "Sub-heading." }
+  size.small:   { default: "0.8125rem", customisable: true, kind: size, description: "Meta, caption, table body and the contents list." }
+  leading.body: { default: "1.6", customisable: true, kind: number, description: "Prose line height." }
+  leading.tight: { default: "1.25", customisable: true, kind: number, description: "Heading line height. Looser than editorial's: mono headings wrap more often, and a wrapped mono heading at 1.15 touches itself." }
+  measure:      { default: "44rem", customisable: true, kind: size, description: "Width of the reading column — ten rems wider than editorial's, because reference is scanned and a code line is longer than a sentence." }
+
+  # ── Space. One ratio, six steps; every gap in theme.css is one of these.
+  space.1: { default: "0.25rem", customisable: true, kind: size, description: "Hairline gap." }
+  space.2: { default: "0.5rem",  customisable: true, kind: size, description: "Inside a line." }
+  space.3: { default: "0.9rem",  customisable: true, kind: size, description: "Between paragraphs." }
+  space.4: { default: "1.5rem",  customisable: true, kind: size, description: "Around a block." }
+  space.5: { default: "2.5rem",  customisable: true, kind: size, description: "Between sections." }
+  space.6: { default: "4rem",    customisable: true, kind: size, description: "Page top and bottom." }
+  radius:  { default: "3px",     customisable: true, kind: size, description: "Corner radius; small on purpose." }
