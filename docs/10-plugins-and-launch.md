@@ -59,7 +59,7 @@ docs/02 opens by keeping WordPress's durable ideas and refusing its mechanisms; 
 | `theme.json` style variations | One theme, several complete looks, named | Arrived a decade late | `variations:` in `theme.yaml`, one config value to switch — §5.2 |
 | Template hierarchy, parts | The document is not one file | Files-by-convention, no manifest | `layouts:` + `parts:` declared — docs/09 U1 |
 | Customizer / Site Editor | Live preview beside the control | A framework, then a bigger framework | **Declined** (decision 77 stands). Configuration is agent-and-file |
-| WP-CLI | Everything from a shell | A second surface that drifted from the first | The MCP *is* the CLI; five verbs touch nothing — **built** |
+| WP-CLI | Everything from a shell | A second surface that drifted from the first | The MCP *is* the CLI; seven verbs touch no content — **built**. `new` and `check` (X1) are the exception that proves it: a theme is not content, and its author is a person with an editor open |
 | REST API | The site is readable by machines | Bolted on, per-endpoint auth | `.md` twins, `llms.txt`, JSON API, public read-only MCP — **built / S19** |
 | wp-cron | Scheduled work | Runs on page views | `jobs:` on `Bun.cron` — docs/06 v0.3, untouched here |
 | Shortcodes, widgets | — | Content that depends on a plugin to render | **Refused** (docs/02 §14), and §4.9 refuses the manifest version too |
@@ -258,6 +258,7 @@ WordPress.org's directory is the thing every "WordPress for X" wants and cannot 
 
 - **Registry:** npm. Keywords `snypd-theme` and `snypd-plugin`; a `snypd` field in `package.json` is not needed because the manifest is `snypd.yaml`.
 - **Shelf:** `snypd.rocks/themes` and `snypd.rocks/plugins` — two pages, written through the MCP like every other page on the site, one `figure` per theme variation (screenshots rendered by a script in this repo, the bench's CDP screenshotter over the `corpora/theme` fixture at 1280 and 390) and one `steps` block per plugin showing the two lines of YAML that enable it. Hand-maintained at launch. Generated from an npm keyword search when `jobs:` lands (v0.3), by a job on the site's own repo — which is a nice dogfood of both features and not a launch dependency.
+- **Gate:** `snypd check theme <name>` and `snypd check plugin <name>` — **built in X1, 13 Sep** (docs/11 §7b, gate E8). Decision 123 said the shelf lists nothing that does not pass; this is the thing it passes. Sixteen named rules for a theme and seven for a plugin, each one a rule a submitter can argue with by name: the contract the loader already enforces, the metadata a listing prints, the variations, the font against its own declaration, and the contrast of the palette on every look at 4.5:1. Run from the repository, in CI, or by the submitter before they open the issue — exit 1 on any failure, so the shelf's queue is three lines of YAML rather than a reader.
 - **Refused:** hosting packages, accounts, ratings, an install button, a review queue. Every one is a second product.
 
 ---
