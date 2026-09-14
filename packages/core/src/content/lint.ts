@@ -14,12 +14,16 @@
  *  9 callout-density    more than N callouts per 1,000 words
  * 10 slug-change        route changed since the file was first indexed and nothing redirects the old one   (lintSite, from the index)
  * 11 tag-once           a tag no other post uses                                                          (lintSite)
+ * 12 unsafe-url          a link or image whose scheme executes rather than navigates
+ * 13 inline-script      raw HTML that introduces script — the one thing the build will refuse to write
  */
-import type { Node, Parent, Heading, Link, Image, Text } from "mdast";
+import type { Node, Parent, Heading, Link, Image, Text, Literal } from "mdast";
 import type { FieldSpec } from "@snypd/spec";
 import type { ParsedDoc } from "./parse";
 import { frontmatterKeyLine } from "./parse";
 import { checkProp, type Block, type Diagnostic, type PrimitiveTree } from "./tree";
+import { safeContentUrl } from "../values";
+import { scriptSites, lineOf } from "../script";
 
 export interface TypeShape { fields: Record<string, FieldSpec>; taxonomies?: string[] }
 export interface LintOptions {
@@ -133,15 +137,21 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
   let words = 0, lastLevel = 1;
   const prose: { text: string; line: number }[] = [];
   const links: { url: string; line: number }[] = [];
+  /** Rule 12's own list: the urls this document *wrote*, link and image, before the cta hrefs join `links`. */
+  const urls: { url: string; line: number; what: "Link" | "Image" }[] = [];
+  /** Rule 13's own list: the raw HTML this document wrote, which every other rule here skips. */
+  const raw: { html: string; line: number }[] = [];
   walk(doc.tree, (n, parent) => {
-    if (n.type === "yaml" || n.type === "code" || n.type === "inlineCode" || n.type === "html") return;
+    if (n.type === "html") { raw.push({ html: (n as Literal).value, line: n.position?.start.line ?? 0 }); return; }
+    if (n.type === "yaml" || n.type === "code" || n.type === "inlineCode") return;
     if (n.type === "heading") {
       const h = n as Heading, line = h.position?.start.line ?? 0;
       if (h.depth === 1) out.push(D("heading-skip", 6, "warning", "`#` heading in the body", "The title is the page's h1 — start body headings at `##`", line));
       else if (h.depth > lastLevel + 1) out.push(D("heading-skip", 6, "warning", `Heading level jumps from h${lastLevel} to h${h.depth}`, `Use h${lastLevel + 1}, or promote this heading`, line));
       lastLevel = h.depth;
     }
-    if (n.type === "link") links.push({ url: (n as Link).url, line: n.position?.start.line ?? 0 });
+    if (n.type === "link") { links.push({ url: (n as Link).url, line: n.position?.start.line ?? 0 }); urls.push({ url: (n as Link).url, line: n.position?.start.line ?? 0, what: "Link" }); }
+    if (n.type === "image") urls.push({ url: (n as Image).url, line: n.position?.start.line ?? 0, what: "Image" });
     if (n.type === "image" && !((n as Image).alt ?? "").trim()) out.push(D("image-alt", 4, "error", "Image has no alt text", "Write `![what the image shows](src)`", n.position?.start.line ?? 0));
     if (n.type === "text" && parent?.type !== "yaml") {
       const t = (n as Text).value;
@@ -161,6 +171,37 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
       if (!opts.routes.has(path)) out.push(D("dead-internal-link", 5, "error", `Internal link \`${url}\` resolves to no route`, `Check the slug (\`snypd://config\` lists url patterns); use an absolute URL for external pages`, line));
     }
   } else skipped.push("dead-internal-link");
+
+  // ── 12 unsafe url ──────────────────────────────────────────────────────────
+  // docs/11 finding 10. `[click](javascript:fetch(...))` is valid CommonMark and the renderer used to
+  // emit it escaped and intact — escaping stops a value ending the attribute, not the attribute meaning
+  // what it says. The renderer drops the href either way (render/html.ts); this is what tells the author,
+  // and it is an error rather than a warning because nothing legitimate is written this way by accident.
+  for (const { url, line, what } of urls) {
+    if (safeContentUrl(url, what === "Image" ? "image" : "link")) continue;
+    const scheme = url.replace(/[\u0000-\u0020]/g, "").split(":")[0]!.toLowerCase();
+    out.push(D("unsafe-url", 12, "error", `${what} uses the \`${scheme}:\` scheme, which executes rather than ${what === "Image" ? "loads" : "navigates"}`,
+      what === "Image" ? "Put the file in content/media/ and point at /media/…, or use an https:// url — the renderer drops this image" : "Use https://…, a site path like /about, or mailto: — the renderer drops this href and keeps the text", line));
+  }
+
+  // ── 13 inline script ───────────────────────────────────────────────────────
+  // docs/11 finding 1, gate E6. Raw HTML renders verbatim, which is correct CommonMark and is the whole
+  // reason an embed works — so this rule says nothing about raw HTML as such. It fires on the one thing
+  // inside it that the *build* will refuse to write: script, against a budget the site declares for its
+  // plugins. An error rather than a warning because it is not advice — the build stops, and an author
+  // who hears about it here hears about it before `snypd build` does. The weight is in the message
+  // because the remedy depends on it: a 40-byte handler and a 40 KB bundle are different conversations.
+  for (const { html, line } of raw) {
+    for (const site of scriptSites(html)) {
+      const at = lineOf(html, site.offset, line);
+      const weight = site.bytes === undefined ? "fetched from another origin, so its weight cannot be known before it runs" : `${site.bytes} B`;
+      out.push(D("inline-script", 13, "error", `Raw HTML adds script — ${site.what} (${weight})`,
+        site.kind === "handler" || site.kind === "url"
+          ? "A page here carries no JavaScript unless the site afforded some: put the behaviour in a plugin, which declares what it costs and is checked against `bench.budgets.jsKb`"
+          : "A page here carries no JavaScript unless the site afforded some: raise `bench.budgets.jsKb` in snypd.yaml if this is script the site means to ship, or move it into a plugin, which declares what it costs. The build refuses this page until one of those is true",
+        at));
+    }
+  }
 
   // ── 7 stale updated ────────────────────────────────────────────────────────
   const asDate = (v: unknown) => v instanceof Date ? v : typeof v === "string" ? new Date(v) : undefined;

@@ -24,8 +24,12 @@
  * process. Ctrl-C reaches the child through the process group, and the child's exit code is re-exited
  * here so `&&` chains and CI keep working.
  *
- * The cost is one Node boot (~25–40 ms) in front of every run, which is why `snypd init` does not
- * register *this* path with the harness when it can name something better (`core/src/site.ts`).
+ * The cost is one Node boot in front of every run, which is why `snypd init` does not register *this*
+ * path with the harness when it can name something better (`core/src/site.ts`). S18d′ guessed that boot
+ * at 25–40 ms; measured in I0 it is **+94 ms** — `--version` through this file is 119 ms against the
+ * binary's own 25 ms, and `serve` to a first `initialize` is 211 ms against 120 ms, both medians of
+ * seven on one loaded box. Worth writing down, because D2's whole budget is 50 ms: anything that puts
+ * this file on the harness's spawn path has already spent it twice over before snypd starts.
  */
 const { spawnSync } = require("node:child_process");
 const { existsSync } = require("node:fs");

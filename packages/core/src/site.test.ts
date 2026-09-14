@@ -300,7 +300,7 @@ describe("bundled themes", () => {
     expect(generate()).toBe(readFileSync(`${import.meta.dir}/bundled.ts`, "utf8"));   // stale → `bun packages/core/src/bundled.gen.ts`
   });
 
-  test("every file of every bundled theme is in it, as text or as a module", async () => {
+  test("every file of every bundled theme is in it, as text, as bytes or as a module", async () => {
     const { BUNDLED_NAMES } = await import("./bundled.gen");
     const { BUNDLED } = await import("./bundled");
     for (const name of BUNDLED_NAMES) {
@@ -309,8 +309,10 @@ describe("bundled themes", () => {
         f.name === "node_modules" || f.name.startsWith(".") || f.name === "package.json" ? []
           : f.isDirectory() ? walk(`${d}/${f.name}`, base) : [`${d}/${f.name}`.slice(base.length + 1)]);
       const b = BUNDLED[name]!;
-      expect(walk(dir).sort()).toEqual([...Object.keys(b.files), ...Object.keys(b.modules)].sort());
+      expect(walk(dir).sort()).toEqual([...Object.keys(b.files), ...Object.keys(b.bytes), ...Object.keys(b.modules)].sort());
       for (const [f, text] of Object.entries(b.files)) expect(text, f).toBe(readFileSync(`${dir}/${f}`, "utf8"));
+      // B1: a webfont is neither text nor code, and a .woff2 round-tripped through UTF-8 is not a font.
+      for (const [f, b64] of Object.entries(b.bytes)) expect(Buffer.from(b64, "base64"), f).toEqual(readFileSync(`${dir}/${f}`));
     }
   });
 
@@ -354,7 +356,7 @@ describe("bundled themes", () => {
     expect(themeFile(dir, "theme.yaml")).toContain("theme: base");
     expect(themeHas(dir, "./primitives/stat.tsx")).toBe(true);   // theme.yaml writes the `./` form
     expect(themeFiles(dir)).toContain("layouts/post.tsx");
-    expect(bundledNames()).toEqual(["base", "editorial"]);
+    expect(bundledNames()).toEqual(["base", "editorial", "technical"]);   // U6b: the second styled theme ships in the binary too
     expect(themeFile(bundledDir("nope"), "theme.yaml")).toBeUndefined();
   });
 });

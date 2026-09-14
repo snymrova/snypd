@@ -47,6 +47,7 @@ export function handlers(root: string): Handlers {
         `  ${t.name}:`,
         `    value: ${JSON.stringify(t.value)}`,
         t.overridden ? `    default: ${JSON.stringify(t.default)}   # overridden in snypd.yaml` : "",
+        t.variation ? `    default: ${JSON.stringify(t.default)}   # moved by the \`${t.variation}\` variation, not by this site (snypd://theme/variations)` : "",
         t.kind ? `    kind: ${t.kind}` : "",
         t.customisable ? "" : "    customisable: false   # fixed by the theme; extend it to change this",
         t.description ? `    description: ${JSON.stringify(t.description)}` : "",
@@ -54,6 +55,35 @@ export function handlers(root: string): Handlers {
       return [YAML, `# Tokens of theme \`${cfg.config.theme.use}\`. ${settable} of ${rows.length} can be set from snypd.yaml\n` +
         `# with \`theme\` › set_tokens; the rest are structure, not taste. Every one is emitted as a CSS custom\n` +
         `# property (\`color.accent\` → \`--color-accent\`), which is what a theme's stylesheet reads.\ntokens:\n${body}\n`];
+    }
+    /**
+     * The named looks (U6a). Its own resource rather than a block in `snypd://theme/tokens`, which is
+     * where it started: a `variations:` map sits at the same indent as the token names under `tokens:`,
+     * and the kill test's driver — which reads that resource the way an agent does, by shape — picked
+     * `ink` out of it as a token name and had its whole retune refused as one bad key. A resource whose
+     * YAML has two maps a line-at-a-time reader cannot tell apart is a resource that will be misread,
+     * and the fix is the one `/tokens`, `/settings` and `/coverage` already are: one read, one question.
+     *
+     * Not in `snypd://theme` either, for the reason the palette is not: what each look *is* takes a
+     * sentence, and a sentence per variation on the read every session makes is a tax on the sessions
+     * that never restyle. This is free until an agent is actually changing the look.
+     */
+    if (part === "variations") {
+      const looks = c.themeVariations(cfg);
+      const stranded = c.strandedVariation(cfg);
+      if (!looks.length) return [YAML, `# ${cfg.config.theme.use} ships no variations — its tokens are its one look.\n` +
+        `# A theme declares them in theme.yaml: \`variations: { ink: { description: …, tokens: { color.bg: … } } }\`.\nvariations: {}\n` +
+        (stranded ? `# theme.variation is \`${stranded}\`, which it does not ship; its own tokens are rendering\n` : "")];
+      const body = looks.map((v) => [
+        `  ${v.name}:${v.active ? "   # active" : ""}`,
+        `    description: ${JSON.stringify(v.description.replace(/\s+/g, " ").trim())}`,
+        `    moves: ${v.tokenCount ? `[${Object.keys(v.tokens ?? {}).join(", ")}]` : "[]   # the theme's own tokens, named so a site can switch back to them"}`,
+      ].join("\n")).join("\n");
+      return [YAML, `# The complete looks theme \`${cfg.config.theme.use}\` ships: \`theme\` › set with \`variation\`, one word.\n` +
+        `# Each moves only the tokens it names (snypd://theme/tokens is the palette), and this site's own\n` +
+        `# \`theme.tokens\` still win over whichever is chosen — theme defaults ← variation ← your overrides.\n` +
+        (stranded ? `# theme.variation is \`${stranded}\`, which is not one of these; the theme's own tokens are rendering.\n` : "") +
+        `variations:\n${body}\n`];
     }
     // The settings table (U3, docs/09 §4.2). A resource and not a tool for the reason the tokens table
     // is one (decision 38): an agent that is not restyling never reads it and never pays for it.
@@ -92,10 +122,10 @@ export function handlers(root: string): Handlers {
         layouts: Object.keys(t.layouts).sort(),
         primitives: t.coverage,
         parts: t.partCoverage,
-        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout",
+        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries, toc) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout. `toc` is the post layout's contents slot and renders nothing in `base`: a theme that wants a contents list overrides it and reads `page.headings`",
       }, null, 2)];
     }
-    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /settings, /coverage)`);
+    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /variations, /settings, /coverage)`);
     return [YAML, c.renderThemeSummary(root, cfg)];
   };
   return {
@@ -110,7 +140,8 @@ export function handlers(root: string): Handlers {
         { uri: "snypd://theme", name: "theme", mimeType: YAML, description: "The active theme: what it inherits, how it means to read, and what else is installed — read this with the config" },
         { uri: "snypd://theme/tokens", name: "theme/tokens", mimeType: YAML, description: "Every token the theme declares, with its value, default and whether it may be set from snypd.yaml — the knobs that change how the site looks without writing CSS" },
         ...(c.settingDecls.length ? [{ uri: "snypd://theme/settings", name: "theme/settings", mimeType: YAML, description: "What this theme lets the site choose without writing CSS — each setting's type, what it means, and what it is set to now; `theme` › set_settings writes one" }] : []),
-        { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives and 4 parts (shell, header, footer, entries) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
+        ...(c.variations.length ? [{ uri: "snypd://theme/variations", name: "theme/variations", mimeType: YAML, description: "The complete named looks this theme ships — what each one is and which tokens it moves; `theme` › set with `variation` switches in one word" }] : []),
+        { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives and 5 parts (shell, header, footer, entries, toc) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
         { uri: "snypd://nav", name: "nav", mimeType: YAML, description: "The menus: which locations the theme renders (header, footer) and what each content/nav/<location>.yaml holds, every `ref` resolved to its route — `site` › set_nav writes one" },
         { uri: "snypd://bench/latest", name: "bench/latest", mimeType: MD, description: "The last full benchmark report: every speed and size budget with its measured value" },

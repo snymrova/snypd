@@ -60,6 +60,28 @@ describe("--deploy", () => {
     }
   });
 
+  /**
+   * I0. The three `npx -y` lines cost the runner three tree verifications of a pinned package — 2.2 s
+   * each, measured — on top of one 37 MB download that nothing was keeping between runs. What is
+   * asserted here is the shape, not the seconds: one install, bare commands after it, and a cache keyed
+   * on the version the install is pinned to.
+   */
+  test("the PR workflow installs the pinned launcher once and runs it three times", () => {
+    const dir = fresh();
+    writeDeploy(dir, "cloudflare", { name: "x" });
+    const wf = readFileSync(join(dir, ".github/workflows/snypd.yml"), "utf8");
+    expect(wf).toContain(`npm install -g ${LAUNCHER}@${VERSION}`);
+    for (const verb of ["lint", "build", "bench --quick"]) expect(wf).toContain(`- run: snypd ${verb}`);
+    // The regression this guards: a fourth verb added later as another `npx -y`, and the install silently
+    // paid again. There is exactly one *step* in this file that reaches the registry — asserted over the
+    // `run:` lines, because one comment above them still has to explain why `npx` is not among them.
+    const runs = wf.split("\n").filter((l) => l.trimStart().startsWith("- run:"));
+    expect(runs.filter((l) => l.includes("npx"))).toEqual([]);
+    expect(runs.filter((l) => l.includes("npm install"))).toHaveLength(1);
+    // A content repo has no lockfile, so the version is the only honest cache key available.
+    expect(wf).toContain(`key: snypd-${VERSION}-npm`);
+  });
+
   test("never overwrites a config that is already somebody's", () => {
     const dir = fresh();
     writeFileSync(join(dir, "wrangler.toml"), "# mine\n");

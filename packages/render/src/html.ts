@@ -5,7 +5,7 @@
  * the vocabulary is enforced by lint, not by the renderer.
  */
 import type { Root, Node, Parent, Literal, Heading, Code, Link, Image, List, ListItem, Table, TableCell, Definition, FootnoteDefinition, FootnoteReference, LinkReference, ImageReference } from "mdast";
-import { parseMarkdown, type Block } from "@snypd/core";
+import { parseMarkdown, safeContentUrl, type Block } from "@snypd/core";
 import { Html, escape, escapeText, raw } from "./jsx-runtime";
 
 export interface HtmlOptions {
@@ -15,6 +15,20 @@ export interface HtmlOptions {
   blocks?: Map<Node, Block>;
   /** Heading ids (`<h2 id="…">`) for the toc and deep links. Default on. */
   headingIds?: boolean;
+  /**
+   * Filled, in document order, with the document's **own** headings — the ones that are direct children of
+   * the root — as this render issued their ids (U6b). The heading tree a `toc` part draws from. An
+   * out-parameter and not a return value because `toHtml` returns one `Html` to eleven callers; only the
+   * one that renders a document body passes this.
+   *
+   * **Direct children, and that is a filter and not a coincidence.** A directive's markdown children are
+   * rendered by the same recursion with the same options, so an `faq`'s `###` questions and a `steps`'s
+   * titles get ids exactly as a section heading does — which is right, because they are linkable. They are
+   * not the document's spine: an `faq` is one block that happens to contain six questions, and a contents
+   * list that names all six describes the page's markup rather than its argument. So they keep their ids
+   * and stay out of this array.
+   */
+  headings?: Array<{ depth: number; id: string; text: string }>;
   /** Render top-level paragraphs without their `<p>` — a phrase going into a caption, not a document. */
   inline?: boolean;
 }
@@ -41,15 +55,31 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
   const ids = new Map<string, number>();
   const headingId = (h: Heading) => { const base = slugify(textOf(h)); const n = ids.get(base) ?? 0; ids.set(base, n + 1); return n ? `${base}-${n}` : base; };
 
+  /** The document's own top level — what `opts.headings` collects from. See the field's note. */
+  const topLevel = new Set<Node>(root.children);
   const kids = (n: Parent, tight = false): string => n.children.map((c) => node(c, tight)).join("");
   const attr = (k: string, v: string | null | undefined) => (v ? ` ${k}="${escape(v)}"` : "");
+  // docs/11 finding 10. Escaping made `javascript:alert(1)` a well-formed attribute; it did not make it
+  // a link. The scheme is checked here as well as in lint because lint is advice and this is the last
+  // thing between a `.md` file and a page — and a link an agent wrote after reading the open web
+  // (decision 80) arrives through the same door as one a person wrote.
+  // The text survives either way: the renderer drops the attribute, never the author's words.
+  const href = (u: string) => (safeContentUrl(u, "link") ? ` href="${escape(u)}"` : "");
+  const img = (u: string, alt: string, title?: string | null) =>
+    safeContentUrl(u, "image") ? `<img src="${escape(u)}" alt="${escape(alt)}"${attr("title", title)}>` : escapeText(alt);
 
   const node = (n: Node, tight = false): string => {
     switch (n.type) {
       case "root": return kids(n as Parent);
       case "yaml": case "toml": case "definition": case "footnoteDefinition": return "";
       case "paragraph": return tight || opts.inline ? kids(n as Parent) : `<p>${kids(n as Parent)}</p>\n`;
-      case "heading": { const h = n as Heading; const id = opts.headingIds === false ? "" : ` id="${headingId(h)}"`; return `<h${h.depth}${id}>${kids(h)}</h${h.depth}>\n`; }
+      case "heading": {
+        const h = n as Heading;
+        if (opts.headingIds === false) return `<h${h.depth}>${kids(h)}</h${h.depth}>\n`;
+        const id = headingId(h);
+        if (topLevel.has(n)) opts.headings?.push({ depth: h.depth, id, text: textOf(h).replace(/\s+/g, " ").trim() });
+        return `<h${h.depth} id="${id}">${kids(h)}</h${h.depth}>\n`;
+      }
       case "text": return escapeText((n as Literal).value);
       case "emphasis": return `<em>${kids(n as Parent)}</em>`;
       case "strong": return `<strong>${kids(n as Parent)}</strong>`;
@@ -60,10 +90,10 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
       case "break": return "<br>\n";
       case "thematicBreak": return "<hr>\n";
       case "blockquote": return `<blockquote>\n${kids(n as Parent)}</blockquote>\n`;
-      case "link": { const l = n as Link; return `<a href="${escape(l.url)}"${attr("title", l.title)}>${kids(l)}</a>`; }
-      case "image": { const i = n as Image; return `<img src="${escape(i.url)}" alt="${escape(i.alt ?? "")}"${attr("title", i.title)}>`; }
-      case "linkReference": { const l = n as LinkReference; const d = defs.get(l.identifier); return d ? `<a href="${escape(d.url)}"${attr("title", d.title)}>${kids(l)}</a>` : `[${kids(l)}]`; }
-      case "imageReference": { const i = n as ImageReference; const d = defs.get(i.identifier); return d ? `<img src="${escape(d.url)}" alt="${escape(i.alt ?? "")}"${attr("title", d.title)}>` : `![${escape(i.alt ?? "")}]`; }
+      case "link": { const l = n as Link; return `<a${href(l.url)}${attr("title", l.title)}>${kids(l)}</a>`; }
+      case "image": { const i = n as Image; return img(i.url, i.alt ?? "", i.title); }
+      case "linkReference": { const l = n as LinkReference; const d = defs.get(l.identifier); return d ? `<a${href(d.url)}${attr("title", d.title)}>${kids(l)}</a>` : `[${kids(l)}]`; }
+      case "imageReference": { const i = n as ImageReference; const d = defs.get(i.identifier); return d ? img(d.url, i.alt ?? "", d.title) : `![${escape(i.alt ?? "")}]`; }
       case "list": { const l = n as List; const tag = l.ordered ? "ol" : "ul"; const start = l.ordered && l.start && l.start !== 1 ? ` start="${l.start}"` : ""; return `<${tag}${start}>\n${l.children.map((c) => node(c, !l.spread)).join("")}</${tag}>\n`; }
       case "listItem": { const li = n as ListItem; const box = li.checked === null || li.checked === undefined ? "" : `<input type="checkbox" disabled${li.checked ? " checked" : ""}> `; return `<li>${box}${li.children.map((c) => node(c, tight && c.type === "paragraph")).join("")}</li>\n`; }
       case "table": { const t = n as Table; const rows = t.children; const cell = (c: TableCell, i: number, th: boolean) => { const a = t.align?.[i]; return `<${th ? "th" : "td"}${a ? ` align="${a}"` : ""}>${kids(c)}</${th ? "th" : "td"}>`; };

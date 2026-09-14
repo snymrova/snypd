@@ -1,0 +1,10 @@
+# The technical lane (U6b). The same fixture — every primitive, every layout, once — under the second
+# theme, so `tech.*` in `snypd bench page` is a comparison and not a second site. `SNYPD_ENV=technical` is
+# not a special case: it is the config layering the product already has (`snypd.<env>.yaml`, docs/02).
+#
+# `repo` is set because the masthead's `src` link is one of the two things this theme added to the
+# contract and a surface no suite visits has no gates (decision 54).
+theme:
+  use: technical
+  settings:
+    repo: https://github.com/snymrova/snypd

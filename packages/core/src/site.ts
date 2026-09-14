@@ -19,7 +19,7 @@ import { loadConfig, formatDiagnostics, isPlaceholderUrl, normalizeRoute, redire
 import { bundledDir, bundledNames, themeFile } from "./themefs";
 import { writeDeploy, LAUNCHER, type DeployTarget } from "./deploy";
 import { parsePath, parseYaml, pathKey } from "./yaml";
-import { settingValue, type SettingDecl, type SettingValue } from "./schema";
+import { settingValue, type SettingDecl, type SettingValue, type VariationDecl } from "./schema";
 import { WriteError } from "./write";
 import { git, initRepo, isRepoRoot } from "./git";
 
@@ -100,6 +100,8 @@ export interface TokenInfo {
   customisable: boolean;
   /** The theme in the chain that declared it. */
   declaredBy?: string;
+  /** The variation that moved it off the declared default, when one did (U6a) — the theme's own look, not this site's. */
+  variation?: string;
   /** True when `snypd.yaml` (or an env layer) has moved it off its default. */
   overridden: boolean;
 }
@@ -138,16 +140,61 @@ export function themeTokens(cfg: LoadedConfig): TokenInfo[] {
     const dec = isDecl(d) ? d : undefined;
     const eff = merged[name];
     const value = (isDecl(eff) ? eff.default : (eff as string | number)) ?? dec?.default ?? "";
+    // Who last wrote this value, from the provenance the merge already recorded. Before U6a "not the
+    // shape the theme declared" was a good enough proxy for "the site moved it", because the site layer
+    // was the only thing that could write a bare scalar onto a declared token. A variation writes bare
+    // scalars too — it is the theme's own look — so the proxy started calling eleven of `ink`'s tokens
+    // site overrides, and `theme` › set would have reported them as stranded on the next theme switch.
+    // The layer name is the thing that was actually being asked about all along.
+    const src = cfg.provenance.get(pathKey(["theme", "tokens", name]));
+    const bySite = src ? src.layer === "site" || src.layer === "env" : !decls.has(name) ? true : dec ? !isDecl(eff) : String(d) !== String(eff);
+    // `from` on a theme-layer source is the theme name, or `<theme> › <variation>` for the layer U6a
+    // inserts between the theme's defaults and the site's overrides.
+    const variation = src?.layer === "theme" && src.from?.includes(" \u203a ") ? src.from.split(" \u203a ")[1] : undefined;
     return {
       name, value, default: dec?.default ?? value,
       kind: dec?.kind, description: dec?.description,
       customisable: dec?.customisable ?? false,
-      declaredBy: decls.get(name)?.by,
+      declaredBy: decls.get(name)?.by, variation,
       // Overridden = snypd.yaml has moved it. A token the chain never declared counts too: that is a
       // stranded override left behind by a theme switch, which is exactly what `doctor` should surface.
-      overridden: !decls.has(name) ? true : dec ? !isDecl(eff) : String(d) !== String(eff),
+      overridden: bySite,
     };
   });
+}
+
+// ── variations (U6a, docs/10 §5.2) ───────────────────────────────────────────────────────────────
+
+export interface VariationInfo extends VariationDecl {
+  /** The one `theme.variation` names — or, when it names nothing, the first the theme ships, which is its own defaults. */
+  active: boolean;
+  /** How many tokens it moves. 0 is not a defect: a theme's defaults are a look, and naming them is what lets a site switch *back*. */
+  tokenCount: number;
+}
+
+/**
+ * Every variation the active theme chain ships, in declaration order, with the chosen one marked. The
+ * declarations come off `cfg.variations` — parsed once during the chain walk, like `settingDecls` — so
+ * this is a join and not a second read of the disk. Three readers again: `snypd://theme` prints the
+ * list, `theme` › set validates a name against it, and the gallery script takes one screenshot per row.
+ *
+ * When `theme.variation` is unset the *first* variation is active, because a theme lists its own defaults
+ * first and a site that has never chosen is looking at them. A theme that ships none hands back `[]`, and
+ * every caller behaves as it did before U6a.
+ */
+export function themeVariations(cfg: LoadedConfig): VariationInfo[] {
+  const chosen = cfg.config.theme.variation;
+  return cfg.variations.map((v, i) => ({
+    ...v,
+    active: chosen === undefined ? i === 0 : v.name === chosen,
+    tokenCount: Object.keys(v.tokens ?? {}).length,
+  }));
+}
+
+/** The variation `snypd.yaml` names that the theme does not ship — what a theme switch leaves behind, beside a stranded token. */
+export function strandedVariation(cfg: LoadedConfig): string | undefined {
+  const chosen = cfg.config.theme.variation;
+  return chosen !== undefined && !cfg.variations.some((v) => v.name === chosen) ? chosen : undefined;
 }
 
 // ── settings (U3, docs/09 §4.2) ──────────────────────────────────────────────────────────────────
@@ -468,6 +515,8 @@ export function renderThemeSummary(root: string, cfg: LoadedConfig): string {
   const chain = cfg.layers.find((l) => l.name === "theme")?.chain ?? [];
   const rows = themeTokens(cfg);
   const set = themeSettings(cfg);
+  const looks = themeVariations(cfg);
+  const stranded = strandedVariation(cfg);
   const active = installed.find((t) => t.active);
   return [
     "# A theme is `theme.yaml` plus one stylesheet; anything it does not declare resolves up `extends:`.",
@@ -475,6 +524,14 @@ export function renderThemeSummary(root: string, cfg: LoadedConfig): string {
     `active: ${cfg.config.theme.use}`,
     `extends: [${chain.slice(1).map((l) => l.name).join(", ")}]`,
     `tokens: ${rows.length} declared, ${rows.filter((t) => t.customisable).length} settable, ${rows.filter((t) => t.overridden).length} overridden here`,
+    // The looks the theme ships, with what each one is (U6a). This is the read an agent makes before it
+    // restyles, and the cheapest useful answer to "make it darker" is a name it can pass to `theme` › set
+    // rather than a palette it has to invent — so the descriptions are here and not one resource deeper.
+    // Names only, and for the reason the docstring above gives about the palette: what each look *is*
+    // costs three sentences, and it is the read an agent makes when it is changing the look rather than
+    // learning the site. It lives beside the palette in snypd://theme/tokens, which is free until read.
+    ...(looks.length ? [`variations: ${looks.map((v) => v.name + (v.active ? "*" : "")).join(" ")}   # * = active; \`theme\` › set with \`variation\`, snypd://theme/variations says what each is`] : []),
+    ...(stranded ? [`  ! theme.variation \`${stranded}\` is not one of them — the theme's own tokens are rendering`] : []),
     // One line, and only from a theme that has any (U3): a settings surface nobody can find is a
     // settings surface nobody uses, and `snypd://theme` is the read an agent makes before it restyles.
     ...(set.length ? [`settings: ${set.length} declared, ${set.filter((x) => x.set).length} set here — snypd://theme/settings`] : []),

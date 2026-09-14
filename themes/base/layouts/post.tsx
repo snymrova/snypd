@@ -6,7 +6,7 @@ import { formatDate, part, settingFlag, settingText, Slot, type LayoutProps, typ
  * do not disappear just because the author wrote their own cover.
  */
 export default function Post({ ctx, page, route, title, description, jsonLd }: LayoutProps): Html {
-  const Shell = part(ctx, "shell");
+  const Shell = part(ctx, "shell"), Toc = part(ctx, "toc");
   const p = page!;
   const fm = p.frontmatter.cover as { image?: string; alt?: string; eyebrow?: string } | undefined;
   const size = fm?.image ? ctx.media[fm.image] : undefined;
@@ -31,6 +31,8 @@ export default function Post({ ctx, page, route, title, description, jsonLd }: L
             {p.updated && dates ? <> (updated <time datetime={p.updated}>{formatDate(p.updated, format)}</time>)</> : null}
             {p.author ? <> by {p.author.page ? <a href={`${p.author.route}/`} rel="author">{p.author.title}</a> : p.author.title}</> : null}
           </p>
+          {/* Empty in `base` and in every theme that does not override it (U6b) — the slot costs no byte. */}
+          <Toc ctx={ctx} route={route} title={title} page={p} />
           <Slot name="before-content" ctx={ctx} route={route} title={title} page={p} />
           {p.body}
           <Slot name="after-content" ctx={ctx} route={route} title={title} page={p} />

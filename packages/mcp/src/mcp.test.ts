@@ -472,7 +472,7 @@ describe("find_tools + the catalogue", () => {
   });
 
   test("init → set_config → redirect → tokens → scaffold, each validated before it sticks", async () => {
-    const [, init, dupeInit, renamed, bad, explained, unknownToken, redirected, loop, scaffolded, activated] = await session([
+    const [, init, dupeInit, renamed, bad, explained, unknownToken, hostileToken, redirected, loop, scaffolded, activated] = await session([
       req(1, "initialize"),
       call(2, "site", { action: "init", name: "S16", url: "https://s16.example", description: "A test." }),
       call(3, "site", { action: "init", name: "again", url: "https://s16.example" }),
@@ -480,6 +480,8 @@ describe("find_tools + the catalogue", () => {
       call(5, "site", { action: "set_config", path: "site.url", value: "not a url" }),
       call(6, "site", { action: "explain_config", path: "site.name" }),
       call(7, "theme", { action: "set_tokens", tokens: { "color.nope": "#000" } }),
+      // H0 / E5: two tokens, the second refused. The first must not be written either.
+      call(71, "theme", { action: "set_tokens", tokens: { "color.accent": "#123456", "color.bg": "#fff } html { display: none" } }),
       call(8, "site", { action: "set_redirect", from: "/posts/old", to: "/posts/new" }),
       call(9, "site", { action: "set_redirect", from: "/posts/new", to: "/posts/old" }),
       call(10, "theme", { action: "scaffold", name: "scratchy", extends: "editorial" }),
@@ -499,6 +501,11 @@ describe("find_tools + the catalogue", () => {
 
     expect(unknownToken.result.isError).toBe(true);
     expect(unknownToken.result.content[0].text).toContain("color.accent");   // the hint names real ones
+
+    expect(hostileToken.result.isError).toBe(true);
+    expect(hostileToken.result.content[0].text).toContain("color.bg");
+    expect(hostileToken.result.content[0].text).toContain("Nothing was written");
+    expect(readFileSync(`${site}/snypd.yaml`, "utf8")).not.toContain("#123456");   // not even the good one
 
     expect(structured(redirected)).toMatchObject({ from: "/posts/old", to: "/posts/new" });
     expect(loop.result.isError).toBe(true);
@@ -602,6 +609,88 @@ describe("find_tools + the catalogue", () => {
     expect(noSettings.result.content[0].text).toContain("set_tokens");
     expect(baseDoctor.result.content[0].text).toContain("1 setting value `base` does not declare, left by another theme: tagline");
     expect(baseDoctor.result.content[0].text).not.toContain("settings: 0 declared");
+  });
+
+  test("U6a: set takes a variation, refuses one the theme does not ship, and a theme switch clears it", async () => {
+    const site = "corpora/_test/mcp-variations";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(site, { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    const yaml = () => readFileSync(`${site}/snypd.yaml`, "utf8");
+
+    const [, , list, listed, described, chosen, again, unknown, chosenList] = await session([
+      req(1, "initialize"),
+      call(0, "site", { action: "init", name: "Look", url: "https://look.example", theme: "editorial" }),
+      req(1.5, "resources/list"),
+      req(2, "resources/read", { uri: "snypd://theme" }),
+      req(2.5, "resources/read", { uri: "snypd://theme/variations" }),
+      call(3, "theme", { action: "set", variation: "ink" }),
+      call(4, "theme", { action: "set", variation: "ink" }),
+      call(5, "theme", { action: "set", variation: "puce" }),
+      req(6, "resources/read", { uri: "snypd://theme" }),
+    ], site);
+
+    // `snypd://theme` is the read every session makes, so it carries the names and nothing else — unset,
+    // the first is marked active, because a theme lists its own defaults first. What each look *is* costs
+    // a sentence each and lives one read deeper, which is the bargain the palette has had since S16.
+    expect(listed.result.contents[0].text).toContain("variations: paper* ink broadsheet");
+    expect(listed.result.contents[0].text).not.toContain("Dark only");
+    expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/variations");
+    expect(described.result.contents[0].text).toContain("  paper:   # active");
+    expect(described.result.contents[0].text).toContain('description: "Dark only: a cool near-black, one cyan, the same measure."');
+    expect(described.result.contents[0].text).toContain("moves: [measure, font.heading,");
+
+    expect(structured(chosen)).toMatchObject({ ok: true, theme: "editorial", variation: "ink", changed: true });
+    expect(chosen.result.content[0].text).toContain("variation (the theme's own tokens) → ink");
+    expect(chosen.result.content[0].text).toContain("committed");
+    expect(structured(again)).toMatchObject({ changed: false });
+    expect(chosenList.result.contents[0].text).toContain("variations: paper ink* broadsheet");
+
+    // Refused by name, and nothing written — a bad variation does not leave the site somewhere else.
+    expect(unknown.result.isError).toBe(true);
+    expect(unknown.result.content[0].text).toContain(`ships no variation "puce"`);
+    expect(unknown.result.content[0].text).toContain("paper, ink, broadsheet");
+    expect(unknown.result.content[0].text).toContain("Nothing was written");
+    expect(yaml()).toContain("variation: ink");
+
+    // A site's own token still wins over the variation, and null is the way back to the theme's own
+    // tokens — the same shape `set_tokens` and `set_settings` already have.
+    const [, withToken, back] = await session([
+      req(1, "initialize"),
+      call(2, "theme", { action: "set_tokens", tokens: { "color.accent": "#123456" } }),
+      call(3, "theme", { action: "set", variation: null }),
+    ], site);
+    expect(structured(withToken)).toMatchObject({ ok: true });
+    expect(structured(back)).toMatchObject({ variation: null, fromVariation: "ink", changed: true });
+    expect(yaml()).toContain('color.accent: "#123456"');
+    expect(yaml()).not.toContain("variation:");
+
+    // Theme and look in one call, then a theme switch: a variation is a name in the *theme's* vocabulary,
+    // so switching theme clears it rather than carrying it to a theme that never heard of it and warning
+    // on every load afterwards. `base` ships none, so the resource says nothing about them at all.
+    const [, both, list2, moved, resource] = await session([
+      req(1, "initialize"),
+      call(2, "theme", { action: "set", name: "editorial", variation: "broadsheet" }),
+      req(3, "resources/read", { uri: "snypd://theme" }),
+      call(4, "theme", { action: "set", name: "base" }),
+      req(5, "resources/read", { uri: "snypd://theme" }),
+    ], site);
+    expect(structured(both)).toMatchObject({ theme: "editorial", variation: "broadsheet", changed: true });
+    expect(list2.result.contents[0].text).toContain("variations: paper ink broadsheet*");
+    expect(structured(moved)).toMatchObject({ theme: "base", from: "editorial", variation: null, fromVariation: "broadsheet" });
+    expect(moved.result.content[0].text).toContain("cleared by the theme switch");
+    expect(resource.result.contents[0].text).not.toContain("variations:");
+    expect(yaml()).not.toContain("variation:");
+
+    // `base` ships none: the resource is not listed, and reading it anyway says what a theme would
+    // declare rather than printing an empty heading — the treatment snypd://theme/settings already gives.
+    const [, baseList, none] = await session([
+      req(1, "initialize"),
+      req(2, "resources/list"),
+      req(3, "resources/read", { uri: "snypd://theme/variations" }),
+    ], site);
+    expect(baseList.result.resources.map((r: any) => r.uri)).not.toContain("snypd://theme/variations");
+    expect(none.result.contents[0].text).toContain("base ships no variations");
   });
 
   /**
@@ -803,9 +892,9 @@ describe("find_tools + the catalogue", () => {
 
     // prompts: namespaced, described as the plugin's, and rendered with the site in hand
     const pnames = prompts.result.prompts.map((x: any) => x.name);
-    // snypd's two first, then the plugins' in `plugins:` order, each namespaced by its plugin
-    expect(pnames).toEqual(["get-started", "write-post", "speaker.walk", "indexnow.get-indexed"]);
-    expect(prompts.result.prompts[2].description).toContain("(from the `speaker` plugin)");
+    // snypd's three first, then the plugins' in `plugins:` order, each namespaced by its plugin
+    expect(pnames).toEqual(["get-started", "write-post", "build-theme", "speaker.walk", "indexnow.get-indexed"]);
+    expect(prompts.result.prompts[3].description).toContain("(from the `speaker` plugin)");
     expect(got.result.messages[0].content.text).toBe("Walk speaking on P4.");
 
     // content.explain: what ran, not what was declared — and the real index is untouched by the scratch build
@@ -877,7 +966,7 @@ describe("find_tools + the catalogue", () => {
   });
 
   test("theme, tokens and coverage are resources, and prompts are scripts an agent can run", async () => {
-    const [, theme, tokens, coverage, badTheme, prompts, post, badPrompt] = await session([
+    const [, theme, tokens, coverage, badTheme, prompts, post, badPrompt, theme2] = await session([
       req(1, "initialize"),
       req(2, "resources/read", { uri: "snypd://theme" }),
       req(3, "resources/read", { uri: "snypd://theme/tokens" }),
@@ -886,6 +975,7 @@ describe("find_tools + the catalogue", () => {
       req(6, "prompts/list"),
       req(7, "prompts/get", { name: "write-post", arguments: { topic: "benchmarks" } }),
       req(8, "prompts/get", { name: "nope" }),
+      req(9, "prompts/get", { name: "build-theme", arguments: { extends: "editorial" } }),
     ], "corpora/theme");
 
     expect(theme.result.contents[0].text).toContain("active: editorial");
@@ -898,11 +988,18 @@ describe("find_tools + the catalogue", () => {
     expect(cov.summary.missing).toBe(0);
     expect(badTheme.error.code).toBe(-32002);
 
-    expect(prompts.result.prompts.map((p: any) => p.name)).toEqual(["get-started", "write-post"]);
+    expect(prompts.result.prompts.map((p: any) => p.name)).toEqual(["get-started", "write-post", "build-theme"]);
     // A prompt has to name the calls it wants made, or it is a paragraph rather than a workflow.
     expect(post.result.messages[0].content.text).toContain("benchmarks");
     expect(post.result.messages[0].content.text).toContain("content.suggest_blocks");
     expect(badPrompt.error).toBeDefined();
+    // U6b: the theme workflow names its calls and its reads, and carries the two rules a theme can only
+    // break once — every value is a var, and a layout is never forked.
+    const bt = theme2.result.messages[0].content.text;
+    expect(bt).toContain("theme` \u203a scaffold");
+    expect(bt).toContain("snypd://theme/coverage");
+    expect(bt).toContain("Never fork a layout");
+    expect(bt).toContain('extends: "editorial"');
   });
 });
 

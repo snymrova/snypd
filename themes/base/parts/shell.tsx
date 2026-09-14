@@ -36,6 +36,14 @@ export default function Shell({ ctx, title, description, markdownUrl, route, jso
           {markdownUrl ? <link rel="alternate" type="text/markdown" href={markdownUrl} /> : null}
           <link rel="alternate" type="application/rss+xml" title={ctx.site.name} href={ctx.assets.feed} />
           {ctx.assets.css ? <link rel="stylesheet" href={ctx.assets.css} /> : null}
+          {/*
+            The theme's webfont (B1, decision 118), preloaded. Without this the browser finds the face
+            only after it has fetched and parsed the stylesheet, which is a second round trip before the
+            first one starts — and `font-display: swap` then swaps a paragraph the reader is already in.
+            `crossorigin` is not optional even same-origin: a font is fetched in CORS mode, and a preload
+            without it is a second, separate download rather than a warm cache entry.
+          */}
+          {ctx.assets.font ? <link rel="preload" href={ctx.assets.font} as="font" type="font/woff2" crossorigin="anonymous" /> : null}
           {/* Without this every page logs a 404: browsers ask for /favicon.ico whether or not one exists. */}
           {ctx.site.icon ? <link rel="icon" href={ctx.site.icon} /> : null}
           <meta name="generator" content="snypd" />
