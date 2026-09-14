@@ -509,6 +509,7 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   // one the build used — including whose theme in the chain declared it.
   const fontKb = (await loadTheme(loadConfig(root))).font?.kb ?? 0;
   const { metrics, browser } = await pageSuite({ root, label: "editorial", jsKb: ACTIVE.jsKb, fontKb });
+  metrics.push(...(await themeLane(root)));
   metrics.push(...(await deskLane(root, fontKb)));
   metrics.push(...(await firstRunLane()));
   const report: Report = { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
@@ -516,6 +517,30 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   writeFileSync("bench/page.json", JSON.stringify({ ...report, browser }, null, 2));
   writeFileSync("bench/page.md", toMarkdown(report));
   return report;
+}
+
+/**
+ * The second theme, over the same fixture, at the same two widths (U6b) — the design pass, kept.
+ *
+ * **A prefix and not more routes on `page.*`.** The editorial lane's worst-of has been comparable session
+ * to session since S13; folding a second theme's pages into it would silently redefine what that number
+ * means the first time `technical` were the worst of the two, which is decision 48's failure exactly. So
+ * `tech.*` is its own worst-of, inherits the same budgets from `pageSuite` — 0 KB JS, 0 violations, CLS
+ * ≤ 0.05 — and gets its own font budget, which for a theme that ships no face is **0**. That zero is the
+ * point of the lane as much as the design is: `page.font.kb` only means something if a theme that
+ * declares no `font:` is held to nothing.
+ *
+ * `SNYPD_ENV=technical` and `dist-technical`, the same shape `editorialLane` uses on `corpora/100`: one
+ * four-line file in the corpus, no second copy of the content, and the comparison is between two themes
+ * rendering the same thirteen primitives rather than between two sites.
+ */
+async function themeLane(root: string): Promise<Metric[]> {
+  const cfg = loadConfig(root, { env: "technical" });
+  const dist = join(root, "dist-technical");
+  const index = await SiteIndex.open(root, join(root, INDEX_DIR, "index.technical.sqlite"));
+  try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
+  const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
+  return (await pageSuite({ root, dist, label: cfg.config.theme.use, prefix: "tech", jsKb: ACTIVE.jsKb, fontKb })).metrics;
 }
 
 /**

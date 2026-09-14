@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "snypd",
+      "name": "snypd-workspace",
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.6.0",
@@ -11,7 +11,7 @@
     },
     "packages/bench": {
       "name": "@snypd/bench",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@snypd/core": "workspace:*",
         "@snypd/mcp": "workspace:*",
@@ -28,7 +28,7 @@
     },
     "packages/cli": {
       "name": "@snypd/cli",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@snypd/bench": "workspace:*",
         "@snypd/core": "workspace:*",
@@ -39,7 +39,7 @@
     },
     "packages/core": {
       "name": "@snypd/core",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@snypd/runtime": "workspace:*",
         "@snypd/spec": "workspace:*",
@@ -61,7 +61,7 @@
     },
     "packages/mcp": {
       "name": "@snypd/mcp",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@snypd/bench": "workspace:*",
         "@snypd/core": "workspace:*",
@@ -74,7 +74,7 @@
     },
     "packages/render": {
       "name": "@snypd/render",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@snypd/core": "workspace:*",
         "@snypd/spec": "workspace:*",
@@ -87,18 +87,18 @@
     },
     "packages/runtime": {
       "name": "@snypd/runtime",
-      "version": "0.1.3",
+      "version": "0.1.4",
     },
     "packages/spec": {
       "name": "@snypd/spec",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "yaml": "^2.9.0",
       },
     },
     "packages/viz": {
       "name": "@snypd/viz",
-      "version": "0.1.3",
+      "version": "0.1.4",
     },
     "plugins/analytics": {
       "name": "@snypd/plugin-analytics",
@@ -142,6 +142,10 @@
       "name": "@snypd/theme-editorial",
       "version": "0.1.0",
     },
+    "themes/technical": {
+      "name": "@snypd/theme-technical",
+      "version": "0.1.0",
+    },
   },
   "packages": {
     "@hono/node-server": ["@hono/node-server@2.1.1", "", { "peerDependencies": { "hono": "^4" } }, "sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg=="],
@@ -173,6 +177,8 @@
     "@snypd/theme-base": ["@snypd/theme-base@workspace:themes/base"],
 
     "@snypd/theme-editorial": ["@snypd/theme-editorial@workspace:themes/editorial"],
+
+    "@snypd/theme-technical": ["@snypd/theme-technical@workspace:themes/technical"],
 
     "@snypd/viz": ["@snypd/viz@workspace:packages/viz"],
 

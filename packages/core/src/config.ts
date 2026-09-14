@@ -75,7 +75,24 @@ export function collectVariations(chain: ThemeLink[], parsed: Map<string, Parsed
   return { variations, origins };
 }
 
-export interface LoadOptions { env?: string; /** extra dirs searched for `themes/<name>` and `plugins/<name>` (the monorepo adds its own) */ searchPaths?: string[] }
+export interface LoadOptions {
+  env?: string;
+  /** extra dirs searched for `themes/<name>` and `plugins/<name>` (the monorepo adds its own) */
+  searchPaths?: string[];
+  /**
+   * Load a theme the site has not chosen (X1). `snypd check theme <name>` judges a theme *through the
+   * loader a site uses* — the same chain walk, the same strict schema pass, the same token validation —
+   * and the only thing it needs that a site does not is to say which theme, out of band from `theme.use`.
+   *
+   * It sits here rather than anywhere downstream because the name has to be known before the theme layer
+   * merges, which is the same reason `theme.variation` is read where it is, two lines below. Passing it
+   * changes nothing else: the site's own `theme.tokens` still merge on top and still strand where they
+   * name a token the other theme does not declare, which is exactly what a site would see if it switched.
+   */
+  theme?: string;
+  /** The variation to resolve, out of band from `theme.variation` — for checking a look that is not the active one. */
+  variation?: string;
+}
 
 const REPO = join(import.meta.dir, "..", "..", "..");
 
@@ -215,13 +232,13 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const siteView = isObj(site?.value) ? site!.value : {};
   const envView = isObj(envLayer?.value) ? envLayer!.value : {};
   const themeOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.use === "string" ? v.theme.use : undefined);
-  const themeName = themeOf(envView) ?? themeOf(siteView) ?? "base";
+  const themeName = opts.theme ?? themeOf(envView) ?? themeOf(siteView) ?? "base";
   // The variation is read from the site the same way the theme's name is, and for the same reason: both
   // decide what the *theme* layer contributes, so both have to be known before that layer merges. Env
   // over site, as everywhere — which is what lets the benchmark's editorial lane pin a variation.
   const variationOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.variation === "string" ? v.theme.variation : undefined);
-  const variationName = variationOf(envView) ?? variationOf(siteView);
-  const variationFrom = variationOf(envView) !== undefined ? envLayer : variationOf(siteView) !== undefined ? site : undefined;
+  const variationName = opts.variation ?? variationOf(envView) ?? variationOf(siteView);
+  const variationFrom = opts.variation !== undefined ? undefined : variationOf(envView) !== undefined ? envLayer : variationOf(siteView) !== undefined ? site : undefined;
   /**
    * The keys a *theme* declares and a site may not (U6a decision 128, B1 decision 131). `theme.*` is
    * `passthrough` because every root key of a theme.yaml merges under it, which means a site writing one

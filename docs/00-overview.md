@@ -28,7 +28,7 @@ Snypd is an open-source CMS whose **only interface is MCP**. You write, edit, th
 
 ## Principles (every later decision traces to one of these)
 
-1. **MCP is the only interface.** If it isn't a resource, tool or prompt, it doesn't exist. The `snypd` binary has five verbs — `init`, `dev`, `serve`, `build`, `bench` (amended by `07` decision 51, S18e; three at first writing, four after `init`) — and **none of them touch content**, which is the load-bearing half. `dev` is the one a person types to *look*: it serves what a build already produced and writes nothing.
+1. **MCP is the only interface.** If it isn't a resource, tool or prompt, it doesn't exist. The `snypd` binary has seven verbs — `init`, `dev`, `serve`, `build`, `bench` (amended by `07` decision 51, S18e; three at first writing, four after `init`), plus `new` and `check` since X1, which make and judge a *theme or plugin* and are the only two a theme author needs (`11` decision 139) — and **none of them touch content**, which is the load-bearing half. `dev` is the one a person types to *look*: it serves what a build already produced and writes nothing.
 2. **YAML is the only authoring-facing configuration.** An agent reading `snypd.yaml` + `theme.yaml` + the spec knows the whole site without opening a `.ts` file.
 3. **Files are truth.** Markdown + YAML in git. SQLite is a disposable index. No content in a database, ever.
 4. **Closed vocabulary.** ~35 typed content primitives, versioned. Themes implement the vocabulary; content never references a theme.
@@ -51,3 +51,5 @@ Snypd is an open-source CMS whose **only interface is MCP**. You write, edit, th
 ## Business shape (kept deliberately thin)
 
 MIT everything in this repo. Optional paid cloud later: hosted builds, remote MCP with OAuth for team/hosted harnesses, review queue notifications, agent-traffic analytics. Free tier is the funnel and must be complete on its own.
+
+**A custom domain is never inside the paid tier.** On a static artefact behind a CDN a domain costs the provider nothing; charging for it is the clearest possible signal that the paid tier is a hostage rather than a service. Written now, before there is revenue to protect — deferring it means deciding it later, under pressure, against a number. Sunny's call, 13 Sep 2026, on docs/13 §2 Q2.
