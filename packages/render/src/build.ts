@@ -19,6 +19,7 @@ import { Html } from "./jsx-runtime";
 import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
 import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic, type HookRun } from "./hooks";
+import { assertClientBudget } from "./budget";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
@@ -47,7 +48,7 @@ type Output = string | Uint8Array | { copyFrom: string };
 interface Planned { route: string; key: string; outputs: string[]; kind: "route" | "artefact" | "media"; render: () => Record<string, Output> }
 
 /** Bump when the set or shape of files a route produces changes; a stale index is then reset, not pruned. */
-const OUTPUT_FORMAT = "s7";
+const OUTPUT_FORMAT = "s8";   // s8: H2 — every page is weighed against the client budget before it is written, so an index written before the gate existed describes pages nothing has weighed
 
 const routeDir = (route: string) => (route === "/" ? "" : route.replace(/^\//, ""));
 
@@ -134,8 +135,20 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // plugin is enabled, so a site with none keeps the keys it had.
   const pluginHash = pluginDirs(cfg.plugins).length ? `:${themeHash(pluginDirs(cfg.plugins))}` : "";
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens, ...(Object.keys(settings).length ? { settings } : {}) }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses, ...(c.plugins.length ? { plugins: c.plugins } : {}) }));
-  const mediaHash = sha1(JSON.stringify(mediaSizes));
-  let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
+  // H2: a script in `content/media/` is weighed through the page that loads it, and a cached page is not
+  // re-weighed — so the size of every media file a browser would run is in every key, and a script that
+  // grows re-renders the pages that could be loading it. Extension, not content-type: nothing here serves
+  // headers, and a `.txt` a page loads as script is the one shape this does not see (`page.js.kb` does).
+  const mediaScripts = mediaFiles.filter((m) => /\.(?:m?js|cjs)$/i.test(m.rel)).map((m) => [m.rel, statSync(m.src).size]);
+  const mediaHash = sha1(JSON.stringify(mediaScripts.length ? [mediaSizes, mediaScripts] : mediaSizes));
+  /**
+   * The client budget (H2, gate E6). One number, three readers: `loadPlugin` checks a plugin's
+   * declaration against it (P2), `page.js.kb` measures what the browser fetched (S13), and from here
+   * the build weighs what it is about to write. It is in the key because lowering it has to re-render
+   * every page — a budget a cached page was never held to is not a budget.
+   */
+  const jsBudgetKb = ((b) => (typeof b === "number" ? b : 0))(c.bench?.budgets?.jsKb);
+  let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}:js${jsBudgetKb}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }
@@ -311,6 +324,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
 
   // ── render what changed, drop what vanished ────────────────────────────────
   let rendered = 0, cached = 0, removed = 0;
+  const weigh: string[] = [];   // dist-relative pages written this run, for the client budget below
   const known = new Map(index.routes().map((r) => [r.route, r]));
   const planned = new Set(plan.map((p) => p.route));
   const write = (rel: string, content: Output) => {
@@ -328,9 +342,18 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
         write(o, content);
       }
       if (prev) for (const o of prev.outputs) if (!p.outputs.includes(o)) rmSync(join(out, o), { force: true });   // e.g. a type rename moved its json
+      for (const o of p.outputs) if (o.endsWith(".html")) weigh.push(o);
       index.setRoute(p.route, p.key, p.outputs);
       rendered++;
     }
+    // H2, gate E6: the pages this build wrote, weighed against what the site afforded — after the loop,
+    // because a `<script src>` a plugin emitted is a plan item of its own and may not have existed yet
+    // when the page naming it was written. A cached page is not re-weighed: its key covers the content,
+    // the theme graph, every plugin's code, the size of every script in `content/media/` and the budget
+    // itself. What it does not cover is a file a plugin's `emit` stage writes with different bytes from
+    // unchanged code — script a plugin put there is that plugin's declaration to keep (P2), and
+    // `page.js.kb` is the reading that holds it to it.
+    assertClientBudget(out, weigh, jsBudgetKb, { scripts: hooks.scripts, declaredKb: new Map(cfg.plugins.filter((pl) => pl.loaded).map((pl) => [pl.name, pl.clientKb])) });
     // A route that vanished takes its outputs with it — except one a planned route now writes. A `route`
     // filter (P2) that moves `/posts/a` to `/articles/a` leaves the JSON at `api/post/a.json` in both
     // the old row and the new plan; deleting it here would make every following build a miss.

@@ -2,6 +2,7 @@
 export { loadConfig, renderConfig, formatDiagnostics, resolveThemeChain, collectVariations, variationsOf, PLACEHOLDER_URL, isPlaceholderUrl, type Diagnostic, type LoadedConfig, type LoadOptions, type LayerInfo, type ThemeLink } from "./config";
 export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, SettingDeclSchema, SETTING_TYPES, LinkItemSchema, settingValue, VariationSchema, VARIATION_NAME_RE, ThemeFontSchema, MAX_FONT_KB, PluginManifestSchema, PLUGIN_API, PLUGIN_UNBUILT_KEYS, SLOT_NAMES, FILTER_NAMES, clientKbOf, ROLES, type TokenDecl, type ThemeYaml, type SettingDecl, type SettingType, type SettingValue, type Variation, type VariationDecl, type ThemeFont, type LinkItem, type PluginManifest, type Config, type TypeDef, type TaxonomyDef } from "./schema";
 export { cssValue, safeContentUrl, CSS_FUNCTIONS, SETTING_URL_RE } from "./values";
+export { scriptSites, scriptSignature, hasScript, lineOf, local as localUrl, type ScriptSite } from "./script";
 // X1: colour, far enough to answer "is this readable" without a browser (docs/11 §5 item 4).
 export { resolveColor, resolveBoth, contrastRatio, luminance, cssVarName, tokenVars, type Rgb, type Mode, type Vars } from "./color";
 export { describeSource, type Source, type Provenance, type LayerName } from "./merge";

