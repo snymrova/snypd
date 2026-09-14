@@ -20,7 +20,7 @@ Bun 1.4.0 (20 Aug 2026; core rewritten in Rust) gives us, natively:
 | Monorepo | isolated linker, `--catalog`, `bun pm diff`, `bun audit fix`, `bun prune` | 7× warm CI installs; supply-chain hygiene for `site.doctor`. |
 | Tests | `bun test --parallel --shard --isolate` | Primitive × theme × viewport matrix. |
 
-Constraints: pin `1.4.x`, keep `1.3.14` as known-good in CI until 1.4.2+. Every Bun-native API sits behind `packages/runtime/` interface with a Node fallback (`sharp`, Playwright, `node-cron`, `better-sqlite3`) so `core`/`spec`/`mcp` stay runtime-neutral and a regression is a one-line switch.
+Constraints: pin `1.4.x`. ~~Keep `1.3.14` as known-good in CI until 1.4.2+~~ — **Bun 1.3 is deprecated as of 14 Sep 2026**, on Sunny's call: `engines.bun` is `>=1.4.0` and CI runs one lane. The 1.3.14 lane could not read the lockfile 1.4 writes, so it resolved fresh, stayed green on a lockfile that had drifted since #23, and was the lane nobody could trust either way. Every Bun-native API sits behind `packages/runtime/` interface with a Node fallback (`sharp`, Playwright, `node-cron`, `better-sqlite3`) so `core`/`spec`/`mcp` stay runtime-neutral and a regression is a one-line switch.
 
 ## Why not Astro / Next in core
 

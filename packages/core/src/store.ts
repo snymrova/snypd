@@ -1,7 +1,8 @@
 /**
  * S6 site index — a disposable SQLite mirror of the content tree (docs/06 principle 3: files in git are
  * truth, SQLite is an index). Lives at `.snypd/index.sqlite`. One `sync()` per build or lint:
- *   stat every content file → unchanged (mtime + size) rows are kept as-is,
+ *   stat every content file → unchanged (mtime + size) rows are kept as-is — unless the mtime is too close
+ *   to the last sync to vouch for anything (RACY_MS, H3),
  *   changed files are hashed → same hash, new mtime: touch; new hash: re-read the frontmatter,
  *   missing files are dropped. Frontmatter, terms and routes are then answerable without parsing.
  * The route cache (`routes`: route → key → outputs) is what makes a rebuild incremental (docs/04):
@@ -44,6 +45,21 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS mdast (hash TEXT PRIMARY KEY, json TEXT NOT NULL);`;
 
 export const sha1 = (s: string | Buffer) => createHash("sha1").update(s).digest("hex");
+
+/**
+ * How far before the last sync a file's mtime must be for an unchanged mtime + size to mean unchanged
+ * content (H3, docs/11 finding 3). An mtime is a clock reading at the filesystem's granularity — 2 s on
+ * FAT, 1 s on HFS+ and many network mounts, a kernel tick on ext4 — so an edit that lands in the same
+ * tick as the write the index saw, and keeps the length, restats identically. That edit was invisible to
+ * the index and therefore to the route cache: a stale page that no rebuild would ever replace.
+ *
+ * The answer is git's for the same race: a stat taken too close to the mtime it read proves nothing, so
+ * such a file is hashed again on the next sync, and on each one after until a sync starts comfortably
+ * later than the mtime. Rows rewritten by that re-hash carry the new sync's stat, which is what makes
+ * one timestamp in `meta` enough. The price is a hash of each file written in the two seconds before a
+ * sync — the one being edited — and nothing else.
+ */
+export const RACY_MS = 2000;
 // Defined in the leaf `paths.ts` so the MCP cold-start path can read it without this file (S18f).
 export { INDEX_DIR } from "./paths";
 
@@ -97,18 +113,24 @@ export class SiteIndex {
   /** Bring the index up to date with the content tree. Cheap when nothing changed (one stat per file). */
   sync(cfg: LoadedConfig): SyncResult {
     const t0 = performance.now();
-    const existing = new Map(this.db.all<IndexedFile & { frontmatter: string }>("SELECT * FROM files").map((r) => [r.path, { ...r, date: r.date ?? undefined, updated: r.updated ?? undefined }]));   // NULL → undefined, as a cold sync produces
+    const at = Date.now();   // before the first stat: every stat this sync takes is at least this late
     const seen = new Set<string>();
     const changed: string[] = [], moved: Move[] = [];
     let hashed = 0;
     const files: IndexedFile[] = [];
+    let existing = new Map<string, IndexedFile & { frontmatter: string }>();
+    // The read is inside the (immediate) transaction: two processes syncing one index then take turns, so
+    // neither writes rows computed from a snapshot the other has already replaced, and `sync.at` stays true.
     this.db.transaction(() => {
+      existing = new Map(this.db.all<IndexedFile & { frontmatter: string }>("SELECT * FROM files").map((r) => [r.path, { ...r, date: r.date ?? undefined, updated: r.updated ?? undefined }]));   // NULL → undefined, as a cold sync produces
+      // An index that never recorded a sync (a new one, or one written before H3) vouches for no mtime.
+      const vouched = Number(this.meta("sync.at") ?? -Infinity) - RACY_MS;
       for (const c of listContent(this.root, cfg)) {
         const path = relative(this.root, c.file).split("\\").join("/");
         seen.add(path);
         const st = statSync(c.file);
         const prev = existing.get(path);
-        if (prev && prev.mtime === st.mtimeMs && prev.size === st.size && prev.route === c.route && prev.type === c.type) {
+        if (prev && prev.mtime === st.mtimeMs && prev.size === st.size && prev.mtime < vouched && prev.route === c.route && prev.type === c.type) {
           files.push({ ...prev, frontmatter: JSON.parse(prev.frontmatter) });
           continue;
         }
@@ -140,6 +162,7 @@ export class SiteIndex {
         files.push(row);
       }
       for (const path of existing.keys()) if (!seen.has(path)) { this.db.run("DELETE FROM files WHERE path = ?", path); this.db.run("DELETE FROM terms WHERE path = ?", path); this.db.run("DELETE FROM moves WHERE path = ?", path); }
+      this.setMeta("sync.at", String(at));
     });
     const removed = [...existing.keys()].filter((p) => !seen.has(p));
     return { files, changed, removed, moved, hashed, ms: performance.now() - t0 };
