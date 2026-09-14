@@ -129,9 +129,9 @@ export function clientBudgetMessage(over: PageWeight[], budgetKb: number): strin
 }
 
 /**
- * Weigh every HTML file named and throw if any is over. Called inside the build's index transaction, so
- * a refusal rolls the index back: the bytes are on disk and no route row claims them, which makes the
- * next build a cold one that refuses again rather than a warm one that forgets.
+ * Weigh every HTML file named and throw if any is over. Called before the build closes its generation
+ * (H3), so a refusal leaves every page it wrote on an open route row: the bytes are on disk and no key
+ * vouches for them, which makes the next build re-render and refuse again rather than call them current.
  */
 export function assertClientBudget(out: string, files: string[], budgetKb: number, who?: Attribution): PageWeight[] {
   const limit = budgetKb * 1024;

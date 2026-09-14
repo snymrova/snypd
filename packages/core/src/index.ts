@@ -17,7 +17,7 @@ export * from "./content";
 export { readHeartbeat, writeHeartbeat, clearHeartbeat, heartbeatPath, heartbeatProcessAlive, harnessState, type HeartbeatRecord, type HarnessState } from "./heartbeat";
 export { onboardingFacts, onboarded, registration, ONE_SENTENCE, type OnboardingFacts, type Registration } from "./onboard";
 export { readDev, writeDev, clearDev, liveDev, devPath, devProcessAlive, ALIVE_ROUTE, LIVE_ROUTE, type DevRecord } from "./dev";
-export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
+export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, RACY_MS, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
 export { Repo, git, initRepo, isRepoRoot, principal, commitHint, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
 export { writeDeploy, buildCommand, DEPLOY_TARGETS, LAUNCHER, VERSION, type DeployTarget } from "./deploy";
 // S19a: the push — the only outward-facing act in the product, and the one a person performs (decision 44).

