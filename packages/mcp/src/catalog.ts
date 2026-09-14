@@ -141,38 +141,6 @@ const need = (args: Record<string, unknown>, key: string): string => {
   return v;
 };
 
-/** The starter stylesheet a scaffolded theme gets: every token it can reach, as the vars it will use. */
-function starterCss(name: string, parent: string, tokens: { name: string; kind?: string }[]): string {
-  const varOf = (t: string) => `--${t.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
-  const colour = tokens.filter((t) => t.kind === "color").slice(0, 8);
-  return `/* ${name} — one stylesheet over \`${parent}\`'s markup. The build emits every token above this file
-   as a CSS custom property, so a value here is always a var(): recolour in snypd.yaml, never in here.
-   \`snypd://theme/tokens\` lists all ${tokens.length}; the ones this file starts with are below. */
-
-*, *::before, *::after { box-sizing: border-box; }
-
-:root {
-  color-scheme: light dark;
-  --content: min(100% - 2rem, var(--measure, 34rem));
-}
-
-body {
-  margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font: var(--size-body) / var(--leading-body) var(--font-body);
-}
-
-main { width: var(--content); margin-inline: auto; }
-
-a { color: var(--color-accent); }
-
-/* Available to you, straight from \`${parent}\`:
-${colour.map((t) => ` *   var(${varOf(t.name)})`).join("\n")}
- * …and the rest in snypd://theme/tokens. Style the primitives by their \`snypd-<name>\` class. */
-`;
-}
-
 export async function call(root: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {
   const c = await loadCore();
   const cfgOf = () => {
@@ -332,46 +300,20 @@ export async function call(root: string, name: string, args: Record<string, unkn
         }
 
         if (action === "scaffold") {
-          const newName = need(args, "name");
-          if (!/^[a-z][a-z0-9-]*$/.test(newName)) return fail(`"${newName}" is not a theme name`, "Lowercase letters, digits and hyphens — it is also the directory name.");
-          const parent = typeof args.extends === "string" && args.extends ? args.extends : "base";
-          const installed = c.installedThemes(root, cfgOf().config.theme.use);
-          if (installed.some((t) => t.name === newName)) return fail(`theme "${newName}" already exists`, `At ${installed.find((t) => t.name === newName)!.dir}.`);
-          if (!installed.some((t) => t.name === parent)) return fail(`no theme "${parent}" to extend`, `Installed: ${installed.map((t) => t.name).join(", ")}.`);
-          const dir = join(root, "themes", newName);
-          mkdirSync(dir, { recursive: true });
-          const tokens = c.themeTokens(cfgOf());
-          const yaml = `# ${newName} — extends \`${parent}\`, which brings every layout and all 13 primitives with it.
-# Nothing below is required: a theme that declares only \`extends:\` and \`css:\` already renders the whole
-# vocabulary. Redeclare a token here to change its default; set \`customisable: true\` to let snypd.yaml
-# move it. \`snypd://theme/tokens\` lists what you inherited. To change the header or footer, override
-# one part and no layout: \`parts: { header: ./parts/header.tsx }\` — snypd://theme/coverage lists the four.
-# To let a site choose something without writing CSS — a logo, a date format, social links — declare it:
-# \`settings: [{ id: showDates, type: boolean, label: "Show dates", default: true }]\`, and read it in a part
-# with \`settingFlag(ctx, "showDates", true)\`. snypd://theme/settings is what an agent sees.
-theme: ${newName}
-version: 0.1.0
-spec: ^1
-extends: ${parent}
-css: ./theme.css
-personality: >-
-  Describe how this theme reads, in one or two sentences. The renderer never uses this — an agent choosing
-  a theme does, and so does anyone deciding whether a change belongs in it.
-
-tokens: {}
-`;
-          writeFileSync(join(dir, "theme.yaml"), yaml);
-          writeFileSync(join(dir, "theme.css"), starterCss(newName, parent, tokens));
-          writeFileSync(join(dir, "package.json"), `{ "name": "@snypd/theme-${newName}", "version": "0.1.0", "type": "module", "license": "MIT" }\n`);
-          const paths = ["theme.yaml", "theme.css", "package.json"].map((f) => `themes/${newName}/${f}`);
-          const git = await commit(paths, `theme: scaffold ${newName} extends ${parent}`);
+          // The generator lives in core since X1, because `snypd new theme` is the same act from a
+          // terminal and two copies of a starter file is two starter files that drift. What stays here
+          // is what is different about this door: the commit, and a reply shaped for the caller.
+          let r;
+          try { r = c.scaffoldTheme(root, { name: need(args, "name"), extends: typeof args.extends === "string" ? args.extends : undefined }); }
+          catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
+          const git = await commit(r.files, `theme: scaffold ${r.name} extends ${r.extends}`);
           return text([
-            `scaffolded themes/${newName}/ extending ${parent}`,
-            `  theme.yaml   tokens and metadata; ${tokens.length} tokens inherited, none redeclared yet`,
-            `  theme.css    one stylesheet — the only file you have to write`,
+            `scaffolded ${r.dir}/ extending ${r.extends}`,
+            `  theme.yaml   tokens and metadata; ${r.inheritedTokens} tokens inherited, none redeclared yet`,
+            `  theme.css    one stylesheet \u2014 the only file you have to write`,
             git,
-            `\`theme\` › set ${newName} makes it active; content.render_preview shows it.`,
-          ].join("\n"), { ok: true, theme: newName, extends: parent, dir: `themes/${newName}`, files: paths, inheritedTokens: tokens.length });
+            `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,
+          ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens });
         }
         return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold.");
       }

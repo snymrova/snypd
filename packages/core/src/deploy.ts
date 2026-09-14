@@ -51,6 +51,16 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
  * The PR workflow, which is the same on both hosts because it is not about the host: lint and build every
  * PR, and report the speed suite beside it. It runs the published binary, not a checkout, so a content
  * repo needs nothing installed and no `node_modules` of its own.
+ *
+ * **Installed once, run three times** (I0). This was three `npx -y` lines, which is three installs of
+ * the same pinned package as far as the runner is concerned: `npx` re-verifies its tree on every
+ * invocation whether or not the version is pinned — 2.2 s and 3.1 s, measured on pinned and unpinned
+ * calls to an already-cached package, so the pin buys correctness here and nothing else. One
+ * `npm install -g` and three bare `snypd` calls pay the launcher's own boot instead, which is 0.12 s.
+ *
+ * The cache is the larger half. A content repo has no lockfile, so nothing about it tells `setup-node`
+ * what to cache; keying `~/.npm` on the pinned version does, and it is the difference between every PR
+ * pulling 37 MB and only the first one after a version bump doing so.
  */
 function workflow(version: string): string {
   return `name: snypd
@@ -62,12 +72,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
+      # The binary is ~37 MB on the wire and the version is pinned, so it is worth keeping between runs.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: snypd-${version}-npm
+      # One install, three runs: \`npx -y\` re-verifies its tree on every call, pinned or not.
+      - run: npm install -g ${LAUNCHER}@${version}
       # Rules 0–11: a broken link, a moved URL with no redirect, a chart that will not render.
-      - run: npx -y ${LAUNCHER}@${version} lint
+      - run: snypd lint
       # The build the host will run, run here first — a red PR instead of a red deploy.
-      - run: npx -y ${LAUNCHER}@${version} build
+      - run: snypd build
       # Report-only: budgets are snypd's to enforce, not a content repo's to fail on.
-      - run: npx -y ${LAUNCHER}@${version} bench --quick
+      - run: snypd bench --quick
         continue-on-error: true
 `;
 }

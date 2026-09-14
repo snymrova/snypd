@@ -46,7 +46,11 @@ Resources carry `ttlMs`; content resources subscribe so the harness is told when
 
 S16 ships two: **`get-started`** (look before writing → ask the human only for the name and URL → `site` › init → read the vocabulary → one real post → preview → hand back the review link) and **`write-post`** (read the primitives and the type first → choose the shape before the prose → create → act on the lint's own fix hints → preview). Both are written as instructions naming the exact resources and calls in order — a prompt that does not name its calls is a paragraph, not a workflow.
 
-Planned: `refresh-stale` · `build-theme` (scaffold → implement primitive → preview → repeat) · `migrate-from-wordpress` (WXR → types/terms/posts, shortcodes → primitives).
+**U6b adds a third: `build-theme`** — read what a theme already is → scaffold → declare the tokens before any CSS → write the one stylesheet → override a part only when the *markup* is wrong and never fork a layout → declare the settings and variations → **look at it** at 390 and 1280, light and dark → report. It was written after `technical` rather than before it, because U6b is the session that found out whether the contract is enough to build a theme from, and the prompt is that finding written for an agent (docs/10 §5.3, docs/11 §7b).
+
+A prompt's body costs nothing until it is asked for: `prompts/list` carries the names, descriptions and arguments, and `prompts/get` returns the text to whoever asked. `tokens.learn` did not move when this one landed.
+
+Planned: `refresh-stale` · `migrate-from-wordpress` (WXR → types/terms/posts, shortcodes → primitives).
 
 ## Discoverability is the documentation
 

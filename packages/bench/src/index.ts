@@ -5,7 +5,7 @@
  * `.snypd` index; incremental = one post's body edited (a real route re-render), noop = touch only.
  * Budgets: spec defaults ← snypd.yaml › bench.budgets of the corpus root (via @snypd/core); CI enforces 80 %.
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { build, loadTheme } from "@snypd/render";
@@ -27,6 +27,7 @@ export const BUDGETS = {
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
   jsKb: 0,                                                           // KB of client JS a content page may load or inline — declared by plugins, afforded by the site (P2, decision 84)
+  installCodeMb: 8,                                                  // MB of the release binary that is snypd's, not Bun's — the only half of the download this repo can move (F8)
   chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
   diagramRenderMs: 15, diagramSvgKb: 25,                             // D3, per diagram (spec: diagram.budget)
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
@@ -49,7 +50,7 @@ export function budgetsFor(root: string): typeof BUDGETS {
   /** Per-primitive budgets are nested (`budgets.chart.renderMs`), because that is the shape the spec declares. */
   const per = (k: string, sub: string, fallback: number) => { const o = b[k] as unknown as Record<string, unknown> | undefined; return o && typeof o === "object" && typeof o[sub] === "number" ? o[sub] as number : fallback; };
   return { buildPer100: num("buildPer100", BUDGETS.buildPer100), incremental: num("incremental", BUDGETS.incremental), mcpColdStart: num("mcpColdStart", BUDGETS.mcpColdStart),
-    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), tokensTools: num("tokensTools", BUDGETS.tokensTools), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000), jsKb: num("jsKb", BUDGETS.jsKb),
+    ttfb: num("ttfb", BUDGETS.ttfb), tokensPerPage: num("tokensPerPage", BUDGETS.tokensPerPage), tokensToLearn: num("tokensToLearn", BUDGETS.tokensToLearn), tokensTools: num("tokensTools", BUDGETS.tokensTools), mdReduction: num("mdReduction", BUDGETS.mdReduction), lintPer1000: num("lintPer1000", BUDGETS.lintPer1000), jsKb: num("jsKb", BUDGETS.jsKb), installCodeMb: num("installCodeMb", BUDGETS.installCodeMb),
     chartRenderMs: per("chart", "renderMs", BUDGETS.chartRenderMs), chartSvgKb: per("chart", "svgKb", BUDGETS.chartSvgKb),
     diagramRenderMs: per("diagram", "renderMs", BUDGETS.diagramRenderMs), diagramSvgKb: per("diagram", "svgKb", BUDGETS.diagramSvgKb),
     flowRenderMs: per("flow", "renderMs", BUDGETS.flowRenderMs), flowSvgKb: per("flow", "svgKb", BUDGETS.flowSvgKb) };
@@ -204,6 +205,56 @@ export async function runColdStarts(runs: number): Promise<Metric[]> {
     { name: "mcp.coldStart", value: +median(src).toFixed(1), unit: "ms",
       note: "report-only since S18c: `bun packages/mcp/src/server.ts`, the dev loop, not the thing anyone installs — interleaved with the binary lane, so the delta between the two rows is real even when the box is loaded" },
   ];
+}
+
+/**
+ * What the install costs, which nothing in this repo had ever counted (I0).
+ *
+ * Every other lane measures a system somebody already has. `bench onboard` measures the minute after
+ * they get it. Between those two sits the one number that is paid before either: **the download** —
+ * once by the person running `bunx @snypd/cli init`, and again by the host on every deploy, because
+ * `deploy.ts` › `buildCommand` is an `npx` of the same package into a container with no cache.
+ *
+ * Three rows, and the split between them is the point:
+ *
+ *  - `install.download.mb` is what goes over the wire. It is **report-only and must stay that way**: it
+ *    is ~94 % Bun's runtime, and a budget on it would fail on a Bun upgrade for a reason no commit in
+ *    this repository caused. Gating a number you cannot move is how a suite teaches people to ignore it.
+ *  - `install.binary.mb` is the same artefact uncompressed — what npm writes to disk, which is the half
+ *    of install time that is not the network (7.4 s, measured, on a local tarball with no network at all).
+ *  - `install.code.mb` is the one this repo owns: the release binary minus a one-line program compiled
+ *    by the same recipe. Bun's runtime cancels, and what is left is snypd — every dependency, every
+ *    bundled theme, the spec, the lot. That is the row with the budget, and it is the row that moves when
+ *    somebody adds a library.
+ *
+ * The floor is compiled, not remembered. A constant here would be a claim about a Bun version, and the
+ * two numbers have to come from the same compiler on the same afternoon or the subtraction is fiction.
+ */
+export async function runDistribution(opts: { compress?: boolean } = {}): Promise<Metric[]> {
+  const dir = mkdtempSync(join(tmpdir(), "snypd-bench-dist-"));
+  try {
+    const floorSrc = join(dir, "floor.ts");
+    writeFileSync(floorSrc, "console.log(0);\n");
+    const bin = await compile(join(dir, "snypd"));
+    const floor = await compile(join(dir, "floor"), { entry: floorSrc });
+    const MB = (n: number) => +(n / 1024 / 1024).toFixed(2);
+    const bytes = statSync(bin).size, floorBytes = statSync(floor).size;
+    const out: Metric[] = [];
+    if (opts.compress !== false) {
+      // Level 9, which is what `npm pack` of these same bytes came within 0.6 MB of when both were
+      // measured side by side. Four seconds; skipped under `--quick`, which is the inner-loop run.
+      const gz = Bun.gzipSync(await Bun.file(bin).bytes(), { level: 9 }).length;
+      out.push({ name: "install.download.mb", value: MB(gz), unit: "MB",
+        note: `report-only, and deliberately: the tarball \`bunx @snypd/cli init\` pulls, and that the host pulls again on every deploy — ~${Math.round((floorBytes / bytes) * 100)} % of it is Bun's runtime, which no commit here moves` });
+    }
+    out.push(
+      { name: "install.binary.mb", value: MB(bytes), unit: "MB",
+        note: "report-only: the artefact unpacked — the half of install time that is disk rather than network" },
+      { name: "install.code.mb", value: MB(bytes - floorBytes), unit: "MB", budget: ACTIVE.installCodeMb,
+        note: `the release binary (${MB(bytes)} MB) minus a one-line program through the same \`compile()\` (${MB(floorBytes)} MB): Bun cancels and what is left is snypd — the only half of the download this repo can move` },
+    );
+    return out;
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
 /**
@@ -458,6 +509,7 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   // one the build used — including whose theme in the chain declared it.
   const fontKb = (await loadTheme(loadConfig(root))).font?.kb ?? 0;
   const { metrics, browser } = await pageSuite({ root, label: "editorial", jsKb: ACTIVE.jsKb, fontKb });
+  metrics.push(...(await themeLane(root)));
   metrics.push(...(await deskLane(root, fontKb)));
   metrics.push(...(await firstRunLane()));
   const report: Report = { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics };
@@ -465,6 +517,30 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   writeFileSync("bench/page.json", JSON.stringify({ ...report, browser }, null, 2));
   writeFileSync("bench/page.md", toMarkdown(report));
   return report;
+}
+
+/**
+ * The second theme, over the same fixture, at the same two widths (U6b) — the design pass, kept.
+ *
+ * **A prefix and not more routes on `page.*`.** The editorial lane's worst-of has been comparable session
+ * to session since S13; folding a second theme's pages into it would silently redefine what that number
+ * means the first time `technical` were the worst of the two, which is decision 48's failure exactly. So
+ * `tech.*` is its own worst-of, inherits the same budgets from `pageSuite` — 0 KB JS, 0 violations, CLS
+ * ≤ 0.05 — and gets its own font budget, which for a theme that ships no face is **0**. That zero is the
+ * point of the lane as much as the design is: `page.font.kb` only means something if a theme that
+ * declares no `font:` is held to nothing.
+ *
+ * `SNYPD_ENV=technical` and `dist-technical`, the same shape `editorialLane` uses on `corpora/100`: one
+ * four-line file in the corpus, no second copy of the content, and the comparison is between two themes
+ * rendering the same thirteen primitives rather than between two sites.
+ */
+async function themeLane(root: string): Promise<Metric[]> {
+  const cfg = loadConfig(root, { env: "technical" });
+  const dist = join(root, "dist-technical");
+  const index = await SiteIndex.open(root, join(root, INDEX_DIR, "index.technical.sqlite"));
+  try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
+  const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
+  return (await pageSuite({ root, dist, label: cfg.config.theme.use, prefix: "tech", jsKb: ACTIVE.jsKb, fontKb })).metrics;
 }
 
 /**
@@ -651,6 +727,9 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   metrics.push(...await runIncremental(100, runs));
   for (const n of sizes.filter((n) => n <= 1000)) metrics.push(...await runLint(n, runs));
   metrics.push(...cold);
+  // I0: what the download costs, beside what the binary it contains costs to start. The compress step
+  // is four seconds, so `--quick` takes the two size rows and leaves the wire number to a full run.
+  metrics.push(...(await runDistribution({ compress: !opts.quick })));
   metrics.push(await runTtfb(100, opts.quick ? 20 : 100));
   metrics.push(...(await runPreviewTtfb(100, opts.quick ? 20 : 100)));
   metrics.push(...runTokensPerPage(100));

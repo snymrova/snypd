@@ -259,6 +259,13 @@ figcaption { margin-top: var(--space-2); text-align: center; }
 .snypd-entries time { display: block; margin-top: var(--space-1); }
 .snypd-entries p { margin-top: var(--space-2); color: var(--color-muted); }
 
+/* Cross-document view transitions (docs/11 §5.3, U6b): one declaration, zero JavaScript, and a browser
+   without it navigates exactly as it did before. Measured rather than assumed that it survives the
+   cascade layer `loadTheme` wraps this file in — `@import` does not (decision 126), and the two are not
+   the same kind of at-rule: a real navigation between two layered pages fires `pagereveal` with a
+   `viewTransition` on it. */
+@view-transition { navigation: auto; }
 @media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
