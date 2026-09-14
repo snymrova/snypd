@@ -27,7 +27,9 @@ export default function Header({ ctx, route }: PartProps): Html {
       </div>
       {items.length ? (
         <nav aria-label="Site">
-          <ul>{items.map((i) => <li><a href={i.href} rel={i.rel} aria-current={i.current ? "page" : undefined}>{i.label}</a></li>)}</ul>
+          {/* The same button and popover `base`'s header carries (U7): on a phone the list waits behind it. */}
+          <button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button>
+          <ul id="snypd-menu" popover>{items.map((i) => <li><a href={i.href} rel={i.rel} aria-current={i.current ? "page" : undefined}>{i.label}</a></li>)}</ul>
         </nav>
       ) : null}
     </header>

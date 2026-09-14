@@ -1,8 +1,11 @@
-# The base theme: every primitive and layout, semantic HTML, no CSS, no JS. The floor other themes
-# extend (`extends: base`) and the theme Gate B is measured on (docs/07 S6, S12).
+# The base theme: every primitive and layout, semantic HTML, no JS. The floor other themes extend
+# (`extends: base`) and the theme Gate B is measured on (docs/07 S6, S12). Its one stylesheet is
+# behaviour, not looks (U7): what the markup's popover, dialog, details and footnote cards need to
+# work, in the `snypd.base` layer under every theme's own.
 theme: base
 version: 0.1.0
 spec: ^1
+css: ./theme.css
 layouts: [post, page, index, term, author]
 # The document around the layouts, as slots a child theme overrides one file at a time (docs/09 U1).
 parts:

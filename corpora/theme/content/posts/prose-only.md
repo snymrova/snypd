@@ -11,7 +11,7 @@ cover: { image: /media/cover.png, alt: A flat block of colour standing in for a 
 
 Most posts are not a tour of the vocabulary. They are headings, paragraphs, a list, a link and a code
 span, and a theme that only looks right when a post is full of blocks is a theme that looks wrong most
-of the time.
+of the time.[^1]
 
 ## Body copy
 
@@ -30,3 +30,5 @@ the whole design at this size. Everything else is decoration on top of a column 
 ```sh
 snypd build
 ```
+
+[^1]: Which is why the fixture has this post as well as the one with every block in it.

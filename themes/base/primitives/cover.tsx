@@ -1,5 +1,5 @@
 import type { PrimitiveProps, Html } from "@snypd/render";
-import { inline } from "@snypd/render";
+import { inline, transitionName } from "@snypd/render";
 /**
  * The post header, when the author writes one. A leading `::cover` is lifted out of the body by the
  * renderer and handed to the layout as `page.cover` (S14), so this *is* the page's title block — it owns
@@ -16,7 +16,8 @@ export default function Cover({ props, ctx, page }: PrimitiveProps): Html {
   return (
     <header class="snypd-cover">
       {props.eyebrow ? <p class="snypd-eyebrow">{props.eyebrow as string}</p> : null}
-      <h1>{title}</h1>
+      {/* The same `view-transition-name` the entry list gave this title (U7, docs/14 §4.4), when this cover is a page's. */}
+      <h1 style={page ? `view-transition-name: ${transitionName(page)}; view-transition-class: snypd-title` : undefined}>{title}</h1>
       {props.subtitle ? <p class="snypd-subtitle">{inline(props.subtitle as string)}</p> : null}
       {src ? <img src={src} alt={(props.alt as string | undefined) ?? ""} decoding="async" fetchpriority="high"
         width={size ? String(size.width) : undefined} height={size ? String(size.height) : undefined} /> : null}

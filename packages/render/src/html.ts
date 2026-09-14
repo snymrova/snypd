@@ -8,9 +8,22 @@ import type { Root, Node, Parent, Literal, Heading, Code, Link, Image, List, Lis
 import { parseMarkdown, safeContentUrl, type Block } from "@snypd/core";
 import { Html, escape, escapeText, raw } from "./jsx-runtime";
 
+/**
+ * One heading-led run of a container's body (U7, docs/14 §4.3): the heading's rendered inner html and
+ * the id the renderer issued for it, then everything up to the next heading of the same depth. What
+ * `faq` wraps in a `<details>`; the id is kept so the question stays a link target inside it.
+ */
+export interface Section { depth: number; id?: string; title: Html; text: string; body: Html }
+/** A container's body split at its shallowest headings; `lead` is whatever came before the first. */
+export interface Sectioned { lead: Html; sections: Section[] }
+
 export interface HtmlOptions {
-  /** Called for every directive node; receives the typed Block and a renderer for its markdown children. */
-  onBlock?: (block: Block, body: () => Html) => Html;
+  /**
+   * Called for every directive node; receives the typed Block, a renderer for its markdown children and
+   * the same rendering split at its headings. Both are thunks over one render — calling either, or both,
+   * issues each heading id once.
+   */
+  onBlock?: (block: Block, body: () => Html, sections: () => Sectioned) => Html;
   /** Block lookup for directive nodes (from `PrimitiveTree.all`). */
   blocks?: Map<Node, Block>;
   /** Heading ids (`<h2 id="…">`) for the toc and deep links. Default on. */
@@ -100,10 +113,54 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
         const head = rows[0] ? `<thead><tr>${rows[0].children.map((c, i) => cell(c, i, true)).join("")}</tr></thead>\n` : "";
         const body = rows.length > 1 ? `<tbody>\n${rows.slice(1).map((r) => `<tr>${r.children.map((c, i) => cell(c, i, false)).join("")}</tr>\n`).join("")}</tbody>\n` : "";
         return `<table>\n${head}${body}</table>\n`; }
-      case "footnoteReference": { const f = n as FootnoteReference; if (!usedFootnotes.includes(f.identifier)) usedFootnotes.push(f.identifier); const i = usedFootnotes.indexOf(f.identifier) + 1; return `<sup><a href="#fn-${escape(f.identifier)}" id="fnref-${escape(f.identifier)}">${i}</a></sup>`; }
+      case "footnoteReference": {
+        const f = n as FootnoteReference;
+        if (!usedFootnotes.includes(f.identifier)) usedFootnotes.push(f.identifier);
+        const i = usedFootnotes.indexOf(f.identifier) + 1;
+        const id = escape(f.identifier);
+        // U7 (docs/14 §4.1): the definition is emitted a second time, beside its mark, as a card the
+        // theme may draw as a sidenote in the margin or a hover card over the mark — with no script,
+        // because the renderer already holds every definition and CSS does the rest. It is `hidden`
+        // so a theme that says nothing about it renders exactly the page it rendered before, and
+        // the `<section class="footnotes">` at the end stays: that is the printable, linkable one.
+        // Only a definition made of paragraphs is inlined — a list or a code block inside a `<p>`
+        // would close the paragraph, and the card is a phrase or nothing.
+        const d = footnotes.get(f.identifier);
+        const phrase = d && d.children.length > 0 && d.children.every((c) => c.type === "paragraph");
+        const anchor = ` style="anchor-name: --fnref-${id}"`;
+        const card = phrase ? `<small class="snypd-fn-card" role="note" hidden style="position-anchor: --fnref-${id}">${d.children.map((c) => node(c, true)).join(" ")}</small>` : "";
+        return `<sup class="snypd-fnref"><a href="#fn-${id}" id="fnref-${id}"${phrase ? anchor : ""}>${i}</a>${card}</sup>`;
+      }
       case "containerDirective": case "leafDirective": case "textDirective": {
         const b = opts.blocks?.get(n);
-        if (b && opts.onBlock) return opts.onBlock(b, () => raw(kids(n as Parent))).html;
+        if (b && opts.onBlock) {
+          // Rendered once and handed out two ways (U7): `body` is the whole, `sections` is the same
+          // rendering split at its shallowest headings — what `faq` needs to wrap each question in a
+          // `<details>` without a second walk that would issue every heading id a second time.
+          let rendered: string[] | undefined;
+          const parts = () => rendered ??= (n as Parent).children.map((c) => node(c));
+          const sections = (): Sectioned => {
+            const kidsOf = (n as Parent).children;
+            const html = parts();
+            const depths = kidsOf.map((c) => (c.type === "heading" ? (c as Heading).depth : 0)).filter(Boolean);
+            if (!depths.length) return { lead: raw(html.join("")), sections: [] };
+            const top = Math.min(...depths);
+            let lead = "";
+            const out: Section[] = [];
+            for (let k = 0; k < kidsOf.length; k++) {
+              const c = kidsOf[k]!;
+              if (c.type === "heading" && (c as Heading).depth === top) {
+                const m = /^<h(\d)(?: id="([^"]*)")?>([\s\S]*)<\/h\d>\n$/.exec(html[k]!);
+                out.push({ depth: top, id: m?.[2], title: raw(m?.[3] ?? escapeText(textOf(c))), text: textOf(c).replace(/\s+/g, " ").trim(), body: raw("") });
+              } else if (out.length) {
+                const last = out[out.length - 1]!;
+                last.body = raw(last.body.html + html[k]!);
+              } else lead += html[k]!;
+            }
+            return { lead: raw(lead), sections: out };
+          };
+          return opts.onBlock(b, () => raw(parts().join("")), sections).html;
+        }
         return n.type === "textDirective" ? kids(n as Parent) : `<div class="snypd-block" data-block="${escape((n as unknown as { name: string }).name)}">${kids(n as Parent)}</div>\n`;
       }
       default: return "children" in n ? kids(n as Parent) : "";

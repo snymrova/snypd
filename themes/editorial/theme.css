@@ -60,6 +60,8 @@ body > header a { color: inherit; text-decoration: none; font-weight: 600; }
    The current page is the one item that is not muted, with an accent rule under it — a mark, not a pill. */
 .snypd-masthead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-4); }
 body > header nav ul, body > footer nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+/* A menu's items sit on one line; the prose rule `li + li { margin-top }` was pushing every item after the first down a step (U7, seen in a screenshot). */
+body > header nav li, body > footer nav li, .snypd-social li { margin-top: 0; }
 body > header nav a { font-weight: 500; color: var(--color-muted); padding-bottom: 2px; border-bottom: 1px solid transparent; }
 body > header nav a:hover { color: var(--color-text); }
 body > header nav a[aria-current="page"] { color: var(--color-text); border-bottom-color: var(--color-accent); }
@@ -269,3 +271,67 @@ figcaption { margin-top: var(--space-2); text-align: center; }
   @view-transition { navigation: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ── The runtime pass (U7, docs/14). Everything below is the platform doing what a script used to, and
+   every rule has the same shape: Baseline → used plainly; two engines → under `@supports`, and never
+   for anything the reader needs; the fallback is the page above this line. `base`'s own sheet already
+   makes the menu, the lightbox, the accordion and the footnote card *work*; this is what they look like. */
+
+/* The phone menu is a sheet in this theme's colours, and the button is a quiet pill. */
+.snypd-menu-button { font: 500 var(--size-small) / 1 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; border-color: var(--color-border); color: var(--color-muted); }
+#snypd-menu:popover-open { color: var(--color-text); background: var(--color-bg); font-size: var(--size-body); letter-spacing: 0; text-transform: none; border-top: 1px solid var(--color-border); }
+#snypd-menu:popover-open a { color: var(--color-text); font-weight: 500; }
+
+/* Footnotes as sidenotes (docs/14 §4.1): once the margin beside the column is wide enough for a
+   note, the card `base` shows on hover stands in the margin instead, always visible, beside its line —
+   a float pushed out of the column by a negative margin, which is how sidenotes were done before there
+   was a word for them. The width is what the margin allows, so `broadsheet`'s wider measure still gets
+   one at 1280; the list at the end is the printed version and goes while the notes are in the margin. */
+@media (min-width: 72rem) {
+  .snypd-fnref .snypd-fn-card, .snypd-fnref:is(:hover, :focus-within) .snypd-fn-card {
+    --sidenote: clamp(9rem, calc((100vw - var(--measure)) / 2 - 3rem), 14rem);
+    display: block; position: static; float: inline-end; clear: inline-end;
+    width: var(--sidenote); max-width: none; margin: 0.2em calc(-1 * var(--sidenote) - 1.5rem) var(--space-2) 1rem;
+    padding: 0; border: 0; background: none; box-shadow: none; transition: none;
+    font: var(--size-small) / 1.45 var(--font-ui); color: var(--color-muted); text-align: start;
+  }
+  .snypd-fnref a { text-decoration: none; }
+  .footnotes { display: none; }
+}
+@media print { .footnotes { display: block; } .snypd-fn-card { display: none !important; } }
+.footnotes { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--color-border); font-size: var(--size-small); color: var(--color-muted); }
+.footnotes ol { padding-inline-start: 1.5em; }
+
+/* The lightbox's close button and the accordion's marker, in the theme's voice. */
+.snypd-lightbox-close { font: 500 var(--size-small) / 1 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text); background: var(--color-bg); }
+.snypd-faq-item { border-top: 1px solid var(--color-border); padding-block: var(--space-2); }
+.snypd-faq-item:last-child { border-bottom: 1px solid var(--color-border); }
+.snypd-faq-item summary { list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.snypd-faq-item summary::-webkit-details-marker { display: none; }
+.snypd-faq-item summary::after { content: "+"; font: 400 var(--size-h3) / 1 var(--font-ui); color: var(--color-accent); transition: rotate 200ms ease-out; }
+.snypd-faq-item[open] summary::after { rotate: 45deg; }
+.snypd-faq-item h3 { margin: 0; }
+.snypd-faq-answer { padding-block: var(--space-2) var(--space-1); }
+
+/* No 15 px jump between a short page and a long one on a system with a classic scrollbar. */
+html { scrollbar-gutter: stable; }
+/* A number sits on the baseline the designer meant, once the browser can trim the half-leading. */
+@supports (text-box: trim-both cap alphabetic) { .snypd-stat-value { text-box: trim-both cap alphabetic; } }
+
+/* Two engines (Chrome, Safari): a reading-progress line at the top of a post, driven by the scroll
+   position and nothing else. Firefox shows none. (A `view()`-timed reveal on pullquotes and stat rows
+   was here for an hour: it starts text at a fraction of its opacity, and axe reads that as a contrast
+   failure on every one — `page.a11y.violations` 0 → 2 — which is the gate doing its job.) */
+@supports (animation-timeline: scroll()) {
+  body:has(.snypd-post)::before {
+    content: ""; position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 2;
+    background: var(--color-accent); transform-origin: 0 50%;
+    animation: snypd-progress linear both; animation-timeline: scroll(root);
+  }
+  @keyframes snypd-progress { from { scale: 0 1; } to { scale: 1 1; } }
+}
+/* Every title carries the same `view-transition-name` on the list and on the post (docs/14 §4.4), so
+   the cross-document transition already declared above morphs one into the other. One rule for all of
+   them, by class, and a quieter cross-fade for everything else on the page. */
+::view-transition-group(.snypd-title) { animation-duration: 280ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
