@@ -51,3 +51,5 @@ Snypd is an open-source CMS whose **only interface is MCP**. You write, edit, th
 ## Business shape (kept deliberately thin)
 
 MIT everything in this repo. Optional paid cloud later: hosted builds, remote MCP with OAuth for team/hosted harnesses, review queue notifications, agent-traffic analytics. Free tier is the funnel and must be complete on its own.
+
+**A custom domain is never inside the paid tier.** On a static artefact behind a CDN a domain costs the provider nothing; charging for it is the clearest possible signal that the paid tier is a hostage rather than a service. Written now, before there is revenue to protect — deferring it means deciding it later, under pressure, against a number. Sunny's call, 13 Sep 2026, on docs/13 §2 Q2.
