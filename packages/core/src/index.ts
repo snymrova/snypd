@@ -2,6 +2,7 @@
 export { loadConfig, renderConfig, formatDiagnostics, resolveThemeChain, collectVariations, variationsOf, PLACEHOLDER_URL, isPlaceholderUrl, type Diagnostic, type LoadedConfig, type LoadOptions, type LayerInfo, type ThemeLink } from "./config";
 export { ConfigSchema, TypeSchema, TaxonomySchema, StatusSchema, FieldSpec, TokenDeclSchema, ThemeYamlSchema, THEME_UNBUILT_KEYS, SettingDeclSchema, SETTING_TYPES, LinkItemSchema, settingValue, VariationSchema, VARIATION_NAME_RE, ThemeFontSchema, MAX_FONT_KB, PluginManifestSchema, PLUGIN_API, PLUGIN_UNBUILT_KEYS, SLOT_NAMES, FILTER_NAMES, clientKbOf, ROLES, type TokenDecl, type ThemeYaml, type SettingDecl, type SettingType, type SettingValue, type Variation, type VariationDecl, type ThemeFont, type LinkItem, type PluginManifest, type Config, type TypeDef, type TaxonomyDef } from "./schema";
 export { cssValue, safeContentUrl, CSS_FUNCTIONS, SETTING_URL_RE } from "./values";
+export { scriptSites, scriptSignature, hasScript, lineOf, local as localUrl, type ScriptSite } from "./script";
 // X1: colour, far enough to answer "is this readable" without a browser (docs/11 §5 item 4).
 export { resolveColor, resolveBoth, contrastRatio, luminance, cssVarName, tokenVars, type Rgb, type Mode, type Vars } from "./color";
 export { describeSource, type Source, type Provenance, type LayerName } from "./merge";
@@ -16,7 +17,7 @@ export * from "./content";
 export { readHeartbeat, writeHeartbeat, clearHeartbeat, heartbeatPath, heartbeatProcessAlive, harnessState, type HeartbeatRecord, type HarnessState } from "./heartbeat";
 export { onboardingFacts, onboarded, registration, ONE_SENTENCE, type OnboardingFacts, type Registration } from "./onboard";
 export { readDev, writeDev, clearDev, liveDev, devPath, devProcessAlive, ALIVE_ROUTE, LIVE_ROUTE, type DevRecord } from "./dev";
-export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
+export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, RACY_MS, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
 export { Repo, git, initRepo, isRepoRoot, principal, commitHint, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
 export { writeDeploy, buildCommand, DEPLOY_TARGETS, LAUNCHER, VERSION, type DeployTarget } from "./deploy";
 // S19a: the push — the only outward-facing act in the product, and the one a person performs (decision 44).

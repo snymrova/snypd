@@ -38,7 +38,7 @@
  */
 import { resolve, join } from "node:path";
 import type { Root } from "mdast";
-import { INDEX_DIR, isBundledDir, themeModule, hooksOf, FILTER_NAMES, SLOT_NAMES, type LoadedConfig, type LoadedPlugin, type SlotName, type FilterName, type Config, type Block } from "@snypd/core";
+import { INDEX_DIR, isBundledDir, themeModule, hooksOf, scriptSites, scriptSignature, FILTER_NAMES, SLOT_NAMES, type LoadedConfig, type LoadedPlugin, type SlotName, type FilterName, type Config, type Block } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 import { bundleTheme, themeHash, themeStamp, type SiteCtx, type Entry, type Page, type TermLink } from "./theme";
 
@@ -96,6 +96,13 @@ export interface Hooks {
   record?: HookRun[];
   /** True when nothing is hooked — `slot()` and `applyFilter()` short-circuit on it. */
   empty: boolean;
+  /**
+   * H2, gate E6: every script site a slot rendered, by `scriptSignature`, and the plugin whose slot
+   * rendered it. The client budget reads it to charge that script to the plugin's `client:` declaration
+   * — the one weight a build may take on trust, because P2 already checked it against the same budget.
+   * Script with no entry here came from somewhere that declared nothing, and is weighed or refused.
+   */
+  scripts?: Map<string, string>;
 }
 
 const emptyMap = <K extends string, V>(keys: readonly K[]) => Object.fromEntries(keys.map((k) => [k, [] as V[]])) as Record<K, V[]>;
@@ -213,6 +220,7 @@ export function slot(ctx: SiteCtx, name: SlotName, props: Omit<SlotProps, "ctx" 
       if (v === null || v === undefined) { noteRun(hooks, { plugin: c.plugin, hook: `slots.${name}`, route: props.route, changed: false, note: "rendered nothing" }); continue; }
       const html = typeof v === "string" ? v : typeof (v as Html).html === "string" ? (v as Html).html : String(v);
       out += html;
+      if (html.includes("<")) for (const site of scriptSites(html)) (hooks.scripts ??= new Map()).set(scriptSignature(site), c.plugin);
       noteRun(hooks, { plugin: c.plugin, hook: `slots.${name}`, route: props.route, changed: !!html, note: html ? `${html.length} bytes of markup` : "rendered nothing" });
     } catch (e) {
       report(hooks, { plugin: c.plugin, hook: `slots.${name}`, route: props.route, message: message(e) });

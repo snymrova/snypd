@@ -14,7 +14,7 @@
  * `--splitting` outside ESM. It is the smaller lever anyway — it would save parsing an entry chunk that
  * `--splitting` has already reduced to 7.6 KB.
  *
- * Verified on both CI lanes (Bun 1.4.0 and the 1.3.14 known-good lane, docs/04).
+ * Verified on Bun 1.4.0, the only version CI runs (docs/04).
  */
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";

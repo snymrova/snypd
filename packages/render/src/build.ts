@@ -19,6 +19,7 @@ import { Html } from "./jsx-runtime";
 import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
 import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic, type HookRun } from "./hooks";
+import { assertClientBudget } from "./budget";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
@@ -30,6 +31,8 @@ export interface BuildOptions {
 }
 export interface BuildResult {
   routes: number; artefacts: number; media: number; rendered: number; cached: number; removed: number; ms: number;
+  /** Routes an earlier build began writing and never finished (H3): re-rendered by this one, whatever their key says. */
+  recovered: number;
   /** Files plugins' `emit` stages asked for and core wrote (P3) — counted in `artefacts` too. */
   emitted: number;
   phases: { config: number; theme: number; sync: number; plan: number; render: number };
@@ -47,7 +50,14 @@ type Output = string | Uint8Array | { copyFrom: string };
 interface Planned { route: string; key: string; outputs: string[]; kind: "route" | "artefact" | "media"; render: () => Record<string, Output> }
 
 /** Bump when the set or shape of files a route produces changes; a stale index is then reset, not pruned. */
-const OUTPUT_FORMAT = "s7";
+const OUTPUT_FORMAT = "s8";   // s8: H2 — every page is weighed against the client budget before it is written, so an index written before the gate existed describes pages nothing has weighed
+
+/**
+ * The key a route row carries while its outputs are being written (H3, docs/11 finding 8). No planned key
+ * can equal it, so a build that dies between writing a page and recording what it wrote leaves a row the
+ * next build re-renders — rather than the previous key, which described bytes that were no longer on disk.
+ */
+const OPEN = "open:";
 
 const routeDir = (route: string) => (route === "/" ? "" : route.replace(/^\//, ""));
 
@@ -134,8 +144,20 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // plugin is enabled, so a site with none keeps the keys it had.
   const pluginHash = pluginDirs(cfg.plugins).length ? `:${themeHash(pluginDirs(cfg.plugins))}` : "";
   const configHash = sha1(JSON.stringify({ site: c.site, theme: { use: c.theme.use, tokens, ...(Object.keys(settings).length ? { settings } : {}) }, types: c.types, taxonomies: c.taxonomies, statuses: c.statuses, ...(c.plugins.length ? { plugins: c.plugins } : {}) }));
-  const mediaHash = sha1(JSON.stringify(mediaSizes));
-  let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}`;   // a draft build's outputs are not dist's; the key says so
+  // H2: a script in `content/media/` is weighed through the page that loads it, and a cached page is not
+  // re-weighed — so the size of every media file a browser would run is in every key, and a script that
+  // grows re-renders the pages that could be loading it. Extension, not content-type: nothing here serves
+  // headers, and a `.txt` a page loads as script is the one shape this does not see (`page.js.kb` does).
+  const mediaScripts = mediaFiles.filter((m) => /\.(?:m?js|cjs)$/i.test(m.rel)).map((m) => [m.rel, statSync(m.src).size]);
+  const mediaHash = sha1(JSON.stringify(mediaScripts.length ? [mediaSizes, mediaScripts] : mediaSizes));
+  /**
+   * The client budget (H2, gate E6). One number, three readers: `loadPlugin` checks a plugin's
+   * declaration against it (P2), `page.js.kb` measures what the browser fetched (S13), and from here
+   * the build weighs what it is about to write. It is in the key because lowering it has to re-render
+   * every page — a budget a cached page was never held to is not a budget.
+   */
+  const jsBudgetKb = ((b) => (typeof b === "number" ? b : 0))(c.bench?.budgets?.jsKb);
+  let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}:js${jsBudgetKb}`;   // a draft build's outputs are not dist's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }
@@ -310,27 +332,59 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t4 = performance.now();
 
   // ── render what changed, drop what vanished ────────────────────────────────
+  /**
+   * Build generations (H3, docs/11 finding 8). Until H3 the whole render ran inside one index transaction,
+   * which bought two things and cost two. It bought atomicity for the *index*: a build that threw left the
+   * route rows as they were. It never bought it for `dist/`, which is files, and that is the defect — a
+   * build interrupted after writing a page rolled its row back to the previous key, a revert of the source
+   * brought that key back, and the next build called the interrupted build's bytes current. H2 made this
+   * reachable without a kill: a refused page is written before it is weighed. And it cost a write lock held
+   * for the length of the render, which is the `SQLITE_BUSY` finding 7 is about.
+   *
+   * So a build is a generation, in three short transactions. Open: every route about to be written gets
+   * the key `open:<generation>` and the union of its old and new outputs, committed before a byte is
+   * written. Render: no transaction, no lock. Close: the real keys, and the vanished routes dropped. A build
+   * that dies anywhere in between leaves open rows, and an open row is a miss.
+   */
   let rendered = 0, cached = 0, removed = 0;
+  const weigh: string[] = [];   // dist-relative pages written this run, for the client budget below
   const known = new Map(index.routes().map((r) => [r.route, r]));
+  const recovered = [...known.values()].filter((r) => r.key.startsWith(OPEN)).length;
   const planned = new Set(plan.map((p) => p.route));
   const write = (rel: string, content: Output) => {
     const f = join(out, rel); mkdirSync(dirname(f), { recursive: true });
     if (typeof content === "string" || content instanceof Uint8Array) writeFileSync(f, content); else copyFileSync(content.copyFrom, f);
   };
-  index.transaction(() => {
-    for (const p of plan) {
-      const prev = known.get(p.route);
-      if (prev && prev.key === p.key && p.outputs.every((o) => existsSync(join(out, o)))) { cached++; continue; }
-      const files = p.render();
-      for (const o of p.outputs) {
-        const content = files[o];
-        if (content === undefined) throw new Error(`internal: ${p.route} declared output ${o} but rendered ${Object.keys(files).join(", ") || "nothing"}`);
-        write(o, content);
-      }
-      if (prev) for (const o of prev.outputs) if (!p.outputs.includes(o)) rmSync(join(out, o), { force: true });   // e.g. a type rename moved its json
-      index.setRoute(p.route, p.key, p.outputs);
-      rendered++;
+  const todo = plan.filter((p) => { const prev = known.get(p.route); return !(prev && prev.key === p.key && p.outputs.every((o) => existsSync(join(out, o)))); });
+  cached = plan.length - todo.length;
+  if (todo.length) index.transaction(() => {
+    const generation = Number(index.meta("build.generation") ?? 0) + 1;
+    index.setMeta("build.generation", String(generation));
+    for (const p of todo) index.setRoute(p.route, `${OPEN}${generation}`, [...new Set([...(known.get(p.route)?.outputs ?? []), ...p.outputs])]);
+  });
+  for (const p of todo) {
+    const prev = known.get(p.route);
+    const files = p.render();
+    for (const o of p.outputs) {
+      const content = files[o];
+      if (content === undefined) throw new Error(`internal: ${p.route} declared output ${o} but rendered ${Object.keys(files).join(", ") || "nothing"}`);
+      write(o, content);
     }
+    if (prev) for (const o of prev.outputs) if (!p.outputs.includes(o)) rmSync(join(out, o), { force: true });   // e.g. a type rename moved its json
+    for (const o of p.outputs) if (o.endsWith(".html")) weigh.push(o);
+    rendered++;
+  }
+  // H2, gate E6: the pages this build wrote, weighed against what the site afforded — after the loop,
+  // because a `<script src>` a plugin emitted is a plan item of its own and may not have existed yet
+  // when the page naming it was written. A cached page is not re-weighed: its key covers the content,
+  // the theme graph, every plugin's code, the size of every script in `content/media/` and the budget
+  // itself. What it does not cover is a file a plugin's `emit` stage writes with different bytes from
+  // unchanged code — script a plugin put there is that plugin's declaration to keep (P2), and
+  // `page.js.kb` is where it is held to it. A refusal throws before the close, so every page this build
+  // wrote stays open and the next build weighs it again (H3).
+  assertClientBudget(out, weigh, jsBudgetKb, { scripts: hooks.scripts, declaredKb: new Map(cfg.plugins.filter((pl) => pl.loaded).map((pl) => [pl.name, pl.clientKb])) });
+  index.transaction(() => {
+    for (const p of todo) index.setRoute(p.route, p.key, p.outputs);
     // A route that vanished takes its outputs with it — except one a planned route now writes. A `route`
     // filter (P2) that moves `/posts/a` to `/articles/a` leaves the JSON at `api/post/a.json` in both
     // the old row and the new plan; deleting it here would make every following build a miss.
@@ -346,7 +400,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
+  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
 }
 
 /**
