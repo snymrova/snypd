@@ -164,6 +164,60 @@ export function settingValue(decl: SettingDecl, v: unknown): { ok: true; value: 
  * key into an error.
  */
 const slot = z.union([z.string().min(1), z.object({ fallback: z.string().min(1) }).strict()]);
+/**
+ * **The webfont budget** (decision 118). Kilobytes of font a page may carry, measured on the wire by
+ * `page.font.kb` the way `page.js.kb` measures script. A theme that declares more than this is refused at
+ * load rather than discovered by a bench run in CI, because the person who finds out otherwise is a
+ * visitor on a train.
+ */
+export const MAX_FONT_KB = 40;
+
+/**
+ * **The metric-matched fallback face** (B1). The four descriptors that make the font a browser paints
+ * *before* the webfont arrives occupy exactly the space the webfont will, so `font-display: swap` swaps
+ * the letters and moves nothing else — which is the whole reason decision 118 could permit a webfont
+ * without trading `page.cls` away.
+ *
+ * Declared, not computed: working them out needs both fonts' `hmtx`, `OS/2` and `head` tables, and a
+ * static site generator that parsed fonts at build time would be carrying a font parser to re-derive four
+ * constants that never change. `scripts/vendor-font.sh` prints this block beside the .woff2 it subsets,
+ * so the numbers come from the two files rather than from taste, and regenerating the font reprints them.
+ */
+const FallbackSchema = z.object({
+  /** The installed face whose metrics these override — `local(…)` in the generated `@font-face`. */
+  local: z.string().min(1),
+  "size-adjust": z.string().regex(/^\d+(\.\d+)?%$/, "size-adjust: a percentage, like `106.2%`"),
+  "ascent-override": z.string().regex(/^\d+(\.\d+)?%$/, "ascent-override: a percentage"),
+  "descent-override": z.string().regex(/^\d+(\.\d+)?%$/, "descent-override: a percentage"),
+  "line-gap-override": z.string().regex(/^\d+(\.\d+)?%$/, "line-gap-override: a percentage"),
+}).strict();
+
+/**
+ * `font:` in `theme.yaml` — the one webfont a theme may ship (B1, decision 118). Self-hosted, subsetted,
+ * variable, WOFF2, with the fallback above. One per page: the nearest theme in the `extends:` chain that
+ * declares it wins, the same rule primitives, parts and tokens already follow, so a child inherits its
+ * parent's face until it names its own and two faces never stack up to 80 KB by inheritance.
+ *
+ * `kb` is the declaration the budget lane gates on — what the theme says the file costs, not what the
+ * file happens to weigh. That is the same bargain a plugin's `capabilities.client` makes (decision 84):
+ * a face that grows past its own claim fails `page.font.kb`, where a lane that measured the file against
+ * itself could never fail at all.
+ *
+ * The family name is CSS's, not the font's: it is what `font.body` and `font.heading` have to name, and
+ * `theme check` (X1) is where naming a family no token uses becomes a finding.
+ */
+export const ThemeFontSchema = z.object({
+  family: z.string().min(1),
+  /** Theme-relative path to the .woff2; emitted as `assets/fonts/<basename>` and preloaded. */
+  file: z.string().min(1).regex(/\.woff2$/i, "a .woff2 — decision 118 ships one, and WOFF2 is the only format every browser since 2020 reads"),
+  /** `font-weight` on the generated face: `400` for a static instance, `400 700` for a variable range. */
+  weight: z.union([z.string().regex(/^\d{3}( \d{3})?$/, "`400`, or a range: `400 700`"), z.number().int()]).optional(),
+  style: z.enum(["normal", "italic"]).optional(),
+  kb: z.number().positive().max(MAX_FONT_KB, `at most ${MAX_FONT_KB} — a theme ships one webfont, and it costs what decision 118 affords it`),
+  fallback: FallbackSchema,
+}).strict();
+export type ThemeFont = z.infer<typeof ThemeFontSchema>;
+
 export const ThemeYamlSchema = z.object({
   theme: z.string().min(1).optional(),
   version: z.string().optional(),
@@ -195,6 +249,8 @@ export const ThemeYamlSchema = z.object({
   tokens: z.record(z.string(), z.union([z.string(), z.number(), TokenDeclSchema])).optional(),
   /** One stylesheet, theme-relative; emitted after the token vars as assets/theme.css. */
   css: z.string().min(1).optional(),
+  /** One webfont, theme-relative, declared and budgeted (B1, decision 118). See `ThemeFontSchema`. */
+  font: ThemeFontSchema.optional(),
   personality: z.string().optional(),
 }).strict();
 export type ThemeYaml = z.infer<typeof ThemeYamlSchema>;

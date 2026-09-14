@@ -14,7 +14,7 @@ answer to "why is it like this".
 ## Getting set up
 
 ```
-bun install                     # Bun >= 1.3.14; the CI lanes are 1.3.14 and 1.4.0
+bun install                     # Bun >= 1.4.0, the only version CI runs
 bun test                        # the whole suite, ~100 s
 bun run typecheck               # tsc --noEmit, must be clean
 bun run scratch                 # a real site in sites/, wired to this tree, with dev running

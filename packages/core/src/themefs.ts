@@ -42,7 +42,19 @@ export function themeFile(dir: string, rel: string): string | undefined {
 }
 
 export const themeHas = (dir: string, rel: string): boolean =>
-  of(dir) ? norm(rel) in of(dir)!.files || norm(rel) in of(dir)!.modules : existsSync(join(dir, rel));
+  of(dir) ? norm(rel) in of(dir)!.files || norm(rel) in of(dir)!.bytes || norm(rel) in of(dir)!.modules : existsSync(join(dir, rel));
+
+/**
+ * One theme file as bytes — a webfont (B1), and anything else a theme ships that is not text or code.
+ * The build copies these verbatim into `dist/`, so this is the one read whose answer is a `Buffer` on
+ * both sides of the seam: on disk it is the file, and in a binary it is `bytes` decoded from base64.
+ */
+export function themeBinary(dir: string, rel: string): Buffer | undefined {
+  const b = of(dir);
+  if (b) { const v = b.bytes[norm(rel)]; return v === undefined ? undefined : Buffer.from(v, "base64"); }
+  const f = join(dir, rel);
+  return existsSync(f) ? readFileSync(f) : undefined;
+}
 
 /** Load one theme module (a layout, a primitive) and return its default export. */
 export async function themeModule(dir: string, rel: string, bust = ""): Promise<unknown> {
@@ -58,7 +70,7 @@ export async function themeModule(dir: string, rel: string, bust = ""): Promise<
 /** Every file in the theme, theme-relative and sorted — what the hash and the stamp are taken over. */
 export function themeFiles(dir: string): string[] {
   const b = of(dir);
-  if (b) return [...Object.keys(b.files), ...Object.keys(b.modules)].sort();
+  if (b) return [...Object.keys(b.files), ...Object.keys(b.bytes), ...Object.keys(b.modules)].sort();
   const out: string[] = [];
   const walk = (d: string) => {
     for (const f of readdirSync(d, { withFileTypes: true }).sort((a, x) => a.name.localeCompare(x.name))) {
@@ -73,7 +85,7 @@ export function themeFiles(dir: string): string[] {
 
 /** Bytes for hashing; `undefined` for a bundled module, whose bytes are folded into the theme's own hash. */
 export const themeBytes = (dir: string, rel: string): string | Buffer | undefined =>
-  of(dir) ? of(dir)!.files[norm(rel)] : readFileSync(join(dir, rel));
+  of(dir) ? of(dir)!.files[norm(rel)] ?? themeBinary(dir, rel) : readFileSync(join(dir, rel));
 
 /**
  * A change signal for the theme. On disk that is mtime + size, which is cheap and catches an edit.

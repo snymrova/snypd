@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, themeVariations, strandedVariation, themeTokens, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, REPLACE } from "./index";
+import { contrastRatio, luminance, resolveColor, tokenVars, callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, themeVariations, strandedVariation, themeTokens, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, MAX_FONT_KB, REPLACE } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -667,6 +667,65 @@ describe("theme settings (U3)", () => {
 });
 
 // ── U6a: style variations (docs/10 §5.2, decision 91) ────────────────────────────────────────────
+/**
+ * B1, decision 118 — the half of the webfont contract that lives in the config layer. What reaches `dist/`
+ * is `render.test.ts`'s "the webfont (B1)"; what a bad declaration does before anything reaches anywhere
+ * is here, because `theme.yaml` is validated strictly with file:line (decision 73) and a font is now one
+ * of the things it can get wrong.
+ */
+describe("the webfont declaration (B1)", () => {
+  const R = "corpora/_test/font-decl-core";
+  const site = (theme: string, extra = "") => { mkdirSync(R, { recursive: true }); writeFileSync(join(R, "snypd.yaml"), `snypd: 1\nsite: { name: S, url: https://s.example }\ntheme:\n  use: ${theme}\n${extra}`); };
+  const theme = (name: string, text: string) => { mkdirSync(join(R, "themes", name), { recursive: true }); writeFileSync(join(R, "themes", name, "theme.yaml"), text); };
+  const errors = (c: ReturnType<typeof loadConfig>) => c.diagnostics.filter((d) => d.level === "error").map((d) => `${d.path}: ${d.message}`);
+  const FONT = (extra: string) => `font:
+  family: T
+  file: ./fonts/t.woff2
+  ${extra}
+  fallback: { local: Georgia, size-adjust: 100%, ascent-override: 100%, descent-override: 30%, line-gap-override: 0% }
+`;
+  beforeEach(() => rmSync(R, { recursive: true, force: true }));
+
+  test("a face over decision 118's ceiling is an error, named and placed", () => {
+    theme("f", `theme: f\n${FONT("kb: 64")}`);
+    site("f");
+    const c = loadConfig(R);
+    expect(c.ok).toBe(false);
+    expect(errors(c).join("\n")).toMatch(/theme\.font\.kb: at most 40/);
+    // MAX_FONT_KB is the one place the ceiling is written, so the message and the loader cannot disagree.
+    expect(MAX_FONT_KB).toBe(40);
+  });
+
+  test("one format, and it is the one every browser has read since 2020", () => {
+    theme("f", `theme: f\n${FONT("kb: 30").replace("t.woff2", "t.ttf")}`);
+    site("f");
+    expect(errors(loadConfig(R)).join("\n")).toMatch(/theme\.font\.file: a \.woff2/);
+  });
+
+  test("the fallback's overrides are required, because a face without them is the shift the budget bought off", () => {
+    theme("f", "theme: f\nfont: { family: T, file: ./fonts/t.woff2, kb: 30 }\n");
+    site("f");
+    expect(errors(loadConfig(R)).join("\n")).toMatch(/theme\.font\.fallback/);
+  });
+
+  test("decision 131: a declaration, so it does not merge — and a site cannot write one", () => {
+    theme("f", `theme: f\n${FONT("kb: 30")}`);
+    site("f");
+    const c = loadConfig(R);
+    // Nothing under `theme.font` in the merged config: `snypd://config` is what a site answered, and
+    // there is no question here for it to have answered.
+    expect((c.config.theme as Record<string, unknown>).font).toBeUndefined();
+    expect(c.ok).toBe(true);
+    // And the key has no meaning in snypd.yaml either, which is the other half of decision 128's rule:
+    // better to not have the key than to have to warn about one that could never be applied.
+    site("f", "  font: { family: Other }\n");
+    const c2 = loadConfig(R);
+    expect(c2.ok).toBe(true);                                          // inert, never fatal
+    expect(c2.diagnostics.map((d) => `${d.path}: ${d.message}`).join("\n"))
+      .toMatch(/theme\.font does nothing here/);
+  });
+});
+
 describe("theme variations (U6a)", () => {
   const R = "corpora/_test/variations";
   const site = (theme: string, extra = "") => { mkdirSync(R, { recursive: true }); writeFileSync(join(R, "snypd.yaml"), `snypd: 1\nsite: { name: S, url: https://s.example }\ntheme:\n  use: ${theme}\n${extra}`); };
@@ -802,5 +861,60 @@ variations:
     expect(c.variations).toEqual([]);
     expect(themeVariations(c)).toEqual([]);
     expect(strandedVariation(c)).toBeUndefined();
+  });
+});
+
+/**
+ * X1 — colour, only as far as the contrast gate needs it (color.ts).
+ *
+ * The reason this is arithmetic and not a browser is in the module's header. The reason it is tested
+ * against numbers taken from elsewhere is here: a converter checked only against itself is a converter
+ * that is consistently wrong. White on black is 21:1 by definition, `oklch(1 0 0)` is white by
+ * definition, and the two relative-colour derivations below are the ones `editorial` and `technical`
+ * actually ship, so a regression in the matrices moves a ratio the other tests assert.
+ */
+describe("colour, far enough to answer `is this readable` (X1)", () => {
+  const v = tokenVars({ "color.bg": "oklch(0.17 0.012 250)", "color.text": "oklch(0.91 0.008 250)" });
+  const r = (s: string, m: "light" | "dark" = "light") => resolveColor(s, m, v);
+  const ratio = (a: string, b: string, m: "light" | "dark" = "light") => +contrastRatio(r(a, m)!, r(b, m)!).toFixed(2);
+
+  test("the ends of the scale are exact, and every spelling of a colour reaches the same place", () => {
+    expect(ratio("#fff", "#000")).toBe(21);
+    expect(ratio("#ffffff", "white")).toBe(1);
+    expect(r("oklch(1 0 0)")!.r).toBeCloseTo(1, 5);
+    expect(r("rgb(255 128 0)")).toEqual(r("#ff8000"));
+    expect(r("rgb(100%, 50.2%, 0%)")!.g).toBeCloseTo(0.502, 3);
+    expect(r("hsl(0 100% 50%)")).toEqual({ r: 1, g: 0, b: 0 });
+    // OKLab's midpoint is perceptual, not arithmetic: half way from white to black is #636363, not #808080.
+    expect(Math.round(r("color-mix(in oklab, #ffffff 50%, #000000)")!.r * 255)).toBe(99);
+  });
+
+  test("`light-dark()` has two answers and the mode picks one, all the way down a var chain", () => {
+    expect(r("light-dark(#fdfcfa, #12110f)")).toEqual(r("#fdfcfa"));
+    expect(r("light-dark(#fdfcfa, #12110f)", "dark")).toEqual(r("#12110f"));
+    // The nested case is the one that matters: a var() inside a pair resolves on the side it was reached from.
+    const nested = tokenVars({ "a": "light-dark(#ffffff, #000000)", "b": "var(--a)" });
+    expect(resolveColor("var(--b)", "light", nested)).toEqual({ r: 1, g: 1, b: 1 });
+    expect(resolveColor("var(--b)", "dark", nested)).toEqual({ r: 0, g: 0, b: 0 });
+  });
+
+  test("relative colour derives from the token it names, calc and all", () => {
+    // `editorial`'s dark surface: the background, four and a half hundredths lighter. Lighter, and only just.
+    const bg = r("oklch(0.17 0.012 250)")!, surface = r("oklch(from var(--color-bg) calc(l + 0.045) c h)")!;
+    expect(luminance(surface)).toBeGreaterThan(luminance(bg));
+    expect(contrastRatio(surface, bg)).toBeLessThan(1.5);
+    // …and its muted text: the body colour, a quarter of a lightness step down, still over 4.5:1 on it.
+    expect(ratio("oklch(from var(--color-text) calc(l - 0.24) calc(c + 0.004) h)", "oklch(0.17 0.012 250)")).toBeGreaterThan(4.5);
+    expect(ratio("oklch(0.91 0.008 250)", "oklch(0.17 0.012 250)")).toBe(14.64);
+  });
+
+  test("what it cannot resolve is `undefined`, and never a colour it guessed", () => {
+    // Each of these has a defined rendering that depends on something this function does not have: the
+    // element's inherited colour, a token nobody declared, and whatever is painted behind the alpha.
+    for (const bad of ["currentColor", "var(--never-declared)", "#ffffff80", "rgb(0 0 0 / 50%)", "lch(50% 40 30)", "lightgoldenrodyellow", ""])
+      expect({ bad, got: r(bad) }).toEqual({ bad, got: undefined });
+    // A var() cycle is legal YAML, ignored by CSS, and would be a stack overflow here without the depth cap.
+    const loop = tokenVars({ "a": "var(--b)", "b": "var(--a)" });
+    expect(resolveColor("var(--a)", "light", loop)).toBeUndefined();
   });
 });

@@ -10,9 +10,9 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
-import { resolveThemeChain, sha1, INDEX_DIR, isBundledDir, themeBytes, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeLink, type ThemeYaml } from "@snypd/core";
+import { resolveThemeChain, sha1, INDEX_DIR, MAX_FONT_KB, isBundledDir, themeBytes, themeBinary, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeFont, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
-import { atImport, layerIdent } from "./tokens";
+import { atImport, fontFaceCss, layerIdent } from "./tokens";
 import type { Hooks } from "./hooks";
 
 export interface SiteCtx {
@@ -20,8 +20,12 @@ export interface SiteCtx {
   /** Resolved design tokens (theme.yaml defaults ← snypd.yaml overrides), also emitted as CSS vars (tokens.ts). */
   tokens: Record<string, string>;
   theme: { name: string };
-  /** Site-relative urls of emitted assets: `css` when the theme has tokens or a stylesheet; feeds always. */
-  assets: { css?: string; feed: string; llms: string; api: string };
+  /**
+   * Site-relative urls of emitted assets: `css` when the theme has tokens or a stylesheet; feeds always;
+   * `font` when the theme chain declares one (B1), which is what the shell preloads — a face discovered
+   * by the parser three stylesheets deep is a face that starts downloading after the page has drawn.
+   */
+  assets: { css?: string; feed: string; llms: string; api: string; font?: string };
   /**
    * Intrinsic size of every file under `content/media/`, keyed by its site-relative url (S13).
    * A primitive that places an image looks its `src` up here and emits `width`/`height`; a miss means
@@ -99,7 +103,13 @@ export interface TermLink { taxonomy: string; term: string; title: string; route
  */
 /** The post's author, with whether the author has a page: `types.author.layout` unset means there is no route to link, and the byline is a name. */
 export interface AuthorLink extends Entry { page: boolean }
-export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink }
+/**
+ * One heading in the body, as the renderer issued it (U6b): the `id` is the one on the element, so a toc
+ * built from these links to something that exists. `depth` is markdown's — `##` is 2 — and a body is
+ * expected to start at 2, because the page's h1 is the layout's title and lint rule 6 says so.
+ */
+export interface PageHeading { depth: number; id: string; text: string }
+export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink; /** The body's headings, in order (U6b) — what a `toc` part draws. Empty for a page with none. */ headings: PageHeading[] }
 export interface PrimitiveProps {
   name: string;
   /** Coerced props from the spec (tree.ts). */
@@ -138,18 +148,20 @@ export interface EntriesProps { ctx: SiteCtx; entries: Entry[] }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PartComponent = (p: any) => Html;
 /**
- * The four parts every theme is expected to have, typed; anything else a theme declares is reachable by
+ * The five parts every theme is expected to have, typed; anything else a theme declares is reachable by
  * name. `shell` is the document, `header` and `footer` are what every layout shows around its content,
- * `entries` is the list index, term and author layouts share.
+ * `entries` is the list index, term and author layouts share, and `toc` is the slot in the post layout
+ * that `base` fills with nothing (U6b).
  */
 export interface Parts {
   shell: (p: ShellProps) => Html;
   header: (p: PartProps) => Html;
   footer: (p: PartProps) => Html;
   entries: (p: EntriesProps) => Html;
+  toc: (p: PartProps) => Html;
   [name: string]: PartComponent;
 }
-export const PART_NAMES = ["shell", "header", "footer", "entries"] as const;
+export const PART_NAMES = ["shell", "header", "footer", "entries", "toc"] as const;
 /**
  * A part by name, with the failure named: a layout that asks for a part no theme in the chain declares
  * gets the theme and the part in the error, not `undefined is not a function` from inside a render.
@@ -183,6 +195,8 @@ export interface Theme {
   chain: ThemeLink[];
   /** The theme's stylesheet source, if `css:` is declared. */
   css?: string;
+  /** The one webfont the chain declares, resolved (B1, decision 118). Absent when no theme in it does. */
+  font?: LoadedFont;
   layouts: Record<string, LayoutComponent>;
   primitives: Record<string, PrimitiveComponent>;
   /** Per primitive, all 13. */
@@ -190,6 +204,25 @@ export interface Theme {
   parts: Parts;
   /** Per part: the four in `PART_NAMES` first, then anything else the chain declares. `missing` here has no generic — a layout that asks for it throws (see `part`). */
   partCoverage: Coverage[];
+}
+
+/**
+ * A theme's webfont, resolved against the theme in the chain that declared it (B1, decision 118).
+ *
+ * `bytes` rather than a path, because the seam that answers it has to answer for a theme inside a binary
+ * too, where there is no file to copy from — the same reason `themeFile` exists (decision 46). One .woff2
+ * is 31 KB; a photograph is the shape that would have needed a path, and a theme does not ship those.
+ */
+export interface LoadedFont extends ThemeFont {
+  /** The theme in the chain that declared it — the one whose dir `file` was relative to. */
+  declaredBy: string;
+  /** Site-relative url, `assets/fonts/<basename>`; the build writes it there and the shell preloads it. */
+  url: string;
+  bytes: Buffer;
+  /** The licence text shipped beside it, when the theme ships one — copied into `dist/` with the font. */
+  licence?: { name: string; text: string };
+  /** The `@font-face` pair, ready to sit above the layer statement. */
+  css: string;
 }
 
 
@@ -418,7 +451,39 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   });
   const css = sheets.length ? sheets.join("") : undefined;
 
-  const theme = { name, dir, chain, hash, yaml, css, layouts, primitives, coverage, parts, partCoverage, stamp };
+  /**
+   * The one webfont (B1, decision 118). **Nearest declarer wins**, the rule primitives, parts and tokens
+   * already follow: the first theme in the chain that declares `font:` is the one that ships, so a child
+   * inherits its parent's face until it names its own — and two faces never stack up to 80 KB just
+   * because a theme was extended.
+   *
+   * Two refusals here and one upstream. A `kb:` over decision 118's ceiling never reaches this function —
+   * `ThemeFontSchema` refuses it at config load with the file and line, where every other bad key in
+   * `theme.yaml` is refused. What is left for the loader is what the schema cannot see: a file the theme
+   * names and does not have, and a file heavier than the theme's own claim. The second is the point of a
+   * declared lane — `page.font.kb` gates on what the theme said, so a face that grew past it has to be
+   * re-subsetted or re-declared in the commit that grew it, rather than found by CI a week later.
+   */
+  let font: LoadedFont | undefined;
+  const declares = links.find((x) => x.yaml.font);
+  if (declares) {
+    const f = declares.yaml.font!;
+    const tn = declares.link.name;
+    const bytes = themeBinary(declares.link.dir, f.file);
+    if (!bytes) throw new Error(`theme ${tn}: font.file "${f.file}" is declared in theme.yaml but the file is missing`);
+    const kb = +(bytes.length / 1024).toFixed(2);
+    if (kb > f.kb) throw new Error(`theme ${tn}: ${f.file} is ${kb} KB but theme.yaml declares font.kb: ${f.kb} — re-subset it or raise the declaration (at most ${MAX_FONT_KB}, decision 118)`);
+    const base = f.file.split("/").pop()!;
+    const url = `/assets/fonts/${base}`;
+    // The licence travels with the font. The OFL requires it, and a site built from this theme
+    // redistributes the font on every page it serves — so `dist/` carries the notice next to the bytes
+    // it is the notice for, rather than leaving it behind in a themes directory nobody deployed.
+    const dir0 = f.file.includes("/") ? f.file.slice(0, f.file.lastIndexOf("/") + 1) : "";
+    const lic = ["OFL.txt", "LICENSE.txt", "LICENSE"].map((n) => ({ name: n, text: themeFile(declares.link.dir, `${dir0}${n}`) })).find((x) => x.text !== undefined);
+    font = { ...f, declaredBy: tn, url, bytes, css: fontFaceCss(f, url), licence: lic && { name: lic.name, text: lic.text! } };
+  }
+
+  const theme = { name, dir, chain, hash, yaml, css, font, layouts, primitives, coverage, parts, partCoverage, stamp };
   loaded.set(dir, theme);
   return theme;
 }

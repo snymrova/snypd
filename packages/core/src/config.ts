@@ -75,7 +75,24 @@ export function collectVariations(chain: ThemeLink[], parsed: Map<string, Parsed
   return { variations, origins };
 }
 
-export interface LoadOptions { env?: string; /** extra dirs searched for `themes/<name>` and `plugins/<name>` (the monorepo adds its own) */ searchPaths?: string[] }
+export interface LoadOptions {
+  env?: string;
+  /** extra dirs searched for `themes/<name>` and `plugins/<name>` (the monorepo adds its own) */
+  searchPaths?: string[];
+  /**
+   * Load a theme the site has not chosen (X1). `snypd check theme <name>` judges a theme *through the
+   * loader a site uses* — the same chain walk, the same strict schema pass, the same token validation —
+   * and the only thing it needs that a site does not is to say which theme, out of band from `theme.use`.
+   *
+   * It sits here rather than anywhere downstream because the name has to be known before the theme layer
+   * merges, which is the same reason `theme.variation` is read where it is, two lines below. Passing it
+   * changes nothing else: the site's own `theme.tokens` still merge on top and still strand where they
+   * name a token the other theme does not declare, which is exactly what a site would see if it switched.
+   */
+  theme?: string;
+  /** The variation to resolve, out of band from `theme.variation` — for checking a look that is not the active one. */
+  variation?: string;
+}
 
 const REPO = join(import.meta.dir, "..", "..", "..");
 
@@ -215,13 +232,32 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   const siteView = isObj(site?.value) ? site!.value : {};
   const envView = isObj(envLayer?.value) ? envLayer!.value : {};
   const themeOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.use === "string" ? v.theme.use : undefined);
-  const themeName = themeOf(envView) ?? themeOf(siteView) ?? "base";
+  const themeName = opts.theme ?? themeOf(envView) ?? themeOf(siteView) ?? "base";
   // The variation is read from the site the same way the theme's name is, and for the same reason: both
   // decide what the *theme* layer contributes, so both have to be known before that layer merges. Env
   // over site, as everywhere — which is what lets the benchmark's editorial lane pin a variation.
   const variationOf = (v: Record<string, unknown>) => (isObj(v.theme) && typeof v.theme.variation === "string" ? v.theme.variation : undefined);
-  const variationName = variationOf(envView) ?? variationOf(siteView);
-  const variationFrom = variationOf(envView) !== undefined ? envLayer : variationOf(siteView) !== undefined ? site : undefined;
+  const variationName = opts.variation ?? variationOf(envView) ?? variationOf(siteView);
+  const variationFrom = opts.variation !== undefined ? undefined : variationOf(envView) !== undefined ? envLayer : variationOf(siteView) !== undefined ? site : undefined;
+  /**
+   * The keys a *theme* declares and a site may not (U6a decision 128, B1 decision 131). `theme.*` is
+   * `passthrough` because every root key of a theme.yaml merges under it, which means a site writing one
+   * of these in `snypd.yaml` is accepted and then ignored — configuration that reads like configuration
+   * and does nothing, which is the shape decision 128 refused to ship and this is where it is refused.
+   * A warning and not an error: an inert key has never stopped a site from building, and it should not
+   * start now (the stranded-token rule, since S4).
+   */
+  for (const layer of [site, envLayer]) {
+    if (!layer || !isObj(layer.value) || !isObj(layer.value.theme)) continue;
+    const t = layer.value.theme;
+    for (const [key, why] of [["variations", "a theme's looks are declared in its theme.yaml; `theme.variation` is the one word a site writes"],
+                              ["font", "a webfont is a file in a theme's own directory, declared in its theme.yaml (decision 118)"]] as const) {
+      if (!(key in t)) continue;
+      const src: Source = { layer: layer.name, file: layer.file, line: layer.origins?.get(pathKey(["theme", key]))?.line };
+      diags.push({ level: "warning", path: `theme.${key}`, message: `theme.${key} does nothing here — ${why}`, source: src, where: describeSource(src) });
+    }
+  }
+
   // Each entry remembers the line that wrote it: an options error is attributed to the site's line, which
   // is where the fix goes, not to the plugin's schema.
   const pluginEntries: { entry: unknown; origin: Source }[] = [];
@@ -239,8 +275,14 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   // further on: it is a declaration, and the value that answers it is `theme.variation`. Merging it would
   // also let a site invent a variation in `snypd.yaml` that nothing could ever apply — the site layer
   // merges at step 4 and the chosen variation's tokens land at step 2.5, below — which is a key that
-  // reads as configuration and is inert. Better to not have the key than to have to warn about it.
-  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; delete o.variations; return { theme: o }; };
+  // reads as configuration and is inert. U6a left that at "better to not have the key than to warn about
+  // it"; B1 warns about it after all, a few lines above, because adding a second such key made the silence
+  // a pattern rather than an omission.
+  // `font:` is the third of them (B1, decision 131). It is a declaration about a *file* — a .woff2 in the
+  // theme's own directory, at a size the theme claims — and there is nothing about it for a site to
+  // answer, so `snypd.yaml` has no key for it and `snypd://config` should not carry a block that reads
+  // like one. It cost 14 tokens of `tokens.learn.editorial` on the way in, which is how it was found.
+  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; delete o.variations; delete o.font; return { theme: o }; };
   for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, withoutDecls, themeParsed.get(link.yamlFile)), prov);
   // Every theme.yaml in the chain is validated, strictly, with file:line (decision 73). A key docs/04
   // documents and nothing reads is a warning that says so; any other unknown key, or a wrong shape, is an

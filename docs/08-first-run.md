@@ -75,6 +75,7 @@ First run is done when all seven are true, on Linux + macOS, from the compiled b
 | **F4** | **Survives the restart.** Onboarding state is derived from disk on every request and on every session start; killing and restarting any process loses nothing that is not re-derivable. | `rm -rf .snypd/` mid-flow changes no answer except the heartbeat — ✅ **S18g**, 12 of doctor's structured facts diffed, 0 lost |
 | **F5** | **Three entry paths converge.** Agent-first (§2), terminal-first (`snypd init` typed by a person), and clone (`snypd.yaml` + `.mcp.json` already committed) reach the same state and are told the same next thing. | all three drive the same assertions |
 | **F6** | **Time to first visual.** For the terminal-first fallback: ≤ 2 commands from an empty directory to a painted Desk, no flags required. | `onboard.ttfv`, against the artefact — **true since S18e, painted since S18f, and numbered in S18g**: two seconds against a five-second budget on a box at load 16 |
+| **F8** | **The install is measured.** The download, the binary, and snypd's own share of it — because the first thing 100 % of users do is wait for it, and nothing in `bench/latest.md` had ever counted it. | `install.download.mb` / `install.binary.mb` (report-only — see §5c) / `install.code.mb` ≤ 8 MB — ✅ **I0, 13 Sep**: 36.27 / 83.85 / **5.14** |
 | **F7** | **The first-run surfaces are held to the Desk's budgets.** 0 KB JS, 0 axe violations, CLS 0 — on the *empty* and *first-run* states, not only the populated one. | ✅ **S18f** — `desk.first.*`, its own prefix rather than two more routes on `desk.*`, which would silently redefine a worst-of that has been comparable since S18b (`07` decision 48). Green on its first run: 0 KB JS, 0 violations over four route/viewport pairs, CLS 0 |
 
 **F1, F2 and F6 get budgets; the rest are boolean.** F1's budget is 5 and is the number this document exists to defend.
@@ -88,6 +89,11 @@ into forty, which is the failure that loses somebody, and it does not fire on a 
 
 **F1 came in at 6, and is left red.** The sixth action is real, the budget is not being moved to meet it, and §5b is
 the whole argument.
+
+**F8 is an addition, made on 13 Sep and marked as one.** The original seven all measure the flow in §2 from step 4
+onward. Step 4 itself — `bunx @snypd/cli init`, the line that has to finish before any of the rest begins — had no
+number attached to it in any document or any lane, and F2's `onboard.ttfp` starts its clock *after* the binary exists.
+So the one part of the first run that every user waits through was the one part nothing watched. §5c is what it costs.
 
 ---
 
@@ -161,6 +167,57 @@ And on a machine with **no git author identity** — a CI runner, a container, a
 That one was §12.11's open question and is now answered. The product half already worked: `init` prints the two lines,
 so an agent runs them with one approval instead of handing a person homework. It is reported as `onboard.handoff.fresh`
 and deliberately carries no budget — it is a property of the machine, not of the flow.
+
+---
+
+## 5c. What step 4 costs, measured (I0, 13 Sep 2026)
+
+§2 step 4 is one line — `bunx @snypd/cli init` — and it is the longest wait in the whole document. These are
+medians on one loaded Linux box, with the network taken out of every row so what is left is the part this
+repository controls; a real install adds the download on top.
+
+| What | Cost | Who pays it |
+|---|---|---|
+| the platform tarball | **36.9 MB** (`npm pack`), 36.27 MB (gzip -9 of the same bytes) | the person, once; the host, **on every deploy** |
+| unpacking it | **7.4 s**, from a tarball already on disk | the same two |
+| `snypd init` | 0.65 s | the person, once |
+| `snypd build`, empty site | 0.79 s | the host, every deploy |
+| the binary, spawn → `initialize` | 25 ms usage · 50 ms initialize | the harness, every session |
+| …through the npm launcher instead | **+94 ms** | any path where `.mcp.json` names the launcher |
+| …through `bunx <pkg>` instead | **+240 ms** floor, measured on a *tiny* cached package | a `.mcp.json` written by branch 2 |
+| …through `npx -y <pkg>` instead | **+2 200 ms**, pinned or not — `npx` re-verifies its tree every call | a `.mcp.json` written by branch 2 |
+
+**Three things that follow, and the first is the one that matters.**
+
+**The download is not ours.** A one-line program compiled by the same `bun build --compile --splitting` is
+**78.71 MB**; snypd's is **83.85 MB**. Every dependency, every bundled theme, the spec, the whole product is
+**5.14 MB — 6 %**. There is no code-size work that moves the install, and any plan that starts "make the
+binary smaller" is starting in the wrong place. The lever is not shipping a Bun runtime to people who,
+having typed `bunx`, demonstrably already have one; that is docs/11 §10 question 5, and it is a real
+decision with a real cost, not an optimisation.
+
+**The deploy pays the install again, in full, every time.** `deploy.ts` › `buildCommand` is
+`npx -y @snypd/cli@<version> build`, run in a container with no cache: ~37 MB and ~7 s in front of a build
+that takes 0.79 s. Nothing is wrong with that line — it is the contract, and a host wants one line — but it
+means **the install is ~90 % of deploy time**, which is not where anybody would look for it.
+
+**`npx` is 2.2 s a call, and the PR workflow made three of them.** Pinning does not help: measured against an
+already-cached package, `npx -y pkg@1.6.0` is 2.2 s and `npx -y pkg` is 2.6 s, so the pin buys reproducibility
+and nothing else. The generated workflow now installs once and runs `snypd` three times, and caches `~/.npm`
+on the pinned version — a content repo has no lockfile, so the version is the only honest key available.
+
+**The host's own line is left alone, deliberately.** `npm i -g @snypd/cli@<v> && snypd build` would save the
+2.2 s of `npx` there too — but it is 2.2 s against a 37 MB download and a 7 s unpack, so it buys 5 % of the
+deploy in exchange for a build command that assumes a writable global prefix on somebody else's container.
+The single pinned `npx -y` is the contract, and the contract is worth more than the 5 %.
+
+**What is not fixed, and why.** On the majority path `init` writes `{"command": "bunx", "args": ["@snypd/cli",
+"serve"]}` into a **committed** `.mcp.json`, and a clone on another machine is the second reader of that file
+(§12.8, F5). Naming a durable absolute path instead — a hardlink of the running binary into `~/.snypd/bin/`,
+which costs 0.1 ms on one filesystem and 1.0 s across two — would take session start from ~240 ms to 25 ms
+*and* remove the case where a collected cache puts a 37 MB download in front of `initialize` with no error
+anywhere. It would also break the clone, which is the failure §10 calls undiagnosable. That trade is not one
+to take quietly in a session that was asked to measure; it is docs/11 §10 question 6.
 
 ---
 
