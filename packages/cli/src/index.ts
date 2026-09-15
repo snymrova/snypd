@@ -35,7 +35,10 @@ switch (verb) {
     const covered = r.theme.coverage.filter((c) => c.status !== "missing").length;
     const inherited = r.theme.coverage.filter((c) => c.status === "inherited").length;
     console.log(`built ${r.routes} routes + ${r.artefacts} artefacts${r.emitted ? ` (${r.emitted} emitted by plugins)` : ""}${r.media ? ` + ${r.media} media` : ""} (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed${r.recovered ? `, ${r.recovered} left unfinished by an interrupted build and rebuilt` : ""}) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${covered}/${r.theme.coverage.length} primitives${inherited ? `, ${inherited} inherited` : ""})`);
-    if (flags.has("--verbose")) console.log(Object.entries(r.phases).map(([k, v]) => `${k} ${v.toFixed(1)} ms`).join(" · "));
+    if (flags.has("--verbose")) {
+      console.log(Object.entries(r.phases).map(([k, v]) => `${k} ${v.toFixed(1)} ms`).join(" · "));
+      console.log(`render = ${Object.entries(r.profile).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(" · ")} ms`);   // F1: where the render phase went
+    }
     // A hook that failed is a line, never a failed build (P2): the page went out without that plugin's contribution.
     for (const d of r.hooks.diagnostics) console.error(`⚠ plugin ${d.plugin} ${d.hook}${d.route ? ` on ${d.route}` : ""}: ${d.message}`);
     break;

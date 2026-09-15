@@ -36,6 +36,16 @@ export interface BuildResult {
   /** Files plugins' `emit` stages asked for and core wrote (P3) — counted in `artefacts` too. */
   emitted: number;
   phases: { config: number; theme: number; sync: number; plan: number; render: number };
+  /**
+   * Where `phases.render` went (F1, docs/11 §4). The five are disjoint and sum to the render phase less
+   * the loop's own overhead: `parse` is the mdast cache — micromark on a miss, `JSON.parse` + the typed
+   * tree on a store hit; `html` is everything else inside a plan item's thunk — the theme's TSX, `toHtml`,
+   * the schemas; `write` is the files; `weigh` is H2's pass over the pages written; `index` is the three
+   * transactions and the mdast prune; `stat` is the `todo` filter's existence checks. The split is what
+   * decision 124 asked for before anyone reached for a worker pool: only `parse` and `html` are CPU a
+   * second core could take, and the report says how much of a cold build that is at each size.
+   */
+  profile: { stat: number; parse: number; html: number; write: number; weigh: number; index: number };
   theme: { name: string; coverage: Theme["coverage"] };
   /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. `record` is present only when the caller asked for one (P4, `content.explain`). */
   hooks: { plugins: string[]; diagnostics: HookDiagnostic[]; record?: HookRun[] };
@@ -85,6 +95,11 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const sync = index.sync(cfg);
   const t3 = performance.now();
   const cache = opts.cache ?? new MdastCache(index.mdastStore());
+  // The profile's accumulators. The cache is wrapped rather than timed inside `renderDoc`, so the number
+  // is the build's and the preview's synthetic route pays nothing for it.
+  const profile = { stat: 0, parse: 0, html: 0, write: 0, weigh: 0, index: 0 };
+  const timed = (k: keyof typeof profile, fn: () => void) => { const t = performance.now(); fn(); profile[k] += performance.now() - t; };
+  const parsed: Pick<MdastCache, "get"> = { get: (source) => { const t = performance.now(); try { return cache.get(source); } finally { profile.parse += performance.now() - t; } } };
   const c = cfg.config;
   const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description, icon: c.site.icon as string | undefined, image: c.site.image as string | undefined };
   const tokens = resolveTokens(c.theme.tokens as Parameters<typeof resolveTokens>[0]);
@@ -216,7 +231,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   for (const f of published) for (const t of termsOf(f)) { const k = `${t.taxonomy} ${t.term}`; (byTerm.get(k) ?? byTerm.set(k, { link: t, files: [] }).get(k)!).files.push(f); }
   const allTerms: TermLink[] = [...byTerm.values()].map((x) => x.link).sort((a, b) => a.taxonomy.localeCompare(b.taxonomy) || a.term.localeCompare(b.term));
   if (hooks.transforms.length) base += `:transform:${sha1(JSON.stringify(allTerms))}`;
-  const renderBody = (source: string, page: Entry) => renderDoc(source, { theme, ctx, page, cache, transform: hooks.transforms.length ? (root, blocks) => applyTransforms(hooks, root, { route: page.route, entry: page, blocks, terms: allTerms, site, config: c }) : undefined });
+  const renderBody = (source: string, page: Entry) => renderDoc(source, { theme, ctx, page, cache: parsed, transform: hooks.transforms.length ? (root, blocks) => applyTransforms(hooks, root, { route: page.route, entry: page, blocks, terms: allTerms, site, config: c }) : undefined });
 
   const plan: Planned[] = [];
   const contentRoutes = new Set<string>();
@@ -366,25 +381,31 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     const f = join(out, rel); mkdirSync(dirname(f), { recursive: true });
     if (typeof content === "string" || content instanceof Uint8Array) writeFileSync(f, content); else copyFileSync(content.copyFrom, f);
   };
-  const todo = plan.filter((p) => { const prev = known.get(p.route); return !(prev && prev.key === p.key && p.outputs.every((o) => existsSync(join(out, o)))); });
+  let todo: Planned[] = [];
+  timed("stat", () => { todo = plan.filter((p) => { const prev = known.get(p.route); return !(prev && prev.key === p.key && p.outputs.every((o) => existsSync(join(out, o)))); }); });
   cached = plan.length - todo.length;
-  if (todo.length) index.transaction(() => {
+  if (todo.length) timed("index", () => index.transaction(() => {
     const generation = Number(index.meta("build.generation") ?? 0) + 1;
     index.setMeta("build.generation", String(generation));
     for (const p of todo) index.setRoute(p.route, `${OPEN}${generation}`, [...new Set([...(known.get(p.route)?.outputs ?? []), ...p.outputs])]);
-  });
+  }));
   for (const p of todo) {
     const prev = known.get(p.route);
+    const t = performance.now();
     const files = p.render();
-    for (const o of p.outputs) {
-      const content = files[o];
-      if (content === undefined) throw new Error(`internal: ${p.route} declared output ${o} but rendered ${Object.keys(files).join(", ") || "nothing"}`);
-      write(o, content);
-    }
-    if (prev) for (const o of prev.outputs) if (!p.outputs.includes(o)) rmSync(join(out, o), { force: true });   // e.g. a type rename moved its json
+    profile.html += performance.now() - t;   // less the parse inside it, subtracted once below
+    timed("write", () => {
+      for (const o of p.outputs) {
+        const content = files[o];
+        if (content === undefined) throw new Error(`internal: ${p.route} declared output ${o} but rendered ${Object.keys(files).join(", ") || "nothing"}`);
+        write(o, content);
+      }
+      if (prev) for (const o of prev.outputs) if (!p.outputs.includes(o)) rmSync(join(out, o), { force: true });   // e.g. a type rename moved its json
+    });
     for (const o of p.outputs) if (o.endsWith(".html")) weigh.push(o);
     rendered++;
   }
+  profile.html -= profile.parse;
   // H2, gate E6: the pages this build wrote, weighed against what the site afforded — after the loop,
   // because a `<script src>` a plugin emitted is a plan item of its own and may not have existed yet
   // when the page naming it was written. A cached page is not re-weighed: its key covers the content,
@@ -393,8 +414,8 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // unchanged code — script a plugin put there is that plugin's declaration to keep (P2), and
   // `page.js.kb` is where it is held to it. A refusal throws before the close, so every page this build
   // wrote stays open and the next build weighs it again (H3).
-  assertClientBudget(out, weigh, jsBudgetKb, { scripts: hooks.scripts, declaredKb: new Map(cfg.plugins.filter((pl) => pl.loaded).map((pl) => [pl.name, pl.clientKb])) });
-  index.transaction(() => {
+  timed("weigh", () => assertClientBudget(out, weigh, jsBudgetKb, { scripts: hooks.scripts, declaredKb: new Map(cfg.plugins.filter((pl) => pl.loaded).map((pl) => [pl.name, pl.clientKb])) }));
+  timed("index", () => index.transaction(() => {
     for (const p of todo) index.setRoute(p.route, p.key, p.outputs);
     // A route that vanished takes its outputs with it — except one a planned route now writes. A `route`
     // filter (P2) that moves `/posts/a` to `/articles/a` leaves the JSON at `api/post/a.json` in both
@@ -405,13 +426,13 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       for (const o of r.outputs) if (!claimed.has(o)) rmSync(join(out, o), { force: true });
       index.deleteRoute(route); removed++;
     }
-  });
-  if (sync.changed.length || sync.removed.length) index.pruneMdast();
+  }));
+  if (sync.changed.length || sync.removed.length) timed("index", () => index.pruneMdast());
   if (!opts.index) index.close();
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
+  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, profile, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
 }
 
 /**
@@ -423,7 +444,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
  * dispatch would have been a second answer to "what does this theme do with a `stat-row`", which is the
  * one question the empty state exists to answer honestly.
  */
-export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: MdastCache; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[]; headings: PageHeading[] } {
+export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: Pick<MdastCache, "get">; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[]; headings: PageHeading[] } {
   let { doc, tree } = o.cache.get(source);
   if (o.transform) {
     const next = o.transform(doc.tree, tree.all);

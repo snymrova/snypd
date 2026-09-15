@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync, readdirSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { build, loadTheme } from "@snypd/render";
+import { build, loadTheme, type BuildResult } from "@snypd/render";
 import { preview } from "@snypd/render/preview";
 import { serve } from "@snypd/runtime";
 import { compile } from "./compile";
@@ -88,16 +88,33 @@ export function corpus(n: number | string) {
   return root;
 }
 
-export async function runBuild(n: number, runs: number): Promise<Metric> {
+/**
+ * Cold build at `n`, and where the time went (F1, docs/11 §4). The split is read off the median run, not
+ * averaged across runs — a phase profile of a build that never happened is not a profile. Two rows: the
+ * clock with its budget, and `build.cold.<n>.parse`, report-only, which is the share micromark and the
+ * typed tree take. That row is the one decision 124 hangs on: it and `html` are the only CPU a worker
+ * pool could split, and everything else in the note is I/O or the index, which a second core does not
+ * touch.
+ */
+export async function runBuild(n: number, runs: number): Promise<Metric[]> {
   const root = corpus(n);
-  let routes = 0;
-  const ms = await medianOf(n >= 10000 ? 1 : runs, async () => {   // 10k cold = ~1 min of micromark; one run
+  const results: BuildResult[] = [];
+  for (let i = 0; i < (n >= 10000 ? 1 : runs); i++) {   // 10k cold = ~1 min of micromark; one run
     rmSync(join(root, "dist"), { recursive: true, force: true });
     rmSync(join(root, INDEX_DIR), { recursive: true, force: true });
-    const r = await build(root); routes = r.routes; return r.ms;
-  });
+    results.push(await build(root));
+  }
+  const r = [...results].sort((a, b) => a.ms - b.ms)[Math.floor(results.length / 2)]!;
+  const items = r.rendered;
+  const pct = (x: number) => `${Math.round((x / r.ms) * 100)} %`;
+  const split = `${Object.entries(r.phases).filter(([k]) => k !== "render").map(([k, v]) => `${k} ${v.toFixed(0)}`).join(" · ")} · render ${r.phases.render.toFixed(0)} = ${Object.entries(r.profile).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(" + ")}`;
   // Budget scales linearly with corpus size (≤ 2 s / 100 posts, docs/05).
-  return { name: `build.cold.${n}`, value: +ms.toFixed(1), unit: "ms", budget: ACTIVE.buildPer100 * (n / 100), note: `${routes} routes, no dist, no index` };
+  return [
+    { name: `build.cold.${n}`, value: +r.ms.toFixed(1), unit: "ms", budget: ACTIVE.buildPer100 * (n / 100),
+      note: `${r.routes} routes, no dist, no index · ${(r.ms / items).toFixed(2)} ms an item over ${items} · ${split} ms` },
+    { name: `build.cold.${n}.parse`, value: +r.profile.parse.toFixed(1), unit: "ms",
+      note: `report-only (F1): micromark + the typed tree, ${pct(r.profile.parse)} of the build — with html at ${pct(r.profile.html)}, the CPU a worker pool could split; write ${pct(r.profile.write)}, index ${pct(r.profile.index)} and weigh ${pct(r.profile.weigh)} it could not` },
+  ];
 }
 
 /**
@@ -723,7 +740,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   const metrics: Metric[] = [];
   ACTIVE = budgetsFor(corpus(100));
   const cold = await runColdStarts(runs);   // first: measured from a quiet process, before the builds thrash the page cache (S4)
-  for (const n of sizes) metrics.push(await runBuild(n, runs));
+  for (const n of sizes) metrics.push(...(await runBuild(n, runs)));
   metrics.push(...await runIncremental(100, runs));
   for (const n of sizes.filter((n) => n <= 1000)) metrics.push(...await runLint(n, runs));
   metrics.push(...cold);
