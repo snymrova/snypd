@@ -6,7 +6,7 @@ tags: [benchmarks]
 
 Every millisecond before an agent's first tool call is a millisecond it spends doing nothing, and we had never measured ours honestly. So we spawned the server four hundred times and recorded the gap between the process starting and `initialize` coming back.
 
-The numbers below are medians on a quiet four-core box. The variance is real but small; the ordering never changed across runs.
+The numbers below are medians on a quiet four-core box, taken the same way as the rest of our benchmarks. The variance is real but small; the ordering never changed across runs.
 
 | Import | Cold cost |
 | --- | --- |

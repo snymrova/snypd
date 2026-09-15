@@ -104,11 +104,41 @@ describe("layering", () => {
     expect(y).toContain("url: https://example.org # ← snypd.prod.yaml:1, overrides snypd.yaml:4");
     expect(y).toContain("page: <@snypd/spec default — snypd://spec/types/page>");
     expect(y).toContain("statuses: <@snypd/spec default — snypd://spec.json>");
-    expect(y).toContain("title: <inherited from types.post>");
+    // S21 (decision 169): inside a subtree the site wrote into, the keys it did not touch are one counted
+    // line, not one line each — `caseStudy.fields` names the two the site declared and counts the fourteen
+    // it inherited. The two levels above stay itemised: `types.post`, `types.page` are lines an agent
+    // navigates by.
+    expect(y).not.toContain("title: <inherited from types.post>");
+    expect(y).toContain("      # 14 more untouched: <inherited from types.post>");
+    expect(y).toContain("    # 3 more untouched: <inherited from types.post>");
+    expect(y).toContain("    lcp: 1000 # ← snypd.yaml:29, overrides @snypd/spec default\n    # 16 more untouched: <@snypd/spec default — snypd://spec/budgets>");
+    expect(y).toContain("  page: <@snypd/spec default — snypd://spec/types/page>\n  author: <@snypd/spec default — snypd://spec/types/author>");
+    expect(y).toContain("  tag: <@snypd/spec default — snypd://spec/taxonomies/tag>\n  seoTopic:");
     expect(y).toContain("#   3. plugin seo (plugins/snypd-plugin-seo/snypd.yaml) — 0.2.0, plugins/snypd-plugin-seo, declares");
     expect(y).toContain("#   4. plugin newsletter — not found");
     expect(y.indexOf("snypd: 1")).toBeLessThan(y.indexOf("types:"));
     expect(y.split("\n").length).toBeLessThan(160);
+  });
+  test("two retuned tokens cost two lines, not the theme's whole palette (S21, decision 169)", () => {
+    // The kill corpus as the kill test leaves it: `editorial`, two tokens overridden, four plugins on.
+    // Before the counted line, this read 2,312 tokens for `snypd://config` alone and put `tokens.learn`
+    // over D4's 6,000 — the theme's other 38 declarations each got a line of their own because two of
+    // their siblings had been written to.
+    const R = "corpora/_test/retuned";
+    mkdirSync(R, { recursive: true });
+    writeFileSync(join(R, "snypd.yaml"), `snypd: 1\nsite: { name: R, url: https://r.example }\ntheme:\n  use: editorial\n  tokens:\n    color.accent: "#2f5d62"\n    font.body: Georgia\nplugins:\n  - changelog\n`);
+    try {
+      const y = loadConfig(R).render();
+      expect(y).toContain('    color.accent: "#2f5d62" # ← snypd.yaml:6, overrides editorial/theme.yaml:');
+      expect(y).toMatch(/    font\.body: Georgia # ← snypd\.yaml:7, overrides editorial\/theme\.yaml:\d+ \(theme editorial\)\n    # 38 more untouched: <theme editorial default — editorial\/theme\.yaml:\d+–\d+>\n/);
+      expect(y).not.toContain("color.viz.1:");
+      expect(y).toContain("      # 13 more untouched: <inherited from types.post>");
+      // The rule only counts; a family with one member keeps its line, and it says the same thing it did.
+      expect(y).not.toContain("1 more untouched");
+      const lines = y.split("\n");
+      expect(lines.filter((l) => l.includes("more untouched")).length).toBe(3);   // tokens, release.fields, release
+      expect(lines.length).toBeLessThan(90);
+    } finally { rmSync(R, { recursive: true, force: true }); }
   });
 });
 

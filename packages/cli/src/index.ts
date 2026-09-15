@@ -77,11 +77,28 @@ switch (verb) {
       break;
     }
     if (args[0] === "agent") {   // S17: the kill test — the one lane that scores the product, not a number
-      const { report, run } = await bench.agent({ keep: flags.has("--keep") });
+      // S21: `--driver=claude:<model>` puts a live model at the keyboard instead of the scripted route.
+      // Same scenario, same checks, same three numbers; the record goes to `bench/agent.<driver>.*`.
+      const which = [...flags].find((f) => f.startsWith("--driver="))?.slice(9);
+      const driver = which?.startsWith("claude:") ? bench.live(which.slice(7), { onLine: (l) => { if (/"type":"assistant"/.test(l) && /"tool_use"/.test(l)) process.stderr.write("·"); } }) : undefined;
+      if (which && !driver) { console.error(`unknown driver ${which} — scripted (default) or claude:<model>`); process.exit(2); }
+      const { report, run } = await bench.agent({ keep: flags.has("--keep"), driver });
+      if (driver) process.stderr.write("\n");
       console.log(bench.toMarkdown(report));
       console.log(`\n${run.checks.map((c) => `${c.ok ? "✅" : "❌"} ${c.what} — ${c.detail}`).join("\n")}`);
+      if (run.model) console.log(`\nmodel ${run.model.model} · ${run.model.turns} turns · ${run.model.tokensIn} in / ${run.model.tokensOut} out · $${run.model.costUsd} · ended ${run.model.ended}\n${run.model.closing.trim()}`);
       const over = bench.breaches(report);
       if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
+      break;
+    }
+    if (args[0] === "writes") {   // S21: first-attempt lint on `write-post`, 20 topics × the models named
+      const models = [...flags].find((f) => f.startsWith("--models="))?.slice(9).split(",").filter(Boolean);
+      const t = [...flags].find((f) => f.startsWith("--topics="))?.slice(9);
+      const topics = t?.includes("-") ? (t.split("-").map(Number) as [number, number]) : Number(t) || undefined;
+      const { report, attempts } = await bench.writes({ models, topics, merge: flags.has("--merge"), keep: flags.has("--keep"),
+        onProgress: (a, done, total) => console.error(`${done}/${total} ${a.model} · ${a.noAttempt ? "no attempt" : a.pass ? "✅" : `❌ ${a.rules.join(", ") || `${a.errors} errors`}`} · ${a.topic}`) });
+      console.log(bench.toMarkdown(report));
+      console.log(`\n${bench.formatAttempts(attempts)}`);
       break;
     }
     if (args[0] === "onboard") {   // S18g: first run, walked against the compiled binary (docs/08 F1)
@@ -390,7 +407,7 @@ switch (verb) {
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
-      "  snypd bench [agent|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",

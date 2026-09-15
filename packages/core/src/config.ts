@@ -503,23 +503,59 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
   };
   const ordered = Object.fromEntries([...ORDER.filter((k) => k in raw), ...Object.keys(raw).filter((k) => !ORDER.includes(k))].map((k) => [k, raw[k]]));
   const doc = new Document(ordered, { aliasDuplicateObjects: false });
+  /**
+   * What one untouched entry would collapse to, or nothing when the site (or a plugin) wrote into it.
+   * `family` is the line without its position, so siblings that would say the same thing can be counted
+   * together; `line` is the position, for the range that counted line prints.
+   */
+  const untouched = (p: Path, v: unknown): { family: string; line?: number } | undefined => {
+    if (allFrom(prov, p, v, "spec")) return { family: `<@snypd/spec default — ${pointer(p)}>` };
+    const s = prov.get(pathKey(p));
+    if (p[0] === "theme" && s?.layer === "theme" && allFrom(prov, p, v, "theme")) return { family: `<theme ${s.from} default — ${s.file}>`, line: s.line };
+    if (s?.layer === "inherited" && allFrom(prov, p, v, "inherited")) return { family: `<inherited from types.${s.from}>` };
+    return undefined;
+  };
   const annotate = (node: Node | null, path: Path) => {
     if (isMap(node)) {
-      for (const pair of node.items as Pair<Node, Node>[]) {
-        const k = String((pair.key as { value?: unknown }).value ?? pair.key);
+      // A subtree the site touched (S21, decision 169). Before, one override expanded the whole map:
+      // two retuned tokens listed every token the theme declares, one budget listed every budget, and a
+      // type that extends `post` listed every field it inherited — and D4 went over budget with four
+      // plugins on. The keys the site wrote are the lines that carry information; the untouched
+      // siblings are counted on one line instead of each getting their own. Only below the second
+      // level: the top two are the map an agent navigates by (`types.post`, `taxonomies.tag`), and a
+      // name there is worth its line.
+      const pairs = node.items as Pair<Node, Node>[];
+      const keyOf = (pair: Pair<Node, Node>) => String((pair.key as { value?: unknown }).value ?? pair.key);
+      const kept: Pair<Node, Node>[] = [];
+      const folded = new Map<string, { n: number; lines: number[] }>();
+      const fold = path.length >= 2 && pairs.some((pair) => !untouched([...path, keyOf(pair)], getPath(raw, [...path, keyOf(pair)])));
+      for (const pair of pairs) {
+        const k = keyOf(pair);
         const p = [...path, k];
         const v = getPath(raw, p);
-        if (isObj(v) || Array.isArray(v)) {
-          if (allFrom(prov, p, v, "spec")) { pair.value = doc.createNode(`<@snypd/spec default — ${pointer(p)}>`) as Node; continue; }
-          const th = prov.get(pathKey(p));
-          if (path[0] === "theme" && th?.layer === "theme" && allFrom(prov, p, v, "theme")) { pair.value = doc.createNode(`<theme ${th.from} default — ${th.file}${th.line ? `:${th.line}` : ""}>`) as Node; continue; }   // the primitive map, layouts: theme-sized, not site-sized
-          const inh = prov.get(pathKey(p));
-          if (inh?.layer === "inherited" && allFrom(prov, p, v, "inherited")) { pair.value = doc.createNode(`<inherited from types.${inh.from}>`) as Node; continue; }
+        const u = untouched(p, v);
+        if (fold && u) {
+          const f = folded.get(u.family) ?? { n: 0, lines: [] };
+          f.n++; if (u.line) f.lines.push(u.line);
+          folded.set(u.family, f);
+          continue;
         }
+        kept.push(pair);
+        if ((isObj(v) || Array.isArray(v)) && u) { pair.value = doc.createNode(u.family.replace(/>$/, `${u.line ? `:${u.line}` : ""}>`)) as Node; continue; }
         const s = prov.get(pathKey(p));
         if (s && s.layer !== "spec" && pair.value && !isMap(pair.value) && !isSeq(pair.value)) (pair.value as Node).comment = ` ← ${describeSource(s)}`;
         else if (s && s.layer !== "spec" && (isMap(pair.value) || isSeq(pair.value)) && s.file) (pair.key as Node).comment = ` ← ${s.file}${s.line ? `:${s.line}` : ""}`;
         annotate(pair.value, p);
+      }
+      if (folded.size) {
+        // A folded key that was the only one of its family stays a line of its own — a count of one says less than the key.
+        for (const [family, f] of [...folded]) if (f.n < 2) { folded.delete(family); kept.push(...pairs.filter((pair) => { const p = [...path, keyOf(pair)]; const u = untouched(p, getPath(raw, p)); return u?.family === family; }).map((pair) => { const p = [...path, keyOf(pair)]; const v = getPath(raw, p); if (isObj(v) || Array.isArray(v)) { const u = untouched(p, v)!; pair.value = doc.createNode(u.family.replace(/>$/, `${u.line ? `:${u.line}` : ""}>`)) as Node; } return pair; })); }
+        node.items = pairs.filter((pair) => kept.includes(pair));
+        const lines = [...folded].map(([family, f]) => {
+          const range = f.lines.length ? `:${Math.min(...f.lines)}${f.lines.length > 1 ? `–${Math.max(...f.lines)}` : ""}` : "";
+          return ` ${f.n} more untouched: ${family.replace(/>$/, `${range}>`)}`;
+        });
+        if (lines.length) node.comment = lines.join("\n");
       }
     } else if (isSeq(node)) (node.items as Node[]).forEach((it, i) => annotate(it, [...path, i]));
   };
@@ -527,7 +563,7 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
   const head = [
     `# snypd://config — merged (env: ${env}). Layers, later wins:`,
     ...layers.map((l, i) => `#   ${i + 1}. ${l.name}${l.from ? ` ${l.from}` : ""}${l.file ? ` (${l.file})` : ""}${l.note ? ` — ${l.note}` : l.found ? "" : " — not found"}`),
-    `# Lines without "← file:line" are @snypd/spec defaults; untouched subtrees are collapsed to their snypd://spec/* resource (theme.yaml subtrees to their file:line).`,
+    `# Lines without "← file:line" are @snypd/spec defaults; untouched subtrees are collapsed to their snypd://spec/* resource (theme.yaml subtrees to their file:line), and inside a subtree the site wrote into, the keys it did not touch are counted on one line.`,
     ...(diags.length ? ["# Diagnostics:", ...diags.map((x) => `#   ${x.level}: ${x.path ? `${x.path}: ` : ""}${x.message}${x.where ? ` (${x.where})` : ""}`)] : []),
   ];
   return `${head.join("\n")}\n${String(doc)}`;

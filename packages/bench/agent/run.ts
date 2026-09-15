@@ -22,6 +22,8 @@ import { initRepo } from "@snypd/core";
 import { Session, type Turn } from "./session";
 import { assess, passed, type Check } from "./scenario";
 import { scripted, type Driver, type Phase } from "./scripted";
+import type { LiveDriver } from "./live";
+import type { ClaudeUsage } from "./claude";
 import type { Metric, Report } from "../src/index";
 
 export const DRAFT_BUDGET = 8;
@@ -34,6 +36,9 @@ export const REFERENCE_CALLS = 18;
 /** One call of slack over the reference; more than this and the surface has got less smooth. */
 export const TOTAL_GATE = 19;
 
+/** The order phases are reported in — the scripted route's, which is also the task's. */
+export const PHASES: Phase[] = ["upgrade", "theme", "write", "publish", "build"];
+
 export interface AgentRun {
   driver: string;
   checks: Check[];
@@ -43,6 +48,11 @@ export interface AgentRun {
   draftCalls: number;
   wallMs: number;
   lint: { errors: number; warnings: number };
+  /** `tokens.learn` on this site — the corpus with all four plugins on (S21, D4). */
+  learn: number;
+  learnBudget: number;
+  /** A live model's own accounting (S21): present only when the driver was one. */
+  model?: ClaudeUsage & { ended: string; closing: string };
 }
 
 /** A disposable copy of the corpus that is its own repo, with the three plain posts already committed. */
@@ -75,21 +85,31 @@ export async function runAgent(opts: { driver?: Driver; keep?: boolean } = {}): 
     const wallMs = +(performance.now() - t0).toFixed(0);
     const counts = { errors: lint.errors ?? 0, warnings: lint.warnings ?? 0 };
 
-    const phases = marks.map((m, i) => {
+    // Summed by name: the scripted driver marks each phase once, a live model may come back to one
+    // (live.ts's header), and a phase is a kind of work, not a stretch of the transcript.
+    const sums = new Map<Phase, AgentRun["phases"][number]>();
+    marks.forEach((m, i) => {
       const slice = s.turns.slice(m.from, marks[i + 1]?.from ?? s.turns.length);
-      return {
-        phase: m.phase,
-        calls: slice.filter((t) => t.kind === "call").length,
-        reads: slice.filter((t) => t.kind === "read").length,
-        tokensIn: slice.reduce((a, t) => a + t.tokensIn, 0),
-        tokensOut: slice.reduce((a, t) => a + t.tokensOut, 0),
-        ms: +slice.reduce((a, t) => a + t.ms, 0).toFixed(0),
-      };
+      const p = sums.get(m.phase) ?? { phase: m.phase, calls: 0, reads: 0, tokensIn: 0, tokensOut: 0, ms: 0 };
+      p.calls += slice.filter((t) => t.kind === "call").length;
+      p.reads += slice.filter((t) => t.kind === "read").length;
+      p.tokensIn += slice.reduce((a, t) => a + t.tokensIn, 0);
+      p.tokensOut += slice.reduce((a, t) => a + t.tokensOut, 0);
+      p.ms = +(p.ms + slice.reduce((a, t) => a + t.ms, 0)).toFixed(0);
+      sums.set(m.phase, p);
     });
+    const phases = PHASES.flatMap((p) => sums.get(p) ?? []);
+    // D4 on this site, not on the theme corpus: the four plugins grow the config an agent reads first.
+    const { learnSurface, budgetsFor } = await import("../src/index");
+    const { countTokens } = await import("../src/tokens");
+    const learn = Object.values(learnSurface(root)).reduce((a, t) => a + countTokens(t), 0);
+    const learnBudget = budgetsFor(root).tokensToLearn;
+    const l = driver as LiveDriver;
     return {
       driver: driver.name, checks: assess(root, counts), turns: s.turns, phases,
-      calls: s.calls, draftCalls: phases.find((p) => p.phase === "write")?.calls ?? 0,
-      wallMs, lint: counts,
+      calls: s.calls, draftCalls: sums.get("write")?.calls ?? 0,
+      wallMs, lint: counts, learn, learnBudget,
+      ...(l.usage ? { model: { ...l.usage, ended: l.ended ?? "success", closing: l.closing ?? "" } } : {}),
     };
   } finally {
     s.stop();
@@ -112,7 +132,22 @@ export function agentMetrics(r: AgentRun): Metric[] {
     { name: "agent.tokens", value: r.turns.reduce((a, t) => a + t.tokensIn + t.tokensOut, 0), unit: "tokens",
       note: `o200k both directions — ${r.turns.reduce((a, t) => a + t.tokensIn, 0)} sent, ${r.turns.reduce((a, t) => a + t.tokensOut, 0)} returned` },
     { name: "agent.wallMs", value: r.wallMs, unit: "ms", note: "spawn → published site, report-only (build and preview dominate)" },
+    // Measured on the site the run *left* — editorial, retuned, four plugins — because that is the site
+    // the next session learns, and it is the larger number. `exact`: a token count has no runner noise,
+    // and the 6,000 is docs/05's own sentence, so the line is the budget and not 80 % of it.
+    { name: "tokens.learn.kill", value: r.learn, unit: "tokens", budget: r.learnBudget, exact: true,
+      note: "D4 on the site the kill test leaves, all four plugins on (S21): config + spec + primitives + theme, the way `tokens.learn` counts them" },
+    ...(r.model ? [
+      { name: "agent.model.tokens", value: r.model.tokensIn + r.model.tokensOut, unit: "tokens",
+        note: `what \`${r.model.model}\`'s own context paid — ${r.model.tokensIn} in (cache included), ${r.model.tokensOut} out, ${r.model.turns} turns, $${r.model.costUsd}; ended \`${r.model.ended}\`; report-only` },
+    ] : []),
   ];
+}
+
+/** Where a driver's record goes: the scripted route is CI's `bench/agent.*`; a model's is named for it. */
+export function recordPaths(driver: string): { report: string; json: string; transcript: string } {
+  const tag = driver === "scripted" ? "" : `.${driver.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+  return { report: `bench/agent${tag}.md`, json: `bench/agent${tag}.json`, transcript: `bench/agent-transcript${tag}.md` };
 }
 
 export const VERSION_SUITE = "agent";
@@ -122,9 +157,10 @@ export async function agent(opts: { driver?: Driver; keep?: boolean; write?: boo
   const run = await runAgent(opts);
   const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: "o200k_base", suite: VERSION_SUITE, metrics: agentMetrics(run) };
   if (opts.write !== false) {
-    writeFileSync("bench/agent.json", JSON.stringify({ ...report, checks: run.checks, phases: run.phases }, null, 2));
-    writeFileSync("bench/agent.md", `${toMarkdown(report)}\n\n${run.checks.map((c) => `- ${c.ok ? "✅" : "❌"} **${c.what}** — ${c.detail}`).join("\n")}\n`);
-    writeTranscript(run);
+    const paths = recordPaths(run.driver);
+    writeFileSync(paths.json, JSON.stringify({ ...report, checks: run.checks, phases: run.phases, ...(run.model ? { model: run.model } : {}) }, null, 2));
+    writeFileSync(paths.report, `${toMarkdown(report)}\n\n${run.checks.map((c) => `- ${c.ok ? "✅" : "❌"} **${c.what}** — ${c.detail}`).join("\n")}\n`);
+    writeTranscript(run, paths.transcript);
   }
   return { run, report };
 }
@@ -133,7 +169,8 @@ export async function agent(opts: { driver?: Driver; keep?: boolean; write?: boo
 export function transcript(r: AgentRun): string {
   const head = [
     `# snypd bench — the kill test`, "",
-    `**Driver** \`${r.driver}\` · **Tool calls** ${r.calls} (draft ${r.draftCalls}/${DRAFT_BUDGET}) · **Goal** ${r.checks.filter((c) => c.ok).length}/${r.checks.length} · **Wall** ${r.wallMs} ms`, "",
+    `**Driver** \`${r.driver}\`${r.model ? ` (${r.model.model})` : ""} · **Tool calls** ${r.calls} (draft ${r.draftCalls}/${DRAFT_BUDGET}) · **Goal** ${r.checks.filter((c) => c.ok).length}/${r.checks.length} · **Wall** ${r.wallMs} ms`, "",
+    ...(r.model ? [`**The model's own context** ${r.model.tokensIn} tokens in (cache included), ${r.model.tokensOut} out, ${r.model.turns} turns, $${r.model.costUsd}, ended \`${r.model.ended}\`.`, "", `> ${r.model.closing.trim().split("\n").join("\n> ")}`, ""] : []),
     `The scenario is docs/06's v0.1 test: three plain posts upgraded with \`suggest_blocks\`, the theme swapped`,
     `and retuned, a new post written with a chart and a flow, everything approved by a person and published.`,
     `Checks read the finished site, never this transcript — a driver passes by leaving the repository right.`, "",

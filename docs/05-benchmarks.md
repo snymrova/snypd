@@ -30,9 +30,9 @@
 | Tokens per page (`.md` twin) | standard tokeniser on the twin every route emits | median ≤ 2,500 — **this is the gated agent-cost metric**: it is what actually lands in a context window |
 | Reduction vs this site's own HTML | `1 − tokens(twin)/tokens(html)`, measured on both lanes (`base` and `editorial`) | **report-only, and a low number is good news** — it measures how thin the theme's HTML already is, not what an agent saves (docs/07 decision 15) |
 | Tokens to learn the site | size of `config` + `spec/primitives` + `theme` resources | ≤ 6,000 |
-| Time-to-first-post | scripted run from a fresh harness with only the MCP: tool calls and seconds to a lint-clean published draft; 3 models | ≤ 8 tool calls |
-| First-attempt lint pass rate on `write-post` | 20 topics × 3 models | ≥ 80 % |
-| `suggest_blocks` precision | 50 hand-labelled posts (**20 from S15**, `corpora/suggest`; grows to 50 for the Gate C run in S21 — docs/07 decision 37) | ≥ 0.8 |
+| Time-to-first-post | scripted run from a fresh harness with only the MCP: tool calls and seconds to a lint-clean published draft; 3 models — **measured 15 Sep 2026 (S21): haiku, sonnet and opus at the keyboard of the same kill test, 15/15 each, a lint-clean draft in 3 calls; `bench/agent.claude-<model>.md`** | ≤ 8 tool calls |
+| First-attempt lint pass rate on `write-post` | 20 topics × 3 models — `snypd bench writes`, `bench/writes.md` (S21); **first published 15 Sep 2026, see docs/11 §7b for the number and what moved it** | ≥ 80 % |
+| `suggest_blocks` precision | 50 hand-labelled posts (20 from S15, **50 since S21** — docs/07 decision 37; 19 of them labelled `[]`) | ≥ 0.8 |
 | `suggest_blocks` recall | the same corpus | report-only — a miss costs the author nothing they did not already have, a false positive rewrites their post |
 | MCP latency p50 / p95 per tool | server timing | reads ≤ 50 ms; `render_preview` ≤ 2 s |
 | Agent-read surface completeness | `snypd bench` probes the built corpus and the server: llms.txt, `.md` twin, `Accept: text/markdown`, `link rel=alternate` (markdown + feed), JSON API, feed, sitemap+robots, JSON-LD; public MCP joins in S19 | 100 %, enforced from S7 |

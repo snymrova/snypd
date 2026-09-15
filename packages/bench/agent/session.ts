@@ -15,7 +15,7 @@
  *    not a win, and without this the budget could be gamed by batching.
  */
 import { encode } from "gpt-tokenizer/encoding/o200k_base";
-import type { InitializeResult, Resource, Tool, ToolResult } from "@snypd/mcp/protocol";
+import type { GetPromptResult, InitializeResult, Resource, Tool, ToolResult } from "@snypd/mcp/protocol";
 
 export const PROTOCOL_VERSION = "2025-11-25";
 
@@ -79,6 +79,12 @@ export class Session {
   async read(uri: string): Promise<string> {
     const r = (await this.rpc("read", "resources/read", { uri })) as { contents: { text: string }[] };
     return r.contents.map((c: { text: string }) => c.text).join("\n");
+  }
+
+  /** `prompts/get`, as a read: a prompt is a scripted opening turn (docs/03), and fetching it is not a call. */
+  async prompt(name: string, args: Record<string, unknown> = {}): Promise<string> {
+    const r = (await this.rpc("read", "prompts/get", { name, arguments: args }, name)) as GetPromptResult;
+    return r.messages.map((m) => m.content.text).join("\n");
   }
 
   /** The one method that costs. `name` is recorded so the transcript reads like a session, not a log. */

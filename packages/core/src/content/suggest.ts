@@ -85,8 +85,13 @@ export function toNumber(raw: string): number {
   // A magnitude suffix is the *whole* remainder: "4.2k" is four thousand two hundred, "1240ms" is
   // twelve hundred and forty milliseconds. Reading the m of ms as a million is off by a factor of 1e6.
   const rest = (m[2] ?? "").toLowerCase();
+  // Anything else after the digits is a word, and "13 Sep" is a date, not thirteen — the fifty-post
+  // corpus (S21) had a sessions-by-date table suggested as a chart because every date parsed as its day.
+  if (rest && !NUMBER_SUFFIX.test(rest)) return NaN;
   return rest === "k" ? v * 1e3 : rest === "m" ? v * 1e6 : rest === "b" ? v * 1e9 : v;
 }
+/** What may follow the digits in a cell that is still a number: a magnitude, a unit, or a per-unit. */
+const NUMBER_SUFFIX = /^(k|m|b|ms|s|min|h|kb|mb|gb|tb|%|pp|px|x|×|tokens?|req\/s|rps|fps|°c?|″|′)$/;
 
 const IMPERATIVE = /^(add|run|open|write|set|copy|paste|click|install|create|make|check|verify|build|deploy|push|pull|commit|start|stop|edit|rename|delete|remove|choose|select|enter|type|save|download|upload|configure|point|send|call|read|replace|move|drop|name|give|put|use|wait|restart|confirm|apply|import|export|generate|publish|merge|clone|fetch|tag|serve|return|answer|reload|watch|measure|compare|record|repeat|split|join|mount|link|test|lint|format|sort|filter|count|log|track|scan|list|find|swap|bump|pin|patch|revert|rebase|stash)\b/i;
 const CONDITIONAL = /\b(if|unless|otherwise|when it|either|whether|in case|should (?:it|you|the)|on failure|fails?,|passes,)\b/i;
@@ -96,7 +101,7 @@ const UNIT = /\b(ms|s|kb|mb|gb|%|pp|tokens|req\/s|rps|px|x|×)\b/i;
 const CALLOUT_PREFIX = /^\s*(?:\*\*|__)?(note|tip|hint|warning|caution|danger|important)(?:\*\*|__)?\s*[:.—-]/i;
 
 /** Headers that name an axis rather than a measurement: the column is numeric and is still the label. */
-const AXIS_HEADER = /^\s*(year|yr|quarter|q|month|week|day|date|period|version|release|run|session|n|size|bucket|bin|step)\b/i;
+const AXIS_HEADER = /^\s*(year|yr|quarter|q|month|week|day|date|hour|minute|second|time|t|elapsed|period|version|release|run|session|iteration|attempt|n|size|bucket|bin|step)\b/i;
 
 /**
  * One reading of a table, shared by the `table` facts and the `chart` rewriter — they disagreed once
@@ -185,7 +190,9 @@ export function candidates(doc: ParsedDoc, source: string): Candidate[] {
       const items = l.children.map((li) => toText(li).trim());
       const text = items.join("\n");
       const shape: Shape = l.ordered ? "ordered-list" : "list";
-      const leading = items.filter((s) => Number.isFinite(toNumber(s)));
+      // Leads with a number: the first token parses, whatever follows it — "92 % fewer tokens" leads
+      // with 92 even though the item as a whole is not a number (which is `toNumber`'s question).
+      const leading = items.filter((s) => Number.isFinite(toNumber(s.trim().split(/\s+/)[0] ?? "")));
       const base = {
         items: items.length, text,
         imperatives: items.filter((s) => IMPERATIVE.test(s)).length,
@@ -211,11 +218,13 @@ export function candidates(doc: ParsedDoc, source: string): Candidate[] {
     if (n.type === "blockquote") {
       const text = toText(n).trim();
       const m = CALLOUT_PREFIX.exec(text);
-      const attribution = /(?:^|\n)\s*[—-]{1,2}\s*\S.*$/.test(text);
+      // A cite is a line that opens with a dash, or — the other way people write it — a dash after
+      // the closing quote mark on the same line: `"…" — who said it`.
+      const attribution = /(?:^|\n)\s*[—-]{1,2}\s*\S.*$/.test(text) || /["”»']\s*[—-]{1,2}\s*\S[^\n]*$/.test(text);
       const bare = m ? text.slice(m[0].length).trim() : text;
       // The "— Who said it" line is the cite, not a second sentence; counting it made every properly
       // attributed quote — the clearest pullquote there is — score as an excerpt.
-      const said = bare.replace(/(?:^|\n)\s*[\u2014-]{1,2}\s*\S.*$/, "").trim();
+      const said = bare.replace(/(?:^|\n)\s*[\u2014-]{1,2}\s*\S.*$/, "").replace(/(["”»'])\s*[\u2014-]{1,2}\s*\S[^\n]*$/, "$1").trim();
       make("blockquote", [n], {
         words: words(said), sentences: sentences(said),
         prefix: m ? m[1]!.toLowerCase() : "",

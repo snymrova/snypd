@@ -659,9 +659,10 @@ export async function visual(opts: { quick?: boolean } = {}): Promise<Report> {
 }
 
 /**
- * `snypd bench suggest` (docs/07 S15, Phase-3 exit): `suggest_blocks` against the twenty hand-labelled
- * posts in `corpora/suggest`. No build and no browser — it is the detector table under measurement, so
- * a detector YAML can be tuned and scored in a second.
+ * `snypd bench suggest` (docs/07 S15, Phase-3 exit): `suggest_blocks` against the fifty hand-labelled
+ * posts in `corpora/suggest` (twenty until S21). No build and no browser — it is the detector table under
+ * measurement, so a detector YAML can be tuned and scored in a second. `bench/suggest.md` is this box's
+ * record; CI's `bench --ci` carries the same three rows inside `bench/latest.md`.
  */
 export async function suggest(opts: { root?: string } = {}): Promise<Report> {
   const root = opts.root ?? SUGGEST_CORPUS;
@@ -691,6 +692,11 @@ export { assess, passed, UPGRADES, NEW_POST, THEME, type Check } from "../agent/
  */
 export { onboard, runOnboard, onboardMetrics, formatWalk, freshMachine, HANDOFF_BUDGET, TTFV_BUDGET, TTFP_BUDGET, type OnboardWalk, type Action as OnboardAction } from "../smoke/onboard";
 export { scripted, type Driver, type Phase } from "../agent/scripted";
+// S21: a live model at the surface, and the 20-topic first-attempt lane. Neither runs in CI (claude.ts).
+export { live, KILL_PROMPT, phaseOf, phasesFor, type LiveDriver } from "../agent/live";
+export { claude, MODELS, mcpName, type Model, type ClaudeRun, type ClaudeUsage } from "../agent/claude";
+export { writes, runWrites, runWrite, writesMetrics, formatAttempts, readLint, TOPICS, FIRST_ATTEMPT_RULE, type WriteAttempt } from "../agent/writes";
+export { recordPaths, PHASES } from "../agent/run";
 export { Session, type Turn } from "../agent/session";
 
 /**

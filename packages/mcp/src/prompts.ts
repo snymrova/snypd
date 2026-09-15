@@ -105,6 +105,8 @@ function writePost(args: Record<string, unknown>): GetPromptResult {
 
 **Then plan the shape before the prose.** For each thing you are going to say, ask which primitive says it: numbers that compare → \`chart\`; a sequence with a decision in it → \`flow\`; parts and how they connect → \`diagram\`; a claim worth pulling out → \`callout\`; questions a reader will actually ask → \`faq\`; the summary they will read instead of the post → \`tldr\`. Prose is what carries the argument between them, not the default for everything.
 
+**Then read the sheet of every primitive in the plan** — \`snypd://spec/primitives/<name>\`, one read each, before writing a line of it. The index names them; the sheet is what the lint checks — which props are required, what the body is (a \`flow\` is YAML steps with a \`do:\` each, a \`diagram\` is YAML nodes and edges, a \`stat\` needs a \`source\` that is a URL or a site path), and an example that passes. A first draft written from the index alone fails on exactly those, and every one of those failures is a read you skipped.
+
 **Write it.** \`content.create\` with the frontmatter and body. Every taxonomy term you use should be one the site already uses — a tag used once connects nothing, and the lint will say so.
 
 **Fix what the lint returns.** \`content.create\` hands back diagnostics with a fix hint on every one. Act on them yourself rather than reporting them to me; that is what the hints are for. If a rule fights you, say which one and why — that is a real finding about the vocabulary.
