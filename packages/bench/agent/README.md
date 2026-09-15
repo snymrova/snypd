@@ -3,7 +3,9 @@
 docs/06's v0.1 test, run and scored: three plain posts upgraded with `suggest_blocks`, the theme swapped
 and retuned, a new post written with a chart and a flow, every item approved by a person and published.
 
-    bun run snypd bench agent          # → bench/agent.md, bench/agent.json, bench/agent-transcript.md
+    bun run snypd bench agent                        # → bench/agent.md, bench/agent.json, bench/agent-transcript.md
+    bun run snypd bench agent --driver=claude:haiku  # S21: a live model at the keyboard → bench/agent.claude-haiku.*
+    bun run snypd bench writes --models=haiku,sonnet,opus   # S21: 20 topics × first-attempt lint → bench/writes.md
 
 ## What is scored
 
@@ -33,9 +35,25 @@ drafts-branch path. The human who approves each item is an HTTP POST to the revi
 `content.render_preview` started: that is exactly the interaction, and it is outside the call budget
 because approving is not something an agent can spend calls on.
 
+## Three models (S21)
+
+`claude.ts` runs D1's first clause literally — `claude -p` in a fresh session, every built-in tool off,
+one MCP server — and turns the session's stream into the same `Turn`s `session.ts` records, so
+`agent.goal`, `agent.calls.draft` and `agent.calls` mean the same thing whoever is at the keyboard.
+`live.ts` is the driver: `KILL_PROMPT` is the task in a person's words, phases are read off the calls,
+and the record goes to `bench/agent.claude-<model>.*` beside CI's `bench/agent.*`. `writes.ts` is the
+other lane docs/05 asked for: twenty topics, the server's own `write-post` prompt, and whether the first
+`content.create` lints clean. Neither runs in CI — there is no login there — so the records under
+`bench/` are made at a desk and checked in.
+
+The corpus has **all four plugins on** since S21, and `scenario.ts` scores each off the finished site:
+a beacon in the page, a term linked in prose, a merged type, an emitted key file.
+
 ## Status
 
-D1 is **red at 3/11**, and the vocabulary is not why — see docs/07 §6 "the write model". The parts that
-work are the ones the primitives own: all three posts are read correctly, the upgrades apply, and the new
-post reaches a lint-clean draft in 2 calls of the 8. `agent.test.ts` asserts the failing set exactly, so a
-fix to the write model has to come back here and say so.
+D1 is **green at 15/15 with all three models** (15 Sep 2026): the scripted route in 18 calls, haiku in
+30, sonnet in 22, opus in 23; every model reaches a lint-clean draft in 3 calls of the 8. The first live
+run found two things the scripted one never could — `tokens.learn` over budget with four plugins on
+(decision 169) and a build that could not find its JSX runtime from a foreign cwd — and both are fixed
+where they were found. `agent.test.ts` asserts the scripted route exactly; the live records are
+`bench/agent.claude-*.md`.

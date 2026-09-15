@@ -691,6 +691,11 @@ export { assess, passed, UPGRADES, NEW_POST, THEME, type Check } from "../agent/
  */
 export { onboard, runOnboard, onboardMetrics, formatWalk, freshMachine, HANDOFF_BUDGET, TTFV_BUDGET, TTFP_BUDGET, type OnboardWalk, type Action as OnboardAction } from "../smoke/onboard";
 export { scripted, type Driver, type Phase } from "../agent/scripted";
+// S21: a live model at the surface, and the 20-topic first-attempt lane. Neither runs in CI (claude.ts).
+export { live, KILL_PROMPT, phaseOf, phasesFor, type LiveDriver } from "../agent/live";
+export { claude, MODELS, mcpName, type Model, type ClaudeRun, type ClaudeUsage } from "../agent/claude";
+export { writes, runWrites, runWrite, writesMetrics, formatAttempts, readLint, TOPICS, FIRST_ATTEMPT_RULE, type WriteAttempt } from "../agent/writes";
+export { recordPaths, PHASES } from "../agent/run";
 export { Session, type Turn } from "../agent/session";
 
 /**

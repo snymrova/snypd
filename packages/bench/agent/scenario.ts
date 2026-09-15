@@ -88,6 +88,33 @@ export function assess(root: string, lint: { errors: number; warnings: number })
   const dist = join(root, "dist");
   add("built", "the site builds", existsSync(join(dist, "index.html")), existsSync(dist) ? "dist/index.html present" : "no dist/");
 
+  // S21 (docs/10 §7 row 12): all four plugins are on in the corpus, and each is scored off what it left
+  // on the finished site — never off the agent's transcript, and never off the loader's own report of
+  // itself. The agent was told nothing about them; what it had to cope with is a bigger config, a
+  // longer `find_tools` list and a build with four more things to do. One check per tier: a slot, a
+  // transform, a YAML-only merge, an emit. `autolink` needs a term mentioned in prose to have anything
+  // to do, which is the one sentence `cold-start.md` carries for it.
+  const page = (route: string): string | undefined => {
+    const f = join(dist, route, "index.html");
+    return existsSync(f) ? readFileSync(f, "utf8") : undefined;
+  };
+  const cold = page("posts/cold-start");
+  const beacon = !!cold && /<script[^>]+plausible\.io\/js\/script\.js[^>]*data-domain="kill\.snypd\.rocks"/.test(cold);
+  add("plugin.analytics", "`analytics` put its beacon on the page (a slot)", beacon,
+    !cold ? "posts/cold-start not built" : beacon ? "plausible script tag in body-end, data-domain from site.url" : "no beacon in the page");
+  const linked = !!cold && /<p>[^<]*<a href="\/tag\/benchmarks\/">benchmarks<\/a>/.test(cold);
+  add("plugin.autolink", "`autolink` linked the first mention of a term in prose (a transform)", linked,
+    !cold ? "posts/cold-start not built" : linked ? "“benchmarks” in the second paragraph links to /tag/benchmarks/" : "the mention is plain text");
+  const release = (cfg.config.types as Record<string, { dir?: string } | undefined>).release;
+  add("plugin.changelog", "`changelog` merged its `release` type into the site (YAML only)", release?.dir === "content/changelog",
+    release ? `types.release → ${release.dir}` : "no release type in the merged config");
+  const indexnow = cfg.plugins.find((p) => p.name === "indexnow");
+  const key = typeof indexnow?.options.key === "string" ? indexnow.options.key : undefined;
+  const keyFile = key ? join(dist, "indexnow", `${key}.txt`) : undefined;
+  const emitted = !!keyFile && existsSync(keyFile) && readFileSync(keyFile, "utf8").trim() === key;
+  add("plugin.indexnow", "`indexnow` emitted its key file (an emit)", emitted,
+    !key ? "plugin not loaded — no key in the config" : emitted ? `dist/indexnow/${key}.txt carries the key` : `dist/indexnow/${key}.txt missing or wrong`);
+
   return out;
 }
 
