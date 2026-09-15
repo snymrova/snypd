@@ -1174,6 +1174,31 @@ describe("the first run, from the agent's side", () => {
     expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("refs/heads/main");
     // Nothing new left the machine on the refused call — the drafts branch in particular.
     expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("refs/heads/main");
+
+    // S19d, decision 167: a *preview* push sends the drafts branch on purpose. Under `human` it is refused
+    // with the command a person runs, and under `agent` it goes — and either way the result leads with
+    // what the push exposes, because the agent is relaying this to the person who decides.
+    const [, refusedPreview] = await session([req(1, "initialize"), call(2, "site", { action: "push", preview: true })], dir);
+    const rp = refusedPreview.result.content[0].text as string;
+    expect(structured(refusedPreview)).toMatchObject({ ok: false, pushed: false, preview: true, branch: c.DRAFTS_BRANCH });
+    expect(rp).toContain("not pushed: `deploy.push` is `human`");
+    expect(rp).toContain(`git push -u origin ${c.DRAFTS_BRANCH}`);
+    expect(rp).toContain("every unapproved word");
+    expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout).toBe("refs/heads/main");
+    const [, , , previewed] = await session([
+      req(1, "initialize"),
+      call(2, "site", { action: "set_config", path: "deploy.push", value: "agent" }),
+      call(3, "content.create", { type: "post", frontmatter: { title: "Going to preview" }, body: "Unapproved words." }),   // committed on the drafts branch, the way an agent's write is
+      call(4, "site", { action: "push", preview: true }),
+    ], dir);
+    const pv = previewed.result.content[0].text as string;
+    expect(structured(previewed)).toMatchObject({ ok: true, pushed: true, preview: true, branch: c.DRAFTS_BRANCH, drafts: 2 });
+    expect(pv).toContain(`pushed ${c.DRAFTS_BRANCH} → origin`);
+    expect(pv).toContain("Nothing was published");
+    expect(pv).toContain("noindex");
+    expect(c.git(remote, "for-each-ref", "--format=%(refname)").stdout.split("\n").sort()).toEqual(["refs/heads/main", `refs/heads/${c.DRAFTS_BRANCH}`].sort());
+    // The remote's drafts branch is a tree with the draft in it — what the host will build, with the drafts.
+    expect(c.git(remote, "ls-tree", "-r", "--name-only", c.DRAFTS_BRANCH).stdout).toContain("content/posts/going-to-preview.md");
   });
 
   test("the placeholder comes due exactly once, at publish, and the refusal changes when it is fixed", async () => {

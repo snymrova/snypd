@@ -33,6 +33,8 @@ export default function Shell({ ctx, title, description, markdownUrl, route, jso
           <title>{full}</title>
           {description ? <meta name="description" content={description} /> : null}
           <link rel="canonical" href={url} />
+          {/* A preview build with drafts in it (S19d): the canonical still names production, and this keeps the preview out of the index. */}
+          {ctx.preview ? <meta name="robots" content="noindex" /> : null}
           {markdownUrl ? <link rel="alternate" type="text/markdown" href={markdownUrl} /> : null}
           <link rel="alternate" type="application/rss+xml" title={ctx.site.name} href={ctx.assets.feed} />
           {ctx.assets.css ? <link rel="stylesheet" href={ctx.assets.css} /> : null}

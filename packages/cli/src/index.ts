@@ -24,7 +24,9 @@ switch (verb) {
   case "build": {
     const { build } = await import("@snypd/render");
     let r;
-    try { r = await build(args[0] ?? "."); }
+    // `--drafts` decides; without it the build reads the branch it is for (S19d) — a host building
+    // `snypd/drafts` gets the drafts, and a laptop on `main` gets the site.
+    try { r = await build(args[0] ?? ".", flags.has("--drafts") ? { drafts: true, preview: true } : {}); }
     catch (e) {
       const err = e as Error & { hint?: string };
       console.error(err.message); if (err.hint) console.error(err.hint);
@@ -35,7 +37,11 @@ switch (verb) {
     const covered = r.theme.coverage.filter((c) => c.status !== "missing").length;
     const inherited = r.theme.coverage.filter((c) => c.status === "inherited").length;
     console.log(`built ${r.routes} routes + ${r.artefacts} artefacts${r.emitted ? ` (${r.emitted} emitted by plugins)` : ""}${r.media ? ` + ${r.media} media` : ""} (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed${r.recovered ? `, ${r.recovered} left unfinished by an interrupted build and rebuilt` : ""}) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${covered}/${r.theme.coverage.length} primitives${inherited ? `, ${inherited} inherited` : ""})`);
+    // Said every time, not only under --verbose: a dist/ with drafts in it going to a host as the site is
+    // the mistake this line exists to make visible in the build log.
+    if (r.preview) console.log(`drafts included${r.branch ? ` — this build is for \`${r.branch.name}\` (${r.branch.from})` : " (--drafts)"}: a preview, not the site. Every page is noindex and robots.txt disallows.`);
     if (flags.has("--verbose")) {
+      if (r.branch) console.log(`branch ${r.branch.name ?? "(none)"} · ${r.branch.from}`);
       console.log(Object.entries(r.phases).map(([k, v]) => `${k} ${v.toFixed(1)} ms`).join(" · "));
       console.log(`render = ${Object.entries(r.profile).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(" · ")} ms`);   // F1: where the render phase went
     }
@@ -383,7 +389,7 @@ switch (verb) {
       "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
-      "  snypd build [root] [--verbose]                                        content → dist/",
+      "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
       "  snypd bench [agent|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",

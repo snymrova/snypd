@@ -114,7 +114,35 @@ export async function runBuild(n: number, runs: number): Promise<Metric[]> {
       note: `${r.routes} routes, no dist, no index · ${(r.ms / items).toFixed(2)} ms an item over ${items} · ${split} ms` },
     { name: `build.cold.${n}.parse`, value: +r.profile.parse.toFixed(1), unit: "ms",
       note: `report-only (F1): micromark + the typed tree, ${pct(r.profile.parse)} of the build — with html at ${pct(r.profile.html)}, the CPU a worker pool could split; write ${pct(r.profile.write)}, index ${pct(r.profile.index)} and weigh ${pct(r.profile.weigh)} it could not` },
+    engineRow(n, runs, r.profile.parse),
   ];
+}
+
+/**
+ * The other engine, beside the one in use (S20, decision 168; docs/07 decision 5 asked for this weekly).
+ *
+ * `Bun.markdown.html` over the same sources the build just parsed, so every record carries the ratio
+ * between the parser snypd runs and the fastest one it could — a number to watch rather than remember.
+ * Report-only and deliberately not the build: `Bun.markdown` is a renderer with a visitor, not a parser.
+ * It returns strings, not a tree with positions, so it cannot carry lint's line numbers, `buildTree`'s
+ * typed blocks, `suggest_blocks`'s shapes or the `.md` twin's round trip; it has no directive syntax, so
+ * `:::chart` is a paragraph to it; and it is Bun's, on a content path docs/04 keeps runtime-neutral.
+ * The row measures the ceiling S20's report priced, with the frontmatter and the directive split it
+ * would still need left out — so it flatters the alternative, on purpose, and the ratio is an upper bound.
+ */
+function engineRow(n: number, runs: number, parseMs: number): Metric {
+  const dir = join(corpus(n), "content", "posts");
+  const srcs = readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => readFileSync(join(dir, f), "utf8"));
+  const bytes = srcs.reduce((a, x) => a + Buffer.byteLength(x), 0);
+  const xs: number[] = [];
+  for (let i = 0; i < runs; i++) {
+    const t = performance.now();
+    for (const x of srcs) Bun.markdown.html(x, { tables: true, strikethrough: true, tasklists: true });
+    xs.push(performance.now() - t);
+  }
+  const ms = median(xs);
+  return { name: `build.cold.${n}.parse.bun`, value: +ms.toFixed(1), unit: "ms",
+    note: `report-only (S20): \`Bun.markdown.html\` over the same ${srcs.length} sources (${(bytes / 1e6).toFixed(2)} MB) — ${(parseMs / Math.max(ms, 0.01)).toFixed(0)}× under the parse row, ${(bytes / 1e6 / (ms / 1000)).toFixed(0)} MB/s. A renderer, not a parser: no tree, no positions, no directives, Bun-only — the ceiling, not a candidate (decision 168)` };
 }
 
 /**

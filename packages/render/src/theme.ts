@@ -58,6 +58,13 @@ export interface SiteCtx {
    * setting existed, so declaring it changes a theme and not the ones that did not.
    */
   settings: Record<string, SettingValue>;
+  /**
+   * This build is a preview leaving the machine with drafts in it (S19d, decision 167): `snypd build
+   * --drafts`, or a host building the drafts branch. A shell that sees it emits
+   * `<meta name="robots" content="noindex">` — the page is at a URL that is not production and must not
+   * be the copy a search engine keeps. `snypd dev` never sets it: its pages are `dist/`'s bytes (decision 51).
+   */
+  preview: boolean;
 }
 
 /**
