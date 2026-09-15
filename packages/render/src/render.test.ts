@@ -96,9 +96,10 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(sum(r.profile)).toBeLessThanOrEqual(r.phases.render);
     expect(w.profile.parse).toBe(0); expect(w.profile.html).toBe(0); expect(w.profile.write).toBe(0); expect(w.profile.weigh).toBeGreaterThanOrEqual(0);
     expect(w.profile.stat).toBeGreaterThan(0);
-    // S19d: this fixture is inside the snypd repo, so it is nobody's checkout — the build looked and found no branch.
+    // S19d: nobody said, so the build looked — and whatever it found (a host's environment on CI, no repo
+    // here: this fixture is inside the snypd repo) was not the drafts branch.
     expect(r.drafts).toBe(false); expect(r.preview).toBe(false);
-    expect(r.branch?.name).toBeUndefined();
+    expect(r.branch).toBeDefined(); expect(r.branch!.name).not.toBe("snypd/drafts");
   });
   /**
    * S19d, decision 167: a host that builds every branch runs the same `snypd build` on `snypd/drafts`, and
