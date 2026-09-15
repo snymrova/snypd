@@ -208,7 +208,10 @@ blockquote {
   font: 600 var(--size-small) / 1 var(--font-ui);
 }
 
-.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow { margin-block: var(--space-4); }
+/* Every block gets the same breath as a figure. S22 found the two that did not: a `tldr` followed by a
+   `stat-row` — the shape the bench page has — sat flush against it, because the rhythm came from `p`
+   margins and neither block has a paragraph on its outside. */
+.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow, .snypd-tldr, .snypd-callout, .snypd-stat-row, .snypd-steps, .snypd-faq { margin-block: var(--space-4); }
 .snypd-figure img { display: block; width: 100%; }
 
 /* ── Viz keeps the size it was drawn at. `@snypd/viz` owns the geometry (docs/07 decision 17), and that

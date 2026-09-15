@@ -111,3 +111,53 @@ test("the theme fixture is every primitive and every layout, from the spec's own
   expect(imageSize(new Uint8Array(readFileSync(join(root, "content/media/cover.png"))))).toEqual({ width: 1200, height: 630 });
   rmSync(root, { recursive: true, force: true });
 });
+
+// ── S22 · L1: the bench page, and the gallery's list of looks ────────────────────────────────────
+import { benchPage, parseRecord, HEADLINES, FAMILIES } from "./benchpage";
+import { looks } from "./gallery";
+import { lintSite } from "@snypd/core";
+
+test("S22: the bench page is generated from the committed record, in the vocabulary, and lints clean", () => {
+  const md = readFileSync("bench/latest.md", "utf8");
+  const r = parseRecord(md);
+  expect(r.version).toMatch(/^\d+\.\d+\.\d+/);
+  expect(r.rows.length).toBeGreaterThan(30);
+  expect(r.rows.find((x) => x.name === "build.cold.100")?.status).toBe("ok");
+  expect(r.rows.find((x) => x.name === "build.noop.100")?.status).toBe("report");
+
+  const page = benchPage(md);
+  // Every row in the record is on the page, once, as its own code span; nothing is on the page that is not in the record.
+  for (const x of r.rows) expect(page.split(`| \`${x.name}\` |`).length).toBe(2);
+  expect((page.match(/^\| `[A-Za-z0-9.]+` \|/gm) ?? []).length).toBe(r.rows.length);
+  // The vocabulary, not a table: a tldr, the three headline stats with a source each, one section per family that has rows.
+  expect(page).toContain(":::tldr");
+  expect((page.match(/^::stat\{/gm) ?? []).length).toBe(HEADLINES.filter((h) => r.rows.some((x) => x.name === h.name)).length);
+  expect(page).not.toMatch(/::stat\{(?![^}]*source=)/);
+  for (const f of FAMILIES) if (r.rows.some((x) => f.prefixes.some((p) => x.name.startsWith(p)))) expect(page).toContain(`## ${f.title}`);
+  expect(page).not.toContain("## Everything else");
+  // A note never lands in a table cell — at 390 px that is a twenty-line row — and every note is on the page as a list item.
+  expect(page).not.toMatch(/^\| `[^`]+` \| [^|]+ \| [^|]+ \| [^|]+ \|/m);
+  for (const x of r.rows.filter((y) => y.note)) expect(page).toContain(`- \`${x.name}\` — ${x.note}`);
+  // And it lints as the page type it will be created as.
+  const site = "corpora/_test/benchpage";
+  rmSync(site, { recursive: true, force: true }); mkdirSync(join(site, "content/pages"), { recursive: true });
+  writeFileSync(join(site, "snypd.yaml"), "snypd: 1\nsite: { name: T, url: https://t.example }\n");
+  writeFileSync(join(site, "content/pages/bench.md"), page);
+  const d = lintSite(site).files.flatMap((f) => f.diagnostics);
+  expect(d.filter((x) => x.severity === "error").map((x) => `${x.rule}: ${x.message}`)).toEqual([]);
+});
+
+test("S22: parseRecord refuses what is not a record", () => {
+  expect(() => parseRecord("# not a record\n")).toThrow(/is this a bench record/);
+  expect(() => parseRecord("**Version** 1 · **Bun** 1 · **Date** d · **Tokenizer** t\n")).toThrow(/no metric rows/);
+});
+
+test("S22: the gallery lists every look every installed theme ships — six today, dark-only ones marked", () => {
+  const ls = looks("corpora/theme");
+  expect(ls.map((l) => l.slug)).toEqual(["editorial-paper", "editorial-ink", "editorial-broadsheet", "base", "technical-graphite", "technical-phosphor"]);
+  expect(ls.filter((l) => l.dark).map((l) => l.slug)).toEqual(["editorial-ink", "technical-phosphor"]);
+  expect(ls.find((l) => l.slug === "base")!.variation).toBeUndefined();
+  expect(ls.find((l) => l.slug === "base")!.description).toMatch(/^Unstyled/);
+  expect(ls.find((l) => l.slug === "editorial-ink")!.description).toMatch(/^Dark only/);
+  for (const l of ls) expect(l.personality.length).toBeGreaterThan(20);
+});

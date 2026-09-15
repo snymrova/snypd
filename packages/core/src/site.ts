@@ -541,3 +541,32 @@ export function renderThemeSummary(root: string, cfg: LoadedConfig): string {
     `installed: [${installed.map((t) => t.name).join(", ")}]`,
   ].join("\n") + "\n";
 }
+
+/**
+ * `snypd://themes` (S22, docs/10 §6) — the shelf's own read: every theme this root can resolve, with what
+ * each one reads as and the looks it ships. It is the resource `snypd://theme` deliberately is not: that
+ * one is paid at session start and lists other themes by name only; this one is free until an agent is
+ * choosing, and then three sentences per theme is the whole point. `theme` › set takes any name or
+ * variation below; `theme.use` in snypd.yaml is the same switch by hand.
+ */
+export function renderThemes(root: string, cfg: LoadedConfig): string {
+  const out = ["# Every theme this site can switch to, with the looks each ships. `theme` › set takes a `name` and a `variation`.", "themes:"];
+  for (const t of installedThemes(root, cfg.config.theme.use)) {
+    let y: Record<string, unknown> = {};
+    try { y = (parseYaml(themeFile(t.dir, "theme.yaml") ?? "", t.dir).value as Record<string, unknown>) ?? {}; } catch { /* listed by installedThemes; its own line says what is wrong */ }
+    let looks: VariationInfo[] = [];
+    try { looks = themeVariations(loadConfig(root, { theme: t.name })); } catch { /* a theme that will not load ships no looks */ }
+    const font = (y.font as { kb?: number } | undefined)?.kb;
+    out.push(
+      `  ${t.name}:${t.active ? "   # active" : ""}`,
+      ...(typeof y.version === "string" ? [`    version: ${y.version}`] : []),
+      ...(typeof y.extends === "string" ? [`    extends: ${y.extends}`] : []),
+      ...(font !== undefined ? [`    font: ${font} KB declared`] : []),
+      ...(t.description ? [`    reads as: >-`, `      ${t.description}`] : []),
+      ...(looks.length
+        ? [`    variations:`, ...looks.map((v) => `      ${v.name}: ${JSON.stringify((v.description ?? "").replace(/\s+/g, " ").trim())}${v.active && t.active ? "   # active" : ""}`)]
+        : [`    variations: []   # one look, its own`]),
+    );
+  }
+  return out.join("\n") + "\n";
+}

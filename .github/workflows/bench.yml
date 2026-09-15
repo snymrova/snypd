@@ -35,6 +35,11 @@ jobs:
       # `bench/agent.md` and the transcript for the upload below. It stays non-enforcing because failing
       # every PR on a duplicate of a gate that already ran buys nothing. The line this replaces said
       # `agent.goal` was "short of 1, on purpose" — true when it was written in S1, false since S17b.
+      # S22 (docs/11 E9): every look every theme ships — six today — built from the theme fixture, measured
+      # at 1280 and 390 px and photographed. The pictures are the shelf's (`snypd.rocks/themes`); the gate
+      # under them is the page suite's, per look: 0 KB JS, the font under its declaration, 0 axe violations.
+      # `--ci` fails on any of the three; the PNGs and `bench/gallery.md` ride in the artefact below.
+      - run: bun run snypd bench gallery --ci
       - run: bun run snypd bench agent
         continue-on-error: true
       # S18g, and the same split for the same reason. `bun test` above enforces first run exactly

@@ -142,6 +142,7 @@ export function handlers(root: string): Handlers {
         ...(c.settingDecls.length ? [{ uri: "snypd://theme/settings", name: "theme/settings", mimeType: YAML, description: "What this theme lets the site choose without writing CSS — each setting's type, what it means, and what it is set to now; `theme` › set_settings writes one" }] : []),
         ...(c.variations.length ? [{ uri: "snypd://theme/variations", name: "theme/variations", mimeType: YAML, description: "The complete named looks this theme ships — what each one is and which tokens it moves; `theme` › set with `variation` switches in one word" }] : []),
         { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 13 primitives and 5 parts (shell, header, footer, entries, toc) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
+        { uri: "snypd://themes", name: "themes", mimeType: YAML, description: "Every theme this site can switch to — installed and bundled — with what each reads as and the looks it ships; `theme` › set takes any of them" },
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
         { uri: "snypd://nav", name: "nav", mimeType: YAML, description: "The menus: which locations the theme renders (header, footer) and what each content/nav/<location>.yaml holds, every `ref` resolved to its route — `site` › set_nav writes one" },
         { uri: "snypd://bench/latest", name: "bench/latest", mimeType: MD, description: "The last full benchmark report: every speed and size budget with its measured value" },
@@ -183,6 +184,7 @@ export function handlers(root: string): Handlers {
         return text(YAML, `# ${t.path} → ${t.route}\n${yaml}\nbody: |\n${body.split("\n").map((l) => `  ${l}`).join("\n").replace(/\s+$/, "")}\n`);
       }
       if (uri === "snypd://theme" || uri.startsWith("snypd://theme/")) { const [m, t] = await themeResource(uri); return text(m, t); }
+      if (uri === "snypd://themes") { const c = await loadCore(); return text(YAML, c.renderThemes(root, await config())); }
       if (uri === "snypd://nav") { const c = await loadCore(); return text(YAML, c.renderNav(root, await config())); }
       if (uri === "snypd://plugins") { const c = await loadCore(); const cfg = await config(); return text(YAML, c.renderPlugins(cfg.plugins, { jsKb: (cfg.config.bench.budgets as Record<string, unknown>).jsKb as number | undefined })); }
       if (uri === "snypd://bench/latest") {
