@@ -20,3 +20,4 @@ packaging/homebrew/snypd.rb
 # snypd.rocks is *cloned* into it, not tracked here, because S19a builds it from its own remote and a
 # site the host builds from git cannot also be a subdirectory of this one. `bun run scratch` makes one.
 sites/
+bench/gallery/

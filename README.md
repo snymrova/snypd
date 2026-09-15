@@ -2,7 +2,7 @@
 
 An open-source CMS whose **only interface is MCP**. Write, edit, theme and publish a site from the harness you already live in. Markdown + YAML in a git repo you own; one Bun binary; static HTML with zero JS by default; charts, diagrams and flows rendered to SVG at build time.
 
-**Status:** v0.1 in progress — see [`docs/07-delivery-plan.md`](docs/07-delivery-plan.md) for delivery and [`docs/11-hardening-and-themes.md`](docs/11-hardening-and-themes.md) for what is being hardened before launch. Every speed claim links to [`bench/latest.md`](bench/latest.md).
+**Status:** v0.1 in progress — see [`docs/07-delivery-plan.md`](docs/07-delivery-plan.md) for delivery and [`docs/11-hardening-and-themes.md`](docs/11-hardening-and-themes.md) for what is being hardened before launch. Every speed claim links to [`bench/latest.md`](bench/latest.md), which [snypd.rocks/bench](https://snypd.rocks/bench/) is generated from (`snypd bench report`).
 
 MIT ([LICENSE](LICENSE)). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md) — the design set in [`docs/`](docs/) is the answer to "why is it like this". Vulnerabilities: [SECURITY.md](SECURITY.md), which says plainly what is enforced and what is not.
 
@@ -29,6 +29,8 @@ bun run snypd serve my-site        # the MCP server on stdio — the only interf
 bun run snypd bench                # speed suite → bench/latest.md
 bun run snypd bench agent          # the kill test → bench/agent.md + a transcript
 bun run snypd bench onboard        # first run, walked end to end → bench/onboard.md
+bun run snypd bench gallery        # every look every theme ships, measured and photographed → bench/gallery/
+bun run snypd bench report         # bench/latest.md rewritten as a page a site can publish (/bench)
 bun run snypd new theme slate       # themes/slate/ — theme.yaml + one stylesheet, nothing else to write
 bun run snypd check theme slate     # every rule by name, including the contrast of the palette
 bun run snypd build corpora/100
@@ -38,7 +40,7 @@ bun run scratch                    # a real site in sites/, wired to this tree, 
 ```
 
 `new` and `check` are the theme author's two verbs, and the only two — a theme is the one artefact that is
-not content, so it is the one thing a terminal makes. `check` is what [snypd.rocks/themes](https://snypd.rocks)
+not content, so it is the one thing a terminal makes. `check` is what [snypd.rocks/themes](https://snypd.rocks/themes/)
 runs before it lists anything: sixteen named rules over the contract, the metadata, the variations, the font
 against its own budget, and the WCAG ratio of every colour pair on every look the theme ships.
 
@@ -50,4 +52,4 @@ From a harness, everything else is the MCP: run the `get-started` prompt — it 
 
 **Plugins** are a directory with a `snypd.yaml` — `plugins: [changelog]` in the site's config enables one that ships in the binary, with no install; `plugins/<name>/` in the site or `snypd-plugin-<name>` on npm goes through the same loader. The root of that file merges into the site's config (types, taxonomies, budgets); the `plugin:` block is the manifest — name, version, `api: 1`, an options schema the site's entry is validated against, and the capabilities it declares. `snypd://plugins` and `site` › doctor print all of it. The contract is **experimental through 0.x** ([docs/10 §4](docs/10-plugins-and-launch.md)): a plugin declares (types, taxonomies), decorates (six slots, six filters), transforms (a `transform` stage over each document's tree, an `emit` stage whose files core writes under the plugin's own prefix) and reacts (`publish` and `push` events, fire-and-report, through a fetch that reaches only the hosts the manifest names); plugin tools land next, and a manifest that names them parses now and says so. Four ship in the binary — `changelog`, `analytics`, `autolink`, `indexnow` — one per tier. A plugin is code you install and vet like any dependency — what it declared and what it did are both inspectable, and nothing here is a sandbox.
 
-Design set: [`docs/`](docs/) · Site & public benchmarks: https://snypd.rocks
+Design set: [`docs/`](docs/) · Site: https://snypd.rocks · [Themes](https://snypd.rocks/themes/) · [Plugins](https://snypd.rocks/plugins/) · [Benchmarks](https://snypd.rocks/bench/)
