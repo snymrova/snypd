@@ -1,12 +1,14 @@
 /**
- * `snypd bench suggest` (docs/07 S15, exit gate ≥ 0.80 precision) — `suggest_blocks` against twenty
- * hand-labelled posts in `corpora/suggest`.
+ * `snypd bench suggest` (docs/07 S15, exit gate ≥ 0.80 precision) — `suggest_blocks` against fifty
+ * hand-labelled posts in `corpora/suggest` (twenty at S15, fifty since S21 — docs/07 decision 37).
  *
  * Precision is the gated number and recall rides beside it, report-only, because the two fail in
  * opposite directions and only one of them is dangerous: a missed upgrade costs the author nothing they
- * did not already have, while a wrong one rewrites their post into something they did not mean. Seven of
- * the twenty posts are labelled with no upgrade at all, so a detector that fires on every table pays for
- * it here rather than looking excellent on a corpus of slam dunks.
+ * did not already have, while a wrong one rewrites their post into something they did not mean. Nineteen
+ * of the fifty posts are labelled with no upgrade at all, so a detector that fires on every table pays
+ * for it here rather than looking excellent on a corpus of slam dunks. Growing the corpus found four
+ * things in a morning: a dates column read as numbers, a same-line cite unrecognised, a minutes column
+ * that could not be an axis, and a leading-number test that asked the wrong question of an item.
  *
  * A label anchors on text (`at:`), not a line, so editing a post's opening paragraph cannot silently
  * relabel what follows it.
@@ -27,7 +29,7 @@ export interface SuggestScore {
   falsePositives: Judged[];
   /** A label nothing matched. */
   missed: { file: string; label: Label }[];
-  files: number; ms: number;
+  files: number; /** Posts labelled `[]` — the shape is there, the meaning is not. */ negatives: number; ms: number;
 }
 
 export function scoreSuggest(root = SUGGEST_CORPUS): SuggestScore {
@@ -61,7 +63,7 @@ export function scoreSuggest(root = SUGGEST_CORPUS): SuggestScore {
   return {
     precision: suggested ? +(correct / suggested).toFixed(3) : 1,
     recall: expected ? +(correct / expected).toFixed(3) : 1,
-    suggested, correct, expected, falsePositives, missed, files: files.length, ms: performance.now() - t0,
+    suggested, correct, expected, falsePositives, missed, files: files.length, negatives: files.filter((f) => !(labels[f] ?? []).length).length, ms: performance.now() - t0,
   };
 }
 
@@ -70,7 +72,7 @@ export function suggestMetrics(root = SUGGEST_CORPUS): Metric[] {
   const s = scoreSuggest(root);
   return [
     { name: "suggest.precision", value: s.precision, unit: "", budget: 0.8, higherIsBetter: true,
-      note: `${s.correct}/${s.suggested} suggestions matched a label over ${s.files} posts, 7 of which are labelled with no upgrade` },
+      note: `${s.correct}/${s.suggested} suggestions matched a label over ${s.files} posts, ${s.negatives} of which are labelled with no upgrade` },
     { name: "suggest.recall", value: s.recall, unit: "", note: `${s.correct}/${s.expected} labelled upgrades found; report-only — a miss costs the author nothing, a false positive rewrites their post` },
     { name: "suggest.ms", value: +(s.ms / s.files).toFixed(2), unit: "ms", note: "per post: parse + shapes + score + verify (the verify pass lints each candidate against the document it would land in)" },
   ];

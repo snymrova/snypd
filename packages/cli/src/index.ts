@@ -93,8 +93,9 @@ switch (verb) {
     }
     if (args[0] === "writes") {   // S21: first-attempt lint on `write-post`, 20 topics × the models named
       const models = [...flags].find((f) => f.startsWith("--models="))?.slice(9).split(",").filter(Boolean);
-      const topics = Number([...flags].find((f) => f.startsWith("--topics="))?.slice(9)) || undefined;
-      const { report, attempts } = await bench.writes({ models, topics, keep: flags.has("--keep"),
+      const t = [...flags].find((f) => f.startsWith("--topics="))?.slice(9);
+      const topics = t?.includes("-") ? (t.split("-").map(Number) as [number, number]) : Number(t) || undefined;
+      const { report, attempts } = await bench.writes({ models, topics, merge: flags.has("--merge"), keep: flags.has("--keep"),
         onProgress: (a, done, total) => console.error(`${done}/${total} ${a.model} · ${a.noAttempt ? "no attempt" : a.pass ? "✅" : `❌ ${a.rules.join(", ") || `${a.errors} errors`}`} · ${a.topic}`) });
       console.log(bench.toMarkdown(report));
       console.log(`\n${bench.formatAttempts(attempts)}`);
@@ -406,7 +407,7 @@ switch (verb) {
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
-      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",

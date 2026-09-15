@@ -659,9 +659,10 @@ export async function visual(opts: { quick?: boolean } = {}): Promise<Report> {
 }
 
 /**
- * `snypd bench suggest` (docs/07 S15, Phase-3 exit): `suggest_blocks` against the twenty hand-labelled
- * posts in `corpora/suggest`. No build and no browser — it is the detector table under measurement, so
- * a detector YAML can be tuned and scored in a second.
+ * `snypd bench suggest` (docs/07 S15, Phase-3 exit): `suggest_blocks` against the fifty hand-labelled
+ * posts in `corpora/suggest` (twenty until S21). No build and no browser — it is the detector table under
+ * measurement, so a detector YAML can be tuned and scored in a second. `bench/suggest.md` is this box's
+ * record; CI's `bench --ci` carries the same three rows inside `bench/latest.md`.
  */
 export async function suggest(opts: { root?: string } = {}): Promise<Report> {
   const root = opts.root ?? SUGGEST_CORPUS;

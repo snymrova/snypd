@@ -16,7 +16,7 @@
  * Report-only, with docs/05's target of ≥ 80 % beside it and no budget yet: the first published number
  * is what a budget gets set from. Runs on this machine's Claude Code login, not in CI — see claude.ts.
  */
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initRepo } from "@snypd/core";
@@ -126,8 +126,14 @@ export async function runWrite(model: Model, topic: string, opts: { keep?: boole
 
 export interface WritesOptions {
   models?: Model[];
-  /** How many of `TOPICS`, from the top; all twenty by default. */
-  topics?: number;
+  /** How many of `TOPICS`, from the top — or a 1-based inclusive range, `[15, 20]`, to run a slice again; all twenty by default. */
+  topics?: number | [number, number];
+  /**
+   * Keep the record's other attempts and replace only the ones this run repeats (same model id, same
+   * topic). A run that hit the rate limit leaves "no attempt" rows, and the honest fix is to run those
+   * topics again rather than the lane — the record's date is the merge's, and the rows keep their own.
+   */
+  merge?: boolean;
   keep?: boolean;
   onProgress?: (a: WriteAttempt, done: number, total: number) => void;
   write?: boolean;
@@ -135,7 +141,7 @@ export interface WritesOptions {
 
 export async function runWrites(opts: WritesOptions = {}): Promise<WriteAttempt[]> {
   const models = opts.models ?? [...MODELS];
-  const topics = TOPICS.slice(0, opts.topics ?? TOPICS.length);
+  const topics = Array.isArray(opts.topics) ? TOPICS.slice(opts.topics[0] - 1, opts.topics[1]) : TOPICS.slice(0, opts.topics ?? TOPICS.length);
   const out: WriteAttempt[] = [];
   const total = models.length * topics.length;
   for (const model of models) for (const topic of topics) {
@@ -176,7 +182,13 @@ export const VERSION_SUITE = "writes";
 
 export async function writes(opts: WritesOptions = {}): Promise<{ report: Report; attempts: WriteAttempt[] }> {
   const { VERSION, toMarkdown } = await import("../src/index");
-  const attempts = await runWrites(opts);
+  let attempts = await runWrites(opts);
+  if (opts.merge && existsSync("bench/writes.json")) {
+    const prior = (JSON.parse(readFileSync("bench/writes.json", "utf8")) as { attempts?: WriteAttempt[] }).attempts ?? [];
+    const fresh = new Set(attempts.map((a) => `${a.model}\n${a.topic}`));
+    attempts = [...prior.filter((a) => !fresh.has(`${a.model}\n${a.topic}`)), ...attempts]
+      .sort((a, b) => MODELS.findIndex((m) => a.model.includes(m)) - MODELS.findIndex((m) => b.model.includes(m)) || TOPICS.indexOf(a.topic) - TOPICS.indexOf(b.topic));
+  }
   const report: Report = { version: VERSION, bun: Bun.version, date: new Date().toISOString(), tokenizer: "o200k_base", suite: VERSION_SUITE, metrics: writesMetrics(attempts) };
   if (opts.write !== false) {
     writeFileSync("bench/writes.json", JSON.stringify({ ...report, attempts }, null, 2));
