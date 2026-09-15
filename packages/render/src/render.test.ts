@@ -96,6 +96,41 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(sum(r.profile)).toBeLessThanOrEqual(r.phases.render);
     expect(w.profile.parse).toBe(0); expect(w.profile.html).toBe(0); expect(w.profile.write).toBe(0); expect(w.profile.weigh).toBeGreaterThanOrEqual(0);
     expect(w.profile.stat).toBeGreaterThan(0);
+    // S19d: this fixture is inside the snypd repo, so it is nobody's checkout — the build looked and found no branch.
+    expect(r.drafts).toBe(false); expect(r.preview).toBe(false);
+    expect(r.branch?.name).toBeUndefined();
+  });
+  /**
+   * S19d, decision 167: a host that builds every branch runs the same `snypd build` on `snypd/drafts`, and
+   * gets the drafts — with the build saying, in every output a crawler reads, that it is a preview.
+   */
+  test("a build for the drafts branch includes the drafts and marks itself noindex; the next build for the site takes them out again", async () => {
+    process.env.SNYPD_BRANCH = "snypd/drafts";
+    let r;
+    try { r = await build(root); } finally { delete process.env.SNYPD_BRANCH; }
+    expect(r.drafts).toBe(true); expect(r.preview).toBe(true);
+    expect(r.branch).toEqual({ name: "snypd/drafts", from: "SNYPD_BRANCH" });
+    expect(r.routes).toBe(9);                                   // the draft is a route now
+    expect(read("posts/d")).toContain("Draft D");
+    expect(read("posts/d")).toContain('<meta name="robots" content="noindex">');
+    expect(read("posts/a")).toContain('<meta name="robots" content="noindex">');   // every page, not only the drafts
+    expect(read("posts/a")).toContain('<link rel="canonical" href="https://t.example/posts/a/">');   // the canonical still names production
+    expect(read("", "robots.txt")).toBe("# a preview with drafts in it — not the site\nUser-agent: *\nDisallow: /\n");
+    // `--drafts` is the same build with the decision made by the caller: no branch to report.
+    const explicit = await build(root, { drafts: true, preview: true });
+    expect(explicit.drafts).toBe(true); expect(explicit.preview).toBe(true); expect(explicit.branch).toBeUndefined(); expect(explicit.rendered).toBe(0);
+    // `snypd dev`'s build includes the drafts and marks nothing: its item pages are dist/'s bytes (decision 51).
+    const dev = await build(root, { drafts: true });
+    expect(dev.preview).toBe(false); expect(dev.rendered).toBeGreaterThan(0);
+    expect(read("posts/d")).toContain("Draft D"); expect(read("posts/d")).not.toContain('name="robots"');
+    expect(read("", "robots.txt")).toBe("User-agent: *\nAllow: /\n\nSitemap: https://t.example/sitemap.xml\n");
+    // Back on the site: the draft's outputs are removed, the marks are gone, and the keys are what they were.
+    const site = await build(root);
+    expect(site.drafts).toBe(false); expect(site.removed).toBe(1);
+    expect(existsSync(join(dist, "posts/d/index.html"))).toBe(false);
+    expect(read("posts/a")).not.toContain('name="robots"');
+    expect(read("", "robots.txt")).toBe("User-agent: *\nAllow: /\n\nSitemap: https://t.example/sitemap.xml\n");
+    expect((await build(root)).rendered).toBe(0);
   });
   test("S7 surface: llms.txt, feed, sitemap, robots, JSON API, JSON-LD", () => {
     const llms = read("", "llms.txt");

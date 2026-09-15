@@ -57,7 +57,7 @@ export const CATALOG: Tool[] = [
   { name: "site",
     description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or a request to put the site live. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `push` to ask a human to put it live", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "push"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `push` to put it live (or, with `preview`, to push the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       location: str("`set_nav`: which menu — a location the theme declares (`header`, `footer`; snypd://nav lists them)"),
@@ -68,6 +68,7 @@ export const CATALOG: Tool[] = [
       url: str("`init`: the absolute origin it will be served from, e.g. https://example.com. Optional — defaults to a localhost placeholder, because the feed, sitemap and JSON-LD need a real one at publish and not before"),
       description: str("`init`: one sentence about the site"),
       theme: str("`init`: the theme to start on. Default `editorial`"),
+      preview: { type: "boolean", description: "`push`: send `snypd/drafts` instead of the site, so a host that builds branches serves a preview *with the drafts in it* (noindex, at its preview URL). This sends every unapproved word on the site to the remote — readable by anyone who can read the repository, and by anyone with the preview URL. Nothing is published by it. Read the result's first lines before relaying it as done" },
       deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. Optional on `init`, required on `set_deploy`. snypd never talks to a host, so anything that can run a binary and serve a folder needs none of this", { enum: ["cloudflare", "vercel"] }),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
@@ -441,6 +442,25 @@ export async function call(root: string, name: string, args: Record<string, unkn
             index.sync(cfgPush);
             drafts = index.files({}).filter((f) => f.status !== "trashed" && statuses?.[f.status]?.public !== true).length;
           } finally { index.close(); }
+          /**
+           * **A preview push** (S19d, decision 167): `snypd/drafts` goes instead of the site. The exposure
+           * statement leads the result whether the push happened or was refused, because the agent
+           * relays this to a person and the person is deciding whether unapproved text may be read.
+           */
+          if (args.preview === true) {
+            const st = c.pushState(root, cfgPush, { drafts, preview: true });
+            if (!st.ok) { const b = st.blockers[0]!; return fail(`nothing to preview yet — ${b.reason}`, b.hint); }
+            const r = c.pushSite(root, cfgPush, { as: "agent", preview: true });
+            if (!r.ok) return text([`not pushed: ${r.reason}`, r.hint ?? "", "", "What a preview push exposes, for the person deciding:", ...c.DRAFTS_PUSH_EXPOSES].filter((l, i) => l || i > 1).join("\n"), { ...st, ok: false, pushed: false, reason: r.reason, hint: r.hint, exposes: c.DRAFTS_PUSH_EXPOSES });
+            return text([
+              r.sent ? `pushed ${c.DRAFTS_BRANCH} → ${st.remote!.name}: ${r.sent} commit${r.sent === 1 ? "" : "s"} of drafts, for a preview` : `${c.DRAFTS_BRANCH} → ${st.remote!.name}: the remote already had it`,
+              st.deploy ? `${st.deploy} builds every branch it is connected to; the build of \`${c.DRAFTS_BRANCH}\` includes the ${drafts} draft${drafts === 1 ? "" : "s"} and marks itself noindex. The URL is the host's preview URL for that branch — read it from the host, snypd does not know it.` : `Whatever builds that branch serves the preview; snypd holds no deploy API and does not know its URL.`,
+              `Nothing was published: production is the base branch, and only \`content.publish\` moves it.`,
+              "",
+              "What this exposed:",
+              ...c.DRAFTS_PUSH_EXPOSES,
+            ].join("\n"), { ...st, ok: true, pushed: true, preview: true, sent: r.sent, exposes: c.DRAFTS_PUSH_EXPOSES });
+          }
           const st = c.pushState(root, cfgPush, { drafts });
           const dev = await c.liveDev(root);
           const desk = dev ? `${dev.url}${c.PUSH_ROUTE.replace(/\/push$/, "")}` : undefined;

@@ -7,8 +7,9 @@
  *
  *  1. **A blocker is a sentence somebody can act on**, and there is one for every state a site can be in
  *     before it can go live — no repo, no commits, no remote, a placeholder URL, nothing published yet.
- *  2. **The drafts branch never goes.** A push sends the base; the bare remote must never learn the name
- *     `snypd/drafts`, because that branch is every word nobody has approved.
+ *  2. **The drafts branch never goes as the site.** A push sends the base; the bare remote must never learn
+ *     the name `snypd/drafts` from a site push, because that branch is every word nobody has approved. Since
+ *     S19d it goes when asked for by name — a *preview* push — and the test for that asserts it went alone.
  *  3. **A push is idempotent and honest about it** — pushing twice sends nothing the second time and
  *     says so, rather than reporting a success that moved no bytes.
  */
@@ -16,8 +17,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { loadConfig } from "./config";
 import { createContent, setStatus } from "./write";
-import { git, initRepo, Repo, DRAFTS_BRANCH } from "./git";
-import { originName, pushSite, pushState } from "./push";
+import { git, initRepo, Repo, DRAFTS_BRANCH, builtBranch } from "./git";
+import { originName, pushSite, pushState, DRAFTS_PUSH_EXPOSES } from "./push";
 
 const ROOT = "corpora/_test/push";
 const REMOTE = "corpora/_test/push-remote.git";
@@ -155,5 +156,77 @@ describe("push state (S19a)", () => {
     expect(originName("https://github.com/sunny/snypd.rocks.git")).toBe("github.com/sunny/snypd.rocks");
     expect(originName("https://gitlab.example.com:8443/team/site")).toBe("gitlab.example.com/team/site");
     expect(originName("/srv/git/site.git")).toBeUndefined();
+  });
+
+  /**
+   * S19d: the one exception to rule 2, taken on purpose. A *preview* push sends the drafts branch and
+   * nothing else, and it is refused under `deploy.push: human` with the shell command a person would
+   * run — the Desk has no button for it.
+   */
+  test("a preview push sends the drafts branch on purpose, and only that", () => {
+    setup();
+    publish("first");
+    const cfg = loadConfig(ROOT);
+    const c = createContent(ROOT, { type: "post", slug: "in-flight", frontmatter: { title: "in flight" }, body: "unapproved words", cfg });
+    Repo.open(ROOT)!.commit(c.paths, "content: create post/in-flight");
+    const st = pushState(ROOT, cfg, { preview: true, drafts: 1 });
+    expect(st).toMatchObject({ ok: true, preview: true, branch: DRAFTS_BRANCH, known: false, drafts: 1 });
+    expect(st.commits[0]!.subject).toBe("content: create post/in-flight");
+    const r = pushSite(ROOT, cfg, { preview: true });
+    expect(r).toMatchObject({ ok: true, branch: DRAFTS_BRANCH, remote: "origin" });
+    // The remote learned the drafts branch and nothing else: a preview push is not a publish.
+    expect(refs()).toEqual([`refs/heads/${DRAFTS_BRANCH}`]);
+    expect(git(REMOTE, "log", "-1", "--format=%s", DRAFTS_BRANCH).stdout).toBe("content: create post/in-flight");
+    // And the site push afterwards is untouched by it — still `main`, still the one branch it sends.
+    expect(pushSite(ROOT, cfg)).toMatchObject({ ok: true, branch: "main" });
+    expect(refs().sort()).toEqual(["refs/heads/main", `refs/heads/${DRAFTS_BRANCH}`].sort());
+    // The exposure statement is one text, and it says the three things a person needs before pressing.
+    expect(DRAFTS_PUSH_EXPOSES.join(" ")).toContain("every unapproved word");
+    expect(DRAFTS_PUSH_EXPOSES.join(" ")).toContain("noindex");
+    expect(DRAFTS_PUSH_EXPOSES.join(" ")).toContain("Nothing is approved by a preview");
+  });
+
+  test("a preview push under `deploy.push: human` is refused with the command a person runs", () => {
+    setup();
+    writeFileSync(`${ROOT}/snypd.yaml`, "snypd: 1\nsite: { name: Push test, url: https://push.example }\ndeploy: { push: human }\n");
+    git(ROOT, "commit", "-q", "-am", "deploy.push: human");
+    publish("first");
+    const r = pushSite(ROOT, loadConfig(ROOT), { preview: true });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("`deploy.push` is `human`");
+    expect(r.hint).toContain(`git push -u origin ${DRAFTS_BRANCH}`);
+    expect(refs()).toEqual([]);
+  });
+
+  test("a site with nothing drafted has nothing to preview, and says so", () => {
+    setup();
+    const st = pushState(ROOT, loadConfig(ROOT), { preview: true });
+    expect(st.ok).toBe(false);
+    expect(st.blockers[0]!.reason).toContain("nothing has been drafted");
+  });
+});
+
+/**
+ * S19d: the branch a build is for. The hosts' environment first — they build on a detached HEAD, so git
+ * cannot answer — then the checkout, then nothing.
+ */
+describe("builtBranch (S19d)", () => {
+  test("the host's environment names the branch before git does, and SNYPD_BRANCH names it before the host", () => {
+    setup();
+    expect(builtBranch(ROOT, {})).toEqual({ name: "main", from: "git" });
+    expect(builtBranch(ROOT, { WORKERS_CI_BRANCH: DRAFTS_BRANCH })).toEqual({ name: DRAFTS_BRANCH, from: "Cloudflare Workers Builds" });
+    expect(builtBranch(ROOT, { VERCEL_GIT_COMMIT_REF: "feature" })).toEqual({ name: "feature", from: "Vercel" });
+    expect(builtBranch(ROOT, { GITHUB_REF_NAME: "42/merge", GITHUB_HEAD_REF: DRAFTS_BRANCH })).toEqual({ name: DRAFTS_BRANCH, from: "GitHub Actions (pull request)" });
+    expect(builtBranch(ROOT, { SNYPD_BRANCH: "mine", WORKERS_CI_BRANCH: "theirs" })).toEqual({ name: "mine", from: "SNYPD_BRANCH" });
+    // Netlify's `BRANCH` is too generic a name to trust on its own.
+    expect(builtBranch(ROOT, { BRANCH: DRAFTS_BRANCH })).toEqual({ name: "main", from: "git" });
+    expect(builtBranch(ROOT, { NETLIFY: "true", BRANCH: DRAFTS_BRANCH })).toEqual({ name: DRAFTS_BRANCH, from: "Netlify" });
+  });
+
+  test("a detached HEAD with no host environment has no branch, and a directory that is not a repo has none either", () => {
+    setup();
+    git(ROOT, "checkout", "-q", "--detach");
+    expect(builtBranch(ROOT, {})).toEqual({ from: "detached HEAD" });
+    expect(builtBranch(`${ROOT}/content`, {})).toEqual({ from: "no repo" });
   });
 });

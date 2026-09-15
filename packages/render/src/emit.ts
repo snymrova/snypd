@@ -99,7 +99,8 @@ export function sitemap(s: SurfaceSite): string {
   const url = (r: SurfaceSite["routes"][number]) => `<url><loc>${escape(r.url)}</loc>${r.lastmod ? `<lastmod>${r.lastmod}</lastmod>` : ""}</url>`;
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${s.routes.map(url).join("\n")}\n</urlset>\n`;
 }
-export const robotsTxt = (s: SurfaceSite) => `User-agent: *\nAllow: /\n\nSitemap: ${s.url}/sitemap.xml\n`;
+/** A preview build (S19d): crawlers are told to keep out, and the sitemap is not offered. */
+export const robotsTxt = (s: SurfaceSite, preview = false) => (preview ? `# a preview with drafts in it — not the site\nUser-agent: *\nDisallow: /\n` : `User-agent: *\nAllow: /\n\nSitemap: ${s.url}/sitemap.xml\n`);
 
 // ── JSON API ─────────────────────────────────────────────────────────────────
 const json = (v: unknown) => JSON.stringify(v, null, 1) + "\n";

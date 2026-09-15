@@ -81,7 +81,8 @@ jobs:
       - run: npm install -g ${LAUNCHER}@${version}
       # Rules 0–11: a broken link, a moved URL with no redirect, a chart that will not render.
       - run: snypd lint
-      # The build the host will run, run here first — a red PR instead of a red deploy.
+      # The build the host will run, run here first — a red PR instead of a red deploy. On a PR from
+      # \`snypd/drafts\` this is the preview build, drafts included and noindex, exactly as the host builds it.
       - run: snypd build
       # Report-only: budgets are snypd's to enforce, not a content repo's to fail on.
       - run: snypd bench --quick
@@ -134,6 +135,8 @@ export function writeDeploy(root: string, target: DeployTarget, opts: { name: st
 #
 # The build command, for the dashboard's "Build command" field (Workers Builds runs it before deploy):
 #     ${buildCommand(version)}
+# The same command on the \`snypd/drafts\` branch builds a preview *with the drafts in it*, marked noindex —
+# \`site\` › push \`preview\` sends that branch, and says what a preview exposes before it goes.
 name = "${slug(opts.name)}"
 compatibility_date = "2026-08-31"
 

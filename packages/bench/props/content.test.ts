@@ -41,7 +41,7 @@ beforeAll(async () => {
   writeFileSync(join(ROOT, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: base }\n");
   cfg = loadConfig(ROOT);
   theme = await loadTheme(cfg);
-  ctx = { site: { name: "P", url: "https://p.example" }, tokens: resolveTokens({}), theme: { name: theme.name }, assets: { feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, media: { "/media/one.png": { width: 64, height: 40 } }, config: cfg.config, parts: theme.parts, nav: {}, hooks: EMPTY_HOOKS, settings: {} };
+  ctx = { site: { name: "P", url: "https://p.example" }, tokens: resolveTokens({}), theme: { name: theme.name }, assets: { feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json" }, media: { "/media/one.png": { width: 64, height: 40 } }, config: cfg.config, parts: theme.parts, nav: {}, hooks: EMPTY_HOOKS, settings: {}, preview: false };
 });
 afterAll(() => rmSync(ROOT, { recursive: true, force: true }));
 
