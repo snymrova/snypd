@@ -30,7 +30,9 @@ export interface IndexedFile {
 }
 export interface TermRef { taxonomy: string; term: string; path: string }
 export interface Move { path: string; from: string; to: string }
-export interface SyncResult { files: IndexedFile[]; changed: string[]; removed: string[]; moved: Move[]; hashed: number; ms: number }
+export interface SyncResult { files: IndexedFile[]; changed: string[]; removed: string[]; moved: Move[]; hashed: number; ms: number;
+  /** When this sync began (`Date.now()`), before its first stat — the clock every "too close to vouch" reading is against (H3, and the build's media copies since H4). */
+  at: number }
 export interface RouteRow { route: string; key: string; outputs: string[] }
 
 const SCHEMA = `
@@ -63,12 +65,22 @@ export const RACY_MS = 2000;
 // Defined in the leaf `paths.ts` so the MCP cold-start path can read it without this file (S18f).
 export { INDEX_DIR } from "./paths";
 
-/** Frontmatter only, without a markdown parse: the `---` block + js-yaml. Same result parseMarkdown gives. */
+/**
+ * Frontmatter only, without a markdown parse: the `---` block + js-yaml. The same result `parseMarkdown`
+ * gives, and it has to be exactly that: the index takes this path for a file's status, title and date,
+ * the renderer takes the parser's, and where they differ a post is published in one and a draft in the
+ * other. The fences are micromark's — an opening `---` with trailing blanks is a fence, a closing `----`
+ * or `---x` is not (it is a thematic break, and the "frontmatter" is body). Until H4's parser property
+ * ran, this read `\n---` anywhere as the close and refused an opening fence with a space after it
+ * (decision 157).
+ */
 export function readFrontmatter(source: string): Record<string, unknown> {
-  if (!source.startsWith("---\n") && !source.startsWith("---\r\n")) return {};
-  const end = source.indexOf("\n---", 3);
-  if (end < 0) return {};
-  try { const v = parseYaml(source.slice(4, end)); return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {}; }
+  const open = /^---[ \t]*\r?\n/.exec(source);
+  if (!open) return {};
+  const rest = source.slice(open[0].length);
+  const close = /^---[ \t]*$/m.exec(rest);
+  if (!close) return {};
+  try { const v = parseYaml(rest.slice(0, close.index)); return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {}; }
   catch { return {}; }
 }
 
@@ -165,7 +177,7 @@ export class SiteIndex {
       this.setMeta("sync.at", String(at));
     });
     const removed = [...existing.keys()].filter((p) => !seen.has(p));
-    return { files, changed, removed, moved, hashed, ms: performance.now() - t0 };
+    return { files, changed, removed, moved, hashed, ms: performance.now() - t0, at };
   }
 
   files(where: { type?: string; status?: string } = {}): IndexedFile[] {

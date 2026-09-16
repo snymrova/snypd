@@ -47,3 +47,19 @@ jobs:
         continue-on-error: true
       - uses: actions/upload-artifact@v4
         with: { name: "bench-${{ matrix.bun }}", path: bench/ }
+  # H4 (docs/11 finding 4): the six properties in `packages/bench/props/`, at ten times the budget the
+  # ordinary suite gives them and on a seed no run has used before — the run's own id, printed on the
+  # first line of the log. `bun test` above already runs the same properties at ×1 on a fixed seed, so a
+  # red here is a *new* input, and `SNYPD_PROPS_SEED=<that id> bun test props` is the whole reproduction.
+  properties:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "1.4.0" }
+      - run: bun install --frozen-lockfile
+      - run: |
+          git config --global user.email "ci@snypd.rocks"
+          git config --global user.name "snypd CI"
+      - run: bun test props
+        env: { SNYPD_PROPS_RUNS: "10", SNYPD_PROPS_SEED: "${{ github.run_id }}" }

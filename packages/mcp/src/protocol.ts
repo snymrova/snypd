@@ -146,10 +146,23 @@ function flushActivity(): void {
 
 /** One message in → zero or one response out. Notifications (no id) never produce output. */
 export async function dispatch(msg: Request, h: Handlers): Promise<Response | undefined> {
-  const isNotification = msg.id === undefined;
+  /**
+   * What a message is, decided before anything is done with it (JSON-RPC 2.0 §4–5; H4 decision 159).
+   * A request is an object with `jsonrpc: "2.0"`, a string `method`, and an `id` that is a string, a
+   * number or null. Without an `id` it is a notification and gets no reply — but only if it is otherwise
+   * well formed: an invalid message is answered with Invalid Request whether or not it carried an id,
+   * because "no reply" is what a *valid* notification earns and not what a broken line gets. The reply's
+   * id is the request's when one could be read and null otherwise; an object id is not read, it is refused.
+   * Until H4's fuzz sent them, an object id came back as an object, `"a string"` on its own line was
+   * dropped as a notification, and `null` threw inside the handler.
+   */
+  const shaped = typeof msg === "object" && msg !== null && !Array.isArray(msg);
+  const idOk = shaped && (typeof msg.id === "number" || typeof msg.id === "string" || msg.id === null);
+  const valid = shaped && msg.jsonrpc === "2.0" && typeof msg.method === "string" && (msg.id === undefined || idOk);
+  const isNotification = valid && msg.id === undefined;
   const ok = (result: unknown): Response | undefined => (isNotification ? undefined : { jsonrpc: "2.0", id: msg.id!, result });
   try {
-    if (msg.jsonrpc !== "2.0" || typeof msg.method !== "string") throw new RpcError(E.INVALID_REQUEST, "Invalid Request");
+    if (!valid) throw new RpcError(E.INVALID_REQUEST, shaped && msg.id !== undefined && !idOk ? "Invalid Request: id must be a string, a number or null" : "Invalid Request");
     // Counted before the switch, so a method we go on to reject still counts as contact: the Desk
     // reports that a harness is talking to us, not that it is talking to us successfully, and a client
     // sending something this server refuses is very much connected.
@@ -188,13 +201,16 @@ export async function dispatch(msg: Request, h: Handlers): Promise<Response | un
         return ok(await h.getPrompt(name, (args as Record<string, unknown>) ?? {}));
       }
       default:
-        if (msg.method.startsWith("notifications/")) return undefined;
+        // A notification the server does not handle is ignored, as MCP asks; the same method sent *with*
+        // an id is a request, and a request to a method this server has not got is Method not found.
+        if (isNotification && msg.method.startsWith("notifications/")) return undefined;
         throw new RpcError(E.METHOD_NOT_FOUND, `Method not found: ${msg.method}`);
     }
   } catch (e) {
     if (isNotification) return undefined;
     const err = e instanceof RpcError ? e : new RpcError(E.INTERNAL, (e as Error).message);
-    return { jsonrpc: "2.0", id: msg.id ?? null, error: { code: err.code, message: err.message, ...(err.data !== undefined ? { data: err.data } : {}) } };
+    const id = idOk ? msg.id! : null;
+    return { jsonrpc: "2.0", id, error: { code: err.code, message: err.message, ...(err.data !== undefined ? { data: err.data } : {}) } };
   }
 }
 
