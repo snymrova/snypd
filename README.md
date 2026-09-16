@@ -18,18 +18,20 @@
 
 A CMS your agent can actually use — markdown in your repo, static HTML out, zero JS. Snypd's **only interface is MCP**: you write, edit, theme and publish a site from Claude Code, Cursor or Codex, and nothing here has a dashboard. Content is markdown + YAML in a git repo you own; the product is one Bun binary; the output is static HTML with no JavaScript by default, and every chart, diagram and flow on the page is SVG the build wrote.
 
-<!-- video: V1, the hero — one sentence into Claude Code, a site, a post, a build. Real session, waits folded. Sunny drops v1.mp4 here; until then the poster below. -->
+<!-- video: V1, the hero — one command, then Claude Code: a site, a post, a build. Real session, waits folded. Sunny drops v1.mp4 here; until then the poster below. -->
 <p align="center">
   <a href=".github/readme/looks/editorial-paper-light.png"><img src=".github/readme/looks/editorial-paper-light.png" alt="A post in the editorial theme, built by an agent" width="820"></a>
 </p>
 
 ## Start here
 
-Paste this into the harness you already have open:
+```sh
+mkdir field-notes && cd field-notes
+bunx @snypd/cli init      # scaffolds the site, git-inits it, commits, writes .mcp.json
+claude                    # or Cursor, or Codex — anything that reads .mcp.json
+```
 
-> Set up snypd here and write me a first post. Ask me what the site is called, then run `bunx @snypd/cli init`.
-
-That is the whole front door. The agent asks what the site is called, runs `init`, and relays the one thing it cannot do — restart the harness so the tools load. On the far side it picks up from `initialize`, reads the site and writes the post ([docs/08](docs/08-first-run.md)). `npm i -g @snypd/cli` puts `snypd` on your `PATH` on macOS (Apple silicon and Intel), Linux (x64 and arm64) and Windows (x64) — one ~85 MB binary, [published from CI with provenance](packaging/).
+Then say **“Write me a first post.”** That is the whole front door. `init` needs no flags — the name is the directory's until you change it, the URL is a placeholder until the first publish asks for it. The harness reads `.mcp.json` as it opens, the agent picks up from `initialize`, reads the site and its vocabulary, and writes the post ([docs/08](docs/08-first-run.md)). Already inside a harness? Ask it to run `bunx @snypd/cli init` for you, then restart it. `npm i -g @snypd/cli` puts `snypd` on your `PATH` on macOS (Apple silicon and Intel), Linux (x64 and arm64) and Windows (x64) — one ~85 MB binary, [published from CI with provenance](packaging/).
 
 ## What you get
 
@@ -127,11 +129,15 @@ The same post, photographed in every look the shelf carries. Each look is measur
 
 <p align="center"><img src=".github/readme/phones/strip.png" alt="The six looks at 390 px" width="100%"></p>
 
+<!-- video: V2, six looks — "switch this site to technical › phosphor and rebuild, then tell me what else is on the shelf"; then the same post in all six looks. 38 s. Sunny drops v2.mp4 here. -->
+
 ### Write a theme
 
 A theme is the one artefact that is not content, so it is the one thing a terminal makes: `snypd new theme slate` writes a `theme.yaml` and one stylesheet, and `base` brings every layout and all thirteen primitives. A theme may declare tokens, named looks (`variations`), settings a site can flip, and **one webfont** — self-hosted, subsetted, ≤ 40 KB, with a metric-matched fallback. `snypd check theme` is the judge, and it is what [snypd.rocks/themes](https://snypd.rocks/themes/) runs before it lists anything: seventeen named rules, including the WCAG ratio of every colour pair on every look the theme ships. Or ask your agent — the `build-theme` prompt walks it through the same eight steps.
 
 <p align="center"><img src=".github/readme/terminal/check-theme.png" alt="snypd check theme editorial — passes, 17 rules" width="820"></p>
+
+<!-- video: V4, a theme from nothing — "make me a theme called slate … scaffold it, run check theme until every rule passes, switch the site to it"; then the site in slate. Sunny drops v4.mp4 here. -->
 
 ## The MCP surface
 
@@ -219,7 +225,7 @@ The root of a plugin's `snypd.yaml` merges into the site's config (types, taxono
 <details>
 <summary><strong>The pictures in this file</strong></summary>
 
-Every image here was made by the tree, not by hand: [`corpora/readme`](corpora/readme/) is a fixture like the bench's, [`packages/bench/readme/`](packages/bench/readme/) photographs it through the same headless Chrome the gallery lane uses, the two SVGs are the build's own output, the wordmark is set from the theme's own webfont, and the terminal is a recording. [`.github/readme/manifest.json`](.github/readme/manifest.json) names every frame's look, route, viewport and scheme. [docs/15](docs/15-readme.md) is the plan.
+Every image here was made by the tree, not by hand: [`corpora/readme`](corpora/readme/) is a fixture like the bench's, [`packages/bench/readme/`](packages/bench/readme/) photographs it through the same headless Chrome the gallery lane uses, the two SVGs are the build's own output, the wordmark is set from the theme's own webfont, and the terminal is a recording. [`.github/readme/manifest.json`](.github/readme/manifest.json) names every frame's look, route, viewport and scheme. The clips are real Claude Code sessions driven by [`tapes/`](packages/bench/readme/tapes/) — the model's words are whatever they were that take — with the waits folded (a frame is dropped when under 1.5 % of it changed), Claude Code's account-usage line painted over for the second or two it sits above the prompt ([`mask.py`](packages/bench/readme/mask.py) — it is about a subscription, not the product), and the built page scrolled once by the same headless Chrome. [docs/15](docs/15-readme.md) is the plan.
 </details>
 
 ---

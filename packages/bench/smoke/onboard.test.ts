@@ -157,11 +157,11 @@ describe("F3 — the seven states, each naming its own next action", () => {
   });
 
   /**
-   * State 2 — the first of the two that were the crack, and the one crossed by an *agent*. The next
-   * step is a restart, which the agent cannot do; decision 60 is that the sentence is therefore written
-   * to be relayed verbatim rather than paraphrased into something a person cannot act on.
+   * State 2 — the first of the two that were the crack. Since decision 178 it is ordinarily crossed by
+   * a *person* who ran `init` in a terminal and now opens the harness; when an agent ran it instead, the
+   * next step is a restart the agent cannot do, and init's stdout carries the one sentence it relays.
    */
-  test("2 · scaffolded, harness not restarted → init's stdout, addressed to the agent", () => {
+  test("2 · scaffolded, harness not started → init's stdout says what to open and what to say", () => {
     const restart = walk.actions.find((a) => a.kind === "restart")!;
     expect(restart.proof).toBe("absent");
     expect(restart.detail).toContain("did not exist");

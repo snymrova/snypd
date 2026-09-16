@@ -1,7 +1,7 @@
 # V2, six looks (docs/15 §3.3): one sentence changes the theme; the browser half is the same page in every
 # look the shelf carries. Runs in the site V1 made.
-#   cd ~/Projects/field-notes && env -i HOME=$HOME PATH=$PATH TERM=xterm-256color LANG=C.UTF-8 \
-#     vhs ../snypd/packages/bench/readme/tapes/v1-hero.tape
+#   cd ~/Projects/field-notes && env -i HOME=$HOME PATH=$PATH TERM=xterm-256color LANG=C.UTF-8 DISABLE_AUTOUPDATER=1 \
+#     vhs ../snypd/packages/bench/readme/tapes/v2-looks.tape
 Output ../snypd/.scratch/readme-video/v2-looks.mp4
 Set Shell zsh
 Set FontFamily "JetBrains Mono"

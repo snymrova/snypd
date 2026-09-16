@@ -49,9 +49,12 @@ describe("the compiled binary, in a directory it has never seen", () => {
     const reg = JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf8")) as { mcpServers: { snypd: { command: string; args: string[] } } };
     expect(reg.mcpServers.snypd.command).toBe(BIN);   // the binary that ran, not the string "snypd"
     expect(reg.mcpServers.snypd.args).toEqual(["serve"]);
-    // Decision 60: this output is addressed to the agent that ran the command, and the one thing it
-    // cannot do is phrased to be relayed verbatim — so the assertion is the sentence, not a keyword.
-    expect(r.out).toContain("Restart your harness (Claude Code, Cursor or Codex) so the snypd tools load.");
+    // Decision 178: the reader is a person at a terminal, or the agent that ran it for them. The person
+    // is told what to open and what to say; the agent gets the one sentence it relays — so the
+    // assertions are the sentences, not keywords.
+    expect(r.out).toContain("open Claude Code, Cursor or Codex in this directory");
+    expect(r.out).toContain("Write me a first post.");
+    expect(r.out).toContain("If a harness is already open here, restart it so the snypd tools load.");
     // …and it names where the far side picks up, because the restart destroys the context this printed into.
     expect(r.out).toContain("get-started");
   });
@@ -129,7 +132,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
       expect(yaml).toContain(`name: "${basename(empty)}"`);
       expect(yaml).toContain("# placeholder");
       expect(r.out).toContain("git init — new repository on main");
-      expect(r.out).toContain("Do not ask for it yet.");          // the URL is due at publish, and only there
+      expect(r.out).toContain("needed before anything publishes — and not before");   // the URL is due at publish, and only there
     } finally { rmSync(empty, { recursive: true, force: true }); }
   }, 30_000);
 

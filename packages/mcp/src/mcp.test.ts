@@ -516,6 +516,33 @@ describe("find_tools + the catalogue", () => {
     expect(structured(activated)).toMatchObject({ theme: "scratchy", from: "editorial", changed: true });
   });
 
+  /**
+   * S24, found recording V4: a theme an agent wrote *by hand* — `snypd new theme` in a shell, then the
+   * stylesheet edited and committed with git, all on the drafts branch — reached `main` as nothing at
+   * all when `theme › set` landed the config that named it, and `main` could not build. The switch now
+   * lands the tracked files of a theme in the site's own `themes/` with `snypd.yaml`.
+   */
+  test("S24: switching to a theme in the site's themes/ lands the theme's files with the config", async () => {
+    const site = "corpora/_test/mcp-local-theme";
+    rmSync(site, { recursive: true, force: true });
+    mkdirSync(site, { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    await session([req(1, "initialize"), call(2, "site", { action: "init", name: "Local", url: "https://local.example" }),
+      call(3, "theme", { action: "scaffold", name: "slate", extends: "base" })], site);
+    // The author's edit, committed the way a shell would commit it: on the checked-out branch, no landing.
+    const git = (...a: string[]) => Bun.spawnSync(["git", ...a], { cwd: site }).stdout.toString().trim();
+    expect(git("branch", "--show-current")).toBe("snypd/drafts");
+    writeFileSync(`${site}/themes/slate/theme.css`, `${readFileSync(`${site}/themes/slate/theme.css`, "utf8")}\n/* night */\n`);
+    git("commit", "-qam", "theme: slate — night");
+    expect(git("show", "main:themes/slate/theme.css")).not.toContain("/* night */");
+
+    const [, set] = await session([req(1, "initialize"), call(2, "theme", { action: "set", name: "slate" })], site);
+    expect(structured(set)).toMatchObject({ theme: "slate", changed: true });
+    expect(git("show", "main:snypd.yaml")).toContain("use: slate");
+    expect(git("show", "main:themes/slate/theme.css")).toContain("/* night */");   // the edit travelled
+  });
+
   test("U2: set_nav writes the menu, commits it, refuses a dead ref, and snypd://nav reads it back", async () => {
     const site = "corpora/_test/mcp-nav";
     rmSync(site, { recursive: true, force: true }); mkdirSync(site, { recursive: true });

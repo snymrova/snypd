@@ -1,7 +1,7 @@
 /**
  * The browser half of a clip (docs/15 §3.3): a built page, scrolled once, top to bottom, as an MP4.
  *   bun packages/bench/readme/scroll.ts --dist=<dir> --route=/posts/x/ --out=.scratch/readme-video/x.mp4
- *     [--width=1440] [--height=900] [--seconds=8] [--fps=30] [--scheme=light] [--hold=1.5]
+ *     [--width=1440] [--height=900] [--seconds=8] [--fps=30] [--scheme=light] [--hold=1.5] [--max=<px>]
  *
  * Frames are CDP screenshots at eased scroll positions — no screen recorder, no window, nothing but
  * the page the build wrote, served the way `snypd dev` serves it. `ffmpeg` turns the frames into
@@ -19,6 +19,7 @@ const dist = need("dist"), route = need("route"), out = need("out");
 const width = Number(args.get("width") ?? 1440), height = Number(args.get("height") ?? 900);
 const seconds = Number(args.get("seconds") ?? 8), fps = Number(args.get("fps") ?? 30), hold = Number(args.get("hold") ?? 1.5);
 const scheme = (args.get("scheme") ?? "light") as "light" | "dark";
+const maxPx = Number(args.get("max") ?? 0);   // 0 = the whole page; V2 wants one screen of each look, not six FAQs
 
 const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;   // in-out cubic
 
@@ -38,7 +39,8 @@ async function main() {
     await page.send("Runtime.evaluate", { awaitPromise: true, expression: "document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))" });
     // Smooth scrolling off and the caret hidden: every frame is a still, and a still must not be mid-animation.
     await page.send("Runtime.evaluate", { expression: "document.documentElement.style.scrollBehavior = 'auto'; document.documentElement.style.caretColor = 'transparent'" });
-    const max = (await page.send<{ result: { value: number } }>("Runtime.evaluate", { returnByValue: true, expression: "Math.max(0, document.documentElement.scrollHeight - innerHeight)" })).result.value;
+    const whole = (await page.send<{ result: { value: number } }>("Runtime.evaluate", { returnByValue: true, expression: "Math.max(0, document.documentElement.scrollHeight - innerHeight)" })).result.value;
+    const max = maxPx ? Math.min(maxPx, whole) : whole;
 
     const total = Math.round(seconds * fps), holdN = Math.round(hold * fps);
     let n = 0;

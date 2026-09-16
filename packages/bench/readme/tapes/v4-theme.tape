@@ -1,7 +1,7 @@
 # V4, a theme from nothing (docs/15 §3.3): the agent scaffolds one with `snypd new theme`, writes its
 # tokens and stylesheet, and `snypd check theme` is the judge. Runs in the site V1 made.
-#   cd ~/Projects/field-notes && env -i HOME=$HOME PATH=$PATH TERM=xterm-256color LANG=C.UTF-8 \
-#     vhs ../snypd/packages/bench/readme/tapes/v1-hero.tape
+#   cd ~/Projects/field-notes && env -i HOME=$HOME PATH=$PATH TERM=xterm-256color LANG=C.UTF-8 DISABLE_AUTOUPDATER=1 \
+#     vhs ../snypd/packages/bench/readme/tapes/v4-theme.tape
 Output ../snypd/.scratch/readme-video/v4-theme.mp4
 Set Shell zsh
 Set FontFamily "JetBrains Mono"
@@ -27,7 +27,7 @@ Sleep 1500ms
 Type "Make me a theme called slate: cool grey, one blue accent, sans headings, a dark look called night. Scaffold it with `snypd new theme`, then run `snypd check theme slate` until every rule passes, then switch the site to it."
 Sleep 600ms
 Enter
-Wait+Screen@600s /done \d+:\d+/
+Wait+Screen@1200s /done \d+:\d+/
 Sleep 6s
 Screenshot ../snypd/.scratch/readme-video/v4-end.png
 Sleep 2s

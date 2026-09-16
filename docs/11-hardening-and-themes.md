@@ -452,6 +452,10 @@ untouched, so B1 is unaffected. X1's `theme check` inherits the rule.
 
 **177. Prompt and page copy names the write policy; it does not assert one.** Decision 80 moved the default from `draft` to `publish` in S19c, and four lines kept describing the old world — two prompts, the empty page, `content.publish`'s own description — so an agent following the product's own workflows stopped one call short of the default behaviour. The rule: where copy says what happens after a draft, it says *publish it, unless this type's `mcp.write` is `draft` — then the review URL, and a person approves that exact version*. The words follow the config, and a test holds them to it.
 
+**178** is docs/08's: the front door is the command, typed before the harness opens (16 Sep 2026).
+
+**179. A theme in the site's own `themes/` lands with the config that names it** (S24, 16 Sep 2026 — found recording the README's V4). `snypd new theme` commits its scaffold on whatever branch is checked out, and an agent's checkout is the drafts branch; the author's edits to `theme.css` are committed the same way. A landing carries only the paths it is handed, so `theme › set` sent `theme.use: slate` to `main` and left `themes/slate/` behind — `main` then named a theme it did not have and could not build, and the agent spent the rest of its ten minutes cherry-picking. The rule: the switch lands the tracked files under the theme's directory in the same commit and the same landing as `snypd.yaml`, because a config that names a theme and a branch that lacks it is not a state the product should be able to produce. Bundled and npm themes are unaffected — they are not in the tree. `snypd new theme` itself still commits without landing: a theme nobody has switched to has no business on `main` yet.
+
 ## 9. Risks
 
 | Risk | L | Mitigation |
