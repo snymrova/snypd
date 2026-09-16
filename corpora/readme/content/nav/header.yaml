@@ -1,0 +1,5 @@
+# The header menu (docs/09 §4.3). `ref` is a route or type/slug, resolved at build; `url` is verbatim.
+- { label: "Posts", ref: "/" }
+- { label: "About", ref: "page/about" }
+- { label: "Engineering", ref: "/category/engineering" }
+- { label: "GitHub", url: "https://github.com/snymrova/snypd", rel: "external" }

@@ -1,0 +1,332 @@
+{
+  "made": "2026-09-16T05:54:43.979Z",
+  "chrome": "Chrome/145.0.7632.159",
+  "root": "corpora/readme",
+  "totalBytes": 1077301,
+  "frames": [
+    {
+      "file": ".github/readme/blocks/build-clock.svg",
+      "set": "blocks",
+      "look": "editorial-paper",
+      "route": "/posts/how-fast/",
+      "width": 0,
+      "bytes": 3633
+    },
+    {
+      "file": ".github/readme/blocks/one-binary.svg",
+      "set": "blocks",
+      "look": "editorial-paper",
+      "route": "/posts/one-binary/",
+      "width": 0,
+      "bytes": 3000
+    },
+    {
+      "file": ".github/readme/desk/desk-dark.png",
+      "set": "desk",
+      "route": "/_snypd",
+      "width": 1280,
+      "height": 900,
+      "scheme": "dark",
+      "bytes": 137744
+    },
+    {
+      "file": ".github/readme/desk/desk-light.png",
+      "set": "desk",
+      "route": "/_snypd",
+      "width": 1280,
+      "height": 900,
+      "scheme": "light",
+      "bytes": 139643
+    },
+    {
+      "file": ".github/readme/looks/base-dark.png",
+      "set": "looks",
+      "look": "base",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "dark",
+      "bytes": 40199
+    },
+    {
+      "file": ".github/readme/looks/base-light.png",
+      "set": "looks",
+      "look": "base",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "light",
+      "bytes": 40199
+    },
+    {
+      "file": ".github/readme/looks/editorial-broadsheet-dark.png",
+      "set": "looks",
+      "look": "editorial-broadsheet",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "dark",
+      "bytes": 40193
+    },
+    {
+      "file": ".github/readme/looks/editorial-broadsheet-light.png",
+      "set": "looks",
+      "look": "editorial-broadsheet",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "light",
+      "bytes": 40549
+    },
+    {
+      "file": ".github/readme/looks/editorial-ink-dark.png",
+      "set": "looks",
+      "look": "editorial-ink",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "dark",
+      "bytes": 43781
+    },
+    {
+      "file": ".github/readme/looks/editorial-paper-dark.png",
+      "set": "looks",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "dark",
+      "bytes": 44401
+    },
+    {
+      "file": ".github/readme/looks/editorial-paper-light.png",
+      "set": "looks",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "light",
+      "bytes": 44642
+    },
+    {
+      "file": ".github/readme/looks/technical-graphite-dark.png",
+      "set": "looks",
+      "look": "technical-graphite",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "dark",
+      "bytes": 43375
+    },
+    {
+      "file": ".github/readme/looks/technical-graphite-light.png",
+      "set": "looks",
+      "look": "technical-graphite",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "light",
+      "bytes": 43801
+    },
+    {
+      "file": ".github/readme/looks/technical-phosphor-dark.png",
+      "set": "looks",
+      "look": "technical-phosphor",
+      "route": "/posts/every-primitive-once/",
+      "width": 1280,
+      "height": 800,
+      "scheme": "dark",
+      "bytes": 43524
+    },
+    {
+      "file": ".github/readme/phones/base.png",
+      "set": "phones",
+      "look": "base",
+      "route": "/posts/every-primitive-once/",
+      "width": 390,
+      "height": 844,
+      "scheme": "light",
+      "bytes": 21676
+    },
+    {
+      "file": ".github/readme/phones/editorial-broadsheet.png",
+      "set": "phones",
+      "look": "editorial-broadsheet",
+      "route": "/posts/every-primitive-once/",
+      "width": 390,
+      "height": 844,
+      "scheme": "light",
+      "bytes": 35336
+    },
+    {
+      "file": ".github/readme/phones/editorial-ink.png",
+      "set": "phones",
+      "look": "editorial-ink",
+      "route": "/posts/every-primitive-once/",
+      "width": 390,
+      "height": 844,
+      "scheme": "light",
+      "bytes": 35093
+    },
+    {
+      "file": ".github/readme/phones/editorial-paper.png",
+      "set": "phones",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 390,
+      "height": 844,
+      "scheme": "light",
+      "bytes": 35722
+    },
+    {
+      "file": ".github/readme/phones/technical-graphite.png",
+      "set": "phones",
+      "look": "technical-graphite",
+      "route": "/posts/every-primitive-once/",
+      "width": 390,
+      "height": 844,
+      "scheme": "light",
+      "bytes": 37136
+    },
+    {
+      "file": ".github/readme/phones/technical-phosphor.png",
+      "set": "phones",
+      "look": "technical-phosphor",
+      "route": "/posts/every-primitive-once/",
+      "width": 390,
+      "height": 844,
+      "scheme": "light",
+      "bytes": 34359
+    },
+    {
+      "file": ".github/readme/primitives/callout.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 176,
+      "scheme": "light",
+      "bytes": 12061
+    },
+    {
+      "file": ".github/readme/primitives/chart.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 816,
+      "height": 185,
+      "scheme": "light",
+      "bytes": 10936
+    },
+    {
+      "file": ".github/readme/primitives/cover.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 493,
+      "scheme": "light",
+      "bytes": 24011
+    },
+    {
+      "file": ".github/readme/primitives/cta.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 203,
+      "scheme": "light",
+      "bytes": 9678
+    },
+    {
+      "file": ".github/readme/primitives/diagram.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 816,
+      "height": 181,
+      "scheme": "light",
+      "bytes": 9787
+    },
+    {
+      "file": ".github/readme/primitives/faq.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 162,
+      "scheme": "light",
+      "bytes": 8030
+    },
+    {
+      "file": ".github/readme/primitives/figure.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 816,
+      "height": 511,
+      "scheme": "light",
+      "bytes": 5296
+    },
+    {
+      "file": ".github/readme/primitives/flow.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 816,
+      "height": 650,
+      "scheme": "light",
+      "bytes": 25117
+    },
+    {
+      "file": ".github/readme/primitives/pullquote.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 104,
+      "scheme": "light",
+      "bytes": 9319
+    },
+    {
+      "file": ".github/readme/primitives/stat-row.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 90,
+      "scheme": "light",
+      "bytes": 7518
+    },
+    {
+      "file": ".github/readme/primitives/stat.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 312,
+      "height": 90,
+      "scheme": "light",
+      "bytes": 4982
+    },
+    {
+      "file": ".github/readme/primitives/steps.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 320,
+      "scheme": "light",
+      "bytes": 29696
+    },
+    {
+      "file": ".github/readme/primitives/tldr.png",
+      "set": "primitives",
+      "look": "editorial-paper",
+      "route": "/posts/every-primitive-once/",
+      "width": 592,
+      "height": 174,
+      "scheme": "light",
+      "bytes": 12864
+    }
+  ]
+}
