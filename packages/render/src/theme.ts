@@ -12,6 +12,7 @@ import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
 import { resolveThemeChain, sha1, INDEX_DIR, MAX_FONT_KB, isBundledDir, themeBytes, themeBinary, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeFont, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
+import type { Sectioned } from "./html";
 import { atImport, fontFaceCss, layerIdent } from "./tokens";
 import type { Hooks } from "./hooks";
 
@@ -67,6 +68,16 @@ export const settingText = (ctx: SiteCtx, id: string): string | undefined => (ty
 export const settingFlag = (ctx: SiteCtx, id: string, fallback: boolean): boolean => (typeof ctx.settings[id] === "boolean" ? ctx.settings[id] as boolean : fallback);
 export const settingLinks = (ctx: SiteCtx, id: string): LinkItem[] => (Array.isArray(ctx.settings[id]) ? ctx.settings[id] as LinkItem[] : []);
 
+/**
+ * The `view-transition-name` an item's title carries on every page it appears on (U7, docs/14 §4.4):
+ * the entry in a list and the `<h1>` of the post are the *same* name, which is what makes a browser
+ * with cross-document view transitions morph one into the other on the navigation between them, and
+ * a browser without them navigate exactly as before. A name must be a CSS custom-ident and unique on
+ * its page — `type/slug` is unique on the site, and everything a slug can carry that an ident cannot
+ * is folded to `-`.
+ */
+export const transitionName = (e: Pick<Entry, "type" | "slug">): string => `${e.type}-${e.slug}`.replace(/[^\p{L}\p{N}_-]+/gu, "-");
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /**
  * A date, written the way the `dateFormat` setting asks (U3). English month names, from the string's own
@@ -116,6 +127,12 @@ export interface PrimitiveProps {
   props: Record<string, unknown>;
   /** The container's markdown children, rendered (nested primitives included). */
   body: Html;
+  /**
+   * The same rendering, split at the body's shallowest headings (U7): each `###` question of an `faq`
+   * with the answer under it, so a primitive can wrap each run in its own element. Lazy, and it costs
+   * nothing to a primitive that never calls it; the heading ids are the ones `body` carries.
+   */
+  sections: () => Sectioned;
   /** Parsed YAML body for chart / diagram / flow. */
   data?: unknown;
   children: Block[];

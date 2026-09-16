@@ -34,6 +34,11 @@ export const DOCUMENTS: Array<[string]> = [
   // Decision 157: `----` closes nothing in micromark, and `readFrontmatter` read it as a fence.
   ["---\ntitle: x\n----\n\n\n"],
   ["--- \ntitle: x\n---\n"],
+  // U7 (docs/14 §6): the three blocks whose markup now carries an invoker, a popover target or an anchor
+  // name — `commandfor`, `command`, `closedby`, `style="anchor-name: …"`, `<details name>` — on one page,
+  // so property 4e ("script on the page ⇔ rule 13 in the file") reads all of them on every seed and
+  // weighs them at 0. Not a defect found; the case the rule's comment names, pinned.
+  ['---\ntitle: "twin"\ndate: "2026-03-02"\nstatus: "published"\ntags: []\n---\n\nA note[^1] and a picture.\n\n[^1]: The note.\n\n::figure{src="/media/one.png" alt="One"}\n\n:::faq\n### Why?\nBecause.\n:::\n'],
 ];
 
 /** Property 6a — a session, as the messages an agent's harness sent. */

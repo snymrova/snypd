@@ -1,4 +1,4 @@
-import { formatDate, part, settingFlag, settingText, Slot, type LayoutProps, type Html } from "@snypd/render";
+import { formatDate, part, settingFlag, settingText, transitionName, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The header is the author's `::cover` when the body opens with one, and otherwise one built from
@@ -21,7 +21,8 @@ export default function Post({ ctx, page, route, title, description, jsonLd }: L
           {p.cover ?? (
             <header class="snypd-cover">
               {fm?.eyebrow ? <p class="snypd-eyebrow">{fm.eyebrow}</p> : null}
-              <h1>{p.title}</h1>
+              {/* The same `view-transition-name` the entry list gave this title (U7), so one becomes the other. */}
+              <h1 style={`view-transition-name: ${transitionName(p)}; view-transition-class: snypd-title`}>{p.title}</h1>
               {fm?.image ? <img src={fm.image} alt={fm.alt ?? ""} decoding="async" fetchpriority="high"
                 width={size ? String(size.width) : undefined} height={size ? String(size.height) : undefined} /> : null}
             </header>

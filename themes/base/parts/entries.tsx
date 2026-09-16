@@ -1,5 +1,5 @@
 /** A list of content items: title, date, description. Shared by index, term and author layouts. */
-import { formatDate, settingFlag, settingText, type EntriesProps, type Html } from "@snypd/render";
+import { formatDate, settingFlag, settingText, transitionName, type EntriesProps, type Html } from "@snypd/render";
 
 export default function Entries({ ctx, entries }: EntriesProps): Html {
   if (!entries.length) return <p>Nothing published yet.</p>;
@@ -9,11 +9,15 @@ export default function Entries({ ctx, entries }: EntriesProps): Html {
   // which is why they are named in a part and not in a layout a child would have to fork.
   const dates = settingFlag(ctx, "showDates", true);
   const format = settingText(ctx, "dateFormat");
+  // The title's `view-transition-name` (U7, docs/14 §4.4): the same name the post's `<h1>` carries, so
+  // the title in this list becomes the title of the page in a browser that animates the navigation.
+  // The first six only — a name must be unique per page, and every entry named is a group the browser
+  // captures and animates; a 40-group index is a mess, and six is what is above the fold.
   return (
     <ol class="snypd-entries" reversed>
-      {entries.map((e) => (
+      {entries.map((e, i) => (
         <li>
-          <a href={`${e.route}/`}>{e.title}</a>
+          <a href={`${e.route}/`} style={i < 6 ? `view-transition-name: ${transitionName(e)}; view-transition-class: snypd-title` : undefined}>{e.title}</a>
           {e.date && dates ? <> <time datetime={e.date}>{formatDate(e.date, format)}</time></> : null}
           {e.description ? <p>{e.description}</p> : null}
         </li>

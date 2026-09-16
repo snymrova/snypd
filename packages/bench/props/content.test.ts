@@ -17,6 +17,9 @@
  *  d. Every diagnostic points somewhere: a rule, a line inside the file, a hint.
  *  e. What the renderer emits carries script only where lint said so — rule 13 and the build's
  *     refusal (E6) are two readers of one detector, and a page cannot reach one without the other.
+ *     Since U7 that includes every invoker `base` writes on its own: `commandfor`, `popovertarget`, a
+ *     `closedby`, an `anchor-name` in a `style` — an invoker attribute is not a script site, and the
+ *     generator's figures, faqs and footnotes put one on most pages.
  */
 import { afterAll, beforeAll, describe, setDefaultTimeout, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
