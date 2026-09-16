@@ -15,6 +15,12 @@
    `nav ul { display: flex }` a theme wrote for the desktop". A theme that wants a different phone menu
    overrides the header part. */
 
+/* ── A picture is never wider than its column (R1, docs/15). A `cover` or `figure` carries its intrinsic
+   `width`/`height` so the browser reserves the box before the bytes arrive (media.ts), and without this
+   line a 1200 px cover is 1200 px on a 390 px phone and the whole page scrolls sideways. `height: auto`
+   keeps the ratio the attributes declared. The lightbox sets its own bounds below. */
+img, svg, video { max-width: 100%; height: auto; }
+
 /* ── The header menu on a phone (docs/14 §4.6). Below 34rem the `<ul popover>` is a sheet the button
    opens; above it the popover's user-agent styling is taken back off and the list is in flow, and the
    button is gone. `popover` alone would have hidden the menu everywhere until pressed. */

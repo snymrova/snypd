@@ -13,7 +13,7 @@
  * same files, because they are produced here.
  *
  * Neither scaffold writes a layout or a primitive, and that is the contract restated as a default. A
- * theme that declares only `extends:` and `css:` renders all thirteen primitives and all five layouts
+ * theme that declares only `extends:` and `css:` renders all thirteen primitives and all six layouts
  * through the chain (D8, proved in U6b by a second theme that forks neither) — so the starting point is
  * one stylesheet, which is the one file the author actually wants to write.
  */

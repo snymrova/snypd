@@ -131,7 +131,7 @@ export function png(width: number, height: number, rgb: [number, number, number]
 
 /**
  * `corpora/theme` — the fixture `snypd bench page` runs against: every one of the 13 primitives and all
- * five layouts on a site small enough to read. The 100-post corpus cannot do this job — it is generated
+ * six layouts on a site small enough to read. The 100-post corpus cannot do this job — it is generated
  * from a word list to exercise the *build*, uses eight primitives, and has no page, author or media — and
  * a theme that is only ever seen rendering the same eight blocks is a theme with five untested holes.
  *
@@ -168,7 +168,7 @@ export function generateTheme(root = "corpora/theme") {
     "",
     "## What this page is for",
     "",
-    "Thirteen primitives and five layouts is the whole vocabulary. A theme is finished when every one of",
+    "Thirteen primitives and six layouts is the whole vocabulary. A theme is finished when every one of",
     "them has been looked at, in both colour schemes, at a phone width and a desktop one — so they are all",
     "here, in one route, exactly as the spec writes them.",
     "",
@@ -242,6 +242,19 @@ export function generateTheme(root = "corpora/theme") {
     + "This site exists to be looked at. It is the smallest site that still renders every layout the base\ntheme declares, which makes it the right place to review a theme and the wrong place to measure a build.\n\n"
     + ":::callout{kind=\"note\" title=\"Not a benchmark\"}\nBuild and lint timings come from `corpora/100`; this fixture is four routes and would say nothing.\n:::\n");
 
+  // The front page (S25, docs/16 §2): a page with `home: true` holds `/` under the `home` layout — the body a
+  // product page carries, the newest posts under it — and the list the index layout draws is at `/posts/`.
+  // This is the sixth layout, and the shape snypd.rocks' own front page takes; a theme is reviewed on it too.
+  writeFileSync(join(root, "content/pages/home.md"),
+    "---\ntitle: A CMS whose only interface is your agent\nstatus: published\nhome: true\n"
+    + "description: The front page, under the home layout — a page's body, then the latest posts.\n---\n\n"
+    + ":::tldr\nWrite in the harness you already have open. The site is markdown in git, built to static HTML with no script on the page.\n:::\n\n"
+    + ":::stat-row\n::stat{value=\"13\" label=\"primitives\" source=\"https://snypd.rocks/posts/every-primitive-once/\"}\n::stat{value=\"6\" label=\"layouts\" source=\"https://snypd.rocks/themes/\"}\n::stat{value=\"0 KB\" label=\"JavaScript\" source=\"https://snypd.rocks/bench/\"}\n:::\n\n"
+    + "## How it starts\n\n"
+    + ":::steps{title=\"Four lines\"}\n1. `mkdir site && cd site`\n2. `bunx @snypd/cli init`\n3. `claude`\n4. *Write me a first post.*\n:::\n\n"
+    + "::figure{src=\"/media/twin.png\" alt=\"Side-by-side HTML and markdown of the same post\" caption=\"Every page ships its markdown twin.\" width=\"wide\"}\n\n"
+    + "::cta{title=\"Read the posts\" button=\"All posts\" href=\"/posts/\"}\n");
+
   // The `author` type declares no `status` or `description` field (spec defaults), and lint says so about
   // any frontmatter that invents one; an author is visible because its type has a layout, not because it
   // carries a status. `bio` is the field the type does declare.
@@ -259,7 +272,7 @@ export function generateTheme(root = "corpora/theme") {
   mkdirSync(join(root, "content/nav"), { recursive: true });
   writeFileSync(join(root, "content/nav/header.yaml"),
     "# The header menu (docs/09 §4.3). `ref` is a route or type/slug, resolved at build; `url` is verbatim.\n"
-    + '- { label: "Posts", ref: "/" }\n- { label: "About", ref: "page/about" }\n- { label: "Engineering", ref: "/category/engineering" }\n- { label: "GitHub", url: "https://github.com/snymrova/snypd", rel: "external" }\n');
+    + '- { label: "Posts", ref: "/posts" }\n- { label: "About", ref: "page/about" }\n- { label: "Engineering", ref: "/category/engineering" }\n- { label: "GitHub", url: "https://github.com/snymrova/snypd", rel: "external" }\n');
   writeFileSync(join(root, "content/nav/footer.yaml"),
     "# The footer menu (docs/09 §4.3).\n"
     + '- { label: "Feed", url: "/feed.xml" }\n- { label: "llms.txt", url: "/llms.txt" }\n- { label: "Every primitive, once", ref: "post/every-primitive-once" }\n');
