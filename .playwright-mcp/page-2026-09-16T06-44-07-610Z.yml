@@ -1,0 +1,1048 @@
+- generic [ref=f58e2]:
+  - generic [ref=f58e3]:
+    - link "Skip to content" [ref=f58e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=f58e9]:
+      - heading "Navigation Menu" [level=2] [ref=f58e10]
+      - generic [ref=f58e11]:
+        - link "Homepage" [ref=f58e13] [cursor=pointer]:
+          - /url: /
+        - generic [ref=f58e16]:
+          - navigation "Global" [ref=f58e17]:
+            - list [ref=f58e18]:
+              - listitem [ref=f58e19]:
+                - button "Platform" [ref=f58e21] [cursor=pointer]
+              - listitem [ref=f58e24]:
+                - button "Solutions" [ref=f58e26] [cursor=pointer]
+              - listitem [ref=f58e29]:
+                - button "Resources" [ref=f58e31] [cursor=pointer]
+              - listitem [ref=f58e34]:
+                - button "Open Source" [ref=f58e36] [cursor=pointer]
+              - listitem [ref=f58e39]:
+                - button "Enterprise" [ref=f58e41] [cursor=pointer]
+              - listitem [ref=f58e44]:
+                - link "Pricing" [ref=f58e45] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+          - generic [ref=f58e46]:
+            - button "Search or jump to, type / to search" [ref=f58e48] [cursor=pointer]
+            - link "Sign in" [ref=f58e55] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fsnymrova%2Fsnypd%2Ftree%2Fr0-readme-ground
+            - link "Sign up" [ref=f58e58] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E%2Ffiles%2Fdisambiguate&source=header-repo&source_repo=snymrova%2Fsnypd
+            - button "Appearance settings" [ref=f58e61] [cursor=pointer]
+  - main [ref=f58e68]:
+    - generic [ref=f58e69]:
+      - generic [ref=f58e70]:
+        - generic [ref=f58e72]:
+          - link "snymrova" [ref=f58e76] [cursor=pointer]:
+            - /url: /snymrova
+          - generic [ref=f58e77]: /
+          - strong [ref=f58e78]:
+            - link "snypd" [ref=f58e79] [cursor=pointer]:
+              - /url: /snymrova/snypd
+          - generic [ref=f58e80]: Public
+        - generic [ref=f58e81]:
+          - list:
+            - listitem [ref=f58e82]:
+              - link "You must be signed in to change notification settings" [ref=f58e83] [cursor=pointer]:
+                - /url: /login?return_to=%2Fsnymrova%2Fsnypd
+                - text: Notifications
+            - listitem [ref=f58e86]:
+              - link "Fork 0" [ref=f58e87] [cursor=pointer]:
+                - /url: /login?return_to=%2Fsnymrova%2Fsnypd
+                - text: Fork
+                - generic "0" [ref=f58e90]
+            - listitem [ref=f58e91]:
+              - link "You must be signed in to star a repository" [ref=f58e93] [cursor=pointer]:
+                - /url: /login?return_to=%2Fsnymrova%2Fsnypd
+                - text: Star
+                - generic "0 users starred this repository" [ref=f58e96]: "0"
+      - navigation "Repository" [ref=f58e97]:
+        - list [ref=f58e98]:
+          - listitem [ref=f58e99]:
+            - link "Code" [ref=f58e100] [cursor=pointer]:
+              - /url: /snymrova/snypd/tree/r0-readme-ground
+          - listitem [ref=f58e104]:
+            - link "Issues" [ref=f58e105] [cursor=pointer]:
+              - /url: /snymrova/snypd/issues
+          - listitem [ref=f58e110]:
+            - link "Pull requests" [ref=f58e111] [cursor=pointer]:
+              - /url: /snymrova/snypd/pulls
+          - listitem [ref=f58e115]:
+            - link "Actions" [ref=f58e116] [cursor=pointer]:
+              - /url: /snymrova/snypd/actions
+          - listitem [ref=f58e120]:
+            - link "Projects" [ref=f58e121] [cursor=pointer]:
+              - /url: /snymrova/snypd/projects
+          - listitem [ref=f58e125]:
+            - link "Security and quality" [ref=f58e126] [cursor=pointer]:
+              - /url: /snymrova/snypd/security
+          - listitem [ref=f58e130]:
+            - link "Insights" [ref=f58e131] [cursor=pointer]:
+              - /url: /snymrova/snypd/pulse
+    - generic [ref=f58e148]:
+      - generic [ref=f58e151]:
+        - generic [ref=f58e152]:
+          - generic [ref=f58e153]:
+            - button "r0-readme-ground branch" [ref=f58e155] [cursor=pointer]:
+              - generic [ref=f58e156]: r0-readme-ground
+            - generic [ref=f58e160]:
+              - link "Branches" [ref=f58e161] [cursor=pointer]:
+                - /url: /snymrova/snypd/branches
+              - link "Tags" [ref=f58e164] [cursor=pointer]:
+                - /url: /snymrova/snypd/tags
+          - generic [ref=f58e167]:
+            - combobox "Go to file" [ref=f58e175]
+            - button "Code" [ref=f58e176] [cursor=pointer]
+        - generic [ref=f58e182]:
+          - generic [ref=f58e183]:
+            - generic [ref=f58e185]:
+              - heading "Latest commit" [level=2] [ref=f58e186]
+              - generic [ref=f58e189]:
+                - heading "History" [level=2] [ref=f58e190]
+                - link "116 Commits" [ref=f58e191] [cursor=pointer]:
+                  - /url: /snymrova/snypd/commits/r0-readme-ground/
+            - heading "Folders and files" [level=2] [ref=f58e194]
+            - table "Folders and files" [ref=f58e195]:
+              - rowgroup:
+                - row "Name Last commit message Last commit date":
+                  - columnheader "Name"
+                  - columnheader "Last commit message"
+                  - columnheader "Last commit date"
+              - rowgroup [ref=f58e196]:
+                - row ".github, (Directory)" [ref=f58e197]:
+                  - cell [ref=f58e198]:
+                    - link ".github, (Directory)" [ref=f58e205] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/.github
+                      - text: .github
+                  - cell [ref=f58e206]
+                  - cell [ref=f58e208]
+                - row ".playwright-mcp, (Directory)" [ref=f58e211]:
+                  - cell [ref=f58e212]:
+                    - link ".playwright-mcp, (Directory)" [ref=f58e219] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/.playwright-mcp
+                      - text: .playwright-mcp
+                  - cell [ref=f58e220]
+                  - cell [ref=f58e222]
+                - row "bench, (Directory)" [ref=f58e225]:
+                  - cell [ref=f58e226]:
+                    - link "bench, (Directory)" [ref=f58e233] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/bench
+                      - text: bench
+                  - cell [ref=f58e234]
+                  - cell [ref=f58e236]
+                - row "corpora, (Directory)" [ref=f58e239]:
+                  - cell [ref=f58e240]:
+                    - link "corpora, (Directory)" [ref=f58e247] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/corpora
+                      - text: corpora
+                  - cell [ref=f58e248]
+                  - cell [ref=f58e250]
+                - row "docs, (Directory)" [ref=f58e253]:
+                  - cell [ref=f58e254]:
+                    - link "docs, (Directory)" [ref=f58e261] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/docs
+                      - text: docs
+                  - cell [ref=f58e262]
+                  - cell [ref=f58e264]
+                - row "packages, (Directory)" [ref=f58e267]:
+                  - cell [ref=f58e268]:
+                    - link "packages, (Directory)" [ref=f58e275] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/packages
+                      - text: packages
+                  - cell [ref=f58e276]
+                  - cell [ref=f58e278]
+                - row "packaging, (Directory)" [ref=f58e281]:
+                  - cell [ref=f58e282]:
+                    - link "packaging, (Directory)" [ref=f58e289] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/packaging
+                      - text: packaging
+                  - cell [ref=f58e290]
+                  - cell [ref=f58e292]
+                - row "plugins, (Directory)" [ref=f58e295]:
+                  - cell [ref=f58e296]:
+                    - link "plugins, (Directory)" [ref=f58e303] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/plugins
+                      - text: plugins
+                  - cell [ref=f58e304]
+                  - cell [ref=f58e306]
+                - row "scripts, (Directory)" [ref=f58e309]:
+                  - cell [ref=f58e310]:
+                    - link "scripts, (Directory)" [ref=f58e317] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/scripts
+                      - text: scripts
+                  - cell [ref=f58e318]
+                  - cell [ref=f58e320]
+                - row "themes, (Directory)" [ref=f58e323]:
+                  - cell [ref=f58e324]:
+                    - link "themes, (Directory)" [ref=f58e331] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/themes
+                      - text: themes
+                  - cell [ref=f58e332]
+                  - cell [ref=f58e334]
+                - row "types, (Directory)" [ref=f58e337]:
+                  - cell [ref=f58e338]:
+                    - link "types, (Directory)" [ref=f58e345] [cursor=pointer]:
+                      - /url: /snymrova/snypd/tree/r0-readme-ground/types
+                      - text: types
+                  - cell [ref=f58e346]
+                  - cell [ref=f58e348]
+                - row ".gitignore, (File)" [ref=f58e351]:
+                  - cell [ref=f58e352]:
+                    - link ".gitignore, (File)" [ref=f58e359] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/.gitignore
+                      - text: .gitignore
+                  - cell [ref=f58e360]
+                  - cell [ref=f58e362]
+                - row ".mcp.json, (File)" [ref=f58e365]:
+                  - cell [ref=f58e366]:
+                    - link ".mcp.json, (File)" [ref=f58e373] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/.mcp.json
+                      - text: .mcp.json
+                  - cell [ref=f58e374]
+                  - cell [ref=f58e376]
+                - row ".prototools, (File)" [ref=f58e379]:
+                  - cell [ref=f58e380]:
+                    - link ".prototools, (File)" [ref=f58e387] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/.prototools
+                      - text: .prototools
+                  - cell [ref=f58e388]
+                  - cell [ref=f58e390]
+                - row "CODE_OF_CONDUCT.md, (File)" [ref=f58e393]:
+                  - cell [ref=f58e394]:
+                    - link "CODE_OF_CONDUCT.md, (File)" [ref=f58e401] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/CODE_OF_CONDUCT.md
+                      - text: CODE_OF_CONDUCT.md
+                  - cell [ref=f58e402]
+                  - cell [ref=f58e404]
+                - row "CONTRIBUTING.md, (File)" [ref=f58e407]:
+                  - cell [ref=f58e408]:
+                    - link "CONTRIBUTING.md, (File)" [ref=f58e415] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/CONTRIBUTING.md
+                      - text: CONTRIBUTING.md
+                  - cell [ref=f58e416]
+                  - cell [ref=f58e418]
+                - row "LICENSE, (File)" [ref=f58e421]:
+                  - cell [ref=f58e422]:
+                    - link "LICENSE, (File)" [ref=f58e429] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/LICENSE
+                      - text: LICENSE
+                  - cell [ref=f58e430]
+                  - cell [ref=f58e432]
+                - row "README.md, (File)" [ref=f58e435]:
+                  - cell [ref=f58e436]:
+                    - link "README.md, (File)" [ref=f58e443] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/README.md
+                      - text: README.md
+                  - cell [ref=f58e444]
+                  - cell [ref=f58e446]
+                - row "SECURITY.md, (File)" [ref=f58e449]:
+                  - cell [ref=f58e450]:
+                    - link "SECURITY.md, (File)" [ref=f58e457] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/SECURITY.md
+                      - text: SECURITY.md
+                  - cell [ref=f58e458]
+                  - cell [ref=f58e460]
+                - row "bun.lock, (File)" [ref=f58e463]:
+                  - cell [ref=f58e464]:
+                    - link "bun.lock, (File)" [ref=f58e471] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/bun.lock
+                      - text: bun.lock
+                  - cell [ref=f58e472]
+                  - cell [ref=f58e474]
+                - row "package.json, (File)" [ref=f58e477]:
+                  - cell [ref=f58e478]:
+                    - link "package.json, (File)" [ref=f58e485] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/package.json
+                      - text: package.json
+                  - cell [ref=f58e486]
+                  - cell [ref=f58e488]
+                - row "tsconfig.json, (File)" [ref=f58e491]:
+                  - cell [ref=f58e492]:
+                    - link "tsconfig.json, (File)" [ref=f58e499] [cursor=pointer]:
+                      - /url: /snymrova/snypd/blob/r0-readme-ground/tsconfig.json
+                      - text: tsconfig.json
+                  - cell [ref=f58e500]
+                  - cell [ref=f58e502]
+          - generic [ref=f58e506]:
+            - generic [ref=f58e507]:
+              - heading "Repository files navigation" [level=2] [ref=f58e508]
+              - navigation "Repository files" [ref=f58e509]:
+                - list [ref=f58e510]:
+                  - listitem [ref=f58e511]:
+                    - link "README" [ref=f58e512] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f58e517]:
+                    - link "Code of conduct" [ref=f58e518] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f58e523]:
+                    - link "Contributing" [ref=f58e524] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f58e529]:
+                    - link "License" [ref=f58e530] [cursor=pointer]:
+                      - /url: "#"
+                  - listitem [ref=f58e535]:
+                    - link "Security" [ref=f58e536] [cursor=pointer]:
+                      - /url: "#"
+              - button "Outline" [ref=f58e541] [cursor=pointer]
+            - article [ref=f58e545]:
+              - paragraph [ref=f58e546]:
+                - img "snypd" [ref=f58e549]
+              - generic [ref=f58e550]:
+                - heading "Publish a website from the harness you already have open." [level=3] [ref=f58e551]
+                - 'link "Permalink: Publish a website from the harness you already have open." [ref=f58e552] [cursor=pointer]':
+                  - /url: "#publish-a-website-from-the-harness-you-already-have-open"
+              - paragraph [ref=f58e555]:
+                - emphasis [ref=f58e556]: Your CMS is wherever your agent is.
+              - paragraph [ref=f58e557]:
+                - link [ref=f58e558] [cursor=pointer]:
+                  - /url: https://github.com/snymrova/snypd/actions/workflows/bench.yml
+                  - img "test + bench" [ref=f58e559]
+                - link [ref=f58e560] [cursor=pointer]:
+                  - /url: https://www.npmjs.com/package/@snypd/cli
+                  - img "npm" [ref=f58e561]
+                - link [ref=f58e562] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/LICENSE
+                  - img "MIT" [ref=f58e563]
+                - link [ref=f58e564] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/bench/page.md
+                  - img "0 KB JS" [ref=f58e565]
+                - link [ref=f58e566] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/docs/04-runtime-and-renderer.md
+                  - img "Bun ≥ 1.4" [ref=f58e567]
+              - paragraph [ref=f58e568]:
+                - text: A CMS your agent can actually use — markdown in your repo, static HTML out, zero JS. Snypd's
+                - strong [ref=f58e569]: only interface is MCP
+                - text: ": you write, edit, theme and publish a site from Claude Code, Cursor or Codex, and nothing here has a dashboard. Content is markdown + YAML in a git repo you own; the product is one Bun binary; the output is static HTML with no JavaScript by default, and every chart, diagram and flow on the page is SVG the build wrote."
+              - paragraph [ref=f58e570]:
+                - link [ref=f58e571] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/looks/editorial-paper-light.png
+                  - img "A post in the editorial theme, built by an agent" [ref=f58e572]
+              - generic [ref=f58e573]:
+                - heading "Start here" [level=2] [ref=f58e574]
+                - 'link "Permalink: Start here" [ref=f58e575] [cursor=pointer]':
+                  - /url: "#start-here"
+              - paragraph [ref=f58e578]: "Paste this into the harness you already have open:"
+              - blockquote [ref=f58e579]:
+                - paragraph [ref=f58e580]:
+                  - text: Set up snypd here and write me a first post. Ask me what the site is called, then run
+                  - code [ref=f58e581]: bunx @snypd/cli init
+                  - text: .
+              - paragraph [ref=f58e582]:
+                - text: That is the whole front door. The agent asks what the site is called, runs
+                - code [ref=f58e583]: init
+                - text: ", and relays the one thing it cannot do — restart the harness so the tools load. On the far side it picks up from"
+                - code [ref=f58e584]: initialize
+                - text: ", reads the site and writes the post ("
+                - link "docs/08" [ref=f58e585] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/docs/08-first-run.md
+                - text: ).
+                - code [ref=f58e586]: npm i -g @snypd/cli
+                - text: puts
+                - code [ref=f58e587]: snypd
+                - text: on your
+                - code [ref=f58e588]: PATH
+                - text: on macOS (Apple silicon and Intel), Linux (x64 and arm64) and Windows (x64) — one ~85 MB binary,
+                - link "published from CI with provenance" [ref=f58e589] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/packaging
+                - text: .
+              - generic [ref=f58e590]:
+                - heading "What you get" [level=2] [ref=f58e591]
+                - 'link "Permalink: What you get" [ref=f58e592] [cursor=pointer]':
+                  - /url: "#what-you-get"
+              - list [ref=f58e595]:
+                - listitem [ref=f58e596]:
+                  - strong [ref=f58e597]: One binary.
+                  - text: The MCP server, the renderer, the spec, the bundled themes and plugins, SQLite —
+                  - code [ref=f58e598]: snypd
+                  - text: ", seven verbs, none of which writes content."
+                - listitem [ref=f58e599]:
+                  - strong [ref=f58e600]: Zero JavaScript by default.
+                  - code [ref=f58e601]: page.js.kb
+                  - text: is 0 on every route of every shipped theme, and the build refuses a page that breaks it (
+                  - link "bench/page.md" [ref=f58e602] [cursor=pointer]:
+                    - /url: /snymrova/snypd/blob/r0-readme-ground/bench/page.md
+                  - text: ","
+                  - link "docs/11 decision 121" [ref=f58e603] [cursor=pointer]:
+                    - /url: /snymrova/snypd/blob/r0-readme-ground/docs/11-hardening-and-themes.md
+                  - text: ).
+                - listitem [ref=f58e604]:
+                  - strong [ref=f58e605]: Thirteen typed primitives, rendered at build time.
+                  - text: A
+                  - code [ref=f58e606]: chart
+                  - text: is inline SVG; a
+                  - code [ref=f58e607]: flow
+                  - text: is a laid-out graph; a
+                  - code [ref=f58e608]: stat
+                  - text: without a source fails lint.
+                - listitem [ref=f58e609]:
+                  - strong [ref=f58e610]: The agent-read surface, on every build.
+                  - text: A
+                  - code [ref=f58e611]: .md
+                  - text: twin beside every page,
+                  - code [ref=f58e612]: llms.txt
+                  - text: ","
+                  - code [ref=f58e613]: feed.xml
+                  - text: ","
+                  - code [ref=f58e614]: sitemap.xml
+                  - text: ", a JSON API, JSON-LD — 8/8 ("
+                  - link "bench/latest.md › surface" [ref=f58e615] [cursor=pointer]:
+                    - /url: /snymrova/snypd/blob/r0-readme-ground/bench/latest.md
+                  - text: ).
+                - listitem [ref=f58e616]:
+                  - strong [ref=f58e617]: Benchmarks that fail CI.
+                  - text: Build speed, cold start, tokens, bytes, axe violations, a live-model kill test — every number in this file links to its row.
+                - listitem [ref=f58e618]:
+                  - strong [ref=f58e619]: A git repo you own.
+                  - text: Every CMS claims no lock-in. This is the only one where you can check it with
+                  - code [ref=f58e620]: ls
+                  - text: ": markdown and YAML, in your repo, rendered by a binary you have a copy of."
+              - paragraph [ref=f58e621]:
+                - link [ref=f58e622] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/blocks/one-binary.svg
+                  - img "A harness speaks MCP over stdio to one binary; the binary writes markdown to a git repo and renders it to a static directory" [ref=f58e623]
+                - subscript [ref=f58e624]:
+                  - text: This diagram is snypd's own
+                  - code [ref=f58e625]: diagram
+                  - text: primitive, rendered by the build from
+                  - link "twelve lines of YAML" [ref=f58e626] [cursor=pointer]:
+                    - /url: /snymrova/snypd/blob/r0-readme-ground/corpora/readme/content/posts/one-binary.md
+                  - text: . No coordinates were typed.
+              - generic [ref=f58e627]:
+                - heading "Thirteen primitives" [level=2] [ref=f58e628]
+                - 'link "Permalink: Thirteen primitives" [ref=f58e629] [cursor=pointer]':
+                  - /url: "#thirteen-primitives"
+              - paragraph [ref=f58e632]:
+                - text: "The vocabulary is closed on purpose: thirteen blocks, versioned, each with a schema, an intent, an anti-intent and a fallback ("
+                - link "docs/01" [ref=f58e633] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/docs/01-content-and-primitives.md
+                - text: ","
+                - link [ref=f58e634] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/packages/spec/primitives
+                  - code [ref=f58e635]: packages/spec/primitives/
+                - text: ). Themes implement the vocabulary; content never references a theme. Left, the spec's own example; right, the
+                - code [ref=f58e636]: editorial
+                - text: theme rendering it.
+              - table [ref=f58e638]:
+                - rowgroup [ref=f58e639]:
+                  - row [ref=f58e640]:
+                    - cell [ref=f58e641]:
+                      - strong [ref=f58e642]:
+                        - code [ref=f58e643]: cover
+                      - text: — The post header — title block with optional eyebrow, subtitle and image.
+                      - generic [ref=f58e644]:
+                        - code [ref=f58e646]: "::cover{eyebrow=\"Engineering\" subtitle=\"What a markdown twin actually saves\" image=\"/media/cover.png\" alt=\"Token counts side by side\"}"
+                        - button "Copy code to clipboard" [ref=f58e648] [cursor=pointer]
+                    - cell "cover rendered by the editorial theme" [ref=f58e652]:
+                      - link "cover rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/cover.png
+                        - img "cover rendered by the editorial theme"
+                  - row [ref=f58e653]:
+                    - cell [ref=f58e654]:
+                      - strong [ref=f58e655]:
+                        - code [ref=f58e656]: tldr
+                      - text: — The 1–3 sentence summary an agent or skimmer reads first.
+                      - generic [ref=f58e657]:
+                        - code [ref=f58e659]: ":::tldr Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do nothing. :::"
+                        - button "Copy code to clipboard" [ref=f58e661] [cursor=pointer]
+                    - cell "tldr rendered by the editorial theme" [ref=f58e665]:
+                      - link "tldr rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/tldr.png
+                        - img "tldr rendered by the editorial theme"
+                  - row [ref=f58e666]:
+                    - cell [ref=f58e667]:
+                      - strong [ref=f58e668]:
+                        - code [ref=f58e669]: callout
+                      - text: — A boxed aside that must not be skipped — a warning, a tip, a note, or a line you want quoted.
+                      - generic [ref=f58e670]:
+                        - code [ref=f58e672]: ":::callout{kind=\"warning\" title=\"The caveat\"} `llms.txt` is the most-recommended and least-evidenced item on the list. :::"
+                        - button "Copy code to clipboard" [ref=f58e674] [cursor=pointer]
+                    - cell "callout rendered by the editorial theme" [ref=f58e678]:
+                      - link "callout rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/callout.png
+                        - img "callout rendered by the editorial theme"
+                  - row [ref=f58e679]:
+                    - cell [ref=f58e680]:
+                      - strong [ref=f58e681]:
+                        - code [ref=f58e682]: pullquote
+                      - text: — A sentence lifted from the text (or a cited source) and set large.
+                      - generic [ref=f58e683]:
+                        - code [ref=f58e685]: ":::pullquote{cite=\"Google Search Central\" href=\"https://developers.google.com/search\"} There is no ranking benefit from llms.txt. :::"
+                        - button "Copy code to clipboard" [ref=f58e687] [cursor=pointer]
+                    - cell "pullquote rendered by the editorial theme" [ref=f58e691]:
+                      - link "pullquote rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/pullquote.png
+                        - img "pullquote rendered by the editorial theme"
+                  - row [ref=f58e692]:
+                    - cell [ref=f58e693]:
+                      - strong [ref=f58e694]:
+                        - code [ref=f58e695]: stat-row
+                      - text: — Two to four stats side by side, the numbers a post stands on.
+                      - generic [ref=f58e696]:
+                        - code [ref=f58e698]: ":::stat-row ::stat{value=\"92%\" label=\"fewer tokens\" source=\"https://snypd.rocks/bench\"} ::stat{value=\"0\" label=\"Google support for llms.txt\" source=\"https://developers.google.com/search\"} :::"
+                        - button "Copy code to clipboard" [ref=f58e700] [cursor=pointer]
+                    - cell "stat-row rendered by the editorial theme" [ref=f58e704]:
+                      - link "stat-row rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/stat-row.png
+                        - img "stat-row rendered by the editorial theme"
+                  - row [ref=f58e705]:
+                    - cell [ref=f58e706]:
+                      - strong [ref=f58e707]:
+                        - code [ref=f58e708]: stat
+                      - text: — One number with its label and where it came from.
+                      - generic [ref=f58e709]:
+                        - code [ref=f58e711]: "::stat{value=\"92%\" label=\"fewer tokens\" source=\"https://snypd.rocks/bench\"}"
+                        - button "Copy code to clipboard" [ref=f58e713] [cursor=pointer]
+                    - cell "stat rendered by the editorial theme" [ref=f58e717]:
+                      - link "stat rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/stat.png
+                        - img "stat rendered by the editorial theme"
+                  - row [ref=f58e718]:
+                    - cell [ref=f58e719]:
+                      - strong [ref=f58e720]:
+                        - code [ref=f58e721]: chart
+                      - text: — A small static chart rendered to inline SVG at build time from inline data or a YAML file.
+                      - generic [ref=f58e722]:
+                        - code [ref=f58e724]: ":::chart{type=\"bar\" source=\"https://snypd.rocks/bench\" caption=\"Tokens per page, HTML vs markdown twin\" unit=\"tokens\"} - { label: HTML, value: 6120 } - { label: Markdown twin, value: 504 } :::"
+                        - button "Copy code to clipboard" [ref=f58e726] [cursor=pointer]
+                    - cell "chart rendered by the editorial theme" [ref=f58e730]:
+                      - link "chart rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/chart.png
+                        - img "chart rendered by the editorial theme"
+                  - row [ref=f58e731]:
+                    - cell [ref=f58e732]:
+                      - strong [ref=f58e733]:
+                        - code [ref=f58e734]: diagram
+                      - text: — A box-and-arrow diagram laid out automatically (layered, deterministic) and rendered to inline SVG at build time.
+                      - generic [ref=f58e735]:
+                        - code [ref=f58e737]: ":::diagram{direction=\"lr\" caption=\"Content flows from git to two outputs.\"} nodes: - { id: md, label: markdown + YAML } - { id: build, label: snypd build } - { id: html, label: HTML } - { id: twin, label: .md twin } edges: - { from: md, to: build } - { from: build, to: html } - { from: build, to: twin } :::"
+                        - button "Copy code to clipboard" [ref=f58e739] [cursor=pointer]
+                    - cell "diagram rendered by the editorial theme" [ref=f58e743]:
+                      - link "diagram rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/diagram.png
+                        - img "diagram rendered by the editorial theme"
+                  - row [ref=f58e744]:
+                    - cell [ref=f58e745]:
+                      - strong [ref=f58e746]:
+                        - code [ref=f58e747]: flow
+                      - text: — An ordered procedure with branches — steps plus yes/no decisions — written as YAML and rendered as a diagram.
+                      - generic [ref=f58e748]:
+                        - code [ref=f58e750]: ":::flow{caption=\"Publishing lands one item on main; the agent never checks main out.\"} steps: - Draft on snypd/drafts - Run lint - ask: Lint clean? yes: Open preview no: { then: fix } - id: fix do: Fix the reported rule and re-lint - Human approves - Land that one item on main :::"
+                        - button "Copy code to clipboard" [ref=f58e752] [cursor=pointer]
+                    - cell "flow rendered by the editorial theme" [ref=f58e756]:
+                      - link "flow rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/flow.png
+                        - img "flow rendered by the editorial theme"
+                  - row [ref=f58e757]:
+                    - cell [ref=f58e758]:
+                      - strong [ref=f58e759]:
+                        - code [ref=f58e760]: steps
+                      - text: — An ordered procedure, emitted as HowTo schema.
+                      - generic [ref=f58e761]:
+                        - code [ref=f58e763]: ":::steps{title=\"Add a markdown twin\" time=\"5 min\"} 1. **Build** — `snypd build` writes `index.md` beside every `index.html`. 2. **Serve** — answer `Accept: text/markdown` with the twin. 3. **Verify** — `curl -H 'Accept: text/markdown' https://example.com/post/`. :::"
+                        - button "Copy code to clipboard" [ref=f58e765] [cursor=pointer]
+                    - cell "steps rendered by the editorial theme" [ref=f58e769]:
+                      - link "steps rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/steps.png
+                        - img "steps rendered by the editorial theme"
+                  - row [ref=f58e770]:
+                    - cell [ref=f58e771]:
+                      - strong [ref=f58e772]:
+                        - code [ref=f58e773]: faq
+                      - text: — Question-and-answer pairs, emitted as FAQPage schema.
+                      - generic [ref=f58e774]:
+                        - code [ref=f58e776]: ":::faq ### Does llms.txt help ranking? No. No search engine has announced support. ### What does help? A markdown twin served on `Accept: text/markdown`. :::"
+                        - button "Copy code to clipboard" [ref=f58e778] [cursor=pointer]
+                    - cell "faq rendered by the editorial theme" [ref=f58e782]:
+                      - link "faq rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/faq.png
+                        - img "faq rendered by the editorial theme"
+                  - row [ref=f58e783]:
+                    - cell [ref=f58e784]:
+                      - strong [ref=f58e785]:
+                        - code [ref=f58e786]: figure
+                      - text: — An image with mandatory alt text and an optional caption; the only way to place an image.
+                      - generic [ref=f58e787]:
+                        - code [ref=f58e789]: "::figure{src=\"/media/twin.png\" alt=\"Side-by-side HTML and markdown of the same post\" caption=\"The `.md` twin is the source file.\" width=\"wide\"}"
+                        - button "Copy code to clipboard" [ref=f58e791] [cursor=pointer]
+                    - cell "figure rendered by the editorial theme" [ref=f58e795]:
+                      - link "figure rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/figure.png
+                        - img "figure rendered by the editorial theme"
+                  - row [ref=f58e796]:
+                    - cell [ref=f58e797]:
+                      - strong [ref=f58e798]:
+                        - code [ref=f58e799]: cta
+                      - text: — One call to action — a title, a line of body and a single button.
+                      - generic [ref=f58e800]:
+                        - code [ref=f58e802]: "::cta{title=\"Run the bench yourself\" body=\"One binary, one command.\" button=\"Install\" href=\"https://snypd.rocks/install\"}"
+                        - button "Copy code to clipboard" [ref=f58e804] [cursor=pointer]
+                    - cell "cta rendered by the editorial theme" [ref=f58e808]:
+                      - link "cta rendered by the editorial theme":
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/primitives/cta.png
+                        - img "cta rendered by the editorial theme"
+              - generic [ref=f58e809]:
+                - heading "Three themes, six looks" [level=2] [ref=f58e810]
+                - 'link "Permalink: Three themes, six looks" [ref=f58e811] [cursor=pointer]':
+                  - /url: "#three-themes-six-looks"
+              - paragraph [ref=f58e814]:
+                - text: The same post, photographed in every look the shelf carries. Each look is measured before it is photographed — JavaScript on the wire, the webfont against its own budget, axe violations at 1280 and 390 px (
+                - link "bench/gallery.md" [ref=f58e815] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/bench/gallery.md
+                - text: ", live at"
+                - link "snypd.rocks/themes" [ref=f58e816] [cursor=pointer]:
+                  - /url: https://snypd.rocks/themes/
+                - text: ).
+              - table [ref=f58e818]:
+                - rowgroup [ref=f58e819]:
+                  - row [ref=f58e820]:
+                    - cell [ref=f58e821]:
+                      - img "editorial › paper" [ref=f58e824]
+                      - strong [ref=f58e825]: editorial › paper
+                      - text: — warm cream, oxblood accent, serif throughout.
+                      - subscript [ref=f58e826]: 0 KB JS · 30.4 KB font · 0 axe
+                    - cell [ref=f58e827]:
+                      - link [ref=f58e828] [cursor=pointer]:
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/looks/editorial-ink-dark.png
+                        - img "editorial › ink" [ref=f58e829]
+                      - strong [ref=f58e830]: editorial › ink
+                      - text: "— dark only: a cool near-black, one cyan, the same measure."
+                      - subscript [ref=f58e831]: 0 KB · 30.4 KB · 0
+                  - row [ref=f58e832]:
+                    - cell [ref=f58e833]:
+                      - img "editorial › broadsheet" [ref=f58e836]
+                      - strong [ref=f58e837]: editorial › broadsheet
+                      - text: — a wider column, sans headlines, tighter leading, a press blue.
+                      - subscript [ref=f58e838]: 0 KB · 30.4 KB · 0
+                    - cell [ref=f58e839]:
+                      - img "technical › graphite" [ref=f58e842]
+                      - strong [ref=f58e843]: technical › graphite
+                      - text: — cool neutral, one blue, mono headings, follows the reader's scheme.
+                      - subscript [ref=f58e844]: 0 KB · 0 KB · 0
+                  - row [ref=f58e845]:
+                    - cell [ref=f58e846]:
+                      - link [ref=f58e847] [cursor=pointer]:
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/looks/technical-phosphor-dark.png
+                        - img "technical › phosphor" [ref=f58e848]
+                      - strong [ref=f58e849]: technical › phosphor
+                      - text: "— dark only: amber on near-black, mono throughout."
+                      - subscript [ref=f58e850]: 0 KB · 0 KB · 0
+                    - cell [ref=f58e851]:
+                      - img "base" [ref=f58e854]
+                      - strong [ref=f58e855]: base
+                      - text: — unstyled. Semantic HTML, one class per primitive, all five layouts; every theme extends it.
+                      - subscript [ref=f58e856]: 0 KB · 0 KB · 0
+              - paragraph [ref=f58e857]:
+                - link [ref=f58e858] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/phones/strip.png
+                  - img "The six looks at 390 px" [ref=f58e859]
+              - generic [ref=f58e860]:
+                - heading "Write a theme" [level=3] [ref=f58e861]
+                - 'link "Permalink: Write a theme" [ref=f58e862] [cursor=pointer]':
+                  - /url: "#write-a-theme"
+              - paragraph [ref=f58e865]:
+                - text: "A theme is the one artefact that is not content, so it is the one thing a terminal makes:"
+                - code [ref=f58e866]: snypd new theme slate
+                - text: writes a
+                - code [ref=f58e867]: theme.yaml
+                - text: and one stylesheet, and
+                - code [ref=f58e868]: base
+                - text: brings every layout and all thirteen primitives. A theme may declare tokens, named looks (
+                - code [ref=f58e869]: variations
+                - text: ), settings a site can flip, and
+                - strong [ref=f58e870]: one webfont
+                - text: — self-hosted, subsetted, ≤ 40 KB, with a metric-matched fallback.
+                - code [ref=f58e871]: snypd check theme
+                - text: is the judge, and it is what
+                - link "snypd.rocks/themes" [ref=f58e872] [cursor=pointer]:
+                  - /url: https://snypd.rocks/themes/
+                - text: "runs before it lists anything: seventeen named rules, including the WCAG ratio of every colour pair on every look the theme ships. Or ask your agent — the"
+                - code [ref=f58e873]: build-theme
+                - text: prompt walks it through the same eight steps.
+              - paragraph [ref=f58e874]:
+                - link [ref=f58e875] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/terminal/check-theme.png
+                  - img "snypd check theme editorial — passes, 17 rules" [ref=f58e876]
+              - generic [ref=f58e877]:
+                - heading "The MCP surface" [level=2] [ref=f58e878]
+                - 'link "Permalink: The MCP surface" [ref=f58e879] [cursor=pointer]':
+                  - /url: "#the-mcp-surface"
+              - paragraph [ref=f58e882]:
+                - text: Small on purpose.
+                - code [ref=f58e883]: tools/list
+                - text: is
+                - code [ref=f58e884]: content.*
+                - text: plus
+                - code [ref=f58e885]: find_tools
+                - text: ", which hands over theming, config and the bench when asked —"
+                - strong [ref=f58e886]: 2 230 tokens a turn
+                - text: ", and a whole site costs an agent under 6 000 tokens to learn ("
+                - link "bench/latest.md › tokens" [ref=f58e887] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/bench/latest.md
+                - text: ","
+                - link "docs/03" [ref=f58e888] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/docs/03-mcp.md
+                - text: ).
+              - table [ref=f58e890]:
+                - rowgroup [ref=f58e891]:
+                  - row [ref=f58e892]:
+                    - columnheader [ref=f58e893]
+                    - columnheader [ref=f58e894]
+                - rowgroup [ref=f58e895]:
+                  - row [ref=f58e896]:
+                    - cell [ref=f58e897]:
+                      - strong [ref=f58e898]: Resources
+                    - cell [ref=f58e899]:
+                      - code [ref=f58e900]: snypd://config
+                      - text: ·
+                      - code [ref=f58e901]: snypd://spec/primitives
+                      - text: ·
+                      - code [ref=f58e902]: snypd://types
+                      - text: ·
+                      - code [ref=f58e903]: snypd://theme
+                      - text: (tokens, variations, settings, coverage) ·
+                      - code [ref=f58e904]: snypd://themes
+                      - text: ·
+                      - code [ref=f58e905]: snypd://plugins
+                      - text: ·
+                      - code [ref=f58e906]: snypd://nav
+                      - text: ·
+                      - code [ref=f58e907]: snypd://bench/latest
+                  - row [ref=f58e908]:
+                    - cell [ref=f58e909]:
+                      - strong [ref=f58e910]: Tools
+                    - cell [ref=f58e911]:
+                      - code [ref=f58e912]: content.create
+                      - text: ·
+                      - code [ref=f58e913]: update
+                      - text: ·
+                      - code [ref=f58e914]: lint
+                      - text: ·
+                      - code [ref=f58e915]: publish
+                      - text: ·
+                      - code [ref=f58e916]: set_status
+                      - text: ·
+                      - code [ref=f58e917]: query
+                      - text: ·
+                      - code [ref=f58e918]: render_preview
+                      - text: ·
+                      - code [ref=f58e919]: suggest_blocks
+                      - text: ·
+                      - code [ref=f58e920]: explain
+                      - text: ·
+                      - code [ref=f58e921]: trash
+                      - text: ·
+                      - code [ref=f58e922]: restore
+                      - text: ·
+                      - code [ref=f58e923]: find_tools
+                      - text: →
+                      - code [ref=f58e924]: site
+                      - text: ","
+                      - code [ref=f58e925]: theme
+                      - text: ","
+                      - code [ref=f58e926]: bench
+                      - text: ", and one tool per plugin"
+                  - row [ref=f58e927]:
+                    - cell [ref=f58e928]:
+                      - strong [ref=f58e929]: Prompts
+                    - cell [ref=f58e930]:
+                      - code [ref=f58e931]: get-started
+                      - text: — reads what the site already is and takes it from there ·
+                      - code [ref=f58e932]: write-post
+                      - text: ·
+                      - code [ref=f58e933]: build-theme
+              - paragraph [ref=f58e934]:
+                - text: "Tested against live models, not mocks: the kill test passes"
+                - strong [ref=f58e935]: 15/15
+                - text: on haiku, sonnet and opus (
+                - link "bench/agent.md" [ref=f58e936] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/bench/agent.md
+                - text: ), and a first-attempt post lints clean
+                - strong [ref=f58e937]: 70 % / 95 % / 95 %
+                - text: of the time over twenty topics (
+                - link "bench/writes.md" [ref=f58e938] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/bench/writes.md
+                - text: ).
+              - generic [ref=f58e939]:
+                - heading "A person in the loop" [level=2] [ref=f58e940]
+                - 'link "Permalink: A person in the loop" [ref=f58e941] [cursor=pointer]':
+                  - /url: "#a-person-in-the-loop"
+              - paragraph [ref=f58e944]:
+                - text: By default an agent drafts, publishes and pushes. A site puts a person back in the loop per type (
+                - code [ref=f58e945]: "mcp.write: draft"
+                - text: — the agent stops at a review URL and a person approves that exact version) or per deploy (
+                - code [ref=f58e946]: "deploy.push: human"
+                - text: — the one button on the Desk). Writes land on a
+                - code [ref=f58e947]: snypd/drafts
+                - text: branch; a build of that branch is a
+                - code [ref=f58e948]: noindex
+                - text: preview; publishing lands one item on
+                - code [ref=f58e949]: main
+                - text: .
+                - code [ref=f58e950]: snypd dev
+                - text: "is the one verb aimed at a person: it serves what a build already produced and writes nothing."
+              - paragraph [ref=f58e951]:
+                - 'img "The Desk: a draft in flight, a Push card, what to say to your agent" [ref=f58e954]'
+                - subscript [ref=f58e955]:
+                  - text: The Desk at
+                  - code [ref=f58e956]: /_snypd
+                  - text: ": what to say to your agent, computed from the site's state; a draft in flight; the push, gated."
+              - generic [ref=f58e957]:
+                - heading "Plugins" [level=2] [ref=f58e958]
+                - 'link "Permalink: Plugins" [ref=f58e959] [cursor=pointer]':
+                  - /url: "#plugins"
+              - paragraph [ref=f58e962]:
+                - text: A plugin is a directory with a
+                - code [ref=f58e963]: snypd.yaml
+                - text: . Four ship in the binary, one per tier —
+                - code [ref=f58e964]: changelog
+                - text: (a
+                - code [ref=f58e965]: release
+                - text: type and a
+                - code [ref=f58e966]: product
+                - text: taxonomy, no code),
+                - code [ref=f58e967]: analytics
+                - text: (a slot and a 3 KB client budget),
+                - code [ref=f58e968]: autolink
+                - text: (a transform over every document's tree),
+                - code [ref=f58e969]: indexnow
+                - text: (reacts to
+                - code [ref=f58e970]: publish
+                - text: and
+                - code [ref=f58e971]: push
+                - text: "through a fetch that reaches only the hosts it names). A plugin can also carry tools: one tool named after the plugin, verbs as actions, found through"
+                - code [ref=f58e972]: find_tools
+                - text: so the per-turn cost never moves. The contract is
+                - strong [ref=f58e973]: experimental through 0.x
+                - text: (
+                - link "docs/10 §4" [ref=f58e974] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/docs/10-plugins-and-launch.md
+                - text: ); a plugin is code you install and vet like any dependency, and nothing here is a sandbox.
+              - generic [ref=f58e975]:
+                - generic [ref=f58e976]: "plugin: name: changelog version: 0.1.0 api: 1 description: A `release` type and a `product` taxonomy — a changelog at /changelog/{slug}, no code. types: release: { extends: post, dir: content/changelog, urlPattern: /changelog/{slug}, taxonomies: [product] }"
+                - button "Copy code to clipboard" [ref=f58e978] [cursor=pointer]
+              - generic [ref=f58e982]:
+                - heading "Speed" [level=2] [ref=f58e983]
+                - 'link "Permalink: Speed" [ref=f58e984] [cursor=pointer]':
+                  - /url: "#speed"
+              - paragraph [ref=f58e987]:
+                - link [ref=f58e988] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/.github/readme/blocks/build-clock.svg
+                  - 'img "A cold build at 100, 1 000 and 10 000 posts: 292 ms, 2.7 s, 27.7 s" [ref=f58e989]'
+                - subscript [ref=f58e990]:
+                  - text: The chart is snypd's own
+                  - code [ref=f58e991]: chart
+                  - text: primitive, drawn by the build from rows read out of
+                  - link "bench/latest.md" [ref=f58e992] [cursor=pointer]:
+                    - /url: /snymrova/snypd/blob/r0-readme-ground/bench/latest.md
+                  - text: — CI's record, 4 vCPUs.
+              - table [ref=f58e994]:
+                - rowgroup [ref=f58e995]:
+                  - row [ref=f58e996]:
+                    - columnheader [ref=f58e997]
+                    - columnheader [ref=f58e998]
+                    - columnheader [ref=f58e999]
+                - rowgroup [ref=f58e1000]:
+                  - row [ref=f58e1001]:
+                    - cell [ref=f58e1002]:
+                      - strong [ref=f58e1003]: 2.7 ms a page
+                    - cell [ref=f58e1004]:
+                      - text: a cold build, no
+                      - code [ref=f58e1005]: dist/
+                      - text: ", no index — 2 748 ms for 1 000 posts, 27.7 s for 10 000"
+                    - cell [ref=f58e1006]:
+                      - link [ref=f58e1007] [cursor=pointer]:
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/bench/latest.md
+                        - code [ref=f58e1008]: build.cold.*
+                  - row [ref=f58e1009]:
+                    - cell [ref=f58e1010]:
+                      - strong [ref=f58e1011]: 13 ms
+                    - 'cell "one edit, rebuilt: 1 page rendered, 123 cached" [ref=f58e1012]'
+                    - cell [ref=f58e1013]:
+                      - link [ref=f58e1014] [cursor=pointer]:
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/bench/latest.md
+                        - code [ref=f58e1015]: build.incremental.100
+                  - row [ref=f58e1016]:
+                    - cell [ref=f58e1017]:
+                      - strong [ref=f58e1018]: 23 ms
+                    - cell [ref=f58e1019]:
+                      - text: spawn to
+                      - code [ref=f58e1020]: initialize
+                      - text: on the release binary, so the agent's first turn does not wait
+                    - cell [ref=f58e1021]:
+                      - link [ref=f58e1022] [cursor=pointer]:
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/bench/latest.md
+                        - code [ref=f58e1023]: mcp.coldStart.binary
+                  - row [ref=f58e1024]:
+                    - cell [ref=f58e1025]:
+                      - strong [ref=f58e1026]: 510 tokens
+                    - cell "to read one page as its markdown twin" [ref=f58e1027]
+                    - cell [ref=f58e1028]:
+                      - link [ref=f58e1029] [cursor=pointer]:
+                        - /url: /snymrova/snypd/blob/r0-readme-ground/bench/latest.md
+                        - code [ref=f58e1030]: tokens.page.md
+              - paragraph [ref=f58e1031]:
+                - text: Every row has a budget, CI passes at 80 % of it, and
+                - link "snypd.rocks/bench" [ref=f58e1032] [cursor=pointer]:
+                  - /url: https://snypd.rocks/bench/
+                - text: is generated from the same file.
+              - generic [ref=f58e1033]:
+                - heading "Deploy" [level=2] [ref=f58e1034]
+                - 'link "Permalink: Deploy" [ref=f58e1035] [cursor=pointer]':
+                  - /url: "#deploy"
+              - paragraph [ref=f58e1038]:
+                - code [ref=f58e1039]: snypd init --deploy=cloudflare
+                - text: (or
+                - code [ref=f58e1040]: vercel
+                - text: ) writes the host's half — a build command that is
+                - code [ref=f58e1041]: snypd build
+                - text: and a
+                - code [ref=f58e1042]: dist/
+                - text: — and a GitHub workflow that installs one pinned version and runs it. The host watches the repo; snypd never talks to it. A custom domain is never behind a paywall, because there is no paywall in the binary.
+              - generic [ref=f58e1043]:
+                - heading "Who it is for" [level=2] [ref=f58e1044]
+                - 'link "Permalink: Who it is for" [ref=f58e1045] [cursor=pointer]':
+                  - /url: "#who-it-is-for"
+              - paragraph [ref=f58e1048]:
+                - text: "Solo founders and small technical teams who already write in a harness and resent the CMS tab. Agencies running five to twenty client sites from one workspace: one binary, twenty git repos, $0. Not marketing teams who live in Notion — there is no dashboard, and there will never be a visual designer ("
+                - link "docs/11 decision 145" [ref=f58e1049] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/docs/11-hardening-and-themes.md
+                - text: ).
+              - paragraph [ref=f58e1050]:
+                - strong [ref=f58e1051]: WordPress for the agent era
+                - text: ", precisely: kept post types, taxonomies, hooks, themes, child themes and a plugin directory; refused the database, the dashboard, the registry, the priorities, and every byte of default JavaScript."
+              - group [ref=f58e1052]:
+                - strong [ref=f58e1054] [cursor=pointer]: Every verb
+              - group [ref=f58e1055]:
+                - strong [ref=f58e1057] [cursor=pointer]: The plugin contract
+              - group [ref=f58e1058]:
+                - strong [ref=f58e1060] [cursor=pointer]: The pictures in this file
+              - separator [ref=f58e1061]
+              - paragraph [ref=f58e1062]:
+                - text: "Design set:"
+                - link [ref=f58e1063] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/docs
+                  - code [ref=f58e1064]: docs/
+                - text: "— the answer to \"why is it like this\" · Site:"
+                - link "snypd.rocks" [ref=f58e1065] [cursor=pointer]:
+                  - /url: https://snypd.rocks
+                - text: ·
+                - link "Themes" [ref=f58e1066] [cursor=pointer]:
+                  - /url: https://snypd.rocks/themes/
+                - text: ·
+                - link "Plugins" [ref=f58e1067] [cursor=pointer]:
+                  - /url: https://snypd.rocks/plugins/
+                - text: ·
+                - link "Benchmarks" [ref=f58e1068] [cursor=pointer]:
+                  - /url: https://snypd.rocks/bench/
+                - text: ·
+                - link "Contributing" [ref=f58e1069] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/CONTRIBUTING.md
+                - text: ·
+                - link "Security" [ref=f58e1070] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/SECURITY.md
+                - text: · MIT (
+                - link "LICENSE" [ref=f58e1071] [cursor=pointer]:
+                  - /url: /snymrova/snypd/blob/r0-readme-ground/LICENSE
+                - text: )
+      - generic [ref=f58e1074]:
+        - generic [ref=f58e1075]:
+          - heading "About" [level=2] [ref=f58e1076]
+          - paragraph [ref=f58e1077]: An open-source CMS whose only interface is MCP — write, theme and publish a site from the agent you already use. Markdown + YAML in a git repo you own, one Bun binary, zero-JS static HTML.
+          - generic "https://snypd.rocks" [ref=f58e1081]:
+            - link "snypd.rocks" [ref=f58e1082] [cursor=pointer]:
+              - /url: https://snypd.rocks
+          - heading "Topics" [level=3] [ref=f58e1083]
+          - generic [ref=f58e1084]:
+            - link "ai-agents" [ref=f58e1085] [cursor=pointer]:
+              - /url: /topics/ai-agents
+            - link "bun" [ref=f58e1086] [cursor=pointer]:
+              - /url: /topics/bun
+            - link "claude" [ref=f58e1087] [cursor=pointer]:
+              - /url: /topics/claude
+            - link "cms" [ref=f58e1088] [cursor=pointer]:
+              - /url: /topics/cms
+            - link "headless-cms" [ref=f58e1089] [cursor=pointer]:
+              - /url: /topics/headless-cms
+            - link "jamstack" [ref=f58e1090] [cursor=pointer]:
+              - /url: /topics/jamstack
+            - link "markdown" [ref=f58e1091] [cursor=pointer]:
+              - /url: /topics/markdown
+            - link "mcp" [ref=f58e1092] [cursor=pointer]:
+              - /url: /topics/mcp
+            - link "model-context-protocol" [ref=f58e1093] [cursor=pointer]:
+              - /url: /topics/model-context-protocol
+            - link "static-site-generator" [ref=f58e1094] [cursor=pointer]:
+              - /url: /topics/static-site-generator
+            - link "typescript" [ref=f58e1095] [cursor=pointer]:
+              - /url: /topics/typescript
+          - heading "Resources" [level=3] [ref=f58e1096]
+          - link "Readme" [ref=f58e1098] [cursor=pointer]:
+            - /url: "#readme-ov-file"
+          - link "License" [ref=f58e1102] [cursor=pointer]:
+            - /url: "#License-1-ov-file"
+          - heading "Code of conduct" [level=3] [ref=f58e1105]
+          - link "Code of conduct" [ref=f58e1107] [cursor=pointer]:
+            - /url: /snymrova/snypd/tree/r0-readme-ground#coc-ov-file
+          - heading "Contributing" [level=3] [ref=f58e1110]
+          - link "Contributing" [ref=f58e1112] [cursor=pointer]:
+            - /url: "#contributing-ov-file"
+          - heading "Security policy" [level=3] [ref=f58e1115]
+          - link "Security policy" [ref=f58e1117] [cursor=pointer]:
+            - /url: "#security-ov-file"
+          - link "Activity" [ref=f58e1121] [cursor=pointer]:
+            - /url: /snymrova/snypd/activity
+          - heading "Stars" [level=3] [ref=f58e1124]
+          - generic [ref=f58e1126]:
+            - strong [ref=f58e1129]: "0"
+            - text: stars
+          - heading "Watchers" [level=3] [ref=f58e1130]
+          - generic [ref=f58e1132]:
+            - strong [ref=f58e1135]: "0"
+            - text: watching
+          - heading "Forks" [level=3] [ref=f58e1136]
+          - link [ref=f58e1138] [cursor=pointer]:
+            - /url: /snymrova/snypd/forks
+            - strong [ref=f58e1142]: "0"
+            - text: forks
+          - link "Report repository" [ref=f58e1144] [cursor=pointer]:
+            - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Fsnymrova%2Fsnypd&report=snymrova+%28user%29
+        - heading "Releases" [level=2] [ref=f58e1146]
+        - heading "Packages" [level=2] [ref=f58e1150]
+        - heading "Contributors" [level=2] [ref=f58e1153]
+        - heading "Languages" [level=2] [ref=f58e1156]
+  - contentinfo [ref=f58e1159]:
+    - heading "Footer" [level=2] [ref=f58e1160]
+    - generic [ref=f58e1161]:
+      - generic [ref=f58e1162]:
+        - link "GitHub Homepage" [ref=f58e1163] [cursor=pointer]:
+          - /url: https://github.com
+        - generic [ref=f58e1166]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=f58e1167]:
+        - heading "Footer navigation" [level=3] [ref=f58e1168]
+        - list "Footer navigation" [ref=f58e1169]:
+          - listitem [ref=f58e1170]:
+            - link "Terms" [ref=f58e1171] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=f58e1172]:
+            - link "Privacy" [ref=f58e1173] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=f58e1174]:
+            - link "Security" [ref=f58e1175] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=f58e1176]:
+            - link "Status" [ref=f58e1177] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=f58e1178]:
+            - link "Community" [ref=f58e1179] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=f58e1180]:
+            - link "Docs" [ref=f58e1181] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=f58e1182]:
+            - link "Contact" [ref=f58e1183] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=f58e1184]:
+            - button "Manage cookies" [ref=f58e1186] [cursor=pointer]
+          - listitem [ref=f58e1187]:
+            - button "Do not share my personal information" [ref=f58e1189] [cursor=pointer]

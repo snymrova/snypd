@@ -9,7 +9,9 @@ import { writeFileSync, existsSync } from "node:fs";
 import { primitives } from "@snypd/spec";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-// A newline inside `<pre>` is written as `&#10;`: an example with a blank line (`faq`'s) would otherwise
+// Inline `<code>`, not `<pre>`: GitHub's table is `width: max-content`, so a `<pre>` with a 120-character
+// line pushed the picture column off the right edge behind a scrollbar; `code` breaks spaces and keeps
+// newlines (`white-space: break-spaces`). A newline is written as `&#10;`: an example with a blank line (`faq`'s) would otherwise
 // end the HTML block under CommonMark and hand the rest of the table to markdown — `### What does help?`
 // rendered as a heading of the README the first time it was pushed.
 const pre = (s: string) => esc(s).replace(/\n/g, "&#10;");
@@ -19,7 +21,7 @@ const rows = ORDER.map((name) => {
   const img = `.github/readme/primitives/${name}.png`;
   if (!existsSync(img)) throw new Error(`${img} is missing — run shots.ts first`);
   return `<tr>
-<td valign="top" width="46%"><strong><code>${name}</code></strong> — ${esc(p.purpose.split(". ")[0]!.replace(/\.$/, ""))}.<pre><code>${pre(p.example.trimEnd())}</code></pre></td>
+<td valign="top" width="46%"><strong><code>${name}</code></strong> — ${esc(p.purpose.split(". ")[0]!.replace(/\.$/, ""))}.<br><br><code>${pre(p.example.trimEnd())}</code></td>
 <td valign="top" width="54%"><img src="${img}" alt="${esc(name)} rendered by the editorial theme" width="100%"></td>
 </tr>`;
 });
