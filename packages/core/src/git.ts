@@ -58,6 +58,36 @@ export const DRAFTS_BRANCH = "snypd/drafts";
 /** Where drafts land when nothing else is recorded — a repo `snypd init` made, before its first publish. */
 export const DEFAULT_BASE = "main";
 
+/**
+ * The branch a build is *for* (S19d) — which is not always the branch that is checked out.
+ *
+ * A host that builds every branch runs the same `snypd build` on all of them, and it usually does so
+ * on a detached HEAD: Cloudflare, Vercel and a GitHub Actions runner each check out a commit, not a
+ * branch, and `git symbolic-ref HEAD` answers nothing. Every one of them says which branch it was in the
+ * environment instead, so that is read first, in the order a person would set them — `SNYPD_BRANCH` is
+ * the explicit override, and the rest are the hosts' own names for the same fact. Netlify's `BRANCH` is
+ * too generic a name to trust on its own, so it counts only when `NETLIFY` is also set. A checkout with
+ * a real branch is the last answer, for `snypd build` on a laptop.
+ *
+ * `from` says which of them decided, so a build that included drafts can say why in one line.
+ */
+export function builtBranch(root: string, env: NodeJS.ProcessEnv = process.env): { name?: string; from: string } {
+  const vars: [string, string][] = [
+    ["SNYPD_BRANCH", "SNYPD_BRANCH"],
+    ["WORKERS_CI_BRANCH", "Cloudflare Workers Builds"],
+    ["CF_PAGES_BRANCH", "Cloudflare Pages"],
+    ["VERCEL_GIT_COMMIT_REF", "Vercel"],
+    ["GITHUB_HEAD_REF", "GitHub Actions (pull request)"],
+    ["GITHUB_REF_NAME", "GitHub Actions"],
+  ];
+  if (env.NETLIFY) vars.push(["BRANCH", "Netlify"]);
+  for (const [k, from] of vars) if (env[k]) return { name: env[k], from };
+  const repo = Repo.open(root);
+  if (!repo) return { from: "no repo" };
+  const sym = repo.run("symbolic-ref", "--quiet", "--short", "HEAD");
+  return sym.ok && sym.stdout ? { name: sym.stdout, from: "git" } : { from: "detached HEAD" };
+}
+
 export function git(root: string, ...args: string[]): GitResult { return gitEnv(root, {}, ...args); }
 
 /** `git()` plus environment — `land()` needs `GIT_INDEX_FILE`, and nothing else may inherit it. */

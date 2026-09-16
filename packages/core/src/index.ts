@@ -18,10 +18,10 @@ export { readHeartbeat, writeHeartbeat, clearHeartbeat, heartbeatPath, heartbeat
 export { onboardingFacts, onboarded, registration, ONE_SENTENCE, type OnboardingFacts, type Registration } from "./onboard";
 export { readDev, writeDev, clearDev, liveDev, devPath, devProcessAlive, ALIVE_ROUTE, LIVE_ROUTE, type DevRecord } from "./dev";
 export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, RACY_MS, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
-export { Repo, git, initRepo, isRepoRoot, principal, commitHint, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
+export { Repo, git, initRepo, isRepoRoot, principal, commitHint, builtBranch, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
 export { writeDeploy, buildCommand, DEPLOY_TARGETS, LAUNCHER, VERSION, type DeployTarget } from "./deploy";
 // S19a: the push — the only outward-facing act in the product, and the one a person performs (decision 44).
-export { pushState, pushSite, pushHint, deployTarget, originName, PUSH_ROUTE, type PushState, type PushResult, type PushCommit, type PushBlocker } from "./push";
+export { pushState, pushSite, pushHint, deployTarget, originName, PUSH_ROUTE, DRAFTS_PUSH_EXPOSES, type PushState, type PushResult, type PushCommit, type PushBlocker } from "./push";
 // P4: tier 4 — speak (docs/10 §4.2). A plugin's MCP tools and prompts: the contract, the loaders, and the call.
 export { loadPluginTools, loadPluginPrompts, callPluginTool, type PluginToolCtx, type PluginToolReply, type PluginToolAction, type PluginToolsModule, type PluginToolSet, type PluginPromptCtx, type PluginPromptDef, type PluginPromptsModule, type PluginPromptSet, type PluginPage } from "./speak";
 // P3: events — fire and report (docs/10 §4.5, decision 87) — and the allowlisted fetch a handler is handed (§4.7).

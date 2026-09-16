@@ -11,7 +11,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, RACY_MS, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, RACY_MS, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, builtBranch, DRAFTS_BRANCH, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt, type Sectioned } from "./html";
 import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps, type PageHeading } from "./theme";
@@ -24,8 +24,20 @@ import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite,
 
 export interface BuildOptions {
   out?: string; cfg?: LoadedConfig; index?: SiteIndex; cache?: MdastCache;
-  /** Render drafts too (everything but trashed). `snypd dev` builds this way; `dist/` never does. */
+  /**
+   * Render drafts too (everything but trashed). `snypd dev` builds this way, `snypd build --drafts` does,
+   * and — S19d — so does a plain `snypd build` when the branch it is building *is* the drafts branch
+   * (`builtBranch`: the host's environment first, then the checkout). Left unset, that is the rule; set
+   * either way, the caller has decided.
+   */
   drafts?: boolean;
+  /**
+   * This output is a *preview* that leaves the machine with drafts in it (S19d, decision 167): every page
+   * is `noindex` and `robots.txt` disallows the site. On by default exactly when `drafts` was decided by
+   * the branch; `snypd build --drafts` sets it; `snypd dev` does not — its pages are byte-identical to
+   * `dist/`'s by decision 51, and a preview served from this machine is nothing a crawler reaches.
+   */
+  preview?: boolean;
   /** The plugins' hooks, already resolved — `snypd dev` bundles them; a one-shot build resolves its own. */
   hooks?: Hooks;
 }
@@ -46,6 +58,12 @@ export interface BuildResult {
    * second core could take, and the report says how much of a cold build that is at each size.
    */
   profile: { stat: number; parse: number; html: number; write: number; weigh: number; index: number };
+  /** Drafts were rendered (see `BuildOptions.drafts`). */
+  drafts: boolean;
+  /** The output marked itself a preview — `noindex`, `Disallow: /` (see `BuildOptions.preview`). */
+  preview: boolean;
+  /** The branch this build was for and who said so, when the build had to find out (S19d); absent when the caller decided. */
+  branch?: { name?: string; from: string };
   theme: { name: string; coverage: Theme["coverage"] };
   /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. `record` is present only when the caller asked for one (P4, `content.explain`). */
   hooks: { plugins: string[]; diagnostics: HookDiagnostic[]; record?: HookRun[] };
@@ -101,6 +119,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const timed = (k: keyof typeof profile, fn: () => void) => { const t = performance.now(); fn(); profile[k] += performance.now() - t; };
   const parsed: Pick<MdastCache, "get"> = { get: (source) => { const t = performance.now(); try { return cache.get(source); } finally { profile.parse += performance.now() - t; } } };
   const c = cfg.config;
+  // S19d: a host that builds every branch runs this same command on `snypd/drafts`, and until now got a
+  // site without the drafts in it — a public URL for a preview of nothing. One git call, paid only when
+  // nobody said and no host's environment names the branch; `snypd dev` and the bench both say.
+  const branch = opts.drafts === undefined ? builtBranch(root) : undefined;
+  const drafts = opts.drafts ?? branch?.name === DRAFTS_BRANCH;
+  const preview = opts.preview ?? (branch !== undefined && drafts);
   const site = { name: c.site.name, url: c.site.url.replace(/\/$/, ""), description: c.site.description, icon: c.site.icon as string | undefined, image: c.site.image as string | undefined };
   const tokens = resolveTokens(c.theme.tokens as Parameters<typeof resolveTokens>[0]);
   // The theme's settings, resolved once (U3): the site's answers over the declared defaults. Empty for a
@@ -136,7 +160,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     mediaFiles.push({ rel, src, url, key: sha1(`${OUTPUT_FORMAT}:media:${rel}:${st.size}:${st.mtimeMs}${racy ? `:racy:${sync.at}` : ""}`) });
   }
   const isPublic = (f: IndexedFile) => c.statuses[f.status]?.public === true;
-  const visible = (f: IndexedFile) => (opts.drafts ? f.status !== "trashed" : isPublic(f));
+  const visible = (f: IndexedFile) => (drafts ? f.status !== "trashed" : isPublic(f));
   const newest = (a: IndexedFile, b: IndexedFile) => (b.date ?? "").localeCompare(a.date ?? "") || a.route.localeCompare(b.route);
   const rawEntry = (f: IndexedFile): Entry => ({ route: f.route, type: f.type, slug: f.slug, title: f.title, date: f.date, updated: f.updated, status: f.status, description: typeof f.frontmatter.description === "string" ? f.frontmatter.description : undefined, frontmatter: f.frontmatter });
   const fctx = (route: string, entry?: Entry) => ({ route, entry, site, config: c });
@@ -158,7 +182,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // A `ref` to a rerouted item follows the filter, because the menu must point where the page is.
   const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
   if (rerouted.size) for (const links of Object.values(nav.nav)) for (const l of links) if (l.route && rerouted.has(l.route)) { const r = rerouted.get(l.route)!; l.href = r === "/" ? "/" : `${r}/`; l.route = r; }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings };
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings, preview };
   // The plugin graph (P1, decision 95): every loaded plugin's bytes, hashed the way the theme chain is,
   // and the site's options beside them in the config hash — a transform that changes output must
   // invalidate the cache, and P3's transforms are plugin files. Both are absent from the key when no
@@ -178,7 +202,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
    * every page — a budget a cached page was never held to is not a budget.
    */
   const jsBudgetKb = ((b) => (typeof b === "number" ? b : 0))(c.bench?.budgets?.jsKb);
-  let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${opts.drafts ? ":drafts" : ""}:js${jsBudgetKb}`;   // a draft build's outputs are not dist's; the key says so
+  let base = `${OUTPUT_FORMAT}:${theme.hash}${pluginHash}:${configHash}:${mediaHash}:${nav.hash}${rerouted.size ? `:${sha1(JSON.stringify([...rerouted]))}` : ""}${drafts ? ":drafts" : ""}${preview ? ":preview" : ""}:js${jsBudgetKb}`;   // a draft build's outputs are not dist's, and a preview's are not a dev build's; the key says so
   // An index written by an older renderer describes outputs we no longer produce (S6 kept them route-relative):
   // forget its routes rather than trust or prune them. The index is disposable (docs/07 decision 13).
   if (index.meta("output.format") !== OUTPUT_FORMAT) { index.clearRoutes(); index.setMeta("output.format", OUTPUT_FORMAT); }
@@ -307,7 +331,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const listedRoutes = new Set(listed.map((f) => f.route));
   artefact("feed.xml", () => rss(siteSurface, surface.filter((e) => listedRoutes.has(e.route))));
   artefact("sitemap.xml", () => sitemap(siteSurface));
-  artefact("robots.txt", () => robotsTxt(siteSurface), base);
+  artefact("robots.txt", () => robotsTxt(siteSurface, preview), base);
   artefact("api/site.json", () => apiSite(siteSurface));
   for (const t of siteSurface.types) artefact(`api/${t.name}.json`, () => apiType(siteSurface, t));
   for (const t of siteSurface.taxonomies) artefact(`api/${t.name}.json`, () => apiTaxonomy(siteSurface, t));
@@ -432,7 +456,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, profile, theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
+  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, profile, drafts, preview, ...(branch ? { branch } : {}), theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
 }
 
 /**

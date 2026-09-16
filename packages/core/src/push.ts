@@ -32,13 +32,28 @@ import { DEPLOY_TARGETS, type DeployTarget } from "./deploy";
 /** Where the Desk's button lives, spelled once — `preview.ts` routes it and the MCP tool hands it out. */
 export const PUSH_ROUTE = "/_snypd/push";
 
+/**
+ * What pushing the drafts branch exposes (S19d, decision 167) — written down here, once, and shown
+ * before the first one leaves the machine, because pushing draft text is a different act from pushing
+ * published text and the difference is not visible in a `git push` line.
+ *
+ * Read the way a person about to press it would: what becomes readable, by whom, what does not change.
+ */
+export const DRAFTS_PUSH_EXPOSES = [
+  `Pushing \`${DRAFTS_BRANCH}\` sends every unapproved word on this site to the remote. On a public repository that is readable by anyone; on a private one, by everyone with read access — the same people who can read the published branch, but a draft is text nobody has approved yet.`,
+  `A host that builds branches will build it, and since S19d a build of \`${DRAFTS_BRANCH}\` includes the drafts: the preview is a site with the unapproved text in it, at the host's preview URL, readable by anyone who has that URL. Every page is \`noindex\` and its robots.txt disallows, which keeps it out of search and out of nothing else.`,
+  `Nothing is approved by a preview and nothing is published by it. Production is the base branch, and only a publish moves it. If the drafts must not be readable before approval, keep the repository private and the preview behind the host's own access control (Vercel protects previews by default; Cloudflare's can sit behind Access) — or do not push it.`,
+];
+
 export interface PushCommit { sha: string; subject: string }
 /** Something that must be true before a push means anything. Both halves are shown to a person. */
 export interface PushBlocker { reason: string; hint: string }
 
 export interface PushState {
-  /** The branch that would go: the one publishes land on. `snypd/drafts` is never it (see `pushSite`). */
+  /** The branch that would go: the one publishes land on — or `snypd/drafts`, when the state is for a preview push (S19d). */
   branch: string;
+  /** This state is for the drafts branch, not the site: what goes is unapproved text, for a preview (S19d). */
+  preview?: boolean;
   remote?: { name: string; url: string };
   /** `github.com/owner/site`, when the URL is legible enough to say so — for a link, never for a decision. */
   origin?: string;
@@ -80,12 +95,14 @@ export function deployTarget(root: string): DeployTarget | undefined {
  * (see `preview.ts`), because the page it lives on inherits `preview.ttfb ≤ 50 ms` and a spawn per
  * request is the thing that budget forbids.
  */
-export function pushState(root: string, cfg: LoadedConfig, opts: { drafts?: number } = {}): PushState {
+export function pushState(root: string, cfg: LoadedConfig, opts: { drafts?: number; preview?: boolean } = {}): PushState {
   const blockers: PushBlocker[] = [];
   const repo = Repo.open(root);
-  const branch = repo?.publishBase() ?? "main";
+  // A preview push sends the drafts branch (S19d); everything else sends the base. Same blockers, one
+  // swapped: a site with no base yet has nothing published, which stops a push and not a preview.
+  const branch = opts.preview ? DRAFTS_BRANCH : repo?.publishBase() ?? "main";
   const state = (extra: Partial<PushState> = {}): PushState => {
-    const s: PushState = { branch, known: false, ahead: 0, commits: [], drafts: opts.drafts ?? 0, dirty: 0, deploy: deployTarget(root), policy: (cfg.config as { deploy?: { push?: "agent" | "human" } }).deploy?.push ?? "agent", blockers, ok: false, ...extra };
+    const s: PushState = { branch, ...(opts.preview ? { preview: true } : {}), known: false, ahead: 0, commits: [], drafts: opts.drafts ?? 0, dirty: 0, deploy: deployTarget(root), policy: (cfg.config as { deploy?: { push?: "agent" | "human" } }).deploy?.push ?? "agent", blockers, ok: false, ...extra };
     s.ok = s.blockers.length === 0;
     return s;
   };
@@ -123,10 +140,12 @@ export function pushState(root: string, cfg: LoadedConfig, opts: { drafts?: numb
   // A base that does not exist means nothing has ever landed: the repo has only the drafts branch. Pushing
   // it is the one thing this must not do — the drafts branch is every unapproved word on the site.
   if (!repo.exists(branch))
-    blockers.push({
-      reason: `there is no \`${branch}\` branch yet — nothing has been published`,
-      hint: `Everything so far is on \`${DRAFTS_BRANCH}\`, which is drafts and stays local. Publish one item (a human approves it on the review page, then \`content.publish\`) and \`${branch}\` comes into existence with it.`,
-    });
+    blockers.push(opts.preview
+      ? { reason: `there is no \`${DRAFTS_BRANCH}\` branch yet — nothing has been drafted`, hint: "The drafts branch is cut on the first content write. Write something, and a preview push has something to send." }
+      : {
+        reason: `there is no \`${branch}\` branch yet — nothing has been published`,
+        hint: `Everything so far is on \`${DRAFTS_BRANCH}\`, which is drafts and stays local. Publish one item (a human approves it on the review page, then \`content.publish\`) and \`${branch}\` comes into existence with it.`,
+      });
 
   const un = remote && repo.exists(branch) ? repo.unpushed(remote.name, branch) : undefined;
   return state({
@@ -160,25 +179,32 @@ export interface PushResult {
 }
 
 /**
- * Send the base branch. **The one caller is the Desk's POST handler** — see this file's header.
+ * Send the base branch — or, with `preview`, the drafts branch (S19d).
  *
- * The drafts branch is not sent and there is no option to send it. A host that builds a non-production
- * branch runs `snypd build`, which emits published items only, so a pushed `snypd/drafts` produces a
- * preview of the site *without* the drafts in it — a worse answer than no preview, and a public URL for
- * the privilege. Branch previews are `07` S19a's second half and they need the host's build command to
- * be branch-aware first; until that exists and is verified against a real project, this sends one branch.
+ * Until S19d the drafts branch was not sent and there was no option to send it: a host building a
+ * non-production branch ran `snypd build`, which emitted published items only, so a pushed
+ * `snypd/drafts` produced a preview of the site *without* the drafts in it — a worse answer than no
+ * preview, and a public URL for the privilege. The build is branch-aware now (`builtBranch`), so a
+ * pushed `snypd/drafts` is a site with the drafts in it, `noindex`, at the host's preview URL. What
+ * that exposes is `DRAFTS_PUSH_EXPOSES`, and every caller shows it before the push, not after.
+ *
+ * `deploy.push` governs both: `human` is a person deciding what leaves this machine, and unapproved
+ * text leaving it is the stronger case, not the weaker one. The Desk has no preview button — a person
+ * on a `human` site pushes drafts from a shell, and the refusal says the command.
  */
-export function pushSite(root: string, cfg: LoadedConfig, opts: { who?: string; timeoutMs?: number; as?: "agent" | "human" } = {}): PushResult {
-  const st = pushState(root, cfg);
+export function pushSite(root: string, cfg: LoadedConfig, opts: { who?: string; timeoutMs?: number; as?: "agent" | "human"; preview?: boolean } = {}): PushResult {
+  const st = pushState(root, cfg, { preview: opts.preview });
   if (!st.ok) return { ok: false, branch: st.branch, remote: st.remote?.name, sent: 0, reason: st.blockers[0]!.reason, hint: st.blockers[0]!.hint };
   // The one refusal the policy adds, and it never applies to the Desk: a person at a browser is the
   // thing `human` was asking for, so a button press is not something to send back to a button.
   if (st.policy === "human" && (opts.as ?? "agent") !== "human")
-    return { ok: false, branch: st.branch, remote: st.remote?.name, sent: 0, reason: "`deploy.push` is `human` on this site", hint: "A person pushes it, from the button on the Desk under `snypd dev`. `site` › set_config `deploy.push` `agent` changes that, and is the default for a new site." };
+    return { ok: false, branch: st.branch, remote: st.remote?.name, sent: 0, reason: "`deploy.push` is `human` on this site", hint: opts.preview
+      ? `A person pushes the drafts branch, from a shell: \`git push -u ${st.remote?.name ?? "origin"} ${DRAFTS_BRANCH}\`. The Desk's button sends the site, never the drafts. \`site\` › set_config \`deploy.push\` \`agent\` changes that, and is the default for a new site.`
+      : "A person pushes it, from the button on the Desk under `snypd dev`. `site` › set_config `deploy.push` `agent` changes that, and is the default for a new site." };
   const repo = Repo.open(root)!;
   const remote = st.remote!;
-  if (st.branch === DRAFTS_BRANCH)
-    return { ok: false, branch: st.branch, remote: remote.name, sent: 0, reason: `refusing to push \`${DRAFTS_BRANCH}\``, hint: "The drafts branch is every unapproved word on this site. Publish an item and the base branch is what goes." };
+  if (st.branch === DRAFTS_BRANCH && !opts.preview)
+    return { ok: false, branch: st.branch, remote: remote.name, sent: 0, reason: `refusing to push \`${DRAFTS_BRANCH}\``, hint: "The drafts branch is every unapproved word on this site. Publish an item and the base branch is what goes — or ask for a preview, which sends the drafts on purpose and says what that exposes." };
 
   // What is about to go, read before the push moves the tracking ref (P3, for the `push` event): the
   // files between what the remote has and what it is getting, or the whole branch the first time.
