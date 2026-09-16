@@ -215,7 +215,7 @@ switch (verb) {
         watch: !flags.has("--no-watch"),
         reload,
         deskLink: true,
-        prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })),
+        prompts: PROMPTS.map((p) => ({ ...p, description: p.description ?? "" })),
       });
     } catch (e) {
       const err = e as Error & { hint?: string };

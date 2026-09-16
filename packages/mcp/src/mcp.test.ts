@@ -1094,6 +1094,32 @@ describe("the first run, from the agent's side", () => {
     expect(s).toContain("Do **not** ask for the URL");
   });
 
+  /**
+   * S23 (decision 177): the copy names the write policy rather than asserting one. Decision 80 made
+   * `publish` the default in S19c and these two prompts went on telling the agent that publishing was
+   * the human's — so an agent following them stopped one call short of the default behaviour, on the
+   * two workflows that exist to show it. The words follow the config now, and this is what stops them
+   * drifting back.
+   */
+  test("the prompts name the write policy and never assert the pre-80 one", async () => {
+    const [, gs, wp, pub] = await session([
+      req(1, "initialize"),
+      req(2, "prompts/get", { name: "get-started" }),
+      req(3, "prompts/get", { name: "write-post" }),
+      req(4, "tools/list"),
+    ], site);
+    for (const p of [gs, wp]) {
+      const s = p.result.messages[0].content.text as string;
+      expect(s).toContain("content.publish");
+      expect(s).toContain("`mcp.write` is `draft`");
+      expect(s).not.toContain("until I approve");
+      expect(s).not.toContain("publishing is mine");
+    }
+    const d = pub.result.tools.find((t: any) => t.name === "content.publish").description as string;
+    expect(d).toContain("The default policy is `publish`");
+    expect(d).not.toContain("`draft` (the default)");
+  });
+
   test("`site` › init takes no arguments, and the text it returns is addressed to the agent", async () => {
     const [, init] = await session([req(1, "initialize"), call(2, "site", { action: "init" })], site);
     expect(init.result.isError).toBeUndefined();

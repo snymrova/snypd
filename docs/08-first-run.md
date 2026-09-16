@@ -299,12 +299,12 @@ This section is unchanged in content and demoted in priority. It serves the **te
 
 1. **The checklist** — the six derived facts of decision 52, rendered from what `site` › doctor computes (decision 64), ordered by dependency, with unreachable rows shown as not-yet rather than hidden.
 2. **Three surface labels, not two.** *type this* / *say this to your agent* / *click this*, and the restart is properly *do this in your harness*. The entire confusion of onboarding is not knowing which surface you are on; the labels are cheaper than any copy.
-3. **The prompts, as selectable text.** `PROMPTS` and `getStarted({})` are static exports of a leaf module (`mcp/src/prompts.ts`, one `import type`). `tabindex="0"` on the container — the `<pre>` a keyboard could not reach is the defect `07` decision 50 caught on the review page.
+3. **The prompts, as selectable text.** `PROMPTS` and `getStarted({})` are static exports of a leaf module (`mcp/src/prompts.ts`, one `import type`). `tabindex="0"` on the container — the `<pre>` a keyboard could not reach is the defect `07` decision 50 caught on the review page. **Moved in S23** (`11` decision 176): the list is on the "say this to your agent" card, which does not vanish with the checklist, and each prompt now shows what it takes.
 4. **The `.mcp.json` block, verbatim.** "My harness didn't pick it up" is the most predictable failure in the flow and the fix is always *paste this into that file*.
 5. **"What is snypd"** inline in `<details>` — progressive disclosure at zero JS.
 6. **The site card**, with a placeholder URL flagged as unfinished rather than presented as fact.
 
-When the six are true, none of this renders and what remains is the ordinary Desk. No dismiss button, no stored flag.
+When the six are true, none of this renders and what remains is the ordinary Desk. No dismiss button, no stored flag. **Since S23 the ordinary Desk is more than three cards** — a facts strip, a permanent computed say-card, the shelf of every look as a specimen, In flight, Push, Status; `11` §7b S23 and decisions 175–177.
 
 **The Desk is not the front door under §2.** It is the surface a person meets at the *review*, which is step 12 and the first moment a human is genuinely needed. `07` decision 51's claim that a browser tab is "the only surface that survives the restart" is true of a human and false of an agent, whose continuous surface is the repo — and that is the claim this document's first draft built on. Amended in §11.
 
