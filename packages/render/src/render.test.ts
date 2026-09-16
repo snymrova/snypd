@@ -89,6 +89,13 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(r.theme.coverage.every((c) => c.status === "own")).toBe(true); expect(r.theme.coverage.length).toBe(13);
     const w = await build(root);
     expect(w.rendered).toBe(0); expect(w.cached).toBe(19);
+    // F1: the profile is the render phase, split. A cold build parses and writes; the warm one parses
+    // nothing, writes nothing, and its render phase is the stat pass over the outputs it kept.
+    const sum = (p: typeof r.profile) => Object.values(p).reduce((a, b) => a + b, 0);
+    expect(r.profile.parse).toBeGreaterThan(0); expect(r.profile.html).toBeGreaterThan(0); expect(r.profile.write).toBeGreaterThan(0);
+    expect(sum(r.profile)).toBeLessThanOrEqual(r.phases.render);
+    expect(w.profile.parse).toBe(0); expect(w.profile.html).toBe(0); expect(w.profile.write).toBe(0); expect(w.profile.weigh).toBeGreaterThanOrEqual(0);
+    expect(w.profile.stat).toBeGreaterThan(0);
   });
   test("S7 surface: llms.txt, feed, sitemap, robots, JSON API, JSON-LD", () => {
     const llms = read("", "llms.txt");
