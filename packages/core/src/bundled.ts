@@ -65,7 +65,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "6240aeb6320ce9ee4fd08b44185738fb83a48f96",
+    hash: "c0e1562a3b34e3fc5c8b956147f2d82ee1c3adf5",
     files: {
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
