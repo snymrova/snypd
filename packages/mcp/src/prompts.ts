@@ -84,7 +84,7 @@ Then \`find_tools\` with "set up a new site" to unlock the \`site\` tool, and \`
 
 1. **Learn the vocabulary first.** Read \`snypd://spec/primitives\`. Thirteen primitives — a post that is only prose is a post that wastes every one of them. Read \`snypd://theme\` for what is installed, and \`snypd://theme/tokens\` for what can be recoloured without writing CSS.
 2. **Write one real post.** Not "Hello world" — something true about this site, using at least two primitives. \`content.create\`, then fix whatever the lint it hands back tells you to fix, and repeat until it is clean. The hints are there to be acted on, not relayed to me.
-3. **Show me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Say plainly that publishing is mine: an agent drafts, a human approves the exact version on that page.
+3. **Show me, then publish it — or hand it to me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Then \`content.publish\`. It publishes unless this type's \`mcp.write\` is \`draft\` — then the refusal says so, and you give me the review URL and I approve that exact version there — or unless \`site.url\` is still a placeholder, which is step 4's to report. Say which of the three happened.
 4. **Report**, in one short paragraph: what exists now, what the theme is, and what I should decide next — theme, tokens, or more posts. If \`site.url\` is still a placeholder, say so here and tell me it is needed before anything publishes. Do not ask for it earlier.
 
 ---
@@ -113,7 +113,7 @@ function writePost(args: Record<string, unknown>): GetPromptResult {
 
 **If you were given prose to work from** rather than writing it fresh, call \`content.suggest_blocks\` on it first: it finds the table that is already a chart and the numbered list that is already a flow, and applies the ones you accept.
 
-**Show me the result.** \`content.render_preview\`: the page, the markdown twin, the review URL. Then tell me in two sentences what the post argues and which primitives it uses — and that it is a draft until I approve it.`),
+**Show me the result, then publish it — or hand it to me.** \`content.render_preview\`: the page, the markdown twin, the review URL. Then \`content.publish\`, unless this type's \`mcp.write\` is \`draft\` — the refusal says so — in which case give me the review URL and I approve that exact version there. Tell me in two sentences what the post argues and which primitives it uses, and which of the two happened.`),
   };
 }
 

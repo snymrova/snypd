@@ -50,8 +50,18 @@
  * The Desk renders its own document rather than going through the theme's page layout, which the
  * review page does use. A dashboard wearing the public site's nav and footer misrepresents where you
  * are — and owning `<head>` is what makes the meta refresh valid markup instead of a body injection.
- * It links the same stylesheet the shell does, so it inherits the theme's type and colour without
- * inheriting its chrome.
+ * It links the same stylesheet the shell does, so it inherits the theme's *colour* without inheriting
+ * its chrome — and since S23 not its type either: the Desk sets `system-ui` for everything it says
+ * itself, and the theme's faces appear in exactly one place, the specimens on the shelf, which is the
+ * one place they are the subject rather than the dressing.
+ *
+ * **S23 (decisions 175–177) gave the page a shape.** Five equal tables answered "did it work?" and
+ * nothing after it. Three things a person could not learn here: what the other themes *look* like (a
+ * name and "13/13 primitives"), what to say to their agent once the first-run card had gone (its prompt
+ * list went with it), and what the agent reads before it writes. So: a strip under the title with the
+ * three facts a person arrives for; a permanent, computed **say this to your agent** card; and a shelf
+ * where every theme and every look it ships is drawn from its own tokens, at request time, with the
+ * `theme` › set call that would choose it. None of it is a control — decision 44 is exactly where it was.
  */
 import { Html, escape } from "./jsx-runtime";
 import type { Theme } from "./theme";
@@ -94,10 +104,28 @@ export interface DeskOnboarding {
   placeholderUrl: boolean;
   /** The registration block, verbatim, for the most predictable failure in the flow (docs/08 §9.4). */
   mcpJson?: string;
-  /** `PROMPTS` from `@snypd/mcp`, passed in — `@snypd/render` may not import it, and does not need to. */
-  prompts?: { name: string; description: string }[];
   /** docs/08 decision 58, from `@snypd/core`. Passed rather than repeated, so there is one of it. */
   sentence: string;
+}
+
+/** A prompt as `prompts/list` describes it — `PROMPTS` from `@snypd/mcp`, passed in; this package may not import it. */
+export interface DeskPrompt { name: string; description: string; arguments?: { name: string; description?: string; required?: boolean }[] }
+
+/**
+ * One look on the shelf (S23, decision 175): a theme this root can resolve × one of the variations it
+ * ships, or the theme alone when it ships none. `tokens` is what the site *would render* on this look —
+ * the same `loadConfig(root, { theme, variation })` the build makes, so the site's own overrides are in
+ * it and a specimen is the truth rather than the brochure. Only the colour and type tokens ride: a tile
+ * is a few hundred bytes, not a stylesheet.
+ */
+export interface DeskLook {
+  theme: string;
+  variation?: string;
+  active: boolean;
+  description?: string;
+  tokens: Record<string, string>;
+  /** Ships a webfont. Loaded only while this theme is active, so every other tile is its fallback face. */
+  font: boolean;
 }
 
 /**
@@ -158,6 +186,10 @@ export interface DeskFacts {
    * it has nothing left to say, not because somebody clicked something we wrote down.
    */
   onboarding?: DeskOnboarding;
+  /** What the agent can be asked to run. Absent on a preview nothing with prompts started. */
+  prompts?: DeskPrompt[];
+  /** The shelf. Absent renders the S18b theme card's facts alone; empty renders no shelf. */
+  looks?: DeskLook[];
 }
 
 const ago = (at: number | undefined, now: number): string => {
@@ -190,18 +222,61 @@ const card = (title: string, rows: [string, string][], note?: string) => [
  * `prefers-color-scheme: dark`, so those three labels were dark green and dark amber on `editorial`'s
  * #12110f. The public routes passed because the theme states every colour as a pair; the Desk did not,
  * because it brings its own. A page that supplies its own colours owes both schemes.
+ *
+ * **Type is the Desk's own** (S23). The theme's stylesheet is still linked — it is where the colour
+ * tokens and the active theme's `@font-face` come from — but `.desk` sets `system-ui` over whatever the
+ * theme put on `body`, because an editorial serif on a dashboard made the Desk read as a page of the
+ * site. The theme's faces belong to the specimens, which set them from their own tokens.
+ *
+ * **A specimen paints its own ground.** `.specimen` carries the look's tokens as inline custom
+ * properties and its own `color-scheme`, so a dark-only look draws dark on a light Desk and a
+ * `light-dark()` pair resolves the way that look's `color.scheme` says, not the way the Desk's does. A
+ * token the look does not declare is set to `initial`, so the specimen falls to the browser's `Canvas`
+ * rather than inheriting the *active* theme's value from `:root` — which is what a bare `base` tile
+ * would otherwise do, and it would be a lie about what `base` looks like.
  */
 const STYLE = `
 :root{color-scheme:light dark}
 body{margin:0;background:var(--color-bg,light-dark(#fdfcfa,#12110f));color:var(--color-text,light-dark(#1a1815,#e8e4dc))}
-.desk{max-width:58rem;margin:0 auto;padding:1.5rem 1rem 4rem;line-height:1.5}
-.desk h1{margin:0 0 .25rem;font-size:1.5rem}
-.desk .sub{margin:0 0 2rem;color:var(--color-muted,light-dark(#5a5a5a,#9a9287))}
-.desk .card{margin:0 0 1.5rem;padding:1rem 1.25rem;border:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));border-radius:.5rem}
-.desk .card h2{margin:0 0 .75rem;font-size:.8125rem;letter-spacing:.06em;text-transform:uppercase;color:var(--color-muted,light-dark(#5a5a5a,#9a9287))}
+.desk{display:block;max-width:72rem;margin:0 auto;padding:1.5rem 1rem 4rem;line-height:1.5;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:1rem}
+.desk h1,.desk h2,.desk h3,.desk summary{font-family:inherit}
+.desk code,.desk pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace}
+.desk code{font-size:.9em}
+.desk h1{margin:0 0 .25rem;font-size:1.5rem;font-weight:700;letter-spacing:-.01em}
+.desk .sub{margin:0 0 1rem;color:var(--color-muted,light-dark(#5a5a5a,#9a9287))}
+.desk .strip{display:flex;flex-wrap:wrap;gap:.4rem 1.75rem;margin:0 0 2rem;padding:.75rem 0;border-top:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));border-bottom:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));list-style:none;font-size:.9375rem}
+.desk .strip li{min-width:0;overflow-wrap:anywhere;padding:0;border:0}
+.desk .strip .k{color:var(--color-muted,light-dark(#5a5a5a,#9a9287));margin-right:.4rem}
+.desk .dot::before{content:"";display:inline-block;width:.55em;height:.55em;margin-right:.35em;border-radius:50%;background:currentColor;vertical-align:.05em}
+.desk .cols{display:grid;grid-template-columns:minmax(0,1fr);gap:0 2rem;align-items:start}
+.desk .cols>div{min-width:0}
+@media (min-width:64rem){.desk .cols{grid-template-columns:minmax(0,1fr) 21rem}}
+.desk .card{margin:0 0 1.5rem;padding:1.1rem 1.25rem 1.25rem;border:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));border-radius:.5rem}
+.desk .card h2{margin:0 0 .85rem;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--color-muted,light-dark(#5a5a5a,#9a9287))}
+.desk .card h3{margin:1.25rem 0 .35rem;font-size:.9375rem;font-weight:700}
+.desk .say pre{margin:.25rem 0 .9rem}
+.desk .say li{border:0;padding:0}
+.desk .agent li{padding:.35rem 0;border:0;font-size:.9375rem}
+.desk .agent .args{color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
+.desk .looks{display:grid;grid-template-columns:repeat(auto-fill,minmax(13.5rem,1fr));gap:1rem;margin:0;padding:0;list-style:none}
+.desk .looks li{padding:0;border:0}
+.desk .look{border:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));border-radius:.5rem;overflow:hidden}
+.desk .look.active{outline:2px solid var(--color-accent,light-dark(#0a6b2d,#7ee0a4));outline-offset:2px}
+.desk .specimen{color-scheme:var(--color-scheme,light dark);background:var(--color-bg,Canvas);color:var(--color-text,CanvasText);font-family:var(--font-body,serif);padding:1rem 1rem .85rem;min-height:7.5rem;box-sizing:border-box;line-height:1.35}
+.desk .specimen .name{font-family:var(--font-heading,var(--font-body,serif));font-weight:700;font-size:1.375rem;letter-spacing:-.01em;overflow-wrap:anywhere}
+.desk .specimen .line{margin:.3rem 0 0;font-size:.875rem}
+.desk .specimen .line .link{color:var(--color-accent,LinkText);text-decoration:underline}
+.desk .specimen code{font-family:var(--font-mono,monospace)}
+.desk .specimen .swatches{display:flex;gap:.3rem;margin:.75rem 0 0}
+.desk .specimen .swatches span{width:1.1rem;height:1.1rem;border-radius:.2rem;border:1px solid var(--color-border,GrayText)}
+.desk .look .meta{padding:.6rem .85rem .75rem;font-size:.875rem}
+.desk .look .meta .title{font-size:.9375rem}
+.desk .look .meta p{margin:.2rem 0 0;color:var(--color-muted,light-dark(#5a5a5a,#9a9287))}
+.desk .look .meta pre{margin:.5rem 0 0;font-size:.75rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.desk .look .state{margin-left:.4rem}
 .desk table{border-collapse:collapse;width:100%}
 .desk th{text-align:left;font-weight:600;padding:.25rem 1.5rem .25rem 0;vertical-align:top;white-space:nowrap;width:1%}
-.desk td{padding:.25rem 0;vertical-align:top}
+.desk td{padding:.25rem 0;vertical-align:top;overflow-wrap:anywhere}
 .desk .note{margin:.75rem 0 0;color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
 .desk .ok{color:var(--color-ok,light-dark(#0a6b2d,#7ee0a4));font-weight:600}
 .desk .wait{color:var(--color-wait,light-dark(#8a5a00,#f0b74e));font-weight:600}
@@ -227,6 +302,7 @@ body{margin:0;background:var(--color-bg,light-dark(#fdfcfa,#12110f));color:var(-
 @media (max-width:30rem){.desk .steps li{grid-template-columns:1fr}}
 .desk form{margin:.9rem 0 0}
 .desk button{font:inherit;font-weight:600;padding:.45rem .9rem;border-radius:.4rem;cursor:pointer;color:var(--color-bg,light-dark(#fdfcfa,#12110f));background:var(--color-text,light-dark(#1a1815,#e8e4dc));border:1px solid var(--color-text,light-dark(#1a1815,#e8e4dc))}
+.desk button code{background:transparent;color:inherit;padding:0;font-size:.95em}
 .desk button:focus-visible{outline:2px solid var(--color-accent,light-dark(#0a6b2d,#7ee0a4));outline-offset:2px}
 .desk .fail{color:var(--color-fail,light-dark(#a3251b,#f2867a));font-weight:600}
 .desk footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--color-border,light-dark(#dcdcdc,#2e2b26));color:var(--color-muted,light-dark(#5a5a5a,#9a9287));font-size:.875rem}
@@ -246,10 +322,11 @@ body{margin:0;background:var(--color-bg,light-dark(#fdfcfa,#12110f));color:var(-
  * entire confusion of onboarding is not knowing which of the three you are looking at, and three words
  * of label are cheaper than any amount of copy explaining it.
  */
-type Surface = "type" | "say" | "harness";
+type Surface = "type" | "say" | "harness" | "you";
 interface Step { done: boolean; label: string; surface?: Surface; action?: string; note?: string }
 
-const SURFACE: Record<Surface, string> = { type: "type this", say: "say this to your agent", harness: "do this in your harness" };
+/** `you` is S23's fourth: a review page to open, a button to press — the person's own act, no agent in it. */
+const SURFACE: Record<Surface, string> = { type: "type this", say: "say this to your agent", harness: "do this in your harness", you: "do this yourself" };
 
 /** A `pre` that can scroll is a scrollable region, and one a keyboard cannot reach is an axe violation
  *  (`scrollable-region-focusable`) — the defect decision 50 caught on the review page. `tabindex="0"`
@@ -318,16 +395,12 @@ function firstRun(o: DeskOnboarding | undefined): string {
     ? `<h3>${escape(".mcp.json")}</h3><p class="note">What <code>init</code> wrote, verbatim. If your harness keeps its own registration file, this is the entry to copy into it.</p>${pre(o.mcpJson)}`
     : "";
 
-  const prompts = o.prompts?.length
-    ? `<h3>Prompts</h3><p class="note">Loaded with the server; your harness lists them by name once it has connected.</p><ul>${o.prompts.map((pr) => `<li><code>${escape(pr.name)}</code> — ${escape(pr.description)}</li>`).join("")}</ul>`
-    : "";
-
+  // The prompt list this card carried until S23 is on the say-card now, which does not disappear.
   return [
     `<section class="card">`,
     `<h2>First run — ${done} of ${rows.length}</h2>`,
     `<ol class="steps">${items}</ol>`,
     block,
-    prompts,
     // Inline `<details>` rather than a link: progressive disclosure at zero JS, so it costs the reader
     // who already knows nothing and `desk.js.kb` stays 0.
     `<details><summary>What is snypd?</summary>`,
@@ -335,6 +408,113 @@ function firstRun(o: DeskOnboarding | undefined): string {
     `<p>Content is markdown files in git, and the vocabulary is a closed set of primitives a theme knows how to render. The database in <code>.snypd/</code> is a disposable index; delete it and the site is unchanged.</p>`,
     `</details>`,
     `<p class="note">Nothing on this list is stored. Every row is read from disk each time you load this page, so there is nothing to dismiss and nothing to reset — when all ${rows.length} are done this card stops rendering.</p>`,
+    `</section>`,
+  ].join("");
+}
+
+/**
+ * **Say this to your agent** (S23, decision 176) — the card that stays.
+ *
+ * The first-run checklist was this card for six facts, and it stopped at six: the moment the site was
+ * set up, the page stopped telling anybody what to say next, and the prompt list went with it. This is
+ * the same idea made permanent and computed from every fact the page already has — the drafts, the
+ * push, the shelf — in the order a person would act on them. Each line is a sentence into a harness
+ * (or, labelled `you`, a thing only the person can do: open the review page, press the button), and
+ * each is a `pre` so it can be selected and pasted rather than retyped.
+ *
+ * The first-run checklist is not repeated here. "Write the first post" and "set `site.url`" are two of
+ * its six rows, and both are true of a site exactly while that card is on the page — so they are its
+ * lines, and this card's begin where the checklist's end: the drafts, the push, the shelf.
+ */
+function sayCard(f: DeskFacts): string {
+  const lines: { surface: Surface; text: string; why?: string }[] = [];
+
+  // The drafts, ready ones first: a publish is one sentence, an approval is the person's own act.
+  const ready = f.drafts.filter((d) => d.ready);
+  const waiting = f.drafts.filter((d) => !d.ready && /needs a human|changed after/.test(d.state));
+  for (const d of ready.slice(0, 3)) lines.push({ surface: "say", text: `Publish ${d.type}/${d.slug}.`, why: `${escape(d.title || `${d.type}/${d.slug}`)} — ${escape(d.state)}.` });
+  if (ready.length > 3) lines.push({ surface: "say", text: `Publish everything that is ready — ${ready.length} drafts.` });
+  for (const d of waiting.slice(0, 3)) lines.push({ surface: "you", text: `Open ${d.reviewUrl} and approve the version you read.`, why: `<a href="${escape(d.reviewUrl)}">${escape(d.title || `${d.type}/${d.slug}`)}</a> — ${escape(d.state)}. This type's <code>mcp.write</code> is <code>draft</code>, so a person signs the exact bytes.` });
+  if (f.push?.ok && f.push.ahead > 0) lines.push(f.push.policy === "human"
+    ? { surface: "you", text: `Press “Push ${f.push.branch}” on the Push card.`, why: `${f.push.ahead} commit${f.push.ahead === 1 ? "" : "s"} the remote does not have, and <code>deploy.push</code> is <code>human</code>.` }
+    : { surface: "say", text: "Push the site.", why: `${f.push.ahead} commit${f.push.ahead === 1 ? "" : "s"} the remote does not have. <code>site</code> › <code>push</code> sends the branch your published items land on.` });
+  // Always last, and always there when there is anywhere to go: the shelf and this line point at each
+  // other, and a person who has never switched a theme learns here that it is one sentence.
+  const other = f.looks?.find((l) => !l.active);
+  if (other) lines.push({ surface: "say", text: `Switch the theme to ${other.theme}${other.variation ? ` › ${other.variation}` : ""}.`, why: `Or any other look on the shelf below — <code>theme</code> › <code>set</code> takes a name and a variation.` });
+
+  const now = lines.length
+    ? `<ol class="say">${lines.map((l) => `<li><span class="surface">${escape(SURFACE[l.surface])}</span>${pre(l.text)}${l.why ? `<p class="meta">${l.why}</p>` : ""}</li>`).join("")}</ol>`
+    : `<p class="note">Nothing is waiting on you. Ask for another post, a different look, or a change to the one you have.</p>`;
+
+  // What the agent works with — the prompts by name and what each takes, and the four reads an agent
+  // makes before it writes. Shown to the person so that "it read four things first" is expected
+  // behaviour rather than a surprise, and so the prompt names are somewhere that stays on the page.
+  const prompts = f.prompts?.length
+    ? `<h3>Prompts your agent can run</h3><p class="note">Your harness lists these by name once it has connected — <code>/get-started</code> in Claude Code, the prompt menu elsewhere.</p><ul class="plain agent">${f.prompts.map((p) => {
+        const args = (p.arguments ?? []).map((a) => `<code>${escape(a.name)}</code>${a.required ? "" : "?"}`).join(" ");
+        return `<li><code>${escape(p.name)}</code> — ${escape(p.description)}${args ? ` <span class="args">takes ${args}</span>` : ""}</li>`;
+      }).join("")}</ul>`
+    : "";
+  const reads = `<h3>What it reads before it writes</h3><ul class="plain agent">`
+    + `<li><code>snypd://config</code> — this site: name, URL, types, theme.</li>`
+    + `<li><code>snypd://spec/primitives</code> — the thirteen blocks a post is made of, and the reason to use this CMS instead of a folder of markdown.</li>`
+    + `<li><code>snypd://theme</code> — the active theme, its tokens, the looks it ships.</li>`
+    + `<li><code>snypd://themes</code> — every theme this site can switch to, described.</li>`
+    + `</ul>`;
+
+  return `<section class="card"><h2>Say this to your agent</h2>${now}${prompts}${reads}</section>`;
+}
+
+/**
+ * **The shelf** (S23, decision 175) — every theme this root can resolve, every look each one ships,
+ * drawn from that look's own tokens.
+ *
+ * A specimen and not a photograph. The gallery PNGs are `bench gallery`'s build artefact, and a site
+ * never has them; a specimen is true at request time, costs no bytes, and shows a dark look on a light
+ * Desk honestly because it paints its own ground. The site's own name is the heading in every tile,
+ * because that is what the look would actually render — a lorem-ipsum specimen tells you about the
+ * font, and this tells you about your site in that font.
+ *
+ * Nothing here is clickable (decision 44). What a tile carries is the exact call that would choose it,
+ * selectable, which is the switcher — and it lives in the harness.
+ */
+function shelf(f: DeskFacts): string {
+  const looks = f.looks ?? [];
+  if (!looks.length) return "";
+  const KEYS = ["color.scheme", "color.bg", "color.surface", "color.text", "color.muted", "color.accent", "color.on-accent", "color.border", "font.body", "font.heading", "font.ui", "font.mono"];
+  const tiles = looks.map((l) => {
+    // Every key is set, present or not: an absent one is `initial`, so the specimen falls to the
+    // browser's own canvas rather than inheriting the active theme's value from `:root`.
+    const vars = KEYS.map((k) => `--${k.replace(/\./g, "-")}:${l.tokens[k] !== undefined ? escape(l.tokens[k]!) : "initial"}`).join(";");
+    const label = `${l.theme}${l.variation ? ` › ${l.variation}` : ""}`;
+    const call = `theme › set ${JSON.stringify(l.variation ? { name: l.theme, variation: l.variation } : { name: l.theme })}`;
+    const swatches = ["color.surface", "color.text", "color.muted", "color.accent", "color.border"]
+      .map((k) => `<span style="background:var(--${k.replace(/\./g, "-")},transparent)" title="${escape(k)}"></span>`).join("");
+    return [
+      `<li><div class="look${l.active ? " active" : ""}">`,
+      // `role="img"`: a specimen is a picture of the look, and what it says is not for a screen reader —
+      // the tile's meta below carries the name. It also keeps a link-coloured span from needing to be a link.
+      `<div class="specimen" style="${vars}" role="img" aria-label="${escape(label)} specimen">`,
+      `<div class="name">${escape(f.site.name)}</div>`,
+      `<p class="line">Body text, <span class="link">a link</span>, and <code>code</code>.</p>`,
+      `<div class="swatches" aria-hidden="true">${swatches}</div>`,
+      `</div>`,
+      `<div class="meta">`,
+      `<div class="title"><code>${escape(label)}</code>${l.active ? `<span class="state done">active</span>` : ""}</div>`,
+      l.description ? `<p>${escape(l.description)}</p>` : "",
+      // The webfont loads with the active theme's stylesheet and no other, so a tile of any other theme
+      // that ships one is its metric-matched fallback face — said on the tile rather than left to be noticed.
+      l.font && l.theme !== f.theme.name ? `<p>Ships a webfont; shown here in its fallback face.</p>` : "",
+      l.active ? "" : pre(call),
+      `</div></div></li>`,
+    ].join("");
+  });
+  const themes = new Set(looks.map((l) => l.theme)).size;
+  return [
+    `<section class="card"><h2>Themes — ${looks.length} look${looks.length === 1 ? "" : "s"} across ${themes} theme${themes === 1 ? "" : "s"}</h2>`,
+    `<ul class="looks">${tiles.join("")}</ul>`,
+    `<p class="note">Each tile is drawn from that look's own tokens, as your site would render on it. Read-only: the call under a tile is how it is chosen, from your harness — <code>theme</code> › <code>set</code>, or <code>set_tokens</code> to retune the one you have.</p>`,
     `</section>`,
   ].join("");
 }
@@ -419,21 +599,10 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
       ]
     : [["harness", `<span class="wait">nothing has called this server yet</span>`]];
 
-  const status = card("Status", [
-    ...harness,
-    ["preview", `<a href="/">${escape(f.previewUrl)}</a>`],
-    ["build", f.build
-      ? `${f.build.routes} route${f.build.routes === 1 ? "" : "s"} in ${Math.round(f.build.ms)} ms · ${escape(ago(f.build.at, now))}`
-      : "not built yet"],
-    // Flagged as unfinished rather than presented as fact (docs/08 §9.6): the placeholder is a working
-    // default two minutes into a site and a broken feed the moment anything publishes, and the card that
-    // reports state should not be the one place that reads it as settled.
-    ["site", `${escape(f.site.name)} — <code>${escape(f.site.url)}</code>${f.onboarding?.placeholderUrl ? ` <span class="wait">placeholder — needed before publish</span>` : ""}`],
-  ], connected
-    ? undefined
-    // The one instruction no prompt of ours can deliver: a harness that has not loaded the server
-    // cannot be told to load it by the server (S18a). So it is said here, where a person is looking.
-    : `A harness reads <code>.mcp.json</code> when it starts. If you have just run <code>snypd init</code>, restart Claude Code, Cursor or Codex — this line turns green on its first call.`);
+  const build = f.build
+    ? `${f.build.routes} route${f.build.routes === 1 ? "" : "s"} in ${Math.round(f.build.ms)} ms · ${escape(ago(f.build.at, now))}`
+    : "not built yet";
+  const placeholder = f.onboarding?.placeholderUrl ? ` <span class="wait">placeholder — needed before publish</span>` : "";
 
   const inFlight = f.drafts.length
     ? `<section class="card"><h2>In flight (${f.drafts.length})</h2><ol>${f.drafts.map((d) => [
@@ -451,26 +620,58 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
   const count = (s: string) => cov.filter((c) => c.status === s).length;
   const missing = count("missing"), inherited = count("inherited"), own = count("own");
   const parent = f.theme.chain.length > 1 ? f.theme.chain[f.theme.chain.length - 1] : undefined;
-  const theme = card("Theme", [
-    ["name", `<code>${escape(f.theme.name)}</code>`],
-    ...(f.theme.chain.length > 1 ? ([["chain", f.theme.chain.map((n) => `<code>${escape(n)}</code>`).join(" → ")]] as [string, string][]) : []),
+  // Since S23 the active theme's facts are three rows on the Status card and the shelf is the theme's
+  // own card. The S18b card stays only for a caller that passes no `looks` at all.
+  const themeRows: [string, string][] = [
+    ["theme", `<code>${escape(f.theme.name)}</code>${f.theme.chain.length > 1 ? ` <span class="meta">→ ${f.theme.chain.slice(1).map((n) => `<code>${escape(n)}</code>`).join(" → ")}</span>` : ""}`],
     // `editorial` renders 13/13 with zero `.tsx` of its own (S12), so "0 own, 13 inherited" is the
     // normal case for a well-behaved theme, not a deficiency — the copy says so rather than implying
     // a score. Only a *missing* primitive is a problem, because that one falls back to generic markup.
     ["coverage", missing === 0
       ? `<span class="ok">${cov.length}/${cov.length} primitives</span>` + (own === 0 && parent ? ` — all inherited from <code>${escape(parent)}</code>` : own && inherited ? ` — ${own} own, ${inherited} inherited` : "")
       : `<span class="wait">${cov.length - missing}/${cov.length} primitives</span> — ${missing} falling back to the generic renderer`],
-  ], `Read-only. Themes and tokens change through the MCP surface — <code>theme</code> › <code>set</code> or <code>set_tokens</code> — not from this page.`);
+  ];
+  const theme = f.looks ? "" : card("Theme", themeRows, `Read-only. Themes and tokens change through the MCP surface — <code>theme</code> › <code>set</code> or <code>set_tokens</code> — not from this page.`);
+  const status = card("Status", [
+    ...harness,
+    ["preview", `<a href="/">${escape(f.previewUrl)}</a>`],
+    ["build", build],
+    // Flagged as unfinished rather than presented as fact (docs/08 §9.6): the placeholder is a working
+    // default two minutes into a site and a broken feed the moment anything publishes, and the card that
+    // reports state should not be the one place that reads it as settled.
+    ["site", `${escape(f.site.name)} — <code>${escape(f.site.url)}</code>${placeholder}`],
+    ...(f.looks ? themeRows : []),
+  ], connected
+    ? undefined
+    // The one instruction no prompt of ours can deliver: a harness that has not loaded the server
+    // cannot be told to load it by the server (S18a). So it is said here, where a person is looking.
+    : `A harness reads <code>.mcp.json</code> when it starts. If you have just run <code>snypd init</code>, restart Claude Code, Cursor or Codex — this line turns green on its first call.`);
+
+  // The strip (S23): the three facts a person arrives for, above the fold and before any card. The
+  // status card keeps the detail; this is the glance.
+  const strip = `<ul class="strip">`
+    + `<li><span class="k">harness</span>${connected ? `<span class="ok dot">connected${a!.client ? ` · ${escape(a!.client)}` : ""}</span>` : `<span class="wait dot">not connected</span>`}</li>`
+    + `<li><span class="k">build</span>${build}</li>`
+    + `<li><span class="k">site</span><code>${escape(f.site.url)}</code>${placeholder}</li>`
+    + `</ul>`;
 
   const body = [
     `<main class="desk">`,
     `<h1>Snypd Desk</h1>`,
     `<p class="sub">${escape(f.site.name)} — local preview. Nothing on this page is public.</p>`,
+    strip,
+    // Two columns from 64 rem: what a person acts on in the main column, what they check in the rail.
+    // One column below that, in this order, which is the order of the questions.
+    `<div class="cols"><div>`,
     firstRun(f.onboarding),
-    status,
+    sayCard(f),
     inFlight,
-    f.push ? pushCard(f.push, now) : "",
+    shelf(f),
     theme,
+    `</div><div>`,
+    f.push ? pushCard(f.push, now) : "",
+    status,
+    `</div></div>`,
     // Rewritten twice: S19a added the button, S19c took away the claim that it was a gate. What is left
     // is the line that has never moved — this page does not write words — and it is the only one the
     // product actually needs, because it is the one that keeps MCP the single way to author.

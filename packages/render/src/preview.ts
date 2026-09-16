@@ -11,12 +11,12 @@
  */
 import { existsSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadConfig, settingValues, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, fireEvent, eventLines, changedContent, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
+import { loadConfig, settingValues, installedThemes, variationsOf, themeFile, SiteIndex, MdastCache, INDEX_DIR, ALIVE_ROUTE, LIVE_ROUTE, MCP_FILE, ONE_SENTENCE, onboardingFacts, target, approve, approvalOf, approvals, reviewPath, contentHash, publishCheck, draftSource, splitFrontmatter, Repo, PUSH_ROUTE, pushState, pushSite, fireEvent, eventLines, changedContent, type PushState, type LoadedConfig, type ApprovalStore } from "@snypd/core";
 import { build, renderDoc, type BuildResult } from "./build";
 import { loadTheme, type Theme, type SiteCtx, type Page, type Entry } from "./theme";
 import { loadHooks, EMPTY_HOOKS, type Hooks } from "./hooks";
 import { Html, escape } from "./jsx-runtime";
-import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts, type DeskOnboarding, type DeskPush } from "./desk";
+import { deskPage, type DeskActivity, type DeskDraft, type DeskFacts, type DeskLook, type DeskOnboarding, type DeskPrompt, type DeskPush } from "./desk";
 import { resolveTokens, styleSheet } from "./tokens";
 
 export interface PreviewOptions {
@@ -67,16 +67,21 @@ export interface PreviewOptions {
    */
   deskRefresh?: number;
   /**
-   * `PROMPTS` from `@snypd/mcp`, for the first-run Desk to list (S18f, docs/08 §9.3).
+   * `PROMPTS` from `@snypd/mcp`, for the Desk to list (S18f, docs/08 §9.3) — since S23 on the
+   * say-card, which stays, and with each prompt's arguments.
    *
    * Passed rather than imported for the reason `activity` is: `@snypd/mcp` depends on this package, so
    * this package may not depend on it. Both callers that have prompts hand them over — the CLI's `dev`
    * and the tool that starts a session-scoped preview — and a preview started by anything else lists
    * none, which is honest rather than lossy.
    */
-  prompts?: { name: string; description: string }[];
+  prompts?: DeskPrompt[];
 }
-export interface PreviewServer { url: string; port: number; hostname: string; stop: () => void; rebuild: () => Promise<BuildResult>; out: string; dirty: () => boolean }
+export interface PreviewServer {
+  url: string; port: number; hostname: string; stop: () => void; rebuild: () => Promise<BuildResult>; out: string; dirty: () => boolean;
+  /** Resolves once nothing is being gathered off the request path (S23: the shelf). For a bench or a test that wants the whole Desk, not the first one. */
+  settled: () => Promise<void>;
+}
 
 const REVIEW = /^\/_snypd\/review\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
 const APPROVE = /^\/_snypd\/approve\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9-]*)\/?$/i;
@@ -92,6 +97,22 @@ const DESK = /^\/_snypd\/?$/;
  * steady-state cost of the card is one read per page a person is actually looking at.
  */
 const PUSH_TTL_MS = 3_000;
+
+/**
+ * How long the shelf's looks stand before they are gathered again (S23, decision 175).
+ *
+ * The shelf is one `loadConfig` per look — the chain walk the build makes, on the same YAML — which
+ * measured 12–25 ms *each* on the dev box and would have put a memo miss at six times that, on a page
+ * whose whole budget is 50 ms. So unlike the push card it is never gathered on a request at all: a
+ * request serves the last complete set and, if that set is for an older config or older than this,
+ * schedules the next one — one `loadConfig` per macrotask, so no single request ever waits behind more
+ * than one of them. A rebuild schedules it too, which is what keeps a tile true after a theme edit; the
+ * TTL is for the one change no watcher sees, a theme *added* to `themes/` while nothing else moved.
+ */
+const SHELF_TTL_MS = 30_000;
+
+/** The tokens a specimen is drawn from. Every other token is the build's business; a tile is not a stylesheet. */
+const SPECIMEN_TOKENS = /^(color\.(?!viz\.)|font\.)/;
 
 /** The default nobody chose and everybody collided on until S18e gave it somewhere else to go. */
 export const DEFAULT_PORT = 4321;
@@ -179,6 +200,63 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   // has nothing to say about a push it did not make.
   let pushCache: { at: number; state: PushState } | undefined;
   let lastPush: DeskPush["last"] | undefined;
+  let shelf: { at: number; cfg: LoadedConfig; looks: DeskLook[] } | undefined;
+  let shelfFor: LoadedConfig | undefined;   // the config a gathering in progress is for; a newer one supersedes it
+  let shelfSettled: Promise<void> = Promise.resolve();
+  let shelfSettle: (() => void) | undefined;
+
+  /**
+   * Gather the shelf's looks for `want`, off the request path (S23, see `SHELF_TTL_MS`).
+   *
+   * `installedThemes` × `variationsOf` is the walk `snypd://themes` makes; each look's tokens are then
+   * `loadConfig(root, { theme, variation })`, which merges the site's own `theme.tokens` on top exactly as
+   * a switch would — so a tile shows what `theme` › set would produce, not the theme's brochure. A theme
+   * that will not load ships no tile; its own line in `snypd://themes` says why.
+   *
+   * Every step is one macrotask. A newer config (a rebuild) abandons the run at its next step; the set
+   * is published only once whole, so a page never shows half a shelf.
+   */
+  const gatherShelf = (want: LoadedConfig) => {
+    if (shelfFor === want) return;
+    if (!shelfFor) shelfSettled = new Promise((r) => { shelfSettle = r; });
+    shelfFor = want;
+    const looks: DeskLook[] = [];
+    const queue: (() => void)[] = [];
+    const pick = (c: LoadedConfig) => Object.fromEntries(Object.entries(resolveTokens(c.config.theme.tokens as Parameters<typeof resolveTokens>[0])).filter(([k]) => SPECIMEN_TOKENS.test(k)));
+    // Whether anything in the chain declares a webfont (B1) — `themeFile` because a bundled theme has no
+    // directory on disk. A regex on the text rather than a parse: the question is yes or no.
+    const hasFont = (c: LoadedConfig) => c.layers.find((l) => l.name === "theme")?.chain?.some((link) => /^font:/m.test(themeFile(link.dir, "theme.yaml") ?? "")) ?? false;
+    const activeVariation = want.config.theme.variation;
+    queue.push(() => {
+      for (const t of installedThemes(root, want.config.theme.use)) {
+        let variations: ReturnType<typeof variationsOf> = [];
+        try { variations = variationsOf(root, t.name); } catch { continue; }
+        if (!variations.length) {
+          queue.push(() => { const c = t.active ? want : loadConfig(root, { theme: t.name }); looks.push({ theme: t.name, active: t.active, description: t.description, tokens: pick(c), font: hasFont(c) }); });
+          continue;
+        }
+        for (const v of variations) {
+          // The active look is the config already in hand; every other is one load, with that look applied.
+          const on = t.active && (activeVariation === undefined ? v === variations[0] : v.name === activeVariation);
+          queue.push(() => { const c = on ? want : loadConfig(root, { theme: t.name, variation: v.name }); looks.push({ theme: t.name, variation: v.name, active: on, description: v.description?.replace(/\s+/g, " ").trim(), tokens: pick(c), font: hasFont(c) }); });
+        }
+      }
+    });
+    const step = () => {
+      if (shelfFor !== want) return;
+      const next = queue.shift();
+      if (next) {
+        try { next(); } catch { /* one look that will not load is one tile fewer */ }
+        setTimeout(step, 0).unref?.();
+        return;
+      }
+      shelf = { at: Date.now(), cfg: want, looks };
+      shelfFor = undefined;
+      shelfSettle?.(); shelfSettle = undefined;
+    };
+    setTimeout(step, 0).unref?.();
+  };
+
 
   /**
    * The change stream's whole state (S18k). `generation` counts announced changes, not fs events: one save
@@ -208,6 +286,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     try {
       const r = await building;
       lastBuild = { routes: r.routes, ms: r.ms, at: Date.now() };
+      gatherShelf(cfg);   // S23: the shelf follows the config, off the request path
       return r;
     } finally { building = undefined; }
   };
@@ -322,7 +401,7 @@ Everything here is written through MCP, from the harness you already have open. 
 :::steps
 1. **Say what you want.** Ask your agent for a post. It reads the vocabulary first — thirteen primitives — then writes.
 2. **Read it here.** The draft appears on the Desk with a review link. The preview serves exactly what would publish.
-3. **Approve the version you read.** Publishing is yours; an approval is bound to those bytes and lapses if they change.
+3. **It publishes, or you approve it.** By default the agent publishes what it wrote. Set a type's \`mcp.write\` to \`draft\` and it stops at the review page instead, where you approve the exact version you read — an approval is bound to those bytes and lapses if they change.
 :::
 
 :::callout{kind="note" title="What you are looking at"}
@@ -382,6 +461,12 @@ Write something. There is no file to delete.
     return { ...st, deploy: st.deploy, policy: st.policy, drafts, route: PUSH_ROUTE, last: lastPush };
   };
 
+  /** The last complete set, and a new gathering if it is for an older config or older than the TTL. */
+  const shelfFacts = (): DeskLook[] | undefined => {
+    if (!shelf || shelf.cfg !== cfg || Date.now() - shelf.at > SHELF_TTL_MS) gatherShelf(cfg);
+    return shelf?.looks;
+  };
+
   const deskFacts = (): DeskFacts => {
     const statuses = cfg.config.statuses as Record<string, { public?: boolean }> | undefined;
     const inFlight = index.files().filter((f) => f.status !== "trashed" && statuses?.[f.status]?.public !== true);
@@ -413,6 +498,8 @@ Write something. There is no file to delete.
       font: theme.font?.url,
       refresh: opts.deskRefresh,
       push: pushFacts(drafts.length),
+      prompts: opts.prompts,
+      looks: shelfFacts(),
     };
   };
 
@@ -433,7 +520,7 @@ Write something. There is no file to delete.
     return {
       config: f.config, git: f.git, harness: f.harness, items: f.items, placeholderUrl: f.placeholderUrl,
       registration: { present: f.registration.present, names: f.registration.names, missingCommand: f.registration.missingCommand, command: f.registration.command },
-      mcpJson, prompts: opts.prompts, sentence: ONE_SENTENCE,
+      mcpJson, sentence: ONE_SENTENCE,
     };
   };
 
@@ -579,6 +666,7 @@ Write something. There is no file to delete.
 
   return {
     url: `http://${server.hostname ?? "localhost"}:${server.port}`, port: server.port ?? 0, hostname: server.hostname ?? "localhost", out, rebuild, dirty: () => dirty,
+    settled: () => shelfSettled,
     stop: () => {
       for (const w of watchers) w.close();
       if (settling) { clearTimeout(settling); settling = undefined; }

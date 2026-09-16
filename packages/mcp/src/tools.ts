@@ -20,7 +20,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { activitySnapshot, type Handlers, type Tool, type ToolResult } from "./protocol";
-import { PROMPTS } from "./prompts";   // S18f: names and descriptions only — the first-run Desk lists them
+import { PROMPTS } from "./prompts";   // S18f: the Desk lists them; since S23 with their arguments, on the card that stays
 
 type Core = typeof import("@snypd/core");
 let core: Core | undefined;
@@ -54,7 +54,7 @@ export const TOOLS: Tool[] = [
     inputSchema: S({ type: TYPE, slug: SLUG, status: str("Target status") }, ["type", "slug", "status"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.publish",
-    description: "Publish a draft: set it published, then land that one item on the branch the site deploys from — every other draft stays a draft. When the type's `mcp.write` policy is `draft` (the default) an agent cannot do this alone — a human approves the exact version on /_snypd/review/{type}/{slug} under `snypd dev`, and editing after approval invalidates it. The refusal tells you which of the two it is.",
+    description: "Publish a draft: set it published, then land that one item on the branch the site deploys from — every other draft stays a draft. The default policy is `publish`, so this normally just works. When the type's `mcp.write` policy is `draft` an agent cannot do this alone — a human approves the exact version on /_snypd/review/{type}/{slug} under `snypd dev`, and editing after approval invalidates it. The refusal tells you which of the two it is.",
     inputSchema: S({ type: TYPE, slug: SLUG }, ["type", "slug"]),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "content.suggest_blocks",
@@ -131,7 +131,7 @@ async function previewServer(root: string, port?: number): Promise<{ url: string
   // tool call, so by the time anyone can load the page a harness has demonstrably called us. S18f gives
   // the *other* configuration the same answer — `.snypd/activity.json`, which a `snypd dev` in its own
   // process can read (docs/08 §12.9) — and this stays the in-process fast path.
-  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot, prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })), deskLink: true, reload: "watch" }));
+  previewing ??= import("@snypd/render/preview").then((m) => m.preview(root, { port, activity: activitySnapshot, prompts: PROMPTS.map((p) => ({ ...p, description: p.description ?? "" })), deskLink: true, reload: "watch" }));
   return { ...(await previewing), ours: true };
 }
 /**

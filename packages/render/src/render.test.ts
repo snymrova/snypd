@@ -1112,6 +1112,31 @@ describe("Desk (S18b)", () => {
     expect(alone).toContain(".mcp.json");
   });
 
+  /**
+   * S23: the shelf on a real preview. It is gathered off the request path — one `loadConfig` per
+   * macrotask, published only whole — so the first request after a start may precede it and the test
+   * waits on `settled()` rather than on a request. What is pinned: every installed theme and every look it
+   * ships is a tile, the site's own name is the specimen, the active look is marked and carries no call,
+   * and the tokens on a tile are that look's — `ink` commits to dark, `paper` does not.
+   */
+  test("the shelf lists every theme and every look this root can resolve, drawn from its own tokens", async () => {
+    await server.settled();
+    const page = await (await fetch(`${server.url}/_snypd`)).text();
+    expect(page).toContain("Themes — 6 looks across 3 themes");
+    for (const call of ['{&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;ink&quot;}', '{&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;broadsheet&quot;}', '{&quot;name&quot;:&quot;technical&quot;,&quot;variation&quot;:&quot;phosphor&quot;}', '{&quot;name&quot;:&quot;technical&quot;,&quot;variation&quot;:&quot;graphite&quot;}', '{&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;paper&quot;}'])
+      expect(page).toContain(`theme › set ${call}`);
+    // This fixture is on `base`, which ships no looks: one tile, active, no call.
+    expect(page).toContain('<code>base</code><span class="state done">active</span>');
+    expect(page).not.toContain("theme › set {&quot;name&quot;:&quot;base&quot;}");
+    expect(page.match(/class="name">Desk test</g)?.length).toBe(6);
+    expect(page).toContain('aria-label="editorial › ink specimen"><div class="name">');
+    const ink = page.slice(page.indexOf('aria-label="editorial › ink specimen"') - 900, page.indexOf('aria-label="editorial › ink specimen"'));
+    expect(ink).toContain("--color-scheme:dark");
+    expect(ink).toContain("--color-bg:oklch(0.17 0.012 250)");
+    // The say-card points at the shelf: the first look that is not the active one.
+    expect(page).toContain("Switch the theme to editorial › paper.");
+  });
+
   test("renders in a directory that is not a git repo — the Desk never shells out to git", async () => {
     const res = await fetch(`${bareServer.url}/_snypd`);
     expect(res.status).toBe(200);
@@ -1211,10 +1236,9 @@ describe("Desk (S18b)", () => {
       config: false, git: false, harness: "never", items: 0, placeholderUrl: true,
       registration: { present: true, names: true, missingCommand: false, command: "snypd" },
       mcpJson: '{\n  "mcpServers": { "snypd": { "command": "snypd", "args": ["serve"] } }\n}',
-      prompts: [{ name: "get-started", description: "Start here." }],
       sentence: "Set up snypd here and write me a first post.",
     };
-    const html = deskPage({ ...base, onboarding: fresh }, now).html;
+    const html = deskPage({ ...base, prompts: [{ name: "get-started", description: "Start here." }], onboarding: fresh }, now).html;
     expect(html).toContain("First run — 1 of 6");
     // All three surfaces are named, because not knowing which one you are looking at is the whole of
     // onboarding confusion (decision 52).
@@ -1235,10 +1259,93 @@ describe("Desk (S18b)", () => {
     expect(html).not.toContain("<pre>");
 
     const done: DeskOnboarding = { ...fresh, config: true, git: true, harness: "connected", items: 2, placeholderUrl: false };
-    const settled = deskPage({ ...base, onboarding: done }, now).html;
+    const settled = deskPage({ ...base, prompts: [{ name: "get-started", description: "Start here." }], onboarding: done }, now).html;
     expect(settled).not.toContain("First run");
     expect(settled).not.toContain("mcpServers");
     expect(settled).not.toContain("placeholder — needed");
+    // S23: the prompt list used to vanish with the card. It is on the say-card now, which stays.
+    expect(settled).toContain("<code>get-started</code>");
+  });
+
+  /**
+   * S23 — the say-card (decision 176) and the shelf (decision 175), from facts alone.
+   *
+   * The say-card is the first-run checklist's idea made permanent: computed from the same facts, in
+   * state order, and never empty of the half that lists what the agent works with. The shelf draws every
+   * look from its own tokens and carries the call that would choose it — and nothing on either is a
+   * control, which the `<form>`/`<button>` assertion above already holds for the whole page.
+   */
+  test("the say-card is computed from state, in the order a person would act", () => {
+    const base = {
+      site: { name: "S", url: "https://s.example" },
+      theme: { name: "editorial", chain: ["editorial", "base"], coverage: [] },
+      drafts: [], previewUrl: "http://localhost:1", refresh: 0,
+      looks: [
+        { theme: "editorial", variation: "paper", active: true, tokens: {}, font: true },
+        { theme: "technical", variation: "phosphor", active: false, tokens: {}, font: false },
+      ],
+    };
+    const settled: DeskOnboarding = { config: true, git: true, harness: "connected", items: 2, placeholderUrl: false, registration: { present: true, names: true, missingCommand: false }, sentence: "x" };
+    // Nothing in flight, nothing to push: the card still has the theme line, and it is last.
+    const quiet = deskPage({ ...base, onboarding: settled }, now).html;
+    expect(quiet).toContain("Say this to your agent");
+    expect(quiet).toContain("Switch the theme to technical › phosphor");
+    // The checklist's own rows are not repeated here: an empty site says "write the first post" once.
+    const empty = deskPage({ ...base, onboarding: { ...settled, items: 0 } }, now).html;
+    expect(empty).toContain("First run — 5 of 6");
+    expect(empty.match(/use the get-started prompt/g)?.length).toBe(1);
+    expect(empty.indexOf("get-started prompt")).toBeLessThan(empty.indexOf("Say this to your agent"));
+    // A ready draft is one sentence to the agent; one under `draft` policy is the person's own act.
+    const drafts = [
+      { type: "post", slug: "a", title: "A", status: "draft", route: "/a", reviewUrl: "/_snypd/review/post/a", ready: true, state: "ready to publish" },
+      { type: "post", slug: "b", title: "B", status: "draft", route: "/b", reviewUrl: "/_snypd/review/post/b", ready: false, state: "publishing post/b needs a human" },
+    ];
+    const busy = deskPage({ ...base, drafts, onboarding: settled }, now).html;
+    expect(busy).toContain("Publish post/a.");
+    expect(busy).toContain("do this yourself");
+    expect(busy).toContain("Open /_snypd/review/post/b and approve the version you read.");
+    expect(busy.indexOf("Publish post/a.")).toBeLessThan(busy.indexOf("Switch the theme"));
+    // Ahead of the remote: "push the site" under the default policy, the button under `human`.
+    const push = { branch: "main", known: true, ahead: 2, commits: [], drafts: 0, dirty: 0, blockers: [], ok: true, policy: "agent" as const, route: "/_snypd/push" };
+    expect(deskPage({ ...base, push, onboarding: settled }, now).html).toContain("Push the site.");
+    expect(deskPage({ ...base, push: { ...push, policy: "human" }, onboarding: settled }, now).html).toContain("Press “Push main” on the Push card.");
+    // The prompts and the four reads are always there, with what each prompt takes.
+    const p = deskPage({ ...base, prompts: [{ name: "write-post", description: "Write one.", arguments: [{ name: "topic", required: false }] }], onboarding: settled }, now).html;
+    expect(p).toContain("<code>write-post</code>");
+    expect(p).toContain("<code>topic</code>?");
+    for (const r of ["snypd://config", "snypd://spec/primitives", "snypd://theme", "snypd://themes"]) expect(p).toContain(`<code>${r}</code>`);
+  });
+
+  test("the shelf draws every look from its own tokens and names the call that chooses it", () => {
+    const html = deskPage({
+      site: { name: "Ohmydog", url: "https://s.example" },
+      theme: { name: "base", chain: ["base"], coverage: [] },
+      drafts: [], previewUrl: "http://localhost:1", refresh: 0,
+      looks: [
+        { theme: "base", active: true, description: "Unstyled.", tokens: {}, font: false },
+        { theme: "editorial", variation: "paper", active: false, description: "Warm cream.", tokens: { "color.bg": "light-dark(#fdfcfa, #12110f)", "color.text": "#1a1815", "font.body": "'Source Serif 4', Georgia, serif" }, font: true },
+        { theme: "editorial", variation: "ink", active: false, description: "Dark only.", tokens: { "color.scheme": "dark", "color.bg": "oklch(0.17 0.012 250)", "color.text": "#eee" }, font: true },
+      ],
+    }, now).html;
+    expect(html).toContain("Themes — 3 looks across 2 themes");
+    // The site's own name is the specimen, in the look's own tokens, on the look's own ground.
+    expect(html.match(/class="name">Ohmydog</g)?.length).toBe(3);
+    expect(html).toContain("--color-scheme:dark;--color-bg:oklch(0.17 0.012 250)");
+    expect(html).toContain("--font-body:&#39;Source Serif 4&#39;, Georgia, serif");
+    // A token the look does not declare is `initial`, so a bare theme cannot borrow the active one's colour.
+    expect(html).toContain("--color-bg:initial");
+    // The active look is marked and carries no call; every other look carries the exact one.
+    expect(html).toContain('<code>base</code><span class="state done">active</span>');
+    expect(html).not.toContain(`theme › set {&quot;name&quot;:&quot;base&quot;}`);
+    expect(html).toContain(`theme › set {&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;ink&quot;}`);
+    expect(html).toContain(`theme › set {&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;paper&quot;}`);
+    // editorial ships a webfont and is not the active theme, so its two tiles are the fallback face and say so.
+    expect(html.match(/shown here in its fallback face/g)?.length).toBe(2);
+    // Still nothing a person can press (decision 44), and the S18b theme card is gone — its rows are on Status.
+    expect(html).not.toContain("<form");
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("<h2>Theme</h2>");
+    expect(html).toContain('<th scope="row">theme</th>');
   });
 
   /**

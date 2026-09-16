@@ -605,6 +605,7 @@ async function deskLane(root: string, fontKb: number): Promise<Metric[]> {
   const now = Date.now();
   const s = await preview(root, { port: 0, watch: false, deskRefresh: 0, activity: () => ({ calls: 12, lastMethod: "tools/call", lastAt: now - 2000, since: now - 300000, client: "bench" }) });
   try {
+    await s.settled();   // S23: the shelf is gathered off the request path; measure the Desk with it, not the one before it
     return (await pageSuite({ root, url: s.url, routes: ["/_snypd", `/_snypd/review/post/${DESK_DRAFT}`], label: "desk", prefix: "desk", fontKb })).metrics;
   } finally { s.stop(); }
 }
@@ -638,8 +639,9 @@ async function firstRunLane(): Promise<Metric[]> {
   // declaration. Today they are the same theme and the same number, which is exactly when a bug like
   // that is invisible.
   const fontKb = (await loadTheme(loadConfig(dir))).font?.kb ?? 0;
-  const s = await preview(dir, { port: 0, watch: false, deskRefresh: 0, prompts: PROMPTS.map((p) => ({ name: p.name, description: p.description ?? "" })) });
+  const s = await preview(dir, { port: 0, watch: false, deskRefresh: 0, prompts: PROMPTS.map((p) => ({ ...p, description: p.description ?? "" })) });
   try {
+    await s.settled();
     return (await pageSuite({ root: dir, url: s.url, routes: ["/_snypd", "/"], label: "first run", prefix: "desk.first", fontKb })).metrics;
   } finally { s.stop(); rmSync(dir, { recursive: true, force: true }) }
 }
