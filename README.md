@@ -56,28 +56,19 @@ The vocabulary is closed on purpose: thirteen blocks, versioned, each with a sch
 <td valign="top" width="54%"><img src=".github/readme/primitives/cover.png" alt="cover rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>tldr</code></strong> — The 1–3 sentence summary an agent or skimmer reads first.<pre><code>:::tldr
-Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do nothing.
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>tldr</code></strong> — The 1–3 sentence summary an agent or skimmer reads first.<pre><code>:::tldr&#10;Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do nothing.&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/tldr.png" alt="tldr rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>callout</code></strong> — A boxed aside that must not be skipped — a warning, a tip, a note, or a line you want quoted.<pre><code>:::callout{kind="warning" title="The caveat"}
-`llms.txt` is the most-recommended and least-evidenced item on the list.
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>callout</code></strong> — A boxed aside that must not be skipped — a warning, a tip, a note, or a line you want quoted.<pre><code>:::callout{kind="warning" title="The caveat"}&#10;`llms.txt` is the most-recommended and least-evidenced item on the list.&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/callout.png" alt="callout rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>pullquote</code></strong> — A sentence lifted from the text (or a cited source) and set large.<pre><code>:::pullquote{cite="Google Search Central" href="https://developers.google.com/search"}
-There is no ranking benefit from llms.txt.
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>pullquote</code></strong> — A sentence lifted from the text (or a cited source) and set large.<pre><code>:::pullquote{cite="Google Search Central" href="https://developers.google.com/search"}&#10;There is no ranking benefit from llms.txt.&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/pullquote.png" alt="pullquote rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>stat-row</code></strong> — Two to four stats side by side, the numbers a post stands on.<pre><code>:::stat-row
-::stat{value="92%" label="fewer tokens" source="https://snypd.rocks/bench"}
-::stat{value="0" label="Google support for llms.txt" source="https://developers.google.com/search"}
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>stat-row</code></strong> — Two to four stats side by side, the numbers a post stands on.<pre><code>:::stat-row&#10;::stat{value="92%" label="fewer tokens" source="https://snypd.rocks/bench"}&#10;::stat{value="0" label="Google support for llms.txt" source="https://developers.google.com/search"}&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/stat-row.png" alt="stat-row rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
@@ -85,57 +76,23 @@ There is no ranking benefit from llms.txt.
 <td valign="top" width="54%"><img src=".github/readme/primitives/stat.png" alt="stat rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>chart</code></strong> — A small static chart rendered to inline SVG at build time from inline data or a YAML file.<pre><code>:::chart{type="bar" source="https://snypd.rocks/bench" caption="Tokens per page, HTML vs markdown twin" unit="tokens"}
-- { label: HTML, value: 6120 }
-- { label: Markdown twin, value: 504 }
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>chart</code></strong> — A small static chart rendered to inline SVG at build time from inline data or a YAML file.<pre><code>:::chart{type="bar" source="https://snypd.rocks/bench" caption="Tokens per page, HTML vs markdown twin" unit="tokens"}&#10;- { label: HTML, value: 6120 }&#10;- { label: Markdown twin, value: 504 }&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/chart.png" alt="chart rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>diagram</code></strong> — A box-and-arrow diagram laid out automatically (layered, deterministic) and rendered to inline SVG at build time.<pre><code>:::diagram{direction="lr" caption="Content flows from git to two outputs."}
-nodes:
-  - { id: md, label: markdown + YAML }
-  - { id: build, label: snypd build }
-  - { id: html, label: HTML }
-  - { id: twin, label: .md twin }
-edges:
-  - { from: md, to: build }
-  - { from: build, to: html }
-  - { from: build, to: twin }
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>diagram</code></strong> — A box-and-arrow diagram laid out automatically (layered, deterministic) and rendered to inline SVG at build time.<pre><code>:::diagram{direction="lr" caption="Content flows from git to two outputs."}&#10;nodes:&#10;  - { id: md, label: markdown + YAML }&#10;  - { id: build, label: snypd build }&#10;  - { id: html, label: HTML }&#10;  - { id: twin, label: .md twin }&#10;edges:&#10;  - { from: md, to: build }&#10;  - { from: build, to: html }&#10;  - { from: build, to: twin }&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/diagram.png" alt="diagram rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>flow</code></strong> — An ordered procedure with branches — steps plus yes/no decisions — written as YAML and rendered as a diagram.<pre><code>:::flow{caption="Publishing lands one item on main; the agent never checks main out."}
-steps:
-  - Draft on snypd/drafts
-  - Run lint
-  - ask: Lint clean?
-    yes: Open preview
-    no: { then: fix }
-  - id: fix
-    do: Fix the reported rule and re-lint
-  - Human approves
-  - Land that one item on main
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>flow</code></strong> — An ordered procedure with branches — steps plus yes/no decisions — written as YAML and rendered as a diagram.<pre><code>:::flow{caption="Publishing lands one item on main; the agent never checks main out."}&#10;steps:&#10;  - Draft on snypd/drafts&#10;  - Run lint&#10;  - ask: Lint clean?&#10;    yes: Open preview&#10;    no: { then: fix }&#10;  - id: fix&#10;    do: Fix the reported rule and re-lint&#10;  - Human approves&#10;  - Land that one item on main&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/flow.png" alt="flow rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>steps</code></strong> — An ordered procedure, emitted as HowTo schema.<pre><code>:::steps{title="Add a markdown twin" time="5 min"}
-1. **Build** — `snypd build` writes `index.md` beside every `index.html`.
-2. **Serve** — answer `Accept: text/markdown` with the twin.
-3. **Verify** — `curl -H 'Accept: text/markdown' https://example.com/post/`.
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>steps</code></strong> — An ordered procedure, emitted as HowTo schema.<pre><code>:::steps{title="Add a markdown twin" time="5 min"}&#10;1. **Build** — `snypd build` writes `index.md` beside every `index.html`.&#10;2. **Serve** — answer `Accept: text/markdown` with the twin.&#10;3. **Verify** — `curl -H 'Accept: text/markdown' https://example.com/post/`.&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/steps.png" alt="steps rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
-<td valign="top" width="46%"><strong><code>faq</code></strong> — Question-and-answer pairs, emitted as FAQPage schema.<pre><code>:::faq
-### Does llms.txt help ranking?
-No. No search engine has announced support.
-
-### What does help?
-A markdown twin served on `Accept: text/markdown`.
-:::</code></pre></td>
+<td valign="top" width="46%"><strong><code>faq</code></strong> — Question-and-answer pairs, emitted as FAQPage schema.<pre><code>:::faq&#10;### Does llms.txt help ranking?&#10;No. No search engine has announced support.&#10;&#10;### What does help?&#10;A markdown twin served on `Accept: text/markdown`.&#10;:::</code></pre></td>
 <td valign="top" width="54%"><img src=".github/readme/primitives/faq.png" alt="faq rendered by the editorial theme" width="100%"></td>
 </tr>
 <tr>
