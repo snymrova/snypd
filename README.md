@@ -123,7 +123,7 @@ The same post, photographed in every look the shelf carries. Each look is measur
 </tr>
 <tr>
 <td><img src=".github/readme/looks/technical-phosphor-dark.png" alt="technical › phosphor"><br><strong>technical › phosphor</strong> — dark only: amber on near-black, mono throughout. <sub>0 KB · 0 KB · 0</sub></td>
-<td><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/looks/base-dark.png"><img src=".github/readme/looks/base-light.png" alt="base"></picture><br><strong>base</strong> — unstyled. Semantic HTML, one class per primitive, all five layouts; every theme extends it. <sub>0 KB · 0 KB · 0</sub></td>
+<td><picture><source media="(prefers-color-scheme: dark)" srcset=".github/readme/looks/base-dark.png"><img src=".github/readme/looks/base-light.png" alt="base"></picture><br><strong>base</strong> — unstyled. Semantic HTML, one class per primitive, all six layouts; every theme extends it. <sub>0 KB · 0 KB · 0</sub></td>
 </tr>
 </table>
 

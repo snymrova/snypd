@@ -91,7 +91,7 @@ Written through the MCP from this checkout (`.mcp.json` → `sites/snypd.rocks`,
 |---|---|---|---|
 | **S25** | **The front page is a page** | `home: true` on a `page`; `home` layout in `base`; `/posts/` index; `figure` accepts video with `poster`; tests (a site with and without a home page; the twin's fallback for a video); `check theme` unchanged (the layout is inherited, D8) | D12 |
 | **S26** | **snypd.rocks, the content** | `pages/home.md` written through the MCP with the four clips and five stills in `content/media/`; the U-series and P-series posts published; the maker post as a draft (`mcp.write: draft` on `post` for that one item, or a `launch` type with the draft policy); nav gains Home; pushed | D12 |
-| **S27** | **`docs/launch/`** | the five gallery PNGs at 1270×760 and the 240 thumbnail (a script, not Figma); tagline · description · first comment · FAQ as one markdown file; the PH checklist with owners; the Show HN text | D13 |
+| **S27** | **`docs/launch/`** — **done, 16 Sep** (docs/11 §7b) | the five gallery PNGs at 1270×760 and the 240 thumbnail (`packages/bench/readme/gallery.py`, from the README's frames); `copy.md` — tagline · description · first comment · FAQ; `README.md` — the checklist with owners and the day; `show-hn.md` | D13 |
 | **S28** | **Clean machines** | three transcripts of `mkdir · bunx @snypd/cli init · claude · "Write me a first post."` on three platforms, against **0.1.5 on npm** | D13 · **Gate D** |
 
 S25 and S27 need nothing from anyone. S26 lands in the site's repo whether or not the host can build it yet. S28 is the one that waits on the token.
