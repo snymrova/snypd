@@ -697,6 +697,8 @@ export { live, KILL_PROMPT, phaseOf, phasesFor, type LiveDriver } from "../agent
 export { claude, MODELS, mcpName, type Model, type ClaudeRun, type ClaudeUsage } from "../agent/claude";
 export { writes, runWrites, runWrite, writesMetrics, formatAttempts, readLint, TOPICS, FIRST_ATTEMPT_RULE, type WriteAttempt } from "../agent/writes";
 export { recordPaths, PHASES } from "../agent/run";
+export { benchPage, parseRecord, FAMILIES, HEADLINES, RECORD_URL, type BenchRecord, type RecordRow } from "./benchpage";
+export { gallery, looks, lookMetrics, formatShots, GALLERY_ROUTE, type Look, type Shot } from "./gallery";
 export { Session, type Turn } from "../agent/session";
 
 /**

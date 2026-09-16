@@ -65,7 +65,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "58ecb9eec7b692d12ee63437d49847914c35dfe6",
+    hash: "c0e1562a3b34e3fc5c8b956147f2d82ee1c3adf5",
     files: {
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
@@ -79,7 +79,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "technical": {
-    hash: "dd0bbe1ff9e3c24f704783510e06f84bc5c07525",
+    hash: "4f79b35e3608d3b903db64c4c30bea28ef5e9a18",
     files: {
       "theme.css": _technical_theme_css,
       "theme.yaml": _technical_theme_yaml,

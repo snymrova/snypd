@@ -46,10 +46,11 @@ const KB = (n: number) => +(n / 1024).toFixed(2);
  * only ever looked at 1280, which is how a chart drawn at 640 px shipped for a session rendering its 12 px
  * labels at 6 px on a phone (S14). 390 is an iPhone 15/16 in CSS px; 1280 is the browser's own window.
  */
-const VIEWPORTS = [
+export const VIEWPORTS = [
   { width: 1280, height: 900, mobile: false },
   { width: 390, height: 844, mobile: true },
 ] as const;
+export type Viewport = (typeof VIEWPORTS)[number];
 
 /**
  * Routes to measure, one per URL shape: `/`, then the first route under each distinct first path segment
@@ -86,7 +87,8 @@ function axeSource(): string {
   return readFileSync(p, "utf8");
 }
 
-async function measure(page: Page, url: string, route: string, view: (typeof VIEWPORTS)[number]): Promise<PageResult> {
+/** One route at one viewport: bytes, vitals, inline JS and axe. Exported for the gallery (S22), which judges a page and then photographs the same one. */
+export async function measure(page: Page, url: string, route: string, view: Viewport): Promise<PageResult> {
   const types = new Map<string, string>();
   const bytes = { html: 0, css: 0, js: 0, image: 0, font: 0, other: 0, total: 0 };
   let requests = 0;

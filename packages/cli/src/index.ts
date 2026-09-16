@@ -101,6 +101,24 @@ switch (verb) {
       console.log(`\n${bench.formatAttempts(attempts)}`);
       break;
     }
+    if (args[0] === "report") {   // S22: the record, rewritten as a page a snypd site can publish (/bench)
+      const { readFileSync, writeFileSync } = await import("node:fs");
+      const src = args[1] ?? "bench/latest.md";
+      const out = [...flags].find((f) => f.startsWith("--out="))?.slice(6);
+      const page = bench.benchPage(readFileSync(src, "utf8"), { source: [...flags].find((f) => f.startsWith("--source="))?.slice(9) });
+      if (out) { writeFileSync(out, page); console.error(`${out}: ${page.split("\n").length} lines from ${src}`); } else console.log(page);
+      break;
+    }
+    if (args[0] === "gallery") {   // S22: every look every theme ships, measured and photographed (E9)
+      const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
+      const { report, shots } = await bench.gallery({ root: args[1], out: opt("out"), route: opt("route"), focus: opt("focus"), only: opt("only")?.split(",").filter(Boolean),
+        onLook: (l, i, n) => console.error(`${i}/${n} ${l.variation ? `${l.theme} › ${l.variation}` : l.theme}`) });
+      console.log(bench.toMarkdown(report));
+      console.log(`\n${bench.formatShots(shots)}`);
+      const over = bench.breaches(report);
+      if (over.length && flags.has("--ci")) { console.error(`budget breach: ${over.join(", ")}`); process.exit(1); }
+      break;
+    }
     if (args[0] === "onboard") {   // S18g: first run, walked against the compiled binary (docs/08 F1)
       const { report, walk } = await bench.onboard({ keep: flags.has("--keep") });
       console.log(bench.toMarkdown(report));
@@ -407,7 +425,7 @@ switch (verb) {
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
-      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",

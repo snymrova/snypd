@@ -57,8 +57,11 @@ body > header a { color: inherit; text-decoration: none; font-weight: 600; }
 /* The masthead's tagline: the site description, muted, one line under the name. */
 .snypd-tagline { margin: var(--space-1) 0 0; font-size: var(--size-small); color: var(--color-muted); }
 /* ── The menus (U2). Brand left, menu right; on a phone the menu drops under the brand and wraps.
-   The current page is the one item that is not muted, with an accent rule under it — a mark, not a pill. */
-.snypd-masthead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+   The current page is the one item that is not muted, with an accent rule under it — a mark, not a pill.
+   `center`, not `baseline`: the brand is two lines (name over tagline) and a baseline-aligned menu sits on
+   the first of them, 12 px above the masthead's middle — seen on snypd.rocks at 1920, invisible to every
+   gate because none of them looks. A one-line brand and a logo centre the same way. */
+.snypd-masthead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
 body > header nav ul, body > footer nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
 /* A menu's items sit on one line; the prose rule `li + li { margin-top }` was pushing every item after the first down a step (U7, seen in a screenshot). */
 body > header nav li, body > footer nav li, .snypd-social li { margin-top: 0; }
@@ -208,7 +211,10 @@ blockquote {
   font: 600 var(--size-small) / 1 var(--font-ui);
 }
 
-.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow { margin-block: var(--space-4); }
+/* Every block gets the same breath as a figure. S22 found the two that did not: a `tldr` followed by a
+   `stat-row` — the shape the bench page has — sat flush against it, because the rhythm came from `p`
+   margins and neither block has a paragraph on its outside. */
+.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow, .snypd-tldr, .snypd-callout, .snypd-stat-row, .snypd-steps, .snypd-faq { margin-block: var(--space-4); }
 .snypd-figure img { display: block; width: 100%; }
 
 /* ── Viz keeps the size it was drawn at. `@snypd/viz` owns the geometry (docs/07 decision 17), and that

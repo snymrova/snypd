@@ -611,6 +611,40 @@ describe("find_tools + the catalogue", () => {
     expect(baseDoctor.result.content[0].text).not.toContain("settings: 0 declared");
   });
 
+  test("S22: snypd://themes is the shelf's read — every installed theme, what it reads as, and the looks it ships", async () => {
+    const site = "corpora/_test/mcp-themes";
+    rmSync(site, { recursive: true, force: true }); mkdirSync(site, { recursive: true });
+    const { initRepo } = await import("@snypd/core");
+    initRepo(site, { name: "T", email: "t@example.com" });
+    const [, , list, themes, one, after] = await session([
+      req(1, "initialize"),
+      call(0, "site", { action: "init", name: "Shelf", url: "https://shelf.example", theme: "editorial" }),
+      req(2, "resources/list"),
+      req(3, "resources/read", { uri: "snypd://themes" }),
+      req(4, "resources/read", { uri: "snypd://theme" }),
+      call(5, "theme", { action: "set", name: "technical", variation: "phosphor" }),
+    ], site);
+    expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://themes");
+    const text = themes.result.contents[0].text as string;
+    // The active theme first and marked; every other by name with its own prose — the sentence `snypd://theme` deliberately withholds.
+    expect(text).toContain("  editorial:   # active");
+    expect(text).toContain("    variations:\n      paper: \"Warm cream, oxblood accent, serif throughout — the theme as written.\"   # active");
+    expect(text).toContain("      phosphor: \"Dark only: amber on near-black, mono throughout, the terminal it is named for.\"");
+    expect(text).toContain("  base:\n    version: 0.1.0\n    reads as: >-\n      Unstyled.");
+    expect(text).toContain("    variations: []   # one look, its own");
+    expect(text).toContain("    font: 31 KB declared");
+    expect(text).toContain("    extends: base");
+    expect(text).toMatch(/technical:\n[\s\S]*reads as: >-\n {6}Reference\./);
+    // `snypd://theme` still names the others and says nothing about them: the session-start read stays what it costs.
+    expect(one.result.contents[0].text).toContain("installed: [editorial, base, technical]");
+    expect(one.result.contents[0].text).not.toContain("Reference.");
+    expect(after.result.isError).toBeUndefined();
+    const [, again] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://themes" })], site);
+    expect(again.result.contents[0].text).toContain("  technical:   # active");
+    expect(again.result.contents[0].text).toContain("      phosphor: \"Dark only: amber on near-black, mono throughout, the terminal it is named for.\"   # active");
+    expect(again.result.contents[0].text).not.toContain("  editorial:   # active");
+  });
+
   test("U6a: set takes a variation, refuses one the theme does not ship, and a theme switch clears it", async () => {
     const site = "corpora/_test/mcp-variations";
     rmSync(site, { recursive: true, force: true }); mkdirSync(site, { recursive: true });
