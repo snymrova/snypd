@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join, relative } from "node:path";
 import { parseDocument, stringify as yamlStringify, isMap, type Document } from "yaml";
 import { isPlaceholderUrl, loadConfig, type LoadedConfig } from "./config";
-import { lintMarkdown, type LintResult } from "./content";
+import { hasHomeField, lintMarkdown, routeOf, type LintResult } from "./content";
 import { readFrontmatter, sha1 } from "./store";
 import { Repo, DRAFTS_BRANCH } from "./git";
 import type { Config, TypeDef } from "./schema";
@@ -41,12 +41,16 @@ export function typeDef(cfg: LoadedConfig, type: string): TypeDef {
   return t;
 }
 
-/** Where a `type`/`slug` lives and what URL it gets, without touching the index. */
-export function target(root: string, cfg: LoadedConfig, type: string, slug: string): WriteTarget {
+/**
+ * Where a `type`/`slug` lives and what URL it gets, without touching the index. The route is the
+ * urlPattern's — or `/` when the item is the front page (S25): from the `frontmatter` the caller is
+ * about to write, else from the file's own, read only for a type that has a `home` field.
+ */
+export function target(root: string, cfg: LoadedConfig, type: string, slug: string, frontmatter?: Record<string, unknown>): WriteTarget {
   const def = typeDef(cfg, type);
   const file = join(root, def.dir, `${slug}.md`);
-  const route = def.urlPattern.replace("{slug}", slug).replace("{path}", slug).replace(/\/+$/, "") || "/";
-  return { type, slug, file, path: rel(root, file), route };
+  const fm = frontmatter ?? (hasHomeField(def) && existsSync(file) ? readFrontmatter(readFileSync(file, "utf8")) : undefined);
+  return { type, slug, file, path: rel(root, file), route: routeOf(def, slug, slug, fm) };
 }
 const trashFile = (root: string, type: string, slug: string) => join(root, TRASH_DIR, type, `${slug}.md`);
 
@@ -98,7 +102,7 @@ export function createContent(root: string, input: CreateInput): WriteResult {
   const slug = input.slug ?? (typeof fm.slug === "string" ? fm.slug : undefined) ?? (title ? slugify(title) : undefined);
   if (!slug) throw new WriteError("slug required", "Pass `slug`, or a `title` in the frontmatter to derive one from.");
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new WriteError(`invalid slug "${slug}"`, "Lowercase letters, digits and single dashes.");
-  const t = target(root, cfg, input.type, slug);
+  const t = target(root, cfg, input.type, slug, fm);
   if (existsSync(t.file)) throw new WriteError(`${input.type}/${slug} already exists`, `Use content.update to change it, or pick another slug.`);
   if (existsSync(trashFile(root, input.type, slug))) throw new WriteError(`${input.type}/${slug} is in the trash`, `content.restore brings it back; creating over it would lose its history.`);
   const fields = def.fields as Record<string, { type?: string; required?: boolean }>;
@@ -130,8 +134,9 @@ export function updateContent(root: string, input: UpdateInput): WriteResult {
   if (input.patch) patchDoc(doc, input.patch);
   const next = compose(doc, input.body ?? body);
   writeFileSync(t.file, next);
-  const status = String(readFrontmatter(next).status ?? cfg.config.initialStatus);
-  return { ...t, action: "update", paths: [t.path], status, lint: lintOne(cfg, input.type, next, t.path) };
+  const after = readFrontmatter(next);
+  const status = String(after.status ?? cfg.config.initialStatus);
+  return { ...t, route: routeOf(typeDef(cfg, input.type), input.slug, input.slug, after), action: "update", paths: [t.path], status, lint: lintOne(cfg, input.type, next, t.path) };
 }
 
 /** The statuses the machine allows from here (docs/02 §5). */

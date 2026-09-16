@@ -31,7 +31,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "1611595bce63087852ba6190dc56ffafb012667a",
+    hash: "52b76b44347c65d4c2136e828d1f809bca10caff",
     files: {
       "theme.css": _base_theme_css,
       "theme.yaml": _base_theme_yaml,
@@ -40,6 +40,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
     modules: {
       "layouts/author.tsx": () => import("../../../themes/base/layouts/author.tsx"),
+      "layouts/home.tsx": () => import("../../../themes/base/layouts/home.tsx"),
       "layouts/index.tsx": () => import("../../../themes/base/layouts/index.tsx"),
       "layouts/page.tsx": () => import("../../../themes/base/layouts/page.tsx"),
       "layouts/post.tsx": () => import("../../../themes/base/layouts/post.tsx"),
@@ -65,7 +66,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "c0e1562a3b34e3fc5c8b956147f2d82ee1c3adf5",
+    hash: "d7f9783e0c0fde02d04c7ea285db233c974bcaa2",
     files: {
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
@@ -79,7 +80,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "technical": {
-    hash: "4f79b35e3608d3b903db64c4c30bea28ef5e9a18",
+    hash: "c65fbac44cf2334c251d8bb7a892e03dcd2df5ca",
     files: {
       "theme.css": _technical_theme_css,
       "theme.yaml": _technical_theme_yaml,

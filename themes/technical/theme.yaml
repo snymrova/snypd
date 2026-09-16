@@ -4,7 +4,7 @@
 # disagrees about what a page is for. Reference is read by scanning, not by reading, so: a wider measure,
 # mono for every heading and every piece of chrome, a contents list built from the heading tree, and
 # tables and code blocks given the width they need instead of being squeezed into the reading column.
-# Same thirteen primitives, same five layouts, same markup — and that is the claim U6b is here to test.
+# Same thirteen primitives, same six layouts, same markup — and that is the claim U6b is here to test.
 #
 # **It declares no layouts and no primitives, and one part beyond the masthead** (`toc`, U6b). Everything
 # else resolves up `extends:` to `base`, whose coverage report is what proves it (D8).

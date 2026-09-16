@@ -16,7 +16,7 @@ Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do not
 
 ## What this page is for
 
-Thirteen primitives and five layouts is the whole vocabulary. A theme is finished when every one of
+Thirteen primitives and six layouts is the whole vocabulary. A theme is finished when every one of
 them has been looked at, in both colour schemes, at a phone width and a desktop one — so they are all
 here, in one route, exactly as the spec writes them.
 

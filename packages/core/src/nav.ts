@@ -125,7 +125,8 @@ export function routeLookup(root: string, cfg: LoadedConfig, content: ContentFil
   terms: Iterable<string> = termRoutes(cfg, content.map((c) => ({ type: c.type, frontmatter: readFrontmatter(readFileSync(c.file, "utf8")) }))),
   moves: Move[] = [],
 ): RouteLookup {
-  const routes = new Set<string>(["/", ...content.map((c) => c.route), ...terms]);
+  // `/posts` exists when a page holds `/` (S25): the list the index layout drew there moves to it (build.ts).
+  const routes = new Set<string>(["/", ...content.map((c) => c.route), ...(content.some((c) => c.route === "/") ? ["/posts"] : []), ...terms]);
   const byPath = new Map<string, string>();
   for (const c of content) { byPath.set(`${c.type}/${c.path}`, c.route); if (c.path !== c.slug) byPath.set(`${c.type}/${c.slug}`, c.route); }
   const aliases = new Map<string, string>(Object.entries(redirects(cfg)));

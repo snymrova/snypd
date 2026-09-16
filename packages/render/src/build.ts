@@ -235,7 +235,10 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     }
     return links;
   };
-  const layoutOf = (f: IndexedFile): string | null => { const fm = f.frontmatter.layout; if (typeof fm === "string") return fm; return c.types[f.type]?.layout ?? null; };
+  // The front page (S25, docs/16 §2): the page that holds `/` renders with the theme's `home` layout — the
+  // page layout's body with the latest posts under it — when the theme has one, and as a plain page when
+  // it does not. An explicit `layout:` in the frontmatter still wins, as it does for every other item.
+  const layoutOf = (f: IndexedFile): string | null => { const fm = f.frontmatter.layout; if (typeof fm === "string") return fm; if (f.route === "/" && f.frontmatter.home === true && theme.layouts.home) return "home"; return c.types[f.type]?.layout ?? null; };
   // `page` is whether the author's route is built: a type with no layout emits nothing, and a byline
   // that linked there anyway was the dead link S19b found on a default site (docs/07 §5, finding 1).
   const authorOf = (f: IndexedFile): AuthorLink | undefined => { const a = f.frontmatter.author; if (typeof a !== "string") return undefined; const af = sync.files.find((x) => x.type === "author" && x.slug === a); return af ? { ...entryOf(af), page: layoutOf(af) !== null } : undefined; };
@@ -257,6 +260,20 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   if (hooks.transforms.length) base += `:transform:${sha1(JSON.stringify(allTerms))}`;
   const renderBody = (source: string, page: Entry) => renderDoc(source, { theme, ctx, page, cache: parsed, transform: hooks.transforms.length ? (root, blocks) => applyTransforms(hooks, root, { route: page.route, entry: page, blocks, terms: allTerms, site, config: c }) : undefined });
 
+  /**
+   * The index and the feed list a type when it *has* a `date` field — a question the spec answers, not a
+   * list of type names (S14). Both are newest-first and the feed needs a `pubDate`, so a type with no date
+   * belongs in neither: `page` never had one, and once the theme fixture gave `author` a layout, an author
+   * turned up in the site index and shipped in the RSS feed as a dateless item. `type !== "page"` was one
+   * exception standing in for the rule, and it only covered the type someone had already noticed.
+   */
+  const dated = (t: string) => Boolean(c.types[t]?.fields?.date);
+  const listed = published.filter((f) => layoutOf(f) && dated(f.type));
+  const listEntries = listed.map(entryOf);
+  /** What the front page lists under its body (S25): the newest few, and the `home` layout links the rest at `/posts/`. */
+  const HOME_ENTRIES = 6;
+  const webSite = () => ({ "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: `${site.url}/`, description: site.description });
+
   const plan: Planned[] = [];
   const contentRoutes = new Set<string>();
   const surface: SurfaceEntry[] = [];
@@ -275,7 +292,10 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     // property on its first run — trashing a post left its author's page listing it until the author's
     // own file changed, which is the stale page a cold build would never have written (decision 154).
     const byAuthor = layout === "author" ? published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf) : [];
-    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" ? `:${listKey(byAuthor)}` : ""}`);
+    // The front page lists the latest posts under its body (S25), so the list is in its key as it is in the index's.
+    const home = layout === "home";
+    const listing = home ? listEntries.slice(0, HOME_ENTRIES) : byAuthor;
+    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}`);
     contentRoutes.add(f.route);
     const dir = routeDir(f.route);
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
@@ -285,27 +305,30 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const derived = blockSchemas(blocks);
       const fc = fctx(f.route, entry);
       const description = entry.description ?? applyFilter(hooks, "excerpt", excerpt(mdast), fc);
-      const schemas = applyFilter(hooks, "jsonLd", [pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas], fc);
+      // The front page keeps the `WebSite` schema `/` always had (S25), and its document title is the site's
+      // name — the page's own title is its heading. Everything else about it is a page's.
+      const schemas = applyFilter(hooks, "jsonLd", [home ? webSite() : pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas], fc);
       const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings };
-      const entries = layout === "author" ? applyFilter(hooks, "entries", byAuthor, fc) : [];
-      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
+      const entries = layout === "author" || home ? applyFilter(hooks, "entries", listing, fc) : [];
+      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });
   }
   /**
-   * The index and the feed list a type when it *has* a `date` field — a question the spec answers, not a
-   * list of type names (S14). Both are newest-first and the feed needs a `pubDate`, so a type with no date
-   * belongs in neither: `page` never had one, and once the theme fixture gave `author` a layout, an author
-   * turned up in the site index and shipped in the RSS feed as a dateless item. `type !== "page"` was one
-   * exception standing in for the rule, and it only covered the type someone had already noticed.
+   * The list (S25): at `/` under the index layout, as it always was — or at `/posts/` when a page holds `/`.
+   * One list, one layout, two addresses; the front page's own entries are the same list (above), so the
+   * `WebSite` schema stays on `/` and the list page is a `CollectionPage` like a term's.
    */
-  const dated = (t: string) => Boolean(c.types[t]?.fields?.date);
-  const listed = published.filter((f) => layoutOf(f) && dated(f.type));
-  if (theme.layouts.index && !contentRoutes.has("/")) {
-    const entries = listed.map(entryOf);
-    lastmod.set("/", entries[0]?.updated ?? entries[0]?.date);
-    const schema = { "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: `${site.url}/`, description: site.description };
-    plan.push({ route: "/", key: sha1(`${base}:index:${listKey(entries)}`), kind: "route", outputs: ["index.html"], render: () => ({ "index.html": theme.layouts.index!({ ctx, kind: "index", route: "/", title: applyFilter(hooks, "title", site.name, fctx("/")), description: applyFilter(hooks, "description", site.description, fctx("/")), entries: applyFilter(hooks, "entries", entries, fctx("/")), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fctx("/"))) }).html }) });
+  if (theme.layouts.index) {
+    const route = contentRoutes.has("/") ? "/posts" : "/";
+    if (!contentRoutes.has(route)) {
+      const fc = fctx(route);
+      const dir = routeDir(route);
+      lastmod.set(route, listEntries[0]?.updated ?? listEntries[0]?.date);
+      const title = route === "/" ? site.name : "Posts";
+      const schema = route === "/" ? webSite() : { "@context": "https://schema.org", "@type": "CollectionPage", name: title, url: url(route), description: site.description };
+      plan.push({ route, key: sha1(`${base}:index:${route}:${listKey(listEntries)}`), kind: "route", outputs: [join(dir, "index.html")], render: () => ({ [join(dir, "index.html")]: theme.layouts.index!({ ctx, kind: "index", route, title: applyFilter(hooks, "title", title, fc), description: applyFilter(hooks, "description", site.description, fc), entries: applyFilter(hooks, "entries", listEntries, fc), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fc)) }).html }) });
+    }
   }
   // terms: one page per used term of every taxonomy
   if (theme.layouts.term) {

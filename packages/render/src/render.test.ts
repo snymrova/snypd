@@ -3,7 +3,7 @@ import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, r
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
-import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, LIVE_ROUTE } from "@snypd/core";
+import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, LIVE_ROUTE, SiteIndex } from "@snypd/core";
 import { preview } from "./preview";
 import { checkTheme, checkPlugin, formatCheck, unguardedCss } from "./check";
 import { deskPage, type DeskOnboarding } from "./desk";
@@ -587,7 +587,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.chain.map((c) => c.name)).toEqual(["editorial", "base"]);
     expect(t.coverage.filter((c) => c.status === "inherited").length).toBe(13);
     expect(t.coverage.some((c) => c.status === "missing")).toBe(false);
-    expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
+    expect(Object.keys(t.layouts).sort()).toEqual(["author", "home", "index", "page", "post", "term"]);
     // U6a: the scheme is a token so `ink` can commit to dark, and its default is what the line always said.
     expect(t.css).toContain("color-scheme: var(--color-scheme)");
     expect(resolveTokens(loadConfig(root).config.theme.tokens as Parameters<typeof resolveTokens>[0])["color.scheme"]).toBe("light dark");
@@ -1900,7 +1900,10 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
       + ':::faq\nA lead paragraph.\n\n### Does it open?\nYes.\n\n### Only one at a time?\nAlso yes, `name=` says so.\n:::\n\n'
       + ':::steps{title="Two"}\n1. One\n2. Two\n:::\n\n'
       + '::figure{src="/media/p.png" alt="A picture" caption="Opens"}\n\n'
-      + '::figure{src="/media/p.png" alt="A picture" lightbox=false}\n');
+      + '::figure{src="/media/p.png" alt="A picture" lightbox=false}\n\n'
+      + '::figure{src="/media/clip.mp4" alt="A clip" poster="/media/p.png" caption="Plays"}\n\n'
+      + '::figure{src="/media/clip.webm" alt="Bare"}\n');
+    writeFileSync(join(root, "content/media/clip.mp4"), new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]));   // eight bytes of an mp4 header: copied as media, never sized
     for (let i = 1; i <= 8; i++) writeFileSync(join(root, `content/posts/p${i}.md`), `---\ntitle: P${i}\ndate: 2026-08-0${i}\nstatus: published\n---\n\nBody ${i}.\n`);
     await build(root);
   });
@@ -1939,6 +1942,15 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
     expect(h.match(/<dialog /g)!.length).toBe(1);
   });
 
+  test("S25: a figure whose src is a clip is a <video> with the platform's controls — the poster's size, no lightbox, no script", () => {
+    const h = read("posts/notes");
+    expect(h).toContain('<figure class="snypd-figure" data-width="content"><video src="/media/clip.mp4" poster="/media/p.png" controls preload="metadata" playsinline width="640" height="360" aria-label="A clip">A clip</video><figcaption>Plays</figcaption></figure>');
+    expect(h).toContain('<figure class="snypd-figure" data-width="content"><video src="/media/clip.webm" controls preload="metadata" playsinline aria-label="Bare">Bare</video></figure>');
+    expect(h).not.toContain("autoplay");
+    expect(h.match(/<dialog /g)!.length).toBe(1);   // the image's; a clip opens nothing
+    expect(existsSync(join(dist, "media/clip.mp4"))).toBe(true);   // copied like any media file
+  });
+
   test("the title carries one view-transition-name on the post and in the list, and the list names six", () => {
     expect(read("posts/p3")).toContain('<h1 style="view-transition-name: post-p3; view-transition-class: snypd-title">P3</h1>');
     const index = read("");
@@ -1967,6 +1979,97 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
  * S16: redirects as build output. Two forms because no single form is portable — `_redirects` for the hosts
  * that read it, a page for every other host — and a redirect must never shadow a route the site really has.
  */
+describe("the front page is a page (S25): `home: true` takes `/`, and the list moves to /posts/", () => {
+  const root = "corpora/_test/home";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const ld = (h: string) => JSON.parse(/<script type="application\/ld\+json">([^]*?)<\/script>/.exec(h)![1]!);
+  const welcome = (home: boolean) => `---\ntitle: Welcome\nstatus: published\nhome: ${home}\n---\n\n:::tldr\nWhat this is.\n:::\n\nThe pitch.\n`;
+  const navFile = () => lintSite(root).files.find((f) => f.file?.endsWith("header.yaml"))!;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/nav"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: H, url: https://h.example }\ntheme: { use: base }\n");
+    writeFileSync(join(root, "content/nav/header.yaml"), '- { label: "Posts", ref: "/posts" }\n');
+    for (let i = 1; i <= 8; i++) writeFileSync(join(root, `content/posts/p${i}.md`), `---\ntitle: P${i}\ndate: 2026-08-0${i}\nstatus: published\n---\n\nBody ${i}.\n`);
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("without one, nothing moves: `/` is the list, /posts/ does not exist, and a nav ref to it is dead", async () => {
+    await build(root);
+    expect(read("")).toContain("<h1>H</h1>");
+    expect(ld(read(""))["@type"]).toBe("WebSite");
+    expect(existsSync(join(dist, "posts/index.html"))).toBe(false);
+    expect(read("", "sitemap.xml")).not.toContain("https://h.example/posts/</loc>");
+    expect(navFile().diagnostics.map((d) => d.n)).toEqual([5]);
+  });
+
+  test("with one, `/` is the page — its body, the newest six under it, the WebSite schema it always had — and the list is at /posts/", async () => {
+    writeFileSync(join(root, "content/pages/welcome.md"), welcome(true));
+    await build(root);
+    const h = read("");
+    expect(h).toContain("<title>H</title>");                                   // the tab is the site; the heading is the page's
+    expect(h).toContain('<article class="snypd-page snypd-home"><h1>Welcome</h1>');
+    expect(h).toContain('<section class="snypd-tldr"');                        // every primitive, as on a page
+    expect(h).toContain("<p>The pitch.</p>");
+    expect(h).toContain('</article><section class="snypd-home-entries" aria-labelledby="snypd-latest"><h2 id="snypd-latest"><a href="/posts/">Latest posts</a></h2><ol class="snypd-entries" reversed>');
+    expect(h.match(/<li><a href="\/posts\/p/g)!.length).toBe(6);
+    expect(h).toContain('href="/posts/p8/"'); expect(h).not.toContain('href="/posts/p2/"');
+    expect(ld(h)["@type"]).toBe("WebSite");
+    expect(read("", "index.md")).toContain("home: true");                      // the twin, at /index.md
+    expect(JSON.parse(read("api/page", "welcome.json")).route).toBe("/");
+    expect(existsSync(join(dist, "welcome"))).toBe(false);                     // its pattern route was never built
+    const list = read("posts");
+    expect(list).toContain("<h1>Posts</h1>");
+    expect(list.match(/<li><a href="\/posts\/p/g)!.length).toBe(8);
+    expect(ld(list)["@type"]).toBe("CollectionPage");
+    expect(list).toContain('<a href="/posts/" aria-current="page">Posts</a>');  // the ref resolves now, and the list page is current
+    const map = read("", "sitemap.xml");
+    expect(map).toContain("<url><loc>https://h.example/</loc>");
+    expect(map).toContain("<url><loc>https://h.example/posts/</loc><lastmod>2026-08-08</lastmod></url>");
+    const lint = lintSite(root);
+    expect(lint.errors).toBe(0);
+    expect(navFile().diagnostics).toEqual([]);
+    expect(lint.files.find((f) => f.file?.endsWith("welcome.md"))!.diagnostics.map((d) => d.n)).not.toContain(0);   // `home` is a declared field
+  });
+
+  test("a new post re-renders the front page and the list; the page itself is what it was", async () => {
+    writeFileSync(join(root, "content/posts/p9.md"), "---\ntitle: P9\ndate: 2026-08-09\nstatus: published\n---\n\nBody 9.\n");
+    const r = await build(root);
+    expect(r.rendered).toBeGreaterThan(0); expect(r.cached).toBeGreaterThan(8);   // p9, `/`, `/posts/` and the lists; the eight posts and the sheet kept
+    expect(read("")).toContain('href="/posts/p9/"'); expect(read("")).not.toContain('href="/posts/p3/"');
+    expect(read("posts")).toContain('href="/posts/p9/"');
+  });
+
+  test("two pages that ask: the first by path is the front page, the other keeps its route and is a lint error (rule 14)", async () => {
+    writeFileSync(join(root, "content/pages/aaa.md"), "---\ntitle: Also\nstatus: published\nhome: true\n---\n\nMe too.\n");
+    const lint = lintSite(root);
+    const second = lint.files.find((f) => f.file?.endsWith("welcome.md"))!;
+    expect(second.diagnostics.map((d) => [d.n, d.severity, d.message])).toEqual([[14, "error", "`home: true` is already set on page/aaa; this page stays at /welcome"]]);
+    expect(lint.files.find((f) => f.file?.endsWith("aaa.md"))!.diagnostics.map((d) => d.n)).not.toContain(14);
+    await build(root);
+    expect(read("")).toContain("<h1>Also</h1>");
+    expect(read("welcome")).toContain('<article class="snypd-page"><h1>Welcome</h1>');   // a page, not the home layout
+    rmSync(join(root, "content/pages/aaa.md"));
+  });
+
+  test("turned off again, the site is what it was: `/` is the list, /posts/ is gone, the page is at its route, and no redirect is asked for", async () => {
+    writeFileSync(join(root, "content/pages/welcome.md"), welcome(false));
+    const r = await build(root);
+    expect(read("")).toContain("<h1>H</h1>");
+    expect(ld(read(""))["@type"]).toBe("WebSite");
+    expect(existsSync(join(dist, "posts/index.html"))).toBe(false);
+    expect(read("welcome")).toContain('<article class="snypd-page"><h1>Welcome</h1>');
+    expect(r.removed).toBeGreaterThan(0);
+    // The index logged a move `/` → `/welcome`; rule 10 is silent about it, because `/` is never a dead URL.
+    const index = await SiteIndex.open(root);
+    try { expect(index.moves()).toEqual([{ path: "content/pages/welcome.md", from: "/", to: "/welcome" }]); expect(lintSite(root, { moves: index.moves() }).files.find((f) => f.file?.endsWith("welcome.md"))!.diagnostics.map((d) => d.n)).not.toContain(10); }
+    finally { index.close(); }
+    expect(navFile().diagnostics.map((d) => d.n)).toEqual([5]);
+  });
+});
+
 describe("redirects (S16)", () => {
   const root = "corpora/_test/redirects";
   const dist = join(root, "dist");
@@ -2449,7 +2552,7 @@ The second heading with this text, which is what makes the id de-duplication wor
     const t = await loadTheme(loadConfig(root));
     expect(t.name).toBe("technical");
     expect(t.chain.slice(1).map((l) => l.name)).toEqual(["base"]);
-    expect(Object.keys(t.layouts).sort()).toEqual(["author", "index", "page", "post", "term"]);
+    expect(Object.keys(t.layouts).sort()).toEqual(["author", "home", "index", "page", "post", "term"]);
     // Nothing in `themes/technical` is a layout or a primitive: the yaml declares neither key, so every
     // one of the eighteen resolves up `extends:` — which is the whole of what D8 asks for.
     const yaml = readFileSync("themes/technical/theme.yaml", "utf8");

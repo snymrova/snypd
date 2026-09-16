@@ -6,7 +6,8 @@ theme: base
 version: 0.1.0
 spec: ^1
 css: ./theme.css
-layouts: [post, page, index, term, author]
+# `home` (S25): the page that carries `home: true` — its body, then the newest posts; the list itself is at /posts/.
+layouts: [post, page, index, term, author, home]
 # The document around the layouts, as slots a child theme overrides one file at a time (docs/09 U1).
 parts:
   shell:   ./parts/shell.tsx

@@ -38,6 +38,7 @@ types:
       status: { type: ref, to: status, default: draft }
       description: { type: text, max: 160 }
       noindex: { type: boolean, default: false }
+      home: { type: boolean, default: false, description: "The front page: renders at / with the latest posts under it; the post list moves to /posts/. One per site." }
   author:
     dir: content/authors
     urlPattern: /authors/{slug}

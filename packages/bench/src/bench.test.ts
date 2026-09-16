@@ -90,6 +90,10 @@ test("bench page picks one route per url shape, and always the home page (S13)",
     `<urlset>${["/posts/a/", "/about/", "/category/eng/", "/tag/ai/", "/"].map(loc).join("")}</urlset>`);
   expect(pickRoutes(dist, 3)).toEqual(["/", "/posts/a/", "/about/"]);
   expect(pickRoutes("corpora/_test/does-not-exist")).toEqual(["/"]);
+  // S25: the list at `/posts/` and a post under it are two shapes, so a site with a front page measures both.
+  writeFileSync(join(dist, "sitemap.xml"),
+    `<urlset>${["/", "/posts/a/", "/posts/b/", "/posts/", "/tag/ai/"].map(loc).join("")}</urlset>`);
+  expect(pickRoutes(dist)).toEqual(["/", "/posts/a/", "/posts/", "/tag/ai/"]);
   rmSync(dist, { recursive: true, force: true });
 });
 

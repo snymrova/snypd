@@ -150,12 +150,12 @@ export interface PrimitiveProps {
   page?: Entry;
 }
 export type PrimitiveComponent = (p: PrimitiveProps) => Html;
-export type LayoutKind = "post" | "page" | "index" | "term" | "author" | (string & {});
+export type LayoutKind = "post" | "page" | "index" | "term" | "author" | "home" | (string & {});
 export interface LayoutProps {
   ctx: SiteCtx; kind: LayoutKind; route: string; title: string; description?: string;
   /** The content item, for content layouts. */
   page?: Page;
-  /** Listed items (index, term, author). */
+  /** Listed items (index, term, author; the newest few for home). */
   entries: Entry[];
   term?: TermLink;
   /** JSON-LD for the page (emit.ts): one or more objects, newline-separated, ready for one <script>. */

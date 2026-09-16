@@ -63,6 +63,19 @@ describe("write (S11)", () => {
     expect(() => updateContent(root, { type: "post", slug: "keep", cfg })).toThrow(/nothing to update/);
   });
 
+  test("S25: a page created or patched with `home: true` answers with `/`, and the file's own frontmatter is what target() reads", () => {
+    const cfg = loadConfig(root);
+    mkdirSync(`${root}/content/pages`, { recursive: true });
+    const made = createContent(root, { type: "page", frontmatter: { title: "Welcome", home: true }, body: "Hi.", cfg });
+    expect(made.route).toBe("/");
+    expect(readFileSync(made.file, "utf8")).toContain("home: true");
+    expect(target(root, cfg, "page", "welcome").route).toBe("/");            // read from the file, no index needed
+    expect(updateContent(root, { type: "page", slug: "welcome", patch: { home: false }, cfg }).route).toBe("/welcome");
+    expect(updateContent(root, { type: "page", slug: "welcome", patch: { home: true }, cfg }).route).toBe("/");
+    expect(createContent(root, { type: "page", frontmatter: { title: "Plain" }, cfg }).route).toBe("/plain");
+    expect(createContent(root, { type: "post", frontmatter: { title: "Not a page", home: true }, cfg }).route).toBe("/posts/not-a-page");   // `post` has no `home` field
+  });
+
   test("set_status: only transitions the machine allows; publishing stamps updated", () => {
     const cfg = loadConfig(root);
     createContent(root, { type: "post", slug: "s", frontmatter: { title: "S", date: "2026-01-01" }, cfg });
