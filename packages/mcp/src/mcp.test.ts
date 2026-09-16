@@ -992,6 +992,10 @@ describe("find_tools + the catalogue", () => {
     // A prompt has to name the calls it wants made, or it is a paragraph rather than a workflow.
     expect(post.result.messages[0].content.text).toContain("benchmarks");
     expect(post.result.messages[0].content.text).toContain("content.suggest_blocks");
+    // S21: the 20-topic lane found the first draft fails on the props the index does not carry — a
+    // `flow` step's `do:`, a `diagram`'s YAML body, a `stat`'s `source` — so the prompt names the read
+    // that carries them, per primitive, before the write.
+    expect(post.result.messages[0].content.text).toContain("**Then read the sheet of every primitive in the plan** — `snypd://spec/primitives/<name>`");
     expect(badPrompt.error).toBeDefined();
     // U6b: the theme workflow names its calls and its reads, and carries the two rules a theme can only
     // break once — every value is a var, and a layout is never forked.

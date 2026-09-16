@@ -5,6 +5,11 @@
 # through the MCP, so anything pre-supplied here would be marking its own homework.
 #
 # `theme.use: base` on purpose. Half the test is the swap to `editorial` and back.
+#
+# All four plugins, since S21 (docs/10 §7 row 12): the plugin contract is inside the kill test or it is
+# not tested. Each is on in the shape a site would use it, and the agent is told nothing about them — the
+# config it reads is bigger, `find_tools` has more to find, and the build has four more things to do.
+# What each one leaves on the finished site is a check in `scenario.ts`.
 snypd: 1
 site:
   name: Kill test
@@ -12,3 +17,11 @@ site:
   description: Three plain posts, upgraded, restyled and published without opening an editor.
 theme:
   use: base
+plugins:
+  - analytics: { provider: plausible }
+  - autolink
+  - changelog
+  - indexnow: { key: kill-test-indexnow-key-0001 }
+bench:
+  budgets:
+    jsKb: 3
