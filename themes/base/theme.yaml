@@ -29,6 +29,7 @@ primitives:
   faq:       ./primitives/faq.tsx
   figure:    ./primitives/figure.tsx
   flow:      ./primitives/flow.tsx
+  logo-wall: ./primitives/logo-wall.tsx
   pullquote: ./primitives/pullquote.tsx
   stat:      ./primitives/stat.tsx
   stat-row:  ./primitives/stat-row.tsx

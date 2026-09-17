@@ -1,0 +1,5 @@
+# The studio lane (S29). The same fixture — every primitive, every layout, once — under the fourth theme,
+# so the front page's bands and the cards are reviewed on the shape snypd.rocks' own front page takes.
+# `SNYPD_ENV=studio` is the config layering the product already has (`snypd.<env>.yaml`, docs/02).
+theme:
+  use: studio

@@ -162,6 +162,7 @@ export function lookMetrics(look: Look, shots: PageResult[], fontKb: number): Me
   const js = worst((p) => p.bytes.js + p.inlineJsBytes);
   const font = worst((p) => p.bytes.font);
   const violations = shots.flatMap((p) => p.violations.map((v) => ({ ...v, width: p.width })));
+  const wide = shots.reduce((a, b) => (b.width > a.width ? b : a));
   const at = (p: PageResult) => `@ ${p.width}`;
   const who = look.variation ? `${look.theme} › ${look.variation}` : look.theme;
   return [
@@ -170,6 +171,9 @@ export function lookMetrics(look: Look, shots: PageResult[], fontKb: number): Me
       note: fontKb ? `${who}; worst ${at(font)}; budget ${fontKb} KB is the theme's own font.kb` : `${who}; the theme declares no font, so the budget is 0` },
     { name: `gallery.${look.slug}.a11y.violations`, value: violations.length, unit: "violations", budget: 0,
       note: violations.length ? violations.map((v) => `${at({ width: v.width } as PageResult)} ${v.id} (${v.impact}, ${v.nodes} nodes)`).join(" · ") : `${who}; axe-core, 0 at both widths` },
+    // S29 (docs/17 §5): pictures and clips fetched before any scroll at the widest viewport; report-only.
+    { name: `gallery.${look.slug}.media.kb`, value: KB(wide.bytes.image + wide.bytes.media), unit: "KB",
+      note: `${who}; ${KB(wide.bytes.image)} KB img + ${KB(wide.bytes.media)} KB video ${at(wide)}, before any scroll` },
   ];
 }
 

@@ -100,3 +100,10 @@ warning-word.md: []         # the word "warning" in a paragraph, not a quoted as
 link-list.md: []            # a list of links, each with a sentence — not stats, not steps
 counts-in-prose.md: []      # numbers inside sentences
 interview-dialogue.md: []   # bold Q/A pairs in prose — a dialogue, not headings
+
+# ── S29 (docs/17 §4.3): the fourteenth primitive, three posts ─────────────────────────────────────
+client-logos.md:
+  - { primitive: "logo-wall", at: "/media/acme.svg" }
+award-badges.md:
+  - { primitive: "logo-wall", at: "/media/awwwards.svg" }
+two-screenshots.md: []      # two pictures are a comparison, each wanting its own caption — figures, not a wall

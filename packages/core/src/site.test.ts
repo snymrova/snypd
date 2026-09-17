@@ -356,7 +356,7 @@ describe("bundled themes", () => {
     expect(themeFile(dir, "theme.yaml")).toContain("theme: base");
     expect(themeHas(dir, "./primitives/stat.tsx")).toBe(true);   // theme.yaml writes the `./` form
     expect(themeFiles(dir)).toContain("layouts/post.tsx");
-    expect(bundledNames()).toEqual(["base", "editorial", "technical"]);   // U6b: the second styled theme ships in the binary too
+    expect(bundledNames()).toEqual(["base", "editorial", "studio", "technical"]);   // U6b: the second styled theme ships in the binary too; S29: the fourth
     expect(themeFile(bundledDir("nope"), "theme.yaml")).toBeUndefined();
   });
 });

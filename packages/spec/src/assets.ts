@@ -14,6 +14,7 @@ import _primitives_diagram_yaml from "../primitives/diagram.yaml" with { type: "
 import _primitives_faq_yaml from "../primitives/faq.yaml" with { type: "text" };
 import _primitives_figure_yaml from "../primitives/figure.yaml" with { type: "text" };
 import _primitives_flow_yaml from "../primitives/flow.yaml" with { type: "text" };
+import _primitives_logo_wall_yaml from "../primitives/logo-wall.yaml" with { type: "text" };
 import _primitives_pullquote_yaml from "../primitives/pullquote.yaml" with { type: "text" };
 import _primitives_stat_row_yaml from "../primitives/stat-row.yaml" with { type: "text" };
 import _primitives_stat_yaml from "../primitives/stat.yaml" with { type: "text" };
@@ -32,6 +33,7 @@ import _detect_diagram_yaml from "../detect/diagram.yaml" with { type: "text" };
 import _detect_faq_yaml from "../detect/faq.yaml" with { type: "text" };
 import _detect_figure_yaml from "../detect/figure.yaml" with { type: "text" };
 import _detect_flow_yaml from "../detect/flow.yaml" with { type: "text" };
+import _detect_logo_wall_yaml from "../detect/logo-wall.yaml" with { type: "text" };
 import _detect_pullquote_yaml from "../detect/pullquote.yaml" with { type: "text" };
 import _detect_stat_row_yaml from "../detect/stat-row.yaml" with { type: "text" };
 import _detect_stat_yaml from "../detect/stat.yaml" with { type: "text" };
@@ -48,6 +50,7 @@ export const ASSETS: Readonly<Record<string, string>> = {
   "primitives/faq.yaml": _primitives_faq_yaml,
   "primitives/figure.yaml": _primitives_figure_yaml,
   "primitives/flow.yaml": _primitives_flow_yaml,
+  "primitives/logo-wall.yaml": _primitives_logo_wall_yaml,
   "primitives/pullquote.yaml": _primitives_pullquote_yaml,
   "primitives/stat-row.yaml": _primitives_stat_row_yaml,
   "primitives/stat.yaml": _primitives_stat_yaml,
@@ -66,6 +69,7 @@ export const ASSETS: Readonly<Record<string, string>> = {
   "detect/faq.yaml": _detect_faq_yaml,
   "detect/figure.yaml": _detect_figure_yaml,
   "detect/flow.yaml": _detect_flow_yaml,
+  "detect/logo-wall.yaml": _detect_logo_wall_yaml,
   "detect/pullquote.yaml": _detect_pullquote_yaml,
   "detect/stat-row.yaml": _detect_stat_row_yaml,
   "detect/stat.yaml": _detect_stat_yaml,

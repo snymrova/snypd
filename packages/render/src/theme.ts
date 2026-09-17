@@ -127,7 +127,18 @@ export interface AuthorLink extends Entry { page: boolean }
  * expected to start at 2, because the page's h1 is the layout's title and lint rule 6 says so.
  */
 export interface PageHeading { depth: number; id: string; text: string }
-export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink; /** The body's headings, in order (U6b) — what a `toc` part draws. Empty for a page with none. */ headings: PageHeading[] }
+export interface Page extends Entry {
+  body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink;
+  /** The body's headings, in order (U6b) — what a `toc` part draws. Empty for a page with none. */
+  headings: PageHeading[];
+  /**
+   * `body` again, split at its `##` headings (S29, docs/17 §3): `lead` is everything before the first,
+   * then one entry per section. The pieces joined are `body` byte for byte, so a layout renders one or
+   * the other — the studio theme's front page paints each section as a band; every other layout renders
+   * `body` and never looks. A body with no `##` is all `lead`.
+   */
+  sections: Sectioned;
+}
 export interface PrimitiveProps {
   name: string;
   /** Coerced props from the spec (tree.ts). */
@@ -223,7 +234,7 @@ export interface Theme {
   font?: LoadedFont;
   layouts: Record<string, LayoutComponent>;
   primitives: Record<string, PrimitiveComponent>;
-  /** Per primitive, all 13. */
+  /** Per primitive, all 14. */
   coverage: Coverage[];
   parts: Parts;
   /** Per part: the four in `PART_NAMES` first, then anything else the chain declares. `missing` here has no generic — a layout that asks for it throws (see `part`). */

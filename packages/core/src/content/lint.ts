@@ -16,6 +16,9 @@
  * 11 tag-once           a tag no other post uses                                                          (lintSite)
  * 12 unsafe-url          a link or image whose scheme executes rather than navigates
  * 13 inline-script      raw HTML that introduces script — the one thing the build will refuse to write
+ * 14 home-twice         two pages ask for `/`                                                            (lintSite, content/index.ts)
+ * 15 autoplay           a second autoplaying clip on the page; an autoplay with no poster, or on a picture
+ * 16 logo-wall-thin     a logo-wall of fewer than three logos — a list, not a wall
  */
 import type { Node, Parent, Heading, Link, Image, Text, Literal } from "mdast";
 import type { FieldSpec } from "@snypd/spec";
@@ -71,6 +74,7 @@ const walk = (n: Node, fn: (n: Node, parent?: Parent) => void, parent?: Parent) 
   fn(n, parent);
   if ("children" in n) for (const c of (n as Parent).children) walk(c, fn, n as Parent);
 };
+const hasImage = (n: Node): boolean => n.type === "image" || ("children" in n && (n as Parent).children.some(hasImage));
 
 const D = (rule: string, n: number, severity: Diagnostic["severity"], message: string, hint: string, line: number, extra: Partial<Diagnostic> = {}): Diagnostic => ({ rule, n, severity, message, hint, line, ...extra });
 
@@ -132,6 +136,34 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
   const cover = fm.cover;
   if (cover && typeof cover === "object" && (cover as Record<string, unknown>).image && !(cover as Record<string, unknown>).alt)
     out.push(D("image-alt", 4, "warning", "cover.image has no cover.alt", "Add `alt:` under `cover:`", frontmatterKeyLine(doc, "cover")));
+
+  // ── 15 autoplay ────────────────────────────────────────────────────────────
+  // S29 (docs/17 §4.2), the bound that keeps decision 181's amendment from becoming the reference's
+  // 22 MB: one clip per page may play by itself. The second is an error naming the first — a card that
+  // wants motion gets a poster and a play button, which is what a clip without `autoplay` is. Two
+  // warnings ride along: an autoplay on something that is not a clip does nothing, and one without a
+  // poster shows a reader who asked for reduced motion an empty box, because the poster is the still.
+  const isClip = (v: unknown) => typeof v === "string" && /\.(?:mp4|webm)(?:[?#].*)?$/i.test(v);
+  let firstAuto: Block | undefined;
+  for (const b of tree.all) {
+    if (b.props.autoplay !== true || (b.name !== "figure" && b.name !== "cover")) continue;
+    const src = b.name === "figure" ? b.props.src : b.props.media;
+    if (!isClip(src)) { out.push(D("autoplay", 15, "warning", `\`${b.name}\` says autoplay and ${src ? "names a picture" : "has no clip"}`, "autoplay is for a .mp4 or .webm; drop it, or point at a clip", b.line, { column: b.column, block: b.name })); continue; }
+    if (firstAuto) { out.push(D("autoplay", 15, "error", `A second clip plays by itself — the first is the \`${firstAuto.name}\` on line ${firstAuto.line}`, "One autoplay per page. Drop `autoplay` here: a clip with a poster and the platform's play button is what every other clip on the page is", b.line, { column: b.column, block: b.name })); continue; }
+    firstAuto = b;
+    if (typeof b.props.poster !== "string" || !b.props.poster.trim()) out.push(D("autoplay", 15, "warning", `\`${b.name}\` plays by itself and has no poster`, "Add poster=\"/media/….png\" — it is the still a reader who asked for reduced motion sees instead of the clip", b.line, { column: b.column, block: b.name }));
+  }
+
+  // ── 16 logo-wall thin ──────────────────────────────────────────────────────
+  // S29 (docs/17 §4.3): the spec's own floor. One mark is a figure, two are a comparison, three are a
+  // wall. Counted as the renderer counts them — the first image in each list item — so a wall of three
+  // items with one picture each and a wall of one item with three pictures are different things.
+  for (const b of tree.all) {
+    if (b.name !== "logo-wall") continue;
+    let n = 0;
+    walk(b.node, (x, parent) => { if (x.type === "listItem" && (x as Parent).children.some((c) => hasImage(c))) n++; void parent; });
+    if (n < 3) out.push(D("logo-wall-thin", 16, "warning", `\`logo-wall\` holds ${n} logo${n === 1 ? "" : "s"}`, n ? "Three or more make a wall; one is a `figure`, two are two figures side by side" : "Write a markdown list under it, one `![name](/media/mark.svg)` per line, optionally wrapped in a link", b.line, { column: b.column, block: b.name }));
+  }
 
   // ── walk the body once: headings, links, images, words, prose ─────────────
   let words = 0, lastLevel = 1;

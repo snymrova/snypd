@@ -301,14 +301,14 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
       const source = readFileSync(join(root, f.path), "utf8");
       const entry = entryOf(f);
-      const { body, cover, root: mdast, blocks, headings } = renderBody(source, entry);
+      const { body, cover, root: mdast, blocks, headings, sections } = renderBody(source, entry);
       const derived = blockSchemas(blocks);
       const fc = fctx(f.route, entry);
       const description = entry.description ?? applyFilter(hooks, "excerpt", excerpt(mdast), fc);
       // The front page keeps the `WebSite` schema `/` always had (S25), and its document title is the site's
       // name — the page's own title is its heading. Everything else about it is a page's.
       const schemas = applyFilter(hooks, "jsonLd", [home ? webSite() : pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas], fc);
-      const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings };
+      const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings, sections };
       const entries = layout === "author" || home ? applyFilter(hooks, "entries", listing, fc) : [];
       const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
@@ -491,7 +491,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
  * dispatch would have been a second answer to "what does this theme do with a `stat-row`", which is the
  * one question the empty state exists to answer honestly.
  */
-export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: Pick<MdastCache, "get">; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[]; headings: PageHeading[] } {
+export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: Pick<MdastCache, "get">; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[]; headings: PageHeading[]; sections: Sectioned } {
   let { doc, tree } = o.cache.get(source);
   if (o.transform) {
     const next = o.transform(doc.tree, tree.all);
@@ -524,5 +524,8 @@ export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page:
   // a toc whose anchors came from anywhere else is a toc whose links can be wrong, and the ids are
   // de-duplicated as they are issued, so only the renderer knows that the second "Notes" is `notes-1`.
   const headings: PageHeading[] = [];
-  return { body: toHtml(root, { blocks, onBlock, headings }), cover, root: doc.tree, blocks: tree.all, headings };
+  // The same body, split at its `##` headings (S29): what a layout that bands its sections reads.
+  let sections: Sectioned = { lead: new Html(""), sections: [] };
+  const body = toHtml(root, { blocks, onBlock, headings, sectioned: (s) => { sections = s; } });
+  return { body, cover, root: doc.tree, blocks: tree.all, headings, sections };
 }

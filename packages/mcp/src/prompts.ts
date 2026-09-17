@@ -32,7 +32,7 @@ export const PROMPTS: Prompt[] = [
     arguments: [
       { name: "look", description: "How it should read — \"a dense reference theme, mono headings\", \"warm, serif, long-form\". The more specific, the fewer rounds", required: false },
       { name: "name", description: "Theme name; lowercase letters, digits and hyphens. Asked for if absent", required: false },
-      { name: "extends", description: "The theme it extends; default `base`, which brings every layout and all 13 primitives", required: false },
+      { name: "extends", description: "The theme it extends; default `base`, which brings every layout and all 14 primitives", required: false },
     ] },
 ];
 

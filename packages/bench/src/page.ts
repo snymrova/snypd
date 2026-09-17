@@ -32,7 +32,7 @@ export interface PageResult {
   route: string;
   /** Viewport width in CSS px — every route is measured at both, and the worst of the two is reported. */
   width: number;
-  bytes: { html: number; css: number; js: number; image: number; font: number; other: number; total: number };
+  bytes: { html: number; css: number; js: number; image: number; /** audio and video fetched before any scroll — an autoplaying clip (S29) */ media: number; font: number; other: number; total: number };
   requests: number;
   inlineJsBytes: number;
   vitals: { fcp: number; lcp: number; cls: number };
@@ -93,7 +93,7 @@ function axeSource(): string {
 /** One route at one viewport: bytes, vitals, inline JS and axe. Exported for the gallery (S22), which judges a page and then photographs the same one. */
 export async function measure(page: Page, url: string, route: string, view: Viewport): Promise<PageResult> {
   const types = new Map<string, string>();
-  const bytes = { html: 0, css: 0, js: 0, image: 0, font: 0, other: 0, total: 0 };
+  const bytes = { html: 0, css: 0, js: 0, image: 0, media: 0, font: 0, other: 0, total: 0 };
   let requests = 0;
   page.on("Network.responseReceived", (p) => {
     const t = String((p as { type?: string }).type ?? "Other");
@@ -108,6 +108,7 @@ export async function measure(page: Page, url: string, route: string, view: View
     else if (t === "Stylesheet") bytes.css += n;
     else if (t === "Script") bytes.js += n;
     else if (t === "Image") bytes.image += n;
+    else if (t === "Media") bytes.media += n;
     else if (t === "Font") bytes.font += n;
     else bytes.other += n;
   });
@@ -187,6 +188,8 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
   const heavy = worstBy((p) => p.bytes.total);
   const lcp = worstBy((p) => p.vitals.lcp);
   const cls = worstBy((p) => p.vitals.cls);
+  const widest = Math.max(...pages.map((p) => p.width));
+  const media = pages.filter((p) => p.width === widest).reduce((a, b) => (b.bytes.image + b.bytes.media > a.bytes.image + a.bytes.media ? b : a));
   const allViolations = pages.flatMap((p) => p.violations.map((v) => ({ ...v, route: p.route, width: p.width })));
   const where = opts.label ? `${opts.label}: ` : "";
   const at = (p: PageResult) => `${p.route} @ ${p.width}`;
@@ -216,6 +219,11 @@ export async function pageSuite(opts: { root: string; dist?: string; routes?: st
         note: allViolations.length ? allViolations.map((v) => `${v.route} @ ${v.width} ${v.id} (${v.impact}, ${v.nodes} nodes)`).join(" · ") : `axe-core, 0 across ${pages.length} route/viewport pairs` },
       { name: `${prefix}.bytes.kb`, value: KB(heavy.bytes.total), unit: "KB",
         note: `worst ${at(heavy)}: ${KB(heavy.bytes.html)} KB html + ${KB(heavy.bytes.css)} KB css + ${KB(heavy.bytes.image)} KB img${heavy.bytes.font ? ` + ${KB(heavy.bytes.font)} KB font` : ""}, ${heavy.requests} requests — uncompressed, which no host serves; report-only` },
+      // S29 (docs/17 §5): what the pictures and the clips cost on first load at the desktop width, before
+      // any scroll — the row the reference would read 22,900 on, and the one an autoplaying showreel is
+      // held to. Report first, budget after one measurement, the way `bytes.kb` was treated.
+      { name: `${prefix}.media.kb`, value: KB(media.bytes.image + media.bytes.media), unit: "KB",
+        note: `worst ${at(media)}: ${KB(media.bytes.image)} KB img + ${KB(media.bytes.media)} KB video/audio fetched before any scroll at the widest viewport; report-only` },
       { name: `${prefix}.lcp`, value: +lcp.vitals.lcp.toFixed(1), unit: "ms",
         note: `worst ${at(lcp)}; localhost, unthrottled — the shape of the page, not a field number; report-only` },
       // Gated from S14: layout shift is the one vital a localhost run measures honestly, because it is

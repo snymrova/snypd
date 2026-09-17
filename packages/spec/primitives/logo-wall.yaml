@@ -1,0 +1,17 @@
+name: logo-wall
+kind: container
+group: media
+purpose: A wall of logos — clients, awards, badges — over a markdown list of images, each with alt text, optionally linked and captioned. Three or more.
+props:
+  layout: { type: enum, values: [grid, marquee], default: grid, description: grid sets the marks in rows; marquee moves them across once, and stands still under reduced motion and under the pointer. }
+  title: { type: string, description: A short line above the wall, e.g. "Trusted by". }
+slots: { body: markdown, description: "one list; each item an image, optionally inside a link, optionally followed by a caption after an em dash" }
+intent: Show who or what stands behind the page, as marks rather than a list of names.
+anti-intent: Not a gallery of photographs (a figure each). Not decoration — every mark names someone, and its alt text says who. Fewer than three is a list.
+example: |
+  :::logo-wall{title="Trusted by"}
+  - [![Acme](/media/acme.svg)](https://acme.example)
+  - ![Globex](/media/globex.svg)
+  - [![Initech](/media/initech.svg)](https://initech.example) — since 2024
+  :::
+fallback: 'the list as written — "![alt](src)" per item'

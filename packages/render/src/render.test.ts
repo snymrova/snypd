@@ -86,7 +86,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     // llms.txt feed.xml sitemap.xml robots.txt api/site.json api/{post,page,author}.json api/{category,tag}.json + assets/theme.css (base has no tokens, and since U7 one sheet of behaviour)
     expect(r.artefacts).toBe(11);
     expect(existsSync(join(dist, "posts/d"))).toBe(false);
-    expect(r.theme.coverage.every((c) => c.status === "own")).toBe(true); expect(r.theme.coverage.length).toBe(13);
+    expect(r.theme.coverage.every((c) => c.status === "own")).toBe(true); expect(r.theme.coverage.length).toBe(14);
     const w = await build(root);
     expect(w.rendered).toBe(0); expect(w.cached).toBe(19);
     // F1: the profile is the render phase, split. A cold build parses and writes; the warm one parses
@@ -362,7 +362,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(bad, "themes/x/tldr.tsx"), 'export default () => "t";');
     const t = await loadTheme(loadConfig(bad));
     expect(t.coverage.find((c) => c.name === "tldr")!.status).toBe("own");
-    expect(t.coverage.filter((c) => c.status === "missing").length).toBe(12);
+    expect(t.coverage.filter((c) => c.status === "missing").length).toBe(13);
   });
 
   test("extends: a child inherits every slot it does not declare, and its own wins", async () => {
@@ -579,13 +579,13 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(cfg.diagnostics.map((d) => d.message).join(" ")).toContain("extends cycle");
     expect(cfg.layers.find((l) => l.name === "theme")!.chain!.map((c) => c.name)).toEqual(["a", "b"]);
   });
-  test("editorial: the shipped child theme covers all 13 primitives with no primitive .tsx of its own, and overrides one part", async () => {
+  test("editorial: the shipped child theme covers all 14 primitives with no primitive .tsx of its own, and overrides one part", async () => {
     const root = "corpora/_test/theme-editorial";
     rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "content/posts"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: E, url: https://e.example }\ntheme: { use: editorial }\n");
     const t = await loadTheme(loadConfig(root));
     expect(t.chain.map((c) => c.name)).toEqual(["editorial", "base"]);
-    expect(t.coverage.filter((c) => c.status === "inherited").length).toBe(13);
+    expect(t.coverage.filter((c) => c.status === "inherited").length).toBe(14);
     expect(t.coverage.some((c) => c.status === "missing")).toBe(false);
     expect(Object.keys(t.layouts).sort()).toEqual(["author", "home", "index", "page", "post", "term"]);
     // U6a: the scheme is a token so `ink` can commit to dark, and its default is what the line always said.
@@ -1122,13 +1122,13 @@ describe("Desk (S18b)", () => {
   test("the shelf lists every theme and every look this root can resolve, drawn from its own tokens", async () => {
     await server.settled();
     const page = await (await fetch(`${server.url}/_snypd`)).text();
-    expect(page).toContain("Themes — 6 looks across 3 themes");
+    expect(page).toContain("Themes — 7 looks across 4 themes");
     for (const call of ['{&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;ink&quot;}', '{&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;broadsheet&quot;}', '{&quot;name&quot;:&quot;technical&quot;,&quot;variation&quot;:&quot;phosphor&quot;}', '{&quot;name&quot;:&quot;technical&quot;,&quot;variation&quot;:&quot;graphite&quot;}', '{&quot;name&quot;:&quot;editorial&quot;,&quot;variation&quot;:&quot;paper&quot;}'])
       expect(page).toContain(`theme › set ${call}`);
     // This fixture is on `base`, which ships no looks: one tile, active, no call.
     expect(page).toContain('<code>base</code><span class="state done">active</span>');
     expect(page).not.toContain("theme › set {&quot;name&quot;:&quot;base&quot;}");
-    expect(page.match(/class="name">Desk test</g)?.length).toBe(6);
+    expect(page.match(/class="name">Desk test</g)?.length).toBe(7);
     expect(page).toContain('aria-label="editorial › ink specimen"><div class="name">');
     const ink = page.slice(page.indexOf('aria-label="editorial › ink specimen"') - 900, page.indexOf('aria-label="editorial › ink specimen"'));
     expect(ink).toContain("--color-scheme:dark");
@@ -2495,7 +2495,7 @@ The second heading with this text, which is what makes the id de-duplication wor
     mkdirSync(join(root, "content/posts"), { recursive: true });
     // The real themes, copied in, because the claim under test is about *these* two files and not about a
     // fixture written to pass: `technical` is what a user installs and `base` is what it extends.
-    for (const t of ["base", "editorial", "technical"]) cpSync(`themes/${t}`, join(root, `themes/${t}`), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    for (const t of ["base", "editorial", "technical", "studio"]) cpSync(`themes/${t}`, join(root, `themes/${t}`), { recursive: true, filter: (f) => !f.endsWith("package.json") });
     writeFileSync(join(root, "content/posts/one.md"), BODY);
     writeFileSync(join(root, "content/posts/prose.md"), "---\ntitle: Prose\nslug: prose\nstatus: published\n---\n\nJust a paragraph, and not a heading anywhere.\n");
   });
@@ -2558,7 +2558,7 @@ The second heading with this text, which is what makes the id de-duplication wor
     const yaml = readFileSync("themes/technical/theme.yaml", "utf8");
     expect(yaml).not.toMatch(/^layouts:/m);
     expect(yaml).not.toMatch(/^primitives:/m);
-    expect(t.coverage.length).toBe(13);
+    expect(t.coverage.length).toBe(14);
     expect(t.coverage.every((c) => c.status === "inherited" && c.via === "base")).toBe(true);
     expect(t.partCoverage).toEqual([
       { name: "shell", status: "inherited", via: "base" },
@@ -2594,7 +2594,7 @@ The second heading with this text, which is what makes the id de-duplication wor
    * holds is the half a unit test can: the declaration reaches the wire, inside the theme's own layer.
    */
   test("@view-transition survives the layer the theme's sheet is wrapped in", async () => {
-    for (const theme of ["editorial", "technical"]) {
+    for (const theme of ["editorial", "technical", "studio"]) {
       configure(theme);
       await build(root);
       const css = page("assets/theme.css");
@@ -2659,7 +2659,7 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     mkdirSync(join(root, "content/posts"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: X1, url: https://x1.example }\ntheme:\n  use: base\n`);
     // The real themes, so "passes" is a claim about what ships and not about a fixture written to pass.
-    for (const t of ["base", "editorial", "technical"]) cpSync(`themes/${t}`, join(root, `themes/${t}`), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    for (const t of ["base", "editorial", "technical", "studio"]) cpSync(`themes/${t}`, join(root, `themes/${t}`), { recursive: true, filter: (f) => !f.endsWith("package.json") });
 
     // One fixture per rule, each breaking exactly one thing.
     theme("no-face", { "theme.yaml": `${head("no-face")}tokens:\n${PALETTE}`, "theme.css": "body { color: var(--color-text); }\n" });
@@ -2686,8 +2686,8 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
   });
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-  test("the three themes that ship pass every rule, and the numbers are in the output", async () => {
-    for (const name of ["base", "editorial", "technical"]) {
+  test("the four themes that ship pass every rule, and the numbers are in the output", async () => {
+    for (const name of ["base", "editorial", "technical", "studio"]) {
       const r = await checkTheme(root, name);
       expect({ name, ok: r.ok }).toEqual({ name, ok: true });
       // No rule may pass by saying nothing: a row with an empty detail is a badge with no evidence.
@@ -2790,8 +2790,8 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     // The unit underneath, on the shapes a sheet can take: nested `@supports`, a brace in a string.
     expect(unguardedCss("@supports (a: b) { @media (x) { .a { animation-timeline: view(); } } }\n.b { interpolate-size: allow-keywords }")).toEqual([{ line: 2, what: "interpolate-size / calc-size()", tier: "one engine", test: "(interpolate-size: allow-keywords)" }]);
     expect(unguardedCss(`.a::before { content: "}"; }\n@supports (x: y) { .b { corner-shape: squircle } }`)).toEqual([]);
-    // And the three themes that ship pass it: `base` guards `interpolate-size`, both themes guard the rest.
-    for (const name of ["base", "editorial", "technical"]) expect({ name, status: rule(await checkTheme(root, name), "css.enhancement-guarded").status }).toEqual({ name, status: "pass" });
+    // And the four themes that ship pass it: `base` guards `interpolate-size`, the styled themes guard the rest.
+    for (const name of ["base", "editorial", "technical", "studio"]) expect({ name, status: rule(await checkTheme(root, name), "css.enhancement-guarded").status }).toEqual({ name, status: "pass" });
   });
 
   test("formatCheck prints one line per rule, the rule's name first", async () => {

@@ -1,0 +1,11 @@
+shape: list
+base: 0.30
+require:
+  items: [3, 40]
+  allImages: true
+signals:
+  - { fact: allImages, isTrue: true, weight: 0.45, because: Every item is a picture and nothing else — a list of marks, which is what a wall is }
+  - { fact: hasLinks, isTrue: true, weight: 0.10, because: The marks already link to who they stand for }
+  - { fact: items, atLeast: 4, weight: 0.05, because: Four or more reads as a wall; three is the floor }
+  - { fact: hasNested, isTrue: true, weight: -0.40, because: A nested list is structure a wall does not have }
+min: 0.70

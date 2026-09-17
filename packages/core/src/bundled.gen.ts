@@ -11,7 +11,7 @@ const REPO = join(import.meta.dir, "..", "..", "..");
 const THEMES = join(REPO, "themes");
 const PLUGINS = join(REPO, "plugins");
 /** Bundled by name. A theme outside this list is a user's, lives on their disk, and is loaded from it. */
-export const BUNDLED_NAMES = ["base", "editorial", "technical"] as const;
+export const BUNDLED_NAMES = ["base", "editorial", "technical", "studio"] as const;
 /**
  * The first-party plugins that ship in the binary (docs/10 §4.8, decision 83) — found *after* the site's
  * own `plugins/` and `node_modules/`, through the same loader, so a third-party plugin is never second-class.

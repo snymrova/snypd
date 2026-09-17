@@ -5,6 +5,8 @@ home: true
 description: The front page, under the home layout — a page's body, then the latest posts.
 ---
 
+::cover{subtitle="Publish a website from the harness you already have open." media="/media/showreel.mp4" poster="/media/showreel.png" autoplay=true}
+
 :::tldr
 Write in the harness you already have open. The site is markdown in git, built to static HTML with no script on the page.
 :::
@@ -25,5 +27,14 @@ Write in the harness you already have open. The site is markdown in git, built t
 :::
 
 ::figure{src="/media/twin.png" alt="Side-by-side HTML and markdown of the same post" caption="Every page ships its markdown twin." width="wide"}
+
+## Runs on it
+
+:::logo-wall{layout="marquee"}
+- [![Acme](/media/logo-acme.png)](https://acme.example)
+- ![Globex](/media/logo-globex.png)
+- [![Initech](/media/logo-initech.png)](https://initech.example)
+- ![Umbrella](/media/logo-umbrella.png)
+:::
 
 ::cta{title="Read the posts" button="All posts" href="/posts/"}

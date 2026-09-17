@@ -223,6 +223,25 @@ describe("lint rules", () => {
     // code is not raw HTML: a post *about* script must be writable
     expect(find(`${FM}\`\`\`html\n<script>alert(1)</script>\n\`\`\`\n\nUse \`<button onclick="x()">\` sparingly.\n`, "inline-script")).toBeUndefined();
   });
+  // ── S29 / docs/17 §4.2 ────────────────────────────────────────────────────────────────────────
+  test("15 autoplay: one clip per page may play by itself; the second is an error naming the first; no poster and not-a-clip are warnings", () => {
+    const one = `::figure{src="/media/a.mp4" alt="a" poster="/media/a.png" autoplay=true}\n`;
+    expect(find(`${FM}${one}`, "autoplay")).toBeUndefined();
+    // A cover's `media` is the other place a clip can play by itself, and the same one-per-page counts it.
+    const d = find(`${FM}::cover{media="/media/reel.mp4" poster="/media/reel.png" autoplay=true}\n\n${one}`, "autoplay")!;
+    expect(d.severity).toBe("error");
+    expect(d.message).toContain("the `cover` on line 7");
+    expect(d.line).toBe(9); expect(d.block).toBe("figure");
+    expect(d.hint).toContain("One autoplay per page");
+    // Without a poster there is nothing to show a reader who asked for reduced motion.
+    const p = find(`${FM}::figure{src="/media/a.mp4" alt="a" autoplay=true}\n`, "autoplay")!;
+    expect(p.severity).toBe("warning"); expect(p.message).toContain("no poster");
+    // On a picture, autoplay is a word that does nothing.
+    const i = find(`${FM}::figure{src="/media/a.png" alt="a" autoplay=true}\n`, "autoplay")!;
+    expect(i.severity).toBe("warning"); expect(i.message).toContain("names a picture");
+    // A clip with the platform's play button is what every other clip is; nothing to say about it.
+    expect(find(`${FM}::figure{src="/media/a.mp4" alt="a" poster="/media/a.png"}\n\n${one}`, "autoplay")).toBeUndefined();
+  });
 
   test("diagnostics are sorted by line, carry file and fix hints", () => {
     const r = lintMarkdown(`${FM}::hero\n\n::stat{value="1" label="l"}\n`, { file: "p.md", type: POST_TYPE as never, routes: new Set() });

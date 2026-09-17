@@ -324,7 +324,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
     const ctx = siteCtx();
     const layout = theme.layouts.page ?? theme.layouts.post;
     if (!layout) return new Html(`<!doctype html><meta charset="utf-8"><title>${escape(title)}</title>${body.html}`);
-    const page: Page = { route, type: "page", slug: "review", title, status: "draft", frontmatter: {}, body, terms: [], layout: "page", markdownUrl: "", headings: [] };
+    const page: Page = { route, type: "page", slug: "review", title, status: "draft", frontmatter: {}, body, terms: [], layout: "page", markdownUrl: "", headings: [], sections: { lead: body, sections: [] } };
     return layout({ ctx, kind: "page", route, title, description: "snypd review", page, entries: [] });
   };
 
@@ -389,7 +389,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
    *
    * It goes through `renderDoc` and the theme's own layout for the same reason: a hand-written HTML
    * splash would demonstrate snypd's taste in splashes. This demonstrates the installed theme rendering
-   * five of the thirteen primitives, which is the claim the product actually makes.
+   * five of the fourteen primitives, which is the claim the product actually makes.
    */
   const EMPTY_MARK = "data-snypd-empty-state";
   const emptySource = (): string => `:::tldr
@@ -399,7 +399,7 @@ This site works. It has no content yet — so this page is being **rendered for 
 Everything here is written through MCP, from the harness you already have open. There is no editor on this site and no button that writes.
 
 :::steps
-1. **Say what you want.** Ask your agent for a post. It reads the vocabulary first — thirteen primitives — then writes.
+1. **Say what you want.** Ask your agent for a post. It reads the vocabulary first — fourteen primitives — then writes.
 2. **Read it here.** The draft appears on the Desk with a review link. The preview serves exactly what would publish.
 3. **It publishes, or you approve it.** By default the agent publishes what it wrote. Set a type's \`mcp.write\` to \`draft\` and it stops at the review page instead, where you approve the exact version you read — an approval is bound to those bytes and lapses if they change.
 :::

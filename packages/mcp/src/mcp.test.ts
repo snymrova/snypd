@@ -56,7 +56,7 @@ describe("stdio", () => {
     expect(init.result.serverInfo.name).toBe("snypd");
     const uris = list.result.resources.map((r: any) => r.uri);
     expect(uris[0]).toBe("snypd://config");
-    expect(uris.filter((u: string) => u.startsWith("snypd://spec/primitives/")).length).toBe(13);
+    expect(uris.filter((u: string) => u.startsWith("snypd://spec/primitives/")).length).toBe(14);
     expect(uris).toEqual(expect.arrayContaining(["snypd://types", "snypd://types/post", "snypd://taxonomies/category"]));
     expect(cfg.result.contents[0].mimeType).toBe("application/yaml");
     expect(cfg.result.contents[0].text).toContain("name: corpus-100 # ← snypd.yaml:3");
@@ -636,7 +636,7 @@ describe("find_tools + the catalogue", () => {
     expect(text).toContain("    extends: base");
     expect(text).toMatch(/technical:\n[\s\S]*reads as: >-\n {6}Reference\./);
     // `snypd://theme` still names the others and says nothing about them: the session-start read stays what it costs.
-    expect(one.result.contents[0].text).toContain("installed: [editorial, base, technical]");
+    expect(one.result.contents[0].text).toContain("installed: [editorial, base, studio, technical]");
     expect(one.result.contents[0].text).not.toContain("Reference.");
     expect(after.result.isError).toBeUndefined();
     const [, again] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://themes" })], site);

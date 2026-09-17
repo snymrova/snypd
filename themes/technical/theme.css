@@ -207,7 +207,7 @@ html { scroll-behavior: smooth; }
   font-size: var(--size-h3); line-height: 1.4; color: var(--color-muted);
   margin-top: var(--space-2); max-width: 34rem; text-wrap: pretty;
 }
-.snypd-cover img {
+.snypd-cover img, .snypd-cover-media {
   display: block; width: 100%; margin-top: var(--space-4);
   border-radius: var(--radius); background: var(--color-surface);
 }
@@ -376,3 +376,13 @@ html { scrollbar-gutter: stable; }
 /* The shared title on the list and on the post (docs/14 §4.4), timed as a group; the rest cross-fades. */
 ::view-transition-group(.snypd-title) { animation-duration: 240ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; }
+
+/* ── The wall (S29, `logo-wall`): marks in a row under a hairline. This theme has no marquee — the
+   duplicate row `base` renders for one is hidden, and a `marquee` wall is the grid. */
+.snypd-logo-wall { margin-block: var(--space-4); }
+.snypd-logo-wall-title { font: 600 var(--size-small) / 1.2 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-muted); margin-bottom: var(--space-2); }
+.snypd-logo-wall ul { list-style: none; margin: 0; padding: var(--space-3) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); border-top: 1px solid var(--color-border); }
+.snypd-logo-wall li { margin: 0; display: grid; gap: var(--space-1); justify-items: start; }
+.snypd-logo-wall img { display: block; height: 2rem; width: auto; max-width: 10rem; object-fit: contain; }
+.snypd-marquee { display: contents; }
+.snypd-marquee ul[aria-hidden] { display: none; }

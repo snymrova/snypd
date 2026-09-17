@@ -2,7 +2,7 @@
 title: Every primitive, once
 date: 2026-08-28
 status: published
-description: One post that uses all thirteen primitives, so a theme can be reviewed in a single page.
+description: One post that uses all fourteen primitives, so a theme can be reviewed in a single page.
 author: sunny
 category: engineering
 tags: [markdown, agents]
@@ -16,7 +16,7 @@ Serving a markdown twin cuts what an agent parses by 92 %. `llms.txt` may do not
 
 ## What this page is for
 
-Thirteen primitives and six layouts is the whole vocabulary. A theme is finished when every one of
+Fourteen primitives and six layouts is the whole vocabulary. A theme is finished when every one of
 them has been looked at, in both colour schemes, at a phone width and a desktop one — so they are all
 here, in one route, exactly as the spec writes them.
 
@@ -82,6 +82,13 @@ A markdown twin served on `Accept: text/markdown`.
 :::
 
 ## Blocks that carry a thing to look at
+
+:::logo-wall{title="Runs on it"}
+- [![Acme](/media/logo-acme.png)](https://acme.example)
+- ![Globex](/media/logo-globex.png)
+- [![Initech](/media/logo-initech.png)](https://initech.example) — since 2024
+- ![Umbrella](/media/logo-umbrella.png)
+:::
 
 ::figure{src="/media/twin.png" alt="Side-by-side HTML and markdown of the same post" caption="The `.md` twin is the source file." width="wide"}
 

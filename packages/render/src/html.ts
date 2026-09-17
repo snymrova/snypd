@@ -44,6 +44,14 @@ export interface HtmlOptions {
   headings?: Array<{ depth: number; id: string; text: string }>;
   /** Render top-level paragraphs without their `<p>` — a phrase going into a caption, not a document. */
   inline?: boolean;
+  /**
+   * Handed the document's own body split at its shallowest headings (S29, docs/17 §3) — the same
+   * split a container's `sections()` gives a primitive, for the root. What a layout that paints each
+   * `##` section as its own band reads; the footnote list rides with the last section so the pieces
+   * joined are byte for byte the `Html` returned. Only the caller that renders a document body passes
+   * this, and it costs that render nothing but the slicing: no heading id is issued a second time.
+   */
+  sectioned?: (s: Sectioned) => void;
 }
 
 export const slugify = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "section";
@@ -71,6 +79,29 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
   /** The document's own top level — what `opts.headings` collects from. See the field's note. */
   const topLevel = new Set<Node>(root.children);
   const kids = (n: Parent, tight = false): string => n.children.map((c) => node(c, tight)).join("");
+  /**
+   * A run of rendered siblings split at the shallowest heading among them (U7): the lead is whatever
+   * came before the first, and each section is one heading with everything up to the next of the same
+   * depth. Shared by a container's `sections()` and the document's `sectioned`, so both split by one rule.
+   */
+  const split = (kidsOf: Node[], html: string[]): Sectioned => {
+    const depths = kidsOf.map((c) => (c.type === "heading" ? (c as Heading).depth : 0)).filter(Boolean);
+    if (!depths.length) return { lead: raw(html.join("")), sections: [] };
+    const top = Math.min(...depths);
+    let lead = "";
+    const out: Section[] = [];
+    for (let k = 0; k < kidsOf.length; k++) {
+      const c = kidsOf[k]!;
+      if (c.type === "heading" && (c as Heading).depth === top) {
+        const m = /^<h(\d)(?: id="([^"]*)")?>([\s\S]*)<\/h\d>\n$/.exec(html[k]!);
+        out.push({ depth: top, id: m?.[2], title: raw(m?.[3] ?? escapeText(textOf(c))), text: textOf(c).replace(/\s+/g, " ").trim(), body: raw("") });
+      } else if (out.length) {
+        const last = out[out.length - 1]!;
+        last.body = raw(last.body.html + html[k]!);
+      } else lead += html[k]!;
+    }
+    return { lead: raw(lead), sections: out };
+  };
   const attr = (k: string, v: string | null | undefined) => (v ? ` ${k}="${escape(v)}"` : "");
   // docs/11 finding 10. Escaping made `javascript:alert(1)` a well-formed attribute; it did not make it
   // a link. The scheme is checked here as well as in lint because lint is advice and this is the last
@@ -139,26 +170,7 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
           // `<details>` without a second walk that would issue every heading id a second time.
           let rendered: string[] | undefined;
           const parts = () => rendered ??= (n as Parent).children.map((c) => node(c));
-          const sections = (): Sectioned => {
-            const kidsOf = (n as Parent).children;
-            const html = parts();
-            const depths = kidsOf.map((c) => (c.type === "heading" ? (c as Heading).depth : 0)).filter(Boolean);
-            if (!depths.length) return { lead: raw(html.join("")), sections: [] };
-            const top = Math.min(...depths);
-            let lead = "";
-            const out: Section[] = [];
-            for (let k = 0; k < kidsOf.length; k++) {
-              const c = kidsOf[k]!;
-              if (c.type === "heading" && (c as Heading).depth === top) {
-                const m = /^<h(\d)(?: id="([^"]*)")?>([\s\S]*)<\/h\d>\n$/.exec(html[k]!);
-                out.push({ depth: top, id: m?.[2], title: raw(m?.[3] ?? escapeText(textOf(c))), text: textOf(c).replace(/\s+/g, " ").trim(), body: raw("") });
-              } else if (out.length) {
-                const last = out[out.length - 1]!;
-                last.body = raw(last.body.html + html[k]!);
-              } else lead += html[k]!;
-            }
-            return { lead: raw(lead), sections: out };
-          };
+          const sections = (): Sectioned => split((n as Parent).children, parts());
           return opts.onBlock(b, () => raw(parts().join("")), sections).html;
         }
         return n.type === "textDirective" ? kids(n as Parent) : `<div class="snypd-block" data-block="${escape((n as unknown as { name: string }).name)}">${kids(n as Parent)}</div>\n`;
@@ -166,9 +178,18 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
       default: return "children" in n ? kids(n as Parent) : "";
     }
   };
-  let out = node(root);
-  if (usedFootnotes.length) {
-    out += `<section class="footnotes">\n<ol>\n${usedFootnotes.map((id) => { const d = footnotes.get(id); return `<li id="fn-${escape(id)}">${d ? kids(d) : ""}<a href="#fnref-${escape(id)}">↩</a></li>\n`; }).join("")}</ol>\n</section>\n`;
+  // The root's children rendered one by one when a caller wants them sectioned, and joined either way —
+  // the same strings, so `sectioned` sees exactly what the returned `Html` carries.
+  const top = opts.sectioned ? root.children.map((c) => node(c)) : undefined;
+  let out = top ? top.join("") : node(root);
+  const fn = usedFootnotes.length
+    ? `<section class="footnotes">\n<ol>\n${usedFootnotes.map((id) => { const d = footnotes.get(id); return `<li id="fn-${escape(id)}">${d ? kids(d) : ""}<a href="#fnref-${escape(id)}">↩</a></li>\n`; }).join("")}</ol>\n</section>\n`
+    : "";
+  out += fn;
+  if (top && opts.sectioned) {
+    const s = split(root.children, top);
+    if (fn) { const last = s.sections[s.sections.length - 1]; if (last) last.body = raw(last.body.html + fn); else s.lead = raw(s.lead.html + fn); }
+    opts.sectioned(s);
   }
   return new Html(out);
 }

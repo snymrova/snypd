@@ -62,7 +62,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
     // The default theme is `editorial`, which `extends: base` — so this is the whole chain resolving,
     // 20 `.tsx` importing and a stylesheet loading with no `themes/` directory anywhere on the disk.
     expect(r.out).toContain("theme editorial");
-    expect(r.out).toContain("13/13 primitives");
+    expect(r.out).toContain("14/14 primitives");
     expect(existsSync(join(dir, "dist", "index.html"))).toBe(true);
   });
 

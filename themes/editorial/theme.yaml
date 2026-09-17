@@ -1,6 +1,6 @@
 # The editorial theme: a reading-first typographic skin over `base`.
 #
-# It declares no layouts and no primitives of its own. Every one of the 13 primitives and all 6 layouts
+# It declares no layouts and no primitives of its own. Every one of the 14 primitives and all 6 layouts
 # resolve up the `extends:` chain to `base`, whose markup is semantic and carries one `snypd-<name>` class
 # per primitive — which is exactly what `base`'s personality promises. So this theme is tokens plus one
 # stylesheet plus one part — the masthead — and the *only* way it can drift from the vocabulary is if

@@ -110,7 +110,7 @@ const steps = container("steps", fc.option(fc.tuple(attr(words(1, 3)), fc.consta
 const cta = fc.tuple(attr(words(1, 4)), attr(words(1, 2)), url, fc.constantFrom("", ' variant="subtle"', ' variant="loud"')).map(([t, b, h, v]) => `::cta{title=${t} button=${b} href="${h}"${v}}`);
 const figure = fc.tuple(fc.constantFrom("/media/one.png", "/media/two.png", "/media/missing.png", "https://example.com/x.png"), attr(sentence), fc.constantFrom("", ' width="wide"', ' width="full"'), fc.boolean()).map(([s, a, w, noAlt]) => `::figure{src="${s}"${noAlt ? "" : ` alt=${a}`}${w}}`);
 const cover = fc.tuple(fc.option(attr(word), { nil: undefined }), fc.option(attr(sentence), { nil: undefined }), fc.option(fc.constantFrom("/media/one.png", "/media/two.png"), { nil: undefined })).map(([e, s, i]) => `::cover{${[e ? `eyebrow=${e}` : "", s ? `subtitle=${s}` : "", i ? `image="${i}" alt="A block of colour"` : ""].filter(Boolean).join(" ")}}`);
-/** Every primitive's own `example:`, verbatim — the thirteen shapes the spec vouches for, in among the ones it does not. */
+/** Every primitive's own `example:`, verbatim — the fourteen shapes the spec vouches for, in among the ones it does not. */
 const example = fc.constantFrom(...primitives().map((p) => p.example.trimEnd()));
 const unknown = fc.tuple(fc.constantFrom("wat", "grid", "stat", "Callout"), fc.option(attr(word), { nil: undefined }), prose).map(([n, a, b]) => `:::${n}${a ? `{x=${a}}` : ""}\n${b}\n:::`);
 const leafUnknown = fc.constantFrom("::nope", "::cta", "::figure{src=\"\"}", ":stat[inline]{value=\"1\"}");
