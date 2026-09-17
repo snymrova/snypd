@@ -1,0 +1,3 @@
+# The masthead menu. `ref` resolves at build; `url` is verbatim.
+- { label: Work, ref: "/posts" }
+- { label: Studio, ref: "page/about" }

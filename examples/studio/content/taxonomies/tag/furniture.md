@@ -1,0 +1,4 @@
+---
+title: Furniture
+status: published
+---

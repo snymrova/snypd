@@ -1,0 +1,4 @@
+# The footer menu.
+- { label: Credits, ref: "page/credits" }
+- { label: Feed, url: "/feed.xml" }
+- { label: llms.txt, url: "/llms.txt" }

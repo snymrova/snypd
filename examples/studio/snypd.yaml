@@ -1,0 +1,30 @@
+# Ferrule — a specimen site for the `studio` theme (S29). The studio, its clients and its numbers are
+# fictional; the photographs and clips are CC0 and CC BY files from Wikimedia Commons, credited on
+# /credits/ and in content/media/credits.json. `scripts/media.py` fetched and converted them.
+snypd: 1
+
+site:
+  name: Ferrule
+  url: https://ferrule.snypd.rocks
+  description: Ferrule is a product design and engineering studio in Porto. We design the thing, and the thing that makes it.
+  icon: /media/icon.svg
+
+theme:
+  use: studio
+  settings:
+    bands: dark-first
+    dateFormat: long
+    footerNote: "Ferrule is a fictional studio — a specimen for the snypd studio theme. Photographs CC0 and CC BY via Wikimedia Commons, [credited here](/credits/)."
+    offices:
+      - { label: "Porto, Portugal", url: "https://www.openstreetmap.org/search?query=Porto%2C%20Portugal" }
+    social:
+      - { label: Instagram, url: https://instagram.com/ferrule.studio }
+      - { label: Are.na, url: https://are.na/ferrule }
+      - { label: Mail, url: "mailto:hello@ferrule.example" }
+
+types:
+  author:
+    layout: author
+
+plugins:
+  - autolink
