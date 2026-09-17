@@ -43,7 +43,7 @@ An appeal to npm support for the bare name costs one email and is worth sending;
 
 ## Open questions
 - Fenced-code alias (```` ```callout ````) for the top five primitives, for renderers that don't know directives (GitHub preview)?
-- Pages vocabulary (`hero`, `pricing`, `logo-wall`) as a separate `spec-pages` so the post vocabulary stays small?
+- Pages vocabulary (`hero`, `pricing`, `logo-wall`) as a separate `spec-pages` so the post vocabulary stays small? — [docs/17](17-the-studio-look.md) takes `logo-wall` and a hero on `cover` (calls 2–3); the rest stays open.
 - Chart renderer: spec reference SVG only, or theme-overridable?
 - Preview images for `describe_primitive`: pre-rendered per theme (fast, stale) vs live (slow, true) — ship both, live on demand?
 - When the 2026-07-28 MCP spec goes stable: adopt MRTR for approval flows.
