@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { contrastRatio, luminance, resolveColor, tokenVars, callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, themeVariations, strandedVariation, themeTokens, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, MAX_FONT_KB, REPLACE } from "./index";
+import { contrastRatio, luminance, resolveColor, tokenVars, callPluginTool, cssValue, defaultStatus, loadConfig, loadPluginPrompts, loadPluginTools, parsePath, parseYaml, pathKey, renderPlugins, hooksOf, clientKbDeclared, themeSettings, themeVariations, strandedVariation, themeTokens, settingValues, settingValue, strandedSettings, PLUGIN_UNBUILT_KEYS, MAX_FONT_KB, REPLACE, typeLineage, patternDir, typeArchives } from "./index";
 
 const ROOT = "corpora/_test/core";
 const w = (file: string, text: string) => { mkdirSync(join(ROOT, file, ".."), { recursive: true }); writeFileSync(join(ROOT, file), text); };
@@ -95,7 +95,14 @@ describe("layering", () => {
     expect(cs.taxonomies).toEqual(["industry", "service"]);
     expect(cs.mcp.write).toBe("publish");
     expect(Object.keys(cs.fields)).toEqual(expect.arrayContaining(["title", "date", "seoTitle", "client", "metrics"]));
-    expect(cs.extends).toBeUndefined();
+    expect(cs.extends).toBe("post");   // R1: the base stays named on the resolved type, so a build can follow it
+    expect(typeLineage(c.config.types, "caseStudy")).toEqual(["caseStudy", "post"]);
+    expect(typeLineage(c.config.types, "post")).toEqual(["post"]);
+    // R1, decision 194: the archive is the pattern's directory; one dated type with `/` free lists at `/` and has none
+    expect(patternDir("/work/{slug}")).toBe("/work"); expect(patternDir("/posts/{year}/{slug}")).toBe("/posts"); expect(patternDir("/{path}")).toBe("/");
+    expect(typeArchives(c.config, true).map((a) => `${a.type}:${a.route}`)).toEqual(["post:/posts", "caseStudy:/work"]);
+    expect(typeArchives({ types: { post: c.config.types.post! } }, false)).toEqual([]);
+    expect(typeArchives({ types: { post: c.config.types.post! } }, true)).toEqual([{ type: "post", route: "/posts" }]);
     expect(c.explain("types.caseStudy.layout")).toBe('`types.caseStudy.layout` = "post" ← inherited from types.post (@snypd/spec default)');
     expect(c.explain("types.caseStudy.dir")).toBe('`types.caseStudy.dir` = "content/work" ← snypd.yaml:13');
   });

@@ -7,9 +7,11 @@ import { part, Slot, type LayoutProps, type Html } from "@snypd/render";
  * posts elsewhere, or not at all, overrides this one file. `title` is the site's name (the build sets it),
  * which is what the shell puts in the tab; the page's own title is the heading.
  */
-export default function Home({ ctx, page, entries, route, title, description, jsonLd }: LayoutProps): Html {
+export default function Home({ ctx, page, entries, archive, route, title, description, jsonLd }: LayoutProps): Html {
   const Shell = part(ctx, "shell"), Entries = part(ctx, "entries");
   const p = page!;
+  // `archive` is the list the entries come from (R1): `/posts/` on a blog, `/work/` on a site whose menu puts the work first.
+  const heading = archive ? <a href={`${archive.route}/`}>{archive.type === "post" && archive.title === "Posts" ? "Latest posts" : archive.title}</a> : "Latest posts";
   return (
     <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd} page={p}>
       <main>
@@ -20,7 +22,7 @@ export default function Home({ ctx, page, entries, route, title, description, js
           <Slot name="after-content" ctx={ctx} route={route} title={title} page={p} />
         </article>
         <section class="snypd-home-entries" aria-labelledby="snypd-latest">
-          <h2 id="snypd-latest"><a href="/posts/">Latest posts</a></h2>
+          <h2 id="snypd-latest">{heading}</h2>
           <Entries ctx={ctx} entries={entries} />
         </section>
       </main>

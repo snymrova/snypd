@@ -168,6 +168,13 @@ export interface PrimitiveProps {
 }
 export type PrimitiveComponent = (p: PrimitiveProps) => Html;
 export type LayoutKind = "post" | "page" | "index" | "term" | "author" | "home" | (string & {});
+/** The six layouts the contract asks of every theme (docs/04). A theme may declare more — `work`, `work-index` — and `check theme` lists them. */
+export const LAYOUT_NAMES = ["post", "page", "index", "term", "author", "home"] as const;
+/**
+ * One type's list page (R1, decision 194): where it is, what it is headed — the site's own word for it
+ * when a menu links it, else the plural of the type's name — and which type it lists.
+ */
+export interface Archive { type: string; route: string; title: string }
 export interface LayoutProps {
   ctx: SiteCtx; kind: LayoutKind; route: string; title: string; description?: string;
   /** The content item, for content layouts. */
@@ -175,6 +182,8 @@ export interface LayoutProps {
   /** Listed items (index, term, author; the newest few for home). */
   entries: Entry[];
   term?: TermLink;
+  /** For `index` (and a `<type>-index`): the archive this page is; for `home`: the archive its entries come from and link to. Absent on the `/` list, which is every dated type's. */
+  archive?: Archive;
   /** JSON-LD for the page (emit.ts): one or more objects, newline-separated, ready for one <script>. */
   jsonLd?: string;
 }

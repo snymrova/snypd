@@ -123,11 +123,16 @@ export const apiItem = (e: SurfaceEntry, frontmatter: Record<string, unknown>, s
 export interface SchemaCtx { site: { name: string; url: string } }
 const kids = (n: Node): Node[] => ("children" in n ? (n as Parent).children : []);
 
-/** The page's own node: BlogPosting for posts, Person for authors, WebPage otherwise. */
-export function pageSchema(e: SurfaceEntry, description: string | undefined, ctx: SchemaCtx): Record<string, unknown> {
+/**
+ * The page's own node: BlogPosting for a post, Person for an author, WebPage otherwise — and (R1,
+ * decision 196) the same for a type that *extends* one of them: `lineage` is the type and its bases,
+ * nearest first (`typeLineage`), so a `work` that extends `post` is an article about work, which is what
+ * docs/02 §1 sketched `caseStudy` as. A caller with no config passes nothing and gets the type alone.
+ */
+export function pageSchema(e: SurfaceEntry, description: string | undefined, ctx: SchemaCtx, lineage: string[] = [e.type]): Record<string, unknown> {
   const base = { "@context": "https://schema.org", url: e.url, name: e.title };
-  if (e.type === "author") return { ...base, "@type": "Person" };
-  if (e.type === "post") return {
+  if (lineage.includes("author")) return { ...base, "@type": "Person" };
+  if (lineage.includes("post")) return {
     ...base, "@type": "BlogPosting", headline: e.title, description, datePublished: e.date, dateModified: e.updated ?? e.date,
     author: e.author ? { "@type": "Person", name: e.author.name, url: e.author.url } : undefined,
     publisher: { "@type": "Organization", name: ctx.site.name, url: `${ctx.site.url}/` },

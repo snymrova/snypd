@@ -2295,8 +2295,10 @@ describe("D9 (P4): removing a plugin removes every byte it added", () => {
       { plugins: "  - changelog\n", expect: (d) => {
         expect(d.removed).toEqual([]);
         expect(d.added.length).toBeGreaterThan(0);
-        // every added file belongs to the type or the taxonomy it declares — nothing else moved
-        for (const f of d.added) expect(f).toMatch(/changelog|product|llms\.txt|sitemap\.xml|api\//);
+        // every added file belongs to the type or the taxonomy it declares — nothing else moved. Since R1
+        // (decision 194) a second dated type also gives `post` its own archive at `/posts/`: the `/` list
+        // now mixes two types, so each gets a list of its own, and that page is the plugin's doing too.
+        for (const f of d.added) expect(f).toMatch(/changelog|product|llms\.txt|sitemap\.xml|api\/|^posts\/index\.html$/);
       } },
       { plugins: "  - analytics: { provider: plausible }\n", expect: (d) => {
         expect(d.added).toEqual([]);
@@ -2956,5 +2958,105 @@ describe("build generations (H3): a build that did not finish is not a build the
     const r = await build(root);
     expect(page("a")).not.toContain("<script>fetch");
     expect(r.recovered).toBeGreaterThan(0);
+  });
+});
+
+describe("R1 (docs/20): a type of the site's own — archives, the front page's type, schema by lineage, the layout fallback", () => {
+  const root = "corpora/_test/registry";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const ld = (h: string) => JSON.parse(/<script type="application\/ld\+json">([^]*?)<\/script>/.exec(h)![1]!);
+  const yaml = (theme: string) =>
+    `snypd: 1\nsite: { name: R, url: https://r.example }\ntheme: { use: ${theme} }\n` +
+    `types:\n  work:\n    extends: post\n    dir: content/work\n    urlPattern: /work/{slug}\n    layout: work\n    fields:\n      client: { type: string, required: true }\n`;
+  const item = (title: string, date: string, extra = "") => `---\ntitle: ${title}\ndate: ${date}\nstatus: published\n${extra}---\n\nBody of ${title}.\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/work", "content/pages", "content/nav", "themes/t/layouts"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), yaml("base"));
+    writeFileSync(join(root, "content/nav/header.yaml"), '- { label: "Work", ref: "/work" }\n- { label: "Notes", ref: "/posts" }\n');
+    writeFileSync(join(root, "content/pages/welcome.md"), "---\ntitle: Welcome\nstatus: published\nhome: true\n---\n\nThe pitch.\n");
+    writeFileSync(join(root, "content/work/kiln.md"), item("Kiln", "2026-09-02", "client: Bitácora\n"));
+    writeFileSync(join(root, "content/work/stem.md"), item("Stem", "2026-09-01", "client: Lumo\n"));
+    writeFileSync(join(root, "content/posts/grog.md"), item("A note on grog", "2026-09-03"));
+    // A theme of the site's own that draws a `work` and its archive; every other layout is base's.
+    writeFileSync(join(root, "themes/t/theme.yaml"), "theme: t\nextends: base\nlayouts: [post, page, index, term, author, home, work, work-index]\n");
+    writeFileSync(join(root, "themes/t/layouts/work.tsx"), 'export default ({ page }) => ({ html: `<!doctype html><title>${page.title}</title><p>WORK-LAYOUT ${page.frontmatter.client}</p>` });');
+    writeFileSync(join(root, "themes/t/layouts/work-index.tsx"), 'export default ({ title, entries, archive }) => ({ html: `<!doctype html><title>${title}</title><p>WORK-INDEX ${archive.type} ${archive.route} ${entries.length}</p>` });');
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("on a theme without a `work` layout the type renders through `post`, and the build says so", async () => {
+    const r = await build(root);
+    expect(r.fallbacks).toEqual([{ type: "work", wanted: "work", used: "post" }]);
+    expect(read("work/kiln")).toContain('<article class="snypd-post"');
+    // 196: a type that extends `post` is an article — BlogPosting, on the page and in its JSON
+    expect(ld(read("work/kiln"))["@type"]).toBe("BlogPosting");
+    expect(JSON.parse(read("api/work", "kiln.json")).schema[0]["@type"]).toBe("BlogPosting");
+    expect(ld(read("posts/grog"))["@type"]).toBe("BlogPosting");
+  });
+
+  test("194: every dated type has an archive at the directory of its url pattern, headed by the menu's word for it", async () => {
+    await build(root);
+    const work = read("work"), posts = read("posts");
+    expect(work).toContain("<title>Work - R</title>");
+    expect(work).toContain('href="/work/kiln/"'); expect(work).toContain('href="/work/stem/"'); expect(work).not.toContain('href="/posts/grog/"');
+    expect(ld(work)).toMatchObject({ "@type": "CollectionPage", name: "Work", url: "https://r.example/work/" });
+    expect(posts).toContain("<title>Notes - R</title>");
+    expect(posts).toContain('href="/posts/grog/"'); expect(posts).not.toContain('href="/work/kiln/"');
+    // the surface knows both: the sitemap, the feed (both types, newest first), the API
+    const sitemap = read("", "sitemap.xml");
+    for (const u of ["https://r.example/work/", "https://r.example/posts/", "https://r.example/work/kiln/"]) expect(sitemap).toContain(`<loc>${u}</loc>`);
+    expect(read("", "feed.xml").match(/<item>/g)!.length).toBe(3);
+    expect(read("", "feed.xml").indexOf("A note on grog")).toBeLessThan(read("", "feed.xml").indexOf("Kiln"));
+    expect(JSON.parse(read("api", "site.json")).types.work.count).toBe(2);
+    // the menu resolved both refs (nav.ts reads the same rule), so neither is lint rule 5
+    expect(lintSite(root).files.find((f) => f.file?.endsWith("header.yaml"))!.diagnostics).toEqual([]);
+    expect(read("")).toContain('<a href="/work/" aria-current="page"'.replace(' aria-current="page"', ""));
+  });
+
+  test("195: the front page lists the type its menu puts first, and links its archive", async () => {
+    await build(root);
+    const h = read("");
+    expect(h).toContain('<h2 id="snypd-latest"><a href="/work/">Work</a></h2>');
+    expect(h).toContain('href="/work/kiln/"'); expect(h).toContain('href="/work/stem/"');
+    expect(h).not.toContain('href="/posts/grog/"');
+    // the menu turned round: the notes come first, and the front page follows it
+    writeFileSync(join(root, "content/nav/header.yaml"), '- { label: "Notes", ref: "/posts" }\n- { label: "Work", ref: "/work" }\n');
+    await build(root);
+    const h2 = read("");
+    expect(h2).toContain('<h2 id="snypd-latest"><a href="/posts/">Notes</a></h2>');
+    expect(h2).toContain('href="/posts/grog/"'); expect(h2).not.toContain('href="/work/kiln/"');
+    writeFileSync(join(root, "content/nav/header.yaml"), '- { label: "Work", ref: "/work" }\n- { label: "Notes", ref: "/posts" }\n');
+  });
+
+  test("197: a theme that declares `work` and `work-index` draws both; the fallback is gone from the build line", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml("t"));
+    const r = await build(root);
+    expect(r.fallbacks).toEqual([]);
+    expect(read("work/kiln")).toContain("<p>WORK-LAYOUT Bitácora</p>");
+    expect(read("work")).toContain("<p>WORK-INDEX work /work 2</p>");
+    expect(read("posts")).toContain('<ol class="snypd-entries"');   // the notes keep base's index
+    expect(read("posts/grog")).toContain('<article class="snypd-post"');
+    // `check theme` names what the theme draws beyond the six
+    const c = await checkTheme(root, "t");
+    expect(c.rules.find((x) => x.rule === "coverage.layouts")!.detail).toContain("the six, and work, work-index");
+    const b = await checkTheme(root, "base");
+    expect(b.rules.find((x) => x.rule === "coverage.layouts")!.detail).toContain("renders through its base type's layout here");
+    writeFileSync(join(root, "snypd.yaml"), yaml("base"));
+  });
+
+  test("a blog is byte-for-byte the blog it was: one dated type and nothing at `/` means the list is `/` and no /posts/ exists", async () => {
+    const blog = "corpora/_test/registry-blog";
+    rmSync(blog, { recursive: true, force: true });
+    mkdirSync(join(blog, "content/posts"), { recursive: true });
+    writeFileSync(join(blog, "snypd.yaml"), "snypd: 1\nsite: { name: B, url: https://b.example }\ntheme: { use: base }\n");
+    writeFileSync(join(blog, "content/posts/one.md"), item("One", "2026-09-01"));
+    const r = await build(blog);
+    expect(r.fallbacks).toEqual([]);
+    expect(existsSync(join(blog, "dist/posts/index.html"))).toBe(false);
+    expect(readFileSync(join(blog, "dist/index.html"), "utf8")).toContain('href="/posts/one/"');
+    rmSync(blog, { recursive: true, force: true });
   });
 });

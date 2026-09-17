@@ -34,7 +34,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "8adf3a448b1488d2c04fd2350e04dcfa52c63a7f",
+    hash: "6cb4c8ef82a491eba5c4681ffe3c802e0d26a62b",
     files: {
       "theme.css": _base_theme_css,
       "theme.yaml": _base_theme_yaml,
@@ -98,7 +98,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "studio": {
-    hash: "764f0c37c5869c4af2ad456aa6f40348eb9d1f9c",
+    hash: "9d1093432d15a904c558050b07ab0f905f04e2e5",
     files: {
       "fonts/OFL.txt": _studio_fonts_OFL_txt,
       "theme.css": _studio_theme_css,

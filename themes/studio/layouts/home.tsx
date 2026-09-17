@@ -1,4 +1,4 @@
-import { menu, part, settingText, Slot, type LayoutProps, type Html } from "@snypd/render";
+import { part, settingText, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The front page as bands (S29, docs/17 §3): the page's cover and everything before its first `##` is
@@ -12,15 +12,16 @@ import { menu, part, settingText, Slot, type LayoutProps, type Html } from "@sny
  * layouts are `base`'s and render `body` whole — a post on this theme is a reading page, not a stack of
  * bands. `title` is the site's name (the build sets it for `/`); the page's own title is the headline.
  */
-export default function Home({ ctx, page, entries, route, title, description, jsonLd }: LayoutProps): Html {
+export default function Home({ ctx, page, entries, archive, route, title, description, jsonLd }: LayoutProps): Html {
   const Shell = part(ctx, "shell"), Entries = part(ctx, "entries");
   const p = page!;
   const bands = settingText(ctx, "bands") ?? "dark-first";
   const tone = (i: number): string | undefined => bands === "off" ? undefined : (i % 2 === 0) === (bands === "dark-first") ? "dark" : "light";
   const { lead, sections } = p.sections;
-  // The entries band is headed by the site's own word for its posts — "Work" when the masthead says Work
-  // (docs/18 §2 · 10) — and "Latest posts" only when the menu has no item for the list.
-  const latest = menu(ctx, "header", route).find((i) => i.route === "/posts" || i.href === "/posts/")?.label ?? "Latest posts";
+  // The entries band is headed by the site's own word for what it lists — "Work" when the masthead says
+  // Work (docs/18 §2 · 10): the build hands the archive the entries came from, titled by the menu (R1).
+  const latest = archive?.title ?? "Latest posts";
+  const latestHref = archive ? `${archive.route}/` : undefined;
   return (
     <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd} page={p}>
       <main class="snypd-home">
@@ -39,7 +40,7 @@ export default function Home({ ctx, page, entries, route, title, description, js
         </article>
         <section class="snypd-band snypd-home-entries" data-tone={tone(sections.length + 1)} aria-labelledby="snypd-latest">
           <Slot name="after-content" ctx={ctx} route={route} title={title} page={p} />
-          <h2 id="snypd-latest"><a href="/posts/">{latest}</a></h2>
+          <h2 id="snypd-latest">{latestHref ? <a href={latestHref}>{latest}</a> : latest}</h2>
           <Entries ctx={ctx} entries={entries} />
         </section>
       </main>

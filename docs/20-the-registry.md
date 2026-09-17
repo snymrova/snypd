@@ -153,3 +153,16 @@ R1 before R2 (Ferrule cannot move until `/work/` lists). R3 after R2 (the page n
 ## 6. What this plan does not do
 
 It does not add `review` or `scheduled` (docs/07 §2 keeps them v0.2), human roles, `series`, `cluster`, i18n or workspaces; §1 says so in its last row and the demo does not claim them. It does not add a field type: `client` and `year` are strings. It does not add a primitive, a hook kind or an agent-facing attribute. It does not touch the spec's default types: a blog on `base` after this plan is byte-for-byte the blog before it, and the two-type fixture is what proves that.
+
+---
+
+## 7. R1 outcome (18 Sep 2026)
+
+Built as planned, with two departures, on `s29-studio-specimen`; decisions 194–197 in docs/11 §8.
+
+- §3 · 1 **as written**, plus the rule that keeps a blog byte for byte: one dated type with `/` free lists at `/` and gets no `/posts/`. The archive's title is the menu's word for it, else the plural — so `/work/` reads *Work*, not *Works*, the moment the masthead says so, and §2.5's *headed Work* and §3 · 1's *`titleCase(plural(t))`* stop disagreeing.
+- §3 · 2 **narrowed**: the front page lists one type — the menu's first, else the first dated type — never *every dated type* (decision 195 says why).
+- §3 · 3 **without `sourceOrganization`**: the schema follows `extends`; a field named `client` is Ferrule's, not the renderer's. R3's work layout can emit it from the declaration.
+- §3 · 4 **as written**, and `check theme` has the row.
+
+Exit: 477 tests, the two-type fixture (`corpora/_test/registry`, written by the test) builds every route §2.4 · 11 names except the term pages R2 declares; editorial builds it through the fallback. Ferrule is unchanged on disk and builds as before — R2 moves it.
