@@ -323,7 +323,8 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(v).toContain('<figure class="snypd-chart" data-type="bar"><div class="snypd-scroll" tabindex="0"><svg xmlns="http://www.w3.org/2000/svg"');
     expect(v).toContain('data-chart="bar" role="img"');
     expect(v).toContain("<title>Cap</title><desc>bar chart. a 1 ms, b 2 ms.</desc>");
-    expect(v).toContain('<figcaption>Cap (<a href="https://x.y" rel="external">source</a>)</figcaption>');
+    // The source is a named link, the class a stat's carries (docs/19 §2 · 8); the parentheses are a sheet's to add back.
+    expect(v).toContain('<figcaption>Cap <a class="snypd-source" href="https://x.y" rel="external">source</a></figcaption>');
     expect(v).toContain('var(--color-viz-1, #3d5a80)');   // base declares no tokens: the literal inside the var paints
     expect(v.slice(v.indexOf('<figure class="snypd-chart"'), v.indexOf("</figure>"))).not.toContain("<script");
     // the spec's fallback is still reachable — rows the renderer cannot read show as the data, not a picture
@@ -601,16 +602,18 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(pc("shell")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("footer")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("entries")).toMatchObject({ status: "inherited", via: "base" });
-    // U6b adds a fifth — `toc`, base's empty contents slot, which editorial inherits and does not fill.
+    // U6b adds a fifth — `toc`, base's empty contents slot, which editorial inherits and does not fill —
+    // and docs/18 a sixth, `motion`, the pause control base's header renders on a page with a reel.
     expect(pc("toc")).toMatchObject({ status: "inherited", via: "base" });
-    expect(t.partCoverage.length).toBe(5);
+    expect(pc("motion")).toMatchObject({ status: "inherited", via: "base" });
+    expect(t.partCoverage.length).toBe(6);
   });
   test("U1 parts: base owns all five; a theme with no parts reports them missing; a part file that is missing is an error", async () => {
     const root = "corpora/_test/theme-parts";
     rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "themes/bare"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: base }\n");
     const base = await loadTheme(loadConfig(root));
-    expect(base.partCoverage).toEqual(["shell", "header", "footer", "entries", "toc"].map((name) => ({ name, status: "own" })));
+    expect(base.partCoverage).toEqual(["shell", "header", "footer", "entries", "toc", "motion"].map((name) => ({ name, status: "own" })));
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: bare }\n");
     writeFileSync(join(root, "themes/bare/theme.yaml"), "theme: bare\nlayouts: []\n");
     const bare = await loadTheme(loadConfig(root));
@@ -1902,7 +1905,8 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
       + '::figure{src="/media/p.png" alt="A picture" caption="Opens"}\n\n'
       + '::figure{src="/media/p.png" alt="A picture" lightbox=false}\n\n'
       + '::figure{src="/media/clip.mp4" alt="A clip" poster="/media/p.png" caption="Plays"}\n\n'
-      + '::figure{src="/media/clip.webm" alt="Bare"}\n');
+      + '::figure{src="/media/clip.webm" alt="Bare"}\n\n'
+      + '## Asked\n\n:::faq{title="Before you order"}\n### Is there a minimum?\nNo.\n:::\n');
     writeFileSync(join(root, "content/media/clip.mp4"), new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]));   // eight bytes of an mp4 header: copied as media, never sized
     for (let i = 1; i <= 8; i++) writeFileSync(join(root, `content/posts/p${i}.md`), `---\ntitle: P${i}\ndate: 2026-08-0${i}\nstatus: published\n---\n\nBody ${i}.\n`);
     await build(root);
@@ -1922,14 +1926,21 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
 
   test("an faq is one <details name> per question, ids kept, lead kept, schema unchanged", () => {
     const h = read("posts/notes");
-    expect(h).toContain('<section class="snypd-faq"><h2>FAQ</h2><p>A lead paragraph.</p>\n'
+    // No `title`, no heading of the block's own (docs/19 §2 · 3): the questions keep the level the author wrote.
+    expect(h).toContain('<section class="snypd-faq"><p>A lead paragraph.</p>\n'
       + '<details class="snypd-faq-item" name="faq-15"><summary><h3 id="does-it-open">Does it open?</h3></summary><div class="snypd-faq-answer"><p>Yes.</p>\n</div></details>'
       + '<details class="snypd-faq-item" name="faq-15"><summary><h3 id="only-one-at-a-time">Only one at a time?</h3></summary>');
+    expect(h).not.toContain(">FAQ<");
+    // A given title is one level under the section (decision 189) and the questions one under it, so the outline nests.
+    expect(h).toContain('<h2 id="asked">Asked</h2>');
+    expect(h).toContain('<section class="snypd-faq"><h3>Before you order</h3><details class="snypd-faq-item" name="faq-40"><summary><h4 id="is-there-a-minimum">Is there a minimum?</h4></summary>');
     expect(h.match(/id="does-it-open"/g)!.length).toBe(1);   // one render, one id — `sections` did not walk the body twice
     expect(h).toContain('"@type":"FAQPage"');
     expect(h).toContain('"name":"Does it open?"');
-    // A container with no headings renders as it did: `steps` is untouched by the split.
-    expect(h).toContain('<section class="snypd-steps"><h2>Two</h2><ol>');
+    expect(h).toContain('"name":"Is there a minimum?"');   // the schema reads the markdown, where the question is still a `###`
+    // A container with no headings renders as it did: `steps` is untouched by the split. Its title is an
+    // `<h2>` because the block sits before any `##` (decision 189), and it counts its steps (docs/18).
+    expect(h).toContain('<section class="snypd-steps" data-count="2"><h2>Two</h2><ol>');
   });
 
   test("a figure is a button that opens a dialog, unless the author said not to", () => {
@@ -2505,7 +2516,7 @@ The second heading with this text, which is what makes the id de-duplication wor
     configure("base");
     await build(root);
     const t = await loadTheme(loadConfig(root));
-    expect(t.partCoverage.map((p) => p.name)).toEqual(["shell", "header", "footer", "entries", "toc"]);
+    expect(t.partCoverage.map((p) => p.name)).toEqual(["shell", "header", "footer", "entries", "toc", "motion"]);
     expect(t.partCoverage.find((p) => p.name === "toc")!.status).toBe("own");   // base's own, and it renders nothing
     expect(page("posts/one/index.html")).not.toContain("snypd-toc");
     // Between the byline and the first line of the body there is nothing at all — the part renders an
@@ -2566,6 +2577,7 @@ The second heading with this text, which is what makes the id de-duplication wor
       { name: "footer", status: "inherited", via: "base" },
       { name: "entries", status: "inherited", via: "base" },
       { name: "toc", status: "own" },
+      { name: "motion", status: "inherited", via: "base" },
     ]);
   });
 

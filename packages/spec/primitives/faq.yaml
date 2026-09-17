@@ -3,7 +3,7 @@ kind: container
 group: interaction
 purpose: Question-and-answer pairs, emitted as FAQPage schema. Body is "### question" headings each followed by the answer.
 props:
-  title: { type: string, default: FAQ }
+  title: { type: string, description: Optional. Given, the questions nest one heading level under it; absent, the block has no heading of its own and the section's is enough. }
 slots: { body: markdown, description: '"### Question" headings, each followed by answer paragraphs' }
 intent: Answer the three to six questions readers actually ask, one paragraph each.
 anti-intent: Not a place to restate the post. Not for one question (just write it).

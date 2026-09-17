@@ -35,21 +35,25 @@ font:
     ascent-override: 99.7%
     descent-override: 29.0%
     line-gap-override: 0%
-# Two parts of its own: the masthead, which is sticky and blurs what passes under it, and the entry list,
-# which is a grid of cards with the post's cover on each — the reference's case cards. `home` is this
-# theme's one layout file; the other five are `base`'s (docs/09 U1, D8).
+# Three parts of its own: the masthead, which is sticky and blurs what passes under it; the entry list,
+# which is a grid of cards with the post's cover on each — the reference's case cards; and the footer,
+# a band on the page's grid that ends on the name set huge. `home` is this theme's one layout file; the
+# other five are `base`'s (docs/09 U1, D8).
 parts:
   header:  ./parts/header.tsx
   entries: ./parts/entries.tsx
+  footer:  ./parts/footer.tsx
 # What a site chooses without writing CSS (U3). Five are the ones `base`'s footer, byline and entry list
 # already read; `bands` is this theme's — whether the front page alternates its sections, and which
-# scheme the hero takes.
+# scheme the hero takes — and so is `offices`, the footer's third column (docs/17 §4.4's one settings row).
 settings:
   - { id: logo,       type: image,     label: Logo,           group: Identity,     info: "Site-relative url of an image — put the file in content/media/. Without one the masthead sets the site's name in the display face." }
   - { id: bands,      type: select,    label: Bands,          group: "Front page", default: dark-first, options: [dark-first, light-first, off], info: "The front page's sections as alternating dark and light bands, starting with the hero; `off` keeps the whole page in the reader's scheme." }
+  - { id: tldrLabel,  type: text,      label: "Summary label", group: Posts,       default: "In short", info: "The word above a `tldr` block. \"TL;DR\" is a blog's word; an agency page says it plainer. A page may still set its own `label`." }
   - { id: showDates,  type: boolean,   label: "Show dates",   group: Posts,        default: true,  info: "Off hides the date on the byline and on every card — for a site whose posts are not news." }
   - { id: dateFormat, type: select,    label: "Date format",  group: Posts,        default: iso, options: [iso, long, short], info: "2026-09-12 · 12 September 2026 · 12 Sep 2026. English month names; the <time> element always carries the machine-readable date." }
-  - { id: footerNote, type: richtext,  label: "Footer note",  group: Footer,       info: "One line of markdown above the site name — a licence, a colophon, a copyright." }
+  - { id: footerNote, type: richtext,  label: "Footer note",  group: Footer,       info: "One line of markdown under the name, last in the footer — a licence, a colophon, a copyright." }
+  - { id: offices,    type: link_list, label: Offices,        group: Footer,       info: "[{ label, url }] in the footer: where the studio is. A city and a map link, or an address and a mailto." }
   - { id: social,     type: link_list, label: "Social links", group: Footer,       info: "[{ label, url }] in the footer. Links off this site, so they are urls and not refs — a menu of your own pages is content/nav/footer.yaml." }
 
 personality: >-
@@ -108,5 +112,5 @@ tokens:
   space.3: { default: "1rem",    customisable: true, kind: size, description: "Between paragraphs." }
   space.4: { default: "2rem",    customisable: true, kind: size, description: "Around a block." }
   space.5: { default: "4rem",    customisable: true, kind: size, description: "Between sections." }
-  space.6: { default: "7rem",    customisable: true, kind: size, description: "A band's padding, top and bottom." }
+  space.6: { default: "clamp(3.5rem, 2rem + 6vw, 7rem)", customisable: true, kind: size, description: "A band's padding, top and bottom. Fluid: the reference's 7 rem on a desktop, half that on a phone, where 7 rem of black between two bands was most of a screen." }
   radius:  { default: "12px",    customisable: true, kind: size, description: "Corner radius on pictures and cards; buttons are pills regardless." }

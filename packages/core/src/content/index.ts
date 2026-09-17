@@ -3,16 +3,16 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { loadConfig, redirects, type LoadedConfig } from "../config";
 import { MdastCache } from "./cache";
-import { lint, type LintOptions, type LintResult } from "./lint";
+import { lint, yamlFailure, type LintOptions, type LintResult } from "./lint";
 import type { Diagnostic } from "./tree";
-import { frontmatterKeyLine } from "./parse";
+import { frontmatterKeyLine, parseMarkdown } from "./parse";
 import { readFrontmatter, taxonomyFields, type Move } from "../store";
 import type { TypeDef } from "../schema";
 import { lintNav, routeLookup, termRoutes } from "../nav";
 
 export { parseMarkdown, frontmatterKeyLine, type ParsedDoc } from "./parse";
 export { buildTree, checkProp, countNodes, type Block, type PrimitiveTree, type Diagnostic, type Severity } from "./tree";
-export { lint, formatLint, SLOP, type LintOptions, type LintResult, type TypeShape } from "./lint";
+export { lint, formatLint, yamlFailure, SLOP, type LintOptions, type LintResult, type TypeShape } from "./lint";
 export { MdastCache, hashSource, type CachedDoc, type MdastStore } from "./cache";
 export { suggestBlocks, applySuggestions, formatSuggestions, candidates, score, toNumber, REWRITERS, NEED, type Suggestion, type SuggestOptions, type ApplyResult, type Need, type Candidate } from "./suggest";
 
@@ -133,12 +133,49 @@ export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedC
     r.warnings = r.diagnostics.filter((d) => d.severity === "warning").length;
     files.push(r);
   }
+  // ── 19 the files no type walks: taxonomy terms and authors ───────────────
+  files.push(...lintSideFiles(root, cfg));
   // ── nav files: rules 5 and 12 ────────────────────────────────────────────
   for (const n of lintNav(root, cfg, lookup)) {
     if (!n.diagnostics.length) { files.push({ file: n.file, diagnostics: [], errors: 0, warnings: 0, words: 0, skipped: [] }); continue; }
     files.push({ file: n.file, diagnostics: n.diagnostics, errors: n.diagnostics.filter((d) => d.severity === "error").length, warnings: n.diagnostics.filter((d) => d.severity === "warning").length, words: 0, skipped: [] });
   }
   return { files, errors: files.reduce((n, f) => n + f.errors, 0), warnings: files.reduce((n, f) => n + f.warnings, 0), ms: performance.now() - t0, cache: { hits: cache.hits, misses: cache.misses } };
+}
+
+/**
+ * Rule 19, `frontmatter-unparsed` (S29 · U10, docs/19 §2 · 5). `listContent` walks the directories the
+ * types declare — `author` is a default type, so an author's file has always had rule 0 — but a taxonomy
+ * term's file (`content/taxonomies/<taxonomy>/<term>.md`) belongs to no type, and the build reads it
+ * through `readFrontmatter`, which returns `{}` when the YAML does not parse. (`content/authors` is
+ * walked here only on a site whose config removed the type, so the walk is the same either way.) So a colon in a term's description dropped the file, the
+ * term fell back to its slug on every post and on its own page, and `snypd lint` said *0 errors*
+ * because it had never opened the file. Here every one of them is opened once, and a frontmatter that
+ * does not parse is an error naming the line — the sentence is "quote the value on line 4", not "look
+ * at the rendered site". Nothing else is judged: a term file has no schema of its own, and a file that
+ * parses is reported clean so the walk is visible in the count.
+ */
+function lintSideFiles(root: string, cfg: LoadedConfig): LintResult[] {
+  const dirs = Object.keys(cfg.config.taxonomies).map((t) => join(root, "content", "taxonomies", t));
+  const typed = new Set(Object.values(cfg.config.types).map((t) => join(root, t.dir)));
+  const authors = join(root, "content", "authors");
+  if (!typed.has(authors)) dirs.push(authors);
+  const out: LintResult[] = [];
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (!f.isFile() || !f.name.endsWith(".md")) continue;
+      const file = join(dir, f.name);
+      const doc = parseMarkdown(readFileSync(file, "utf8"));
+      const diagnostics: Diagnostic[] = [];
+      if (doc.frontmatterError) {
+        const { line, hint } = yamlFailure(doc);
+        diagnostics.push({ rule: "frontmatter-unparsed", n: 19, severity: "error", message: `Frontmatter is not valid YAML: ${doc.frontmatterError} — the file is dropped and the ${dir === authors ? "author" : "term"} falls back to its slug`, hint, line });
+      }
+      out.push({ file: relative(root, file), diagnostics, errors: diagnostics.length, warnings: 0, words: 0, skipped: [] });
+    }
+  }
+  return out;
 }
 
 export function formatSiteLint(s: SiteLint): string {

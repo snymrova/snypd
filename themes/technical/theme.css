@@ -277,7 +277,9 @@ blockquote {
 }
 .snypd-button:hover { filter: brightness(1.1); }
 
-.snypd-faq h2, .snypd-steps h2 { margin-top: 0; }
+.snypd-faq > :is(h2, h3, h4), .snypd-steps > :is(h2, h3, h4) { margin-top: 0; }
+/* A source link — a stat's, a chart's — as the parenthesis it was before it became a named link (docs/18, docs/19 §2 · 8). */
+.snypd-source::before { content: "("; } .snypd-source::after { content: ")"; }
 .snypd-faq h3 { font-size: 1rem; margin-top: var(--space-3); }
 .snypd-steps ol { counter-reset: step; list-style: none; padding: 0; }
 .snypd-steps ol > li { counter-increment: step; padding-left: 2.6rem; position: relative; margin-top: var(--space-3); }

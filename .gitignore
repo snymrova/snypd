@@ -21,3 +21,9 @@ packaging/homebrew/snypd.rb
 # site the host builds from git cannot also be a subdirectory of this one. `bun run scratch` makes one.
 sites/
 bench/gallery/
+.gstack/
+
+# The studio specimen (examples/studio): its build and its media cache
+examples/*/dist/
+examples/*/.cache/
+.playwright-mcp/

@@ -151,6 +151,12 @@ export interface PrimitiveProps {
    * nothing to a primitive that never calls it; the heading ids are the ones `body` carries.
    */
   sections: () => Sectioned;
+  /**
+   * The heading level of the section this block sits in (docs/18, decision 189): 1 before the page's first
+   * `##`, 2 under one, 3 under a `###`. A primitive that emits a heading for its title — `steps`, `faq` —
+   * emits `h{depth + 1}`, so the outline nests and no `level` attribute exists for an author to learn.
+   */
+  depth: number;
   /** Parsed YAML body for chart / diagram / flow. */
   data?: unknown;
   children: Block[];

@@ -11,13 +11,13 @@ description: The front page, under the home layout — a page's body, then the l
 Write in the harness you already have open. The site is markdown in git, built to static HTML with no script on the page.
 :::
 
+## How it starts
+
 :::stat-row
 ::stat{value="13" label="primitives" source="https://snypd.rocks/posts/every-primitive-once/"}
 ::stat{value="6" label="layouts" source="https://snypd.rocks/themes/"}
 ::stat{value="0 KB" label="JavaScript" source="https://snypd.rocks/bench/"}
 :::
-
-## How it starts
 
 :::steps{title="Four lines"}
 1. `mkdir site && cd site`

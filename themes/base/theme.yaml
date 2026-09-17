@@ -17,6 +17,9 @@ parts:
   # Rendered by the post layout between the byline and the body, and empty here (U6b): a theme that wants
   # a contents list overrides this one file instead of forking the layout that would have to draw it.
   toc:     ./parts/toc.tsx
+  # The pause control a page with an autoplaying clip or a marquee carries (docs/18, decision 190); empty
+  # on every other page. The header renders it; a theme with its own masthead places it.
+  motion:  ./parts/motion.tsx
 # The menus a site can give this theme, one `content/nav/<location>.yaml` each (docs/09 §4.3, U2). The
 # header and footer parts render them; a file for a location not listed here is a lint warning.
 locations: [header, footer]

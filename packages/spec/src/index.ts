@@ -189,7 +189,81 @@ export function specOverview(): string {
   const types = Object.entries(d.types).map(([n, t]) => `- **${n}** → \`${t.dir}\`, url \`${t.urlPattern}\`, taxonomies [${t.taxonomies.join(", ")}], mcp.write ${t.mcp.write}`);
   const tax = Object.entries(d.taxonomies).map(([n, t]) => `- **${n}**${t.hierarchical ? " (hierarchical)" : ""} → attaches [${t.attaches.join(", ")}], url \`${t.urlPattern}\``);
   const st = Object.entries(d.statuses).map(([n, s]) => `- **${n}** → [${s.transitions.join(", ")}] — ${s.description}`);
-  return `# snypd spec v${SPEC_VERSION}\n\nContent is markdown + YAML frontmatter using a closed vocabulary of ${primitiveNames().length} primitives (\`snypd://spec/primitives\`). Syntax: leaf \`::name{prop="v"}\`, container \`:::name{…}\\n…\\n:::\`. Plain markdown with no directives is valid.\n\n## Types\n${types.join("\n")}\n\n## Taxonomies\n${tax.join("\n")}\n\n## Statuses (initial: ${d.initialStatus})\n${st.join("\n")}\n\nAlso: \`snypd://spec/types/{name}\`, \`snypd://spec/taxonomies/{name}\` (frontmatter as JSON Schema), \`snypd://spec/budgets\`, \`snypd://spec.json\` (everything).\n`;
+  return `# snypd spec v${SPEC_VERSION}\n\nContent is markdown + YAML frontmatter using a closed vocabulary of ${primitiveNames().length} primitives (\`snypd://spec/primitives\`). Syntax: leaf \`::name{prop="v"}\`, container \`:::name{…}\\n…\\n:::\`. Plain markdown with no directives is valid.\n\n## Types\n${types.join("\n")}\n\n## Taxonomies\n${tax.join("\n")}\n\n## Statuses (initial: ${d.initialStatus})\n${st.join("\n")}\n\nAlso: \`snypd://spec/home\` (the front page's recipe), \`snypd://spec/types/{name}\`, \`snypd://spec/taxonomies/{name}\` (frontmatter as JSON Schema), \`snypd://spec/budgets\`, \`snypd://spec.json\` (everything).\n`;
+}
+
+/**
+ * `snypd://spec/home` — the front page's recipe in one screen (docs/18 §3, decision 191). The primitives
+ * sheet describes fourteen blocks and says nothing about a front page, so an agent writing one today
+ * infers the shape from the theme's `personality` line and finds out from a screenshot whether it guessed
+ * right. This is the shape, then a worked example an agent can diff from.
+ */
+export function homeRecipe(): string {
+  return `# The front page — \`home: true\`
+
+A page whose frontmatter says \`home: true\` is served at \`/\`. Its shape, on every theme:
+
+1. **A \`cover\`**, first — the headline is the page's \`title\`; \`subtitle\` is the one line under it. A site with a
+   showreel adds \`media="/media/reel.mp4" poster="/media/reel.webp" autoplay=true\` (one autoplay per page, rule 15).
+2. **One block** before the first \`##\` — a \`tldr\` (the two-sentence answer to "what is this?") *or* a \`stat-row\`,
+   not both. That is the hero; a second block there is rule 17.
+3. **Three to five \`##\` sections.** Each holds one block and at most one paragraph. A theme that bands the front
+   page (studio) paints each section as a full-bleed band, numbered; a block's \`title\` inside a section is its
+   sub-heading, so it must not repeat the heading (rule 18).
+4. **No "latest posts" section** — the theme adds the entries itself, headed by the menu's word for them.
+
+The studio look reads best with the blocks in this order: \`stat-row\`, \`steps\`, \`logo-wall\`, \`pullquote\`, \`cta\`.
+
+## A worked example
+
+\`\`\`markdown
+---
+title: We design the thing, and the thing that makes it.
+status: published
+home: true
+description: Ferrule is a product design and engineering studio in Porto.
+---
+
+::cover{subtitle="A product design and engineering studio in Porto." media="/media/reel.mp4" poster="/media/reel.webp" autoplay=true}
+
+:::tldr
+We take a product from the first sketch to the first thousand units, and we build the jigs and the tooling on the way.
+:::
+
+## How we work
+
+:::stat-row
+::stat{value="31" label="products shipped since 2017" source="https://example.com/about/#numbers"}
+::stat{value="11 weeks" label="median, brief to first batch" source="https://example.com/about/#numbers"}
+:::
+
+:::steps{title="Four stages, one room"}
+1. **Look** — two weeks in the client's world before anyone draws.
+2. **Draw and break** — the first prototype is cardboard, the fourth is machined.
+3. **Tool** — the fixtures and jigs that let a factory make the thing.
+4. **Ship** — we stand next to the line for the first batch.
+:::
+
+## Who we work with
+
+:::logo-wall{layout="marquee"}
+- [![Marés](/media/logo-mares.svg)](/posts/mares/) — since 2021
+- ![Ondular](/media/logo-ondular.svg) — since 2022
+- ![Lumo](/media/logo-lumo.svg) — since 2020
+:::
+
+:::pullquote{cite="Rui Bastos, Marés" href="/posts/mares/"}
+They asked to see the dishwasher before they asked to see the mood board.
+:::
+
+## Start a project
+
+::cta{title="Tell us what you make" body="One paragraph and a photograph is enough." button="hello@example.com" href="mailto:hello@example.com"}
+\`\`\`
+
+Write it with \`content_create\` (type \`page\`, frontmatter \`home: true\`), run \`content_lint\`, and look once with
+\`content_render_preview\` — the lint rules above are the part that used to need a second look.
+`;
 }
 
 export function resources(): SpecResource[] {
@@ -202,6 +276,7 @@ export function resources(): SpecResource[] {
     ...primitiveNames().map((n) => ({ uri: `snypd://spec/primitives/${n}`, name: `spec/primitives/${n}`, mimeType: ym, description: sentence(primitive(n)!.purpose), text: () => primitiveSource(n)! })),
     ...Object.keys(d.types).map((n) => ({ uri: `snypd://spec/types/${n}`, name: `spec/types/${n}`, mimeType: js, description: `Frontmatter schema for type ${n}`, text: () => JSON.stringify(frontmatterSchema("types", n), null, 2) })),
     ...Object.keys(d.taxonomies).map((n) => ({ uri: `snypd://spec/taxonomies/${n}`, name: `spec/taxonomies/${n}`, mimeType: js, description: `Term schema for taxonomy ${n}`, text: () => JSON.stringify(frontmatterSchema("taxonomies", n), null, 2) })),
+    { uri: "snypd://spec/home", name: "spec/home", mimeType: md, description: "The front page's recipe — what a `home: true` page holds, with a worked example", text: homeRecipe },
     { uri: "snypd://spec/budgets", name: "spec/budgets", mimeType: js, description: "Default benchmark budgets", text: () => JSON.stringify(d.budgets, null, 2) },
   ];
 }

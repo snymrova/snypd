@@ -23,7 +23,7 @@ export interface HtmlOptions {
    * the same rendering split at its headings. Both are thunks over one render — calling either, or both,
    * issues each heading id once.
    */
-  onBlock?: (block: Block, body: () => Html, sections: () => Sectioned) => Html;
+  onBlock?: (block: Block, body: () => Html, sections: () => Sectioned, depth: number) => Html;
   /** Block lookup for directive nodes (from `PrimitiveTree.all`). */
   blocks?: Map<Node, Block>;
   /** Heading ids (`<h2 id="…">`) for the toc and deep links. Default on. */
@@ -78,6 +78,13 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
 
   /** The document's own top level — what `opts.headings` collects from. See the field's note. */
   const topLevel = new Set<Node>(root.children);
+  /**
+   * The heading level of the section the walker is in (docs/18, decision 189): 1 until the document's first
+   * own heading, then that heading's depth, so a block under `## How we work` is handed 2 and titles itself
+   * `<h3>`. Only the document's own headings move it — an `faq`'s `###` questions are inside a block, not
+   * sections of the page — and a root of one block (a lifted cover, a stat in its row) starts at 1.
+   */
+  let depth = 1;
   const kids = (n: Parent, tight = false): string => n.children.map((c) => node(c, tight)).join("");
   /**
    * A run of rendered siblings split at the shallowest heading among them (U7): the lead is whatever
@@ -121,7 +128,7 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
         const h = n as Heading;
         if (opts.headingIds === false) return `<h${h.depth}>${kids(h)}</h${h.depth}>\n`;
         const id = headingId(h);
-        if (topLevel.has(n)) opts.headings?.push({ depth: h.depth, id, text: textOf(h).replace(/\s+/g, " ").trim() });
+        if (topLevel.has(n)) { depth = h.depth; opts.headings?.push({ depth: h.depth, id, text: textOf(h).replace(/\s+/g, " ").trim() }); }
         return `<h${h.depth} id="${id}">${kids(h)}</h${h.depth}>\n`;
       }
       case "text": return escapeText((n as Literal).value);
@@ -171,7 +178,7 @@ export function toHtml(root: Root, opts: HtmlOptions = {}): Html {
           let rendered: string[] | undefined;
           const parts = () => rendered ??= (n as Parent).children.map((c) => node(c));
           const sections = (): Sectioned => split((n as Parent).children, parts());
-          return opts.onBlock(b, () => raw(parts().join("")), sections).html;
+          return opts.onBlock(b, () => raw(parts().join("")), sections, depth).html;
         }
         return n.type === "textDirective" ? kids(n as Parent) : `<div class="snypd-block" data-block="${escape((n as unknown as { name: string }).name)}">${kids(n as Parent)}</div>\n`;
       }

@@ -14,7 +14,10 @@ export default function Stat({ props }: PrimitiveProps): Html {
   return (
     <div class="snypd-stat">
       <p class="snypd-stat-value" data-n={m ? m[1] : undefined} data-unit={m ? m[2] : undefined} style={m ? `--n: ${m[1]}` : undefined}><strong>{value}</strong>{props.delta ? <> <small>{props.delta as string}</small></> : null}</p>
-      <p class="snypd-stat-label">{props.label as string}{source ? <> (<a href={source} rel="external">source</a>)</> : null}</p>
+      {/* The source is a link with a name (docs/18 §2 · 10), so a theme can set it — as the label's own colour
+          with a dotted rule, say — instead of a parenthesis in the accent three times across a hero. The
+          class is the one a chart's caption carries too (docs/19 §2 · 8): one idiom per sheet, not two. */}
+      <p class="snypd-stat-label">{props.label as string}{source ? <> <a class="snypd-source" href={source} rel="external">source</a></> : null}</p>
     </div>
   );
 }

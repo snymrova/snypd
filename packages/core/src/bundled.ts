@@ -34,7 +34,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "b621e7a87b09542f1536af81a8ed72964ce8bbeb",
+    hash: "8adf3a448b1488d2c04fd2350e04dcfa52c63a7f",
     files: {
       "theme.css": _base_theme_css,
       "theme.yaml": _base_theme_yaml,
@@ -51,6 +51,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
       "parts/entries.tsx": () => import("../../../themes/base/parts/entries.tsx"),
       "parts/footer.tsx": () => import("../../../themes/base/parts/footer.tsx"),
       "parts/header.tsx": () => import("../../../themes/base/parts/header.tsx"),
+      "parts/motion.tsx": () => import("../../../themes/base/parts/motion.tsx"),
       "parts/shell.tsx": () => import("../../../themes/base/parts/shell.tsx"),
       "parts/toc.tsx": () => import("../../../themes/base/parts/toc.tsx"),
       "primitives/callout.tsx": () => import("../../../themes/base/primitives/callout.tsx"),
@@ -70,7 +71,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "4a533c62ae5f74a8f127600604f5c10395346b12",
+    hash: "ac05ef84ae5fa54817def573bdb76e651c1f5689",
     files: {
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
@@ -84,7 +85,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "technical": {
-    hash: "2fbc823fd42921ee35752d71069abde71bf3daff",
+    hash: "ec87bca2d8f7a1390dab8fbd086ca6e37a232960",
     files: {
       "theme.css": _technical_theme_css,
       "theme.yaml": _technical_theme_yaml,
@@ -97,7 +98,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "studio": {
-    hash: "0b8fdd87c1301100abb2fa0de3103e84ad4151ec",
+    hash: "764f0c37c5869c4af2ad456aa6f40348eb9d1f9c",
     files: {
       "fonts/OFL.txt": _studio_fonts_OFL_txt,
       "theme.css": _studio_theme_css,
@@ -109,6 +110,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     modules: {
       "layouts/home.tsx": () => import("../../../themes/studio/layouts/home.tsx"),
       "parts/entries.tsx": () => import("../../../themes/studio/parts/entries.tsx"),
+      "parts/footer.tsx": () => import("../../../themes/studio/parts/footer.tsx"),
       "parts/header.tsx": () => import("../../../themes/studio/parts/header.tsx"),
     },
   },

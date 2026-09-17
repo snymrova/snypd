@@ -272,8 +272,9 @@ export function generateTheme(root = "corpora/theme") {
     // The one autoplay a page gets (lint rule 15), with its poster — the reference's showreel behind the headline.
     + "::cover{subtitle=\"Publish a website from the harness you already have open.\" media=\"/media/showreel.mp4\" poster=\"/media/showreel.png\" autoplay=true}\n\n"
     + ":::tldr\nWrite in the harness you already have open. The site is markdown in git, built to static HTML with no script on the page.\n:::\n\n"
-    + ":::stat-row\n::stat{value=\"13\" label=\"primitives\" source=\"https://snypd.rocks/posts/every-primitive-once/\"}\n::stat{value=\"6\" label=\"layouts\" source=\"https://snypd.rocks/themes/\"}\n::stat{value=\"0 KB\" label=\"JavaScript\" source=\"https://snypd.rocks/bench/\"}\n:::\n\n"
+    // The numbers sit in the first section, not the hero: a hero is a cover and one block (lint rule 17, docs/18).
     + "## How it starts\n\n"
+    + ":::stat-row\n::stat{value=\"13\" label=\"primitives\" source=\"https://snypd.rocks/posts/every-primitive-once/\"}\n::stat{value=\"6\" label=\"layouts\" source=\"https://snypd.rocks/themes/\"}\n::stat{value=\"0 KB\" label=\"JavaScript\" source=\"https://snypd.rocks/bench/\"}\n:::\n\n"
     + ":::steps{title=\"Four lines\"}\n1. `mkdir site && cd site`\n2. `bunx @snypd/cli init`\n3. `claude`\n4. *Write me a first post.*\n:::\n\n"
     + "::figure{src=\"/media/twin.png\" alt=\"Side-by-side HTML and markdown of the same post\" caption=\"Every page ships its markdown twin.\" width=\"wide\"}\n\n"
     // The marquee (S29, docs/17 §3): the wall as a moving strip, which a theme with a marquee animates and

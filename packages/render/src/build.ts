@@ -501,10 +501,10 @@ export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page:
   // A block rendered on its own (a `stat` inside its row, the lifted cover) goes through the same door as
   // one met in the document: a root holding the block, so `onBlock` gets the same `body` and `sections`.
   const renderBlock = (b: Block): Html => toHtml({ type: "root", children: [b.node as Node] } as Root, { blocks: blocks.has(b.node) ? blocks : new Map([...blocks, [b.node, b]]), onBlock, headingIds: false });
-  const onBlock = (b: Block, body: () => Html, sections: () => Sectioned): Html => {
+  const onBlock = (b: Block, body: () => Html, sections: () => Sectioned, depth: number): Html => {
     const comp = o.theme.primitives[b.name];
     if (!comp) return new Html("");
-    const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx: o.ctx, page: o.page, sections };
+    const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx: o.ctx, page: o.page, sections, depth };
     return comp(p);
   };
   // A leading `cover` is the page's header, not its first paragraph (spec: "at most one, first in the

@@ -102,7 +102,15 @@ img, svg, video { max-width: 100%; height: auto; }
   .snypd-lightbox, #snypd-menu:popover-open, .snypd-faq-item::details-content, .snypd-fn-card { transition: none; }
   video[autoplay] { display: none; }
   .snypd-still { display: block; }
+  /* The control would pause what is already still, so it is not shown. */
+  .snypd-motion { display: none; }
 }
+/* ── The motion control (parts/motion.tsx, decision 190): for every other reader, the same swap when the
+   box is ticked. A theme that moves anything else — a marquee, a reveal — stops it on this selector too.
+   The control's look is the theme's; here it is only made a single line. */
+.snypd-motion { margin: 0; display: inline-flex; align-items: center; gap: 0.4em; }
+body:has(#snypd-motion:checked) video[autoplay] { display: none; }
+body:has(#snypd-motion:checked) .snypd-still { display: block; }
 
 /* ── A marquee wall (S29): the row is rendered twice so a theme can animate it; a theme that does not
    shows one. Behaviour, not a look, which is why it is here. */

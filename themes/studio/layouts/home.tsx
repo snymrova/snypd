@@ -1,4 +1,4 @@
-import { part, settingText, Slot, type LayoutProps, type Html } from "@snypd/render";
+import { menu, part, settingText, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The front page as bands (S29, docs/17 §3): the page's cover and everything before its first `##` is
@@ -18,6 +18,9 @@ export default function Home({ ctx, page, entries, route, title, description, js
   const bands = settingText(ctx, "bands") ?? "dark-first";
   const tone = (i: number): string | undefined => bands === "off" ? undefined : (i % 2 === 0) === (bands === "dark-first") ? "dark" : "light";
   const { lead, sections } = p.sections;
+  // The entries band is headed by the site's own word for its posts — "Work" when the masthead says Work
+  // (docs/18 §2 · 10) — and "Latest posts" only when the menu has no item for the list.
+  const latest = menu(ctx, "header", route).find((i) => i.route === "/posts" || i.href === "/posts/")?.label ?? "Latest posts";
   return (
     <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd} page={p}>
       <main class="snypd-home">
@@ -36,7 +39,7 @@ export default function Home({ ctx, page, entries, route, title, description, js
         </article>
         <section class="snypd-band snypd-home-entries" data-tone={tone(sections.length + 1)} aria-labelledby="snypd-latest">
           <Slot name="after-content" ctx={ctx} route={route} title={title} page={p} />
-          <h2 id="snypd-latest"><a href="/posts/">Latest posts</a></h2>
+          <h2 id="snypd-latest"><a href="/posts/">{latest}</a></h2>
           <Entries ctx={ctx} entries={entries} />
         </section>
       </main>

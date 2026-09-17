@@ -19,6 +19,10 @@
  * 14 home-twice         two pages ask for `/`                                                            (lintSite, content/index.ts)
  * 15 autoplay           a second autoplaying clip on the page; an autoplay with no poster, or on a picture
  * 16 logo-wall-thin     a logo-wall of fewer than three logos — a list, not a wall
+ * 17 hero-too-tall      on the front page, more than one block before the first `##` — the hero is a cover and one block
+ * 18 duplicate-title    a block's `title` inside a `##` section that repeats or restates the heading
+ * 19 frontmatter-unparsed  a taxonomy term's or an author's frontmatter that does not parse — the build reads those with
+ *                       `readFrontmatter`, which returns `{}`, so the term showed its slug and nothing said why (lintSite)
  */
 import type { Node, Parent, Heading, Link, Image, Text, Literal } from "mdast";
 import type { FieldSpec } from "@snypd/spec";
@@ -76,7 +80,41 @@ const walk = (n: Node, fn: (n: Node, parent?: Parent) => void, parent?: Parent) 
 };
 const hasImage = (n: Node): boolean => n.type === "image" || ("children" in n && (n as Parent).children.some(hasImage));
 
+const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : Math.min(n % 10, 4) === 4 ? 0 : n % 10] ?? "th"}`;
+const plainText = (n: Node): string => "value" in n && typeof (n as Literal).value === "string" ? (n as Literal).value : "children" in n ? (n as Parent).children.map(plainText).join("") : "";
+const wordsOf = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w));
+const STOP = new Set(["the", "and", "our", "your", "you", "for", "with", "how", "what", "who", "why"]);
+/** Rule 18: the same words, one inside the other, or most of the shorter's words in the longer. */
+export function restates(a: string, b: string): boolean {
+  const x = a.toLowerCase().replace(/\s+/g, " ").trim(), y = b.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!x || !y) return false;
+  if (x === y || x.includes(y) || y.includes(x)) return true;
+  const wa = wordsOf(a), wb = wordsOf(b);
+  if (!wa.length || !wb.length) return false;
+  // Every telling word of the shorter is in the longer — "Start your project" under "Start a project" —
+  // and at least two of them, so a one-word overlap ("Work" under "How we work") is not a repeat.
+  const [short, long] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
+  const shared = short.filter((w) => long.includes(w)).length;
+  return shared >= 2 && shared === short.length;
+}
+
 const D = (rule: string, n: number, severity: Diagnostic["severity"], message: string, hint: string, line: number, extra: Partial<Diagnostic> = {}): Diagnostic => ({ rule, n, severity, message, hint, line, ...extra });
+
+/**
+ * A YAML parse error, as the sentence an agent needs (docs/19 §2 · 5, rules 0 and 19). The parser says
+ * `bad indentation of a mapping entry (3:35)` — its line is the YAML's, and the file's is that plus the
+ * fence. The commonest cause by far is a colon inside an unquoted value (`description: Objects that get
+ * made: tooling`), which YAML reads as a nested mapping; that case gets its own hint, because "fix the
+ * YAML" sent the author back to stare at a line that looks fine.
+ */
+export function yamlFailure(doc: Pick<ParsedDoc, "frontmatterError" | "frontmatterLine" | "frontmatterYaml">): { line: number; hint: string } {
+  const m = /\((\d+):(\d+)\)\s*$/.exec(doc.frontmatterError ?? "");
+  const line = m ? Math.max(1, doc.frontmatterLine) + Number(m[1]) - 1 : Math.max(1, doc.frontmatterLine);
+  const text = m ? (doc.frontmatterYaml.split("\n")[Number(m[1]) - 1] ?? "") : "";
+  const colonInValue = /^\s*[\w.-]+:\s+[^"'|>[{#\n][^\n]*:\s/.test(text);
+  const hint = colonInValue ? `Quote the value on line ${line} — a colon inside an unquoted value starts a nested mapping` : `Fix the YAML on line ${line}, between the --- fences`;
+  return { line, hint };
+}
 
 /** Check one frontmatter value against a field spec (rule 0). */
 function checkField(key: string, f: FieldSpec, v: unknown): string | undefined {
@@ -104,7 +142,7 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
   const fm = doc.frontmatter;
 
   // ── 0 frontmatter ──────────────────────────────────────────────────────────
-  if (doc.frontmatterError) out.push(D("frontmatter", 0, "error", `Frontmatter is not valid YAML: ${doc.frontmatterError}`, "Fix the YAML between the --- fences", Math.max(1, doc.frontmatterLine)));
+  if (doc.frontmatterError) { const f = yamlFailure(doc); out.push(D("frontmatter", 0, "error", `Frontmatter is not valid YAML: ${doc.frontmatterError}`, f.hint, f.line)); }
   else if (opts.type) {
     const fields = opts.type.fields;
     for (const [k, f] of Object.entries(fields)) {
@@ -163,6 +201,39 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
     let n = 0;
     walk(b.node, (x, parent) => { if (x.type === "listItem" && (x as Parent).children.some((c) => hasImage(c))) n++; void parent; });
     if (n < 3) out.push(D("logo-wall-thin", 16, "warning", `\`logo-wall\` holds ${n} logo${n === 1 ? "" : "s"}`, n ? "Three or more make a wall; one is a `figure`, two are two figures side by side" : "Write a markdown list under it, one `![name](/media/mark.svg)` per line, optionally wrapped in a link", b.line, { column: b.column, block: b.name }));
+  }
+
+  // ── 17 hero-too-tall ───────────────────────────────────────────────────────
+  // docs/18 §2 · 6 and §3: on a `home: true` page everything before the first `##` is the hero, and a hero
+  // is the cover and one block — a summary, or a row of numbers, not both and a figure. An agent that
+  // stacks three blocks in the lead renders a front page that is a screen and a half of hero on a phone,
+  // and today it finds that out from a screenshot; this is the sentence that says the move instead.
+  if (doc.frontmatter.home === true) {
+    const top = doc.tree.children;
+    const first = top.findIndex((n) => n.type === "heading");
+    const lead = new Set<Node>(first === -1 ? top : top.slice(0, first));
+    const inLead = tree.all.filter((b) => lead.has(b.node as unknown as Node) && b.name !== "cover");
+    if (inLead.length > 1) {
+      for (const b of inLead.slice(1)) out.push(D("hero-too-tall", 17, "warning", `\`${b.name}\` is the ${ordinal(inLead.indexOf(b) + 1)} block before the first \`##\` — the hero is ${inLead.length} blocks tall`, `Move \`${b.name}\` under a \`##\` heading (the first section is the natural home); the front page's hero is a cover and one block — see snypd://spec/home`, b.line, { column: b.column, block: b.name }));
+    }
+  }
+
+  // ── 18 duplicate-title ─────────────────────────────────────────────────────
+  // docs/18 §2 · 2 and §3: a block's `title` inside a `##` section is a sub-heading (decision 189), and a
+  // sub-heading that says what the heading just said is a second headline — "How we work" over "How we
+  // work", or "Start a project" over "Start your project". Repeats and restatements: the same words, one
+  // inside the other, or most of the shorter one's words in the longer.
+  {
+    let heading: Heading | undefined;
+    for (const n of doc.tree.children) {
+      if (n.type === "heading") { heading = n as Heading; continue; }
+      if (!heading) continue;
+      const b = tree.all.find((x) => (x.node as unknown as Node) === n);
+      const title = b && typeof b.props.title === "string" ? b.props.title : undefined;
+      if (!b || !title) continue;
+      const h = plainText(heading);
+      if (restates(title, h)) out.push(D("duplicate-title", 18, "warning", `\`${b.name}\` title “${title}” repeats the heading “${h}”`, `Drop \`title\` — the heading already says it — or make it the specific line under the heading, not the heading again`, b.line, { column: b.column, block: b.name }));
+    }
   }
 
   // ── walk the body once: headings, links, images, words, prose ─────────────
