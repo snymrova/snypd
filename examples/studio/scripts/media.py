@@ -94,7 +94,7 @@ def convert_clip(src, out, poster, start, seconds, width=1280, crf=27):
 
 
 def write_credits_page(credits):
-    """content/pages/credits.md: the same list as a page, one row per file, regenerated with the media."""
+    """content/pages/studio/credits.md: the same list as a page, one row per file, regenerated with the media."""
     rows = "\n".join(
         f"| [{c['title']}]({c['page']}) | {c['author']} | [{c['license']}]({c['licenseUrl']}) | {c['used']} |"
         if c["licenseUrl"] else f"| [{c['title']}]({c['page']}) | {c['author']} | {c['license']} | {c['used']} |"
@@ -102,6 +102,7 @@ def write_credits_page(credits):
     page = f"""---
 title: Credits
 status: published
+parent: studio
 description: Every photograph and clip on this site is a CC0 or CC BY file from Wikimedia Commons. Who made them, and where each one is used.
 ---
 
@@ -119,7 +120,8 @@ The client wordmarks on the front page are set in faces this machine had and con
 
 Every CC BY file is credited here as its licence asks; every CC0 file is credited because it is polite.
 """
-    open(os.path.join(ROOT, "content", "pages", "credits.md"), "w").write(page)
+    os.makedirs(os.path.join(ROOT, "content", "pages", "studio"), exist_ok=True)
+    open(os.path.join(ROOT, "content", "pages", "studio", "credits.md"), "w").write(page)
 
 
 def main():

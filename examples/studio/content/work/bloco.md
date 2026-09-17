@@ -1,11 +1,12 @@
 ---
 title: Bloco, wayfinding for a building that forgot it was one
 date: 2026-03-27
-status: published
+status: draft
 description: A sign system for a 1970s concrete hospital wing that had grown four additions and no map. Three sign types, one rule, and a fall in missed appointments.
+client: Centro Hospitalar do Bloco
+service: [space, wayfinding, type]
+industry: healthcare
 author: marta-sa
-category: space
-tags: [wayfinding, type]
 cover: { image: /media/bloco-cover.webp, alt: "A person walking through a tall concrete colonnade, framed by the columns", eyebrow: Space }
 ---
 
@@ -22,9 +23,9 @@ The outpatient wing at Santo Tirso is a 1970s concrete block with four later add
 The original block is a grid of identical corridors. The additions each have their own floor numbering, so Level 2 of the 1988 wing meets Level 1 of the 1974 block through a door with no sign at all. There were two hundred and six signs in the wing when we counted. Forty-one of them contradicted another one.
 
 :::stat-row
-::stat{value="206" label="signs before, 41 of them contradicting another" source="https://ferrule.snypd.rocks/posts/bloco/#the-building"}
-::stat{value="90" label="signs after" source="https://ferrule.snypd.rocks/posts/bloco/#three-types"}
-::stat{value="−38 %" label="missed outpatient appointments, six months on" source="https://ferrule.snypd.rocks/posts/bloco/#what-changed"}
+::stat{value="206" label="signs before, 41 of them contradicting another" source="https://ferrule.snypd.rocks/work/bloco/#the-building"}
+::stat{value="90" label="signs after" source="https://ferrule.snypd.rocks/work/bloco/#three-types"}
+::stat{value="−38 %" label="missed outpatient appointments, six months on" source="https://ferrule.snypd.rocks/work/bloco/#what-changed"}
 :::
 
 ## One rule
@@ -57,7 +58,7 @@ The face is a heavy grotesque cut to survive being read at a slant under fluores
 
 Six months after the signs went up, the outpatient department's missed appointments were down by thirty-eight per cent against the same six months the year before. The hospital counts a missed appointment as one where the patient checked in but did not reach the room. That was the number that mattered and it is the one we report.
 
-:::chart{type="bar" source="https://ferrule.snypd.rocks/posts/bloco/#what-changed" caption="Appointments missed after check-in, per month, in the six months before and after the signs." unit="appointments"}
+:::chart{type="bar" source="https://ferrule.snypd.rocks/work/bloco/#what-changed" caption="Appointments missed after check-in, per month, in the six months before and after the signs." unit="appointments"}
 - { label: "Before", value: 142, series: "Month 1" }
 - { label: "Before", value: 151, series: "Month 2" }
 - { label: "Before", value: 139, series: "Month 3" }
@@ -66,7 +67,7 @@ Six months after the signs went up, the outpatient department's missed appointme
 - { label: "After", value: 84, series: "Month 3" }
 :::
 
-:::pullquote{cite="Dr Helena Pires, outpatient director" href="/posts/bloco/"}
+:::pullquote{cite="Dr Helena Pires, outpatient director" href="/work/bloco/"}
 Nobody asked us for a map. They asked us for a sign that said where they were.
 :::
 

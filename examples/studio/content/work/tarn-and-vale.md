@@ -3,9 +3,10 @@ title: The letters we cut for Tarn & Vale
 date: 2025-04-11
 status: published
 description: A wordmark, a serif with one weight and a box for a small press in the Douro, drawn to be printed by hand on the machines they already own.
+client: "Tarn & Vale"
+service: [identity, type]
+industry: publishing
 author: marta-sa
-category: identity
-tags: [type]
 cover: { image: /media/tarn-cover.webp, alt: Rows of metal letterpress type locked in a wooden case, eyebrow: Identity }
 ---
 
@@ -26,12 +27,12 @@ Everything the press makes goes through a 1962 Heidelberg platen. So the wordmar
 One serif, one weight, uppercase and lowercase, figures and an ampersand. It is drawn with a deep ink trap at every junction so the letter stays open when the press is over-inked, which on a platen it always slightly is.
 
 :::stat-row
-::stat{value="1" label="weight" source="https://ferrule.snypd.rocks/posts/tarn-and-vale/#the-face"}
-::stat{value="94" label="glyphs" source="https://ferrule.snypd.rocks/posts/tarn-and-vale/#the-face"}
-::stat{value="36 pt" label="cast in metal, for the label" source="https://ferrule.snypd.rocks/posts/tarn-and-vale/#the-face"}
+::stat{value="1" label="weight" source="https://ferrule.snypd.rocks/work/tarn-and-vale/#the-face"}
+::stat{value="94" label="glyphs" source="https://ferrule.snypd.rocks/work/tarn-and-vale/#the-face"}
+::stat{value="36 pt" label="cast in metal, for the label" source="https://ferrule.snypd.rocks/work/tarn-and-vale/#the-face"}
 :::
 
-:::chart{type="donut" source="https://ferrule.snypd.rocks/posts/tarn-and-vale/#the-face" caption="Where the studio's hours on the project went. The box was cheap; the ampersand was not." unit="hours"}
+:::chart{type="donut" source="https://ferrule.snypd.rocks/work/tarn-and-vale/#the-face" caption="Where the studio's hours on the project went. The box was cheap; the ampersand was not." unit="hours"}
 - { label: "The wordmark", value: 31 }
 - { label: "The face", value: 88 }
 - { label: "Cutting the metal", value: 22 }
@@ -55,7 +56,7 @@ One sheet of 400 gsm board, die-cut and folded, no glue. The mark is blind-embos
 4. **Tie** — string and a stamp, by hand, because it is a letterpress and they wanted to.
 :::
 
-:::pullquote{cite="Joana Tarn, printer" href="/posts/tarn-and-vale/"}
+:::pullquote{cite="Joana Tarn, printer" href="/work/tarn-and-vale/"}
 We had a face on the shelf that could print anything. We did not have one that could print us.
 :::
 

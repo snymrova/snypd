@@ -1,4 +1,0 @@
----
-title: Hospitality
-status: published
----

@@ -25,16 +25,16 @@ The workshop is one floor of a former textile mill on Rua do Almada. Half is mac
 ::figure{src="/media/studio-tools.webp" alt="A wall of hand planes, chisels and clamps hung on pegs above a bench" caption="The hand-tool wall, which is older than the studio. Most of it came with the building." width="wide"}
 
 :::stat-row
-::stat{value="640 m²" label="on one floor" source="https://ferrule.snypd.rocks/about/#the-floor"}
-::stat{value="3" label="CNC machines: a mill, a lathe, a router" source="https://ferrule.snypd.rocks/about/#the-floor"}
-::stat{value="1" label="kiln, gas, 0.6 m³" source="https://ferrule.snypd.rocks/posts/kiln-to-table/"}
+::stat{value="640 m²" label="on one floor" source="https://ferrule.snypd.rocks/studio/#the-floor"}
+::stat{value="3" label="CNC machines: a mill, a lathe, a router" source="https://ferrule.snypd.rocks/studio/#the-floor"}
+::stat{value="1" label="kiln, gas, 0.6 m³" source="https://ferrule.snypd.rocks/work/kiln-to-table/"}
 :::
 
 ## By the numbers
 
 We keep three numbers on the wall and update them at the end of every project.
 
-:::chart{type="bar" source="https://ferrule.snypd.rocks/about/#by-the-numbers" caption="Products shipped per year since the studio opened." unit="products"}
+:::chart{type="bar" source="https://ferrule.snypd.rocks/studio/#by-the-numbers" caption="Products shipped per year since the studio opened." unit="products"}
 - { label: "2017", value: 1 }
 - { label: "2018", value: 2 }
 - { label: "2019", value: 3 }

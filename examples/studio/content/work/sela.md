@@ -3,9 +3,10 @@ title: Sela, one chair in three woods
 date: 2025-08-08
 status: published
 description: A stacking chair for Kavel in ash, oak and walnut from the same eleven parts, with a jig that lets a two-person shop make forty a week.
+client: Kavel
+service: [product, furniture, tooling]
+industry: manufacturing
 author: ines-carvalho
-category: product
-tags: [furniture, tooling]
 cover: { image: /media/sela-cover.webp, alt: A black moulded chair with wooden legs against a white wall, eyebrow: Product }
 ---
 
@@ -22,16 +23,16 @@ Two back legs, two front legs, four rails, two back slats and a seat. Every join
 ::figure{src="/media/sela-sanding.webp" alt="A woodworker in a white shirt sanding a dark walnut board on a bench, shavings on the floor" caption="Sanding the walnut seat. Walnut is the wood that taught us the seat needs 2 mm more thickness than ash." width="wide"}
 
 :::stat-row
-::stat{value="11" label="parts, no metal" source="https://ferrule.snypd.rocks/posts/sela/#eleven-parts"}
-::stat{value="40" label="chairs a week from two benches" source="https://ferrule.snypd.rocks/posts/sela/#the-jig"}
-::stat{value="6" label="stack high" source="https://ferrule.snypd.rocks/posts/sela/#the-jig"}
+::stat{value="11" label="parts, no metal" source="https://ferrule.snypd.rocks/work/sela/#eleven-parts"}
+::stat{value="40" label="chairs a week from two benches" source="https://ferrule.snypd.rocks/work/sela/#the-jig"}
+::stat{value="6" label="stack high" source="https://ferrule.snypd.rocks/work/sela/#the-jig"}
 :::
 
 ## The three woods
 
 The same drawing, three densities. The jig does not care, but the seat does.
 
-:::chart{type="bar" source="https://ferrule.snypd.rocks/posts/sela/#the-three-woods" caption="Weight of the finished chair in each wood. The walnut seat is 2 mm thicker, which is why it is not the lightest." unit="kg"}
+:::chart{type="bar" source="https://ferrule.snypd.rocks/work/sela/#the-three-woods" caption="Weight of the finished chair in each wood. The walnut seat is 2 mm thicker, which is why it is not the lightest." unit="kg"}
 - { label: "Ash", value: 4.6 }
 - { label: "Oak", value: 5.1 }
 - { label: "Walnut", value: 5.0 }
@@ -55,7 +56,7 @@ A jig is a fixture that holds the parts so the tool meets them at the same angle
 
 ::figure{src="/media/sela-room.webp" alt="A bright white room with a wall of open wooden shelving, a table and low stools" caption="Kavel's showroom in Paredes. The shelving is theirs; the stools are Sela's legs with a different seat."}
 
-:::pullquote{cite="Ana Kavel, joiner" href="/posts/sela/"}
+:::pullquote{cite="Ana Kavel, joiner" href="/work/sela/"}
 The first week we made forty. The second week the apprentice made forty. That was the point.
 :::
 

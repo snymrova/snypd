@@ -1,4 +1,0 @@
----
-title: Lighting
-status: published
----

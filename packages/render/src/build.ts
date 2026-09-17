@@ -401,7 +401,8 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // site artefacts (emit.ts): keyed on everything they show, so an unchanged list rewrites nothing
   const siteSurface: SurfaceSite = {
     name: site.name, url: site.url, description: site.description, locale: c.site.defaultLocale,
-    types: Object.keys(c.types).filter((t) => c.types[t]!.layout).map((t) => ({ name: t, label: titleCase(plural(t)), entries: surface.filter((e) => e.type === t) })),
+    // A type's label is its archive's title where it has one (R1): `llms.txt` says *Work*, as the menu and the page do.
+    types: Object.keys(c.types).filter((t) => c.types[t]!.layout).map((t) => ({ name: t, label: archives.find((a) => a.type === t)?.title ?? titleCase(plural(t)), entries: surface.filter((e) => e.type === t) })),
     taxonomies: Object.keys(c.taxonomies).map((t) => ({ name: t, label: titleCase(plural(t)), terms: [...byTerm.values()].filter((x) => x.link.taxonomy === t).map((x) => ({ term: x.link.term, title: x.link.title, route: x.link.route, url: url(x.link.route), count: x.files.length })).sort((a, b) => a.term.localeCompare(b.term)) })),
     routes: plan.filter((p) => p.kind === "route").map((p) => ({ route: p.route, url: url(p.route), lastmod: lastmod.get(p.route) })),
   };

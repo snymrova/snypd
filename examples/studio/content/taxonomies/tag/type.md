@@ -1,4 +1,0 @@
----
-title: Type
-status: published
----

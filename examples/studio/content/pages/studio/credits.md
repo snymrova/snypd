@@ -1,6 +1,7 @@
 ---
 title: Credits
 status: published
+parent: studio
 description: Every photograph and clip on this site is a CC0 or CC BY file from Wikimedia Commons. Who made them, and where each one is used.
 ---
 

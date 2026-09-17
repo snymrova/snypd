@@ -3,9 +3,10 @@ title: Stem, a lamp that is mostly a hinge
 date: 2026-02-03
 status: published
 description: A task lamp for Lumo with one machined hinge, no visible screws and a light that stays where you put it for ten years. Ondular makes it.
+client: Lumo
+service: [product, lighting, tooling]
+industry: manufacturing
 author: tomas-reis
-category: product
-tags: [lighting, tooling]
 cover: { image: /media/stem-cover.webp, alt: A bare bulb in a white ceramic pendant shade against a pale wall, eyebrow: Product }
 ---
 
@@ -26,12 +27,12 @@ We wanted the friction to come from two machined faces of aluminium bronze under
 ## What we measured
 
 :::stat-row
-::stat{value="50,000" label="arm movements on the rig, no measurable droop" source="https://ferrule.snypd.rocks/posts/stem/#what-we-measured"}
-::stat{value="1.8 N·m" label="holding torque, set once at the factory" source="https://ferrule.snypd.rocks/posts/stem/#what-we-measured"}
-::stat{value="0" label="visible fasteners" source="https://ferrule.snypd.rocks/posts/stem/#the-parts"}
+::stat{value="50,000" label="arm movements on the rig, no measurable droop" source="https://ferrule.snypd.rocks/work/stem/#what-we-measured"}
+::stat{value="1.8 N·m" label="holding torque, set once at the factory" source="https://ferrule.snypd.rocks/work/stem/#what-we-measured"}
+::stat{value="0" label="visible fasteners" source="https://ferrule.snypd.rocks/work/stem/#the-parts"}
 :::
 
-:::chart{type="area" source="https://ferrule.snypd.rocks/posts/stem/#what-we-measured" caption="Holding torque of the hinge over the rig test. A spring-arm lamp we bought for comparison is the lower line." unit="N·m"}
+:::chart{type="area" source="https://ferrule.snypd.rocks/work/stem/#what-we-measured" caption="Holding torque of the hinge over the rig test. A spring-arm lamp we bought for comparison is the lower line." unit="N·m"}
 - { label: "0", value: 1.80, series: "Stem" }
 - { label: "10k", value: 1.79, series: "Stem" }
 - { label: "20k", value: 1.79, series: "Stem" }

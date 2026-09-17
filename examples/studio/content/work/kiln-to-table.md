@@ -3,9 +3,10 @@ title: Kiln to table
 date: 2026-05-14
 status: published
 description: A twelve-piece stoneware line for Bitácora, from the first thrown bowl to a glaze that survives four hundred dishwasher cycles, in eleven weeks.
+client: Bitácora
+service: [product, tooling]
+industry: hospitality
 author: ines-carvalho
-category: product
-tags: [tooling, hospitality]
 cover: { image: /media/kiln-cover.webp, alt: "A shelf of tall stoneware bottles in green, blue and grey glazes", eyebrow: Product }
 ---
 
@@ -28,12 +29,12 @@ We said yes on the condition that the first thing we designed was the test, not 
 A commercial dishwasher runs at 65 °C with a caustic detergent. We built a rack that holds twelve pieces and ran it in the studio's own machine, five cycles a day, and measured the glaze with a colorimeter every twenty-five cycles.
 
 :::stat-row
-::stat{value="400" label="dishwasher cycles before we called a glaze done" source="https://ferrule.snypd.rocks/posts/kiln-to-table/#the-test"}
-::stat{value="7" label="glaze recipes tried" source="https://ferrule.snypd.rocks/posts/kiln-to-table/#the-test"}
-::stat{value="ΔE 1.4" label="colour shift on the winner, at 400 cycles" source="https://ferrule.snypd.rocks/posts/kiln-to-table/#the-test"}
+::stat{value="400" label="dishwasher cycles before we called a glaze done" source="https://ferrule.snypd.rocks/work/kiln-to-table/#the-test"}
+::stat{value="7" label="glaze recipes tried" source="https://ferrule.snypd.rocks/work/kiln-to-table/#the-test"}
+::stat{value="ΔE 1.4" label="colour shift on the winner, at 400 cycles" source="https://ferrule.snypd.rocks/work/kiln-to-table/#the-test"}
 :::
 
-:::chart{type="line" source="https://ferrule.snypd.rocks/posts/kiln-to-table/#the-test" caption="Colour shift over dishwasher cycles for the three glazes that got past cycle 100. Below ΔE 2 a person cannot see the difference." unit="ΔE"}
+:::chart{type="line" source="https://ferrule.snypd.rocks/work/kiln-to-table/#the-test" caption="Colour shift over dishwasher cycles for the three glazes that got past cycle 100. Below ΔE 2 a person cannot see the difference." unit="ΔE"}
 - { label: "0", value: 0, series: "Celadon 3" }
 - { label: "150", value: 0.8, series: "Celadon 3" }
 - { label: "300", value: 1.2, series: "Celadon 3" }
@@ -68,7 +69,7 @@ The winning celadon only wins if it is fired to cone 10 with a two-hour hold. On
 
 ::figure{src="/media/kiln-shelf.webp" alt="Stacks of bowls and plates in mixed glazes on a white shelf" caption="The first batch on the shelf at the pottery, waiting for the test rack." width="wide"}
 
-:::pullquote{cite="Sofia Bragança, Bitácora" href="/posts/kiln-to-table/"}
+:::pullquote{cite="Sofia Bragança, Bitácora" href="/work/kiln-to-table/"}
 We wanted plates. What we got was a kitchen that stopped thinking about plates.
 :::
 

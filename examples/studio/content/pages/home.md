@@ -14,9 +14,9 @@ We take a product from the first sketch to the first thousand units, and we buil
 ## How we work
 
 :::stat-row
-::stat{value="31" label="products shipped since 2017" source="https://ferrule.snypd.rocks/about/#by-the-numbers"}
-::stat{value="640 m²" label="of workshop, one floor" source="https://ferrule.snypd.rocks/about/#the-floor"}
-::stat{value="11 weeks" label="median, brief to first batch" source="https://ferrule.snypd.rocks/about/#by-the-numbers"}
+::stat{value="31" label="products shipped since 2017" source="https://ferrule.snypd.rocks/studio/#by-the-numbers"}
+::stat{value="640 m²" label="of workshop, one floor" source="https://ferrule.snypd.rocks/studio/#the-floor"}
+::stat{value="11 weeks" label="median, brief to first batch" source="https://ferrule.snypd.rocks/studio/#by-the-numbers"}
 :::
 
 :::steps{title="Four stages, one room"}
@@ -33,17 +33,17 @@ We take a product from the first sketch to the first thousand units, and we buil
 Most of our clients are small manufacturers, a few are cafés and one is a hospital. What they have in common is that they make something and want it made better.
 
 :::logo-wall{layout="marquee"}
-- [![Marés](/media/logo-mares.svg)](/posts/mares/) — since 2021
-- [![Ondular](/media/logo-ondular.svg)](/posts/stem/) — since 2022
-- [![Tarn & Vale](/media/logo-tarnvale.svg)](/posts/tarn-and-vale/) — since 2019
-- [![Lumo](/media/logo-lumo.svg)](/posts/stem/) — since 2020
-- [![Bitácora](/media/logo-bitacora.svg)](/posts/kiln-to-table/) — since 2023
+- [![Marés](/media/logo-mares.svg)](/work/mares/) — since 2021
+- [![Ondular](/media/logo-ondular.svg)](/work/stem/) — since 2022
+- [![Tarn & Vale](/media/logo-tarnvale.svg)](/work/tarn-and-vale/) — since 2019
+- [![Lumo](/media/logo-lumo.svg)](/work/stem/) — since 2020
+- [![Bitácora](/media/logo-bitacora.svg)](/work/kiln-to-table/) — since 2023
 - ![Sextant](/media/logo-sextant.svg) — since 2017
-- [![Kavel](/media/logo-kavel.svg)](/posts/sela/) — since 2018
+- [![Kavel](/media/logo-kavel.svg)](/work/sela/) — since 2018
 - ![Pele](/media/logo-pele.svg) — since 2024
 :::
 
-:::pullquote{cite="Rui Bastos, Marés" href="/posts/mares/"}
+:::pullquote{cite="Rui Bastos, Marés" href="/work/mares/"}
 They asked to see the dishwasher before they asked to see the mood board.
 :::
 
