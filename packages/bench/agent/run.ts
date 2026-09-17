@@ -64,8 +64,8 @@ function stage(): string {
   return root;
 }
 
-/** Press the button a person presses. Not a tool call — see scripted.ts's header. */
-async function approve(origin: string, type: string, slug: string) {
+/** Press the button a person presses. Not a tool call — see scripted.ts's header. The registry demo (registry.ts) presses the same one. */
+export async function approve(origin: string, type: string, slug: string) {
   const res = await fetch(`${origin}/_snypd/approve/${type}/${slug}`, { method: "POST", redirect: "manual" });
   if (res.status !== 303 && !res.ok) throw new Error(`approve ${type}/${slug}: HTTP ${res.status}`);
 }
@@ -180,13 +180,15 @@ export function transcript(r: AgentRun): string {
     ...r.phases.map((p) => `| ${p.phase} | ${p.calls} | ${p.reads} | ${p.tokensOut} |`), "",
     `## Transcript`, "",
   ];
-  const body = r.turns.map((t) => {
-    const label = t.kind === "call" ? `**${t.name}**` : `\`${t.method}\``;
-    const args = t.args ? `\n\`\`\`json\n${JSON.stringify(t.args, null, 2).slice(0, 1200)}\n\`\`\`` : "";
-    const out = t.text.length > 900 ? `${t.text.slice(0, 900)}\n… (${t.text.length - 900} more characters)` : t.text;
-    return `### ${t.n}. ${label} ${t.ok ? "" : "— refused "}· ${t.kind} · ${t.ms} ms · ${t.tokensOut} tokens back${args}\n\n\`\`\`\n${out}\n\`\`\`\n`;
-  });
-  return [...head, ...body].join("\n");
+  return [...head, ...r.turns.map((t) => turnMarkdown(t))].join("\n");
+}
+
+/** One turn as the transcripts print it — what was called, with what, and what came back, trimmed. Shared with the registry demo's transcript (registry.ts). */
+export function turnMarkdown(t: Turn, keep = 900): string {
+  const label = t.kind === "call" ? `**${t.name}**` : `\`${t.method}\`${t.kind === "read" && t.name ? ` ${t.name}` : ""}`;
+  const args = t.args ? `\n\`\`\`json\n${JSON.stringify(t.args, null, 2).slice(0, 1200)}\n\`\`\`` : "";
+  const out = t.text.length > keep ? `${t.text.slice(0, keep)}\n… (${t.text.length - keep} more characters)` : t.text;
+  return `### ${t.n}. ${label} ${t.ok ? "" : "— refused "}· ${t.kind} · ${t.ms} ms · ${t.tokensOut} tokens back${args}\n\n\`\`\`\n${out}\n\`\`\`\n`;
 }
 
 export function writeTranscript(r: AgentRun, file = "bench/agent-transcript.md") {

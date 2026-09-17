@@ -104,7 +104,7 @@ describe("layering", () => {
     expect(typeArchives({ types: { post: c.config.types.post! } }, false)).toEqual([]);
     expect(typeArchives({ types: { post: c.config.types.post! } }, true)).toEqual([{ type: "post", route: "/posts" }]);
     expect(c.explain("types.caseStudy.layout")).toBe('`types.caseStudy.layout` = "post" ← inherited from types.post (@snypd/spec default)');
-    expect(c.explain("types.caseStudy.dir")).toBe('`types.caseStudy.dir` = "content/work" ← snypd.yaml:13');
+    expect(c.explain("types.caseStudy.dir")).toBe('`types.caseStudy.dir` = "content/work" ← snypd.yaml:13, overrides inherited "content/posts" (types.post.dir, @snypd/spec default)');   // R4: the value the site's line hid, and where it came from
   });
   test("snypd://config render: annotated, site-sized, defaults collapsed", () => {
     const y = c.render();

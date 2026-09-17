@@ -441,8 +441,9 @@ describe("find_tools + the catalogue", () => {
       call(3, "find_tools", { query: "change the accent colour" }),
       req(4, "tools/list"),
       call(5, "find_tools", { query: "xyzzy" }),
+      call(6, "find_tools", { query: "who approved each version of a post, its audit history" }),
     ], "corpora/theme");
-    const [, before, found, after, unmatched] = out.filter((m: any) => m.id !== undefined);
+    const [, before, found, after, unmatched, history] = out.filter((m: any) => m.id !== undefined);
 
     // The client is told its list grew, once — the second find unlocks nothing new and stays quiet.
     expect(out.filter((m: any) => m.method === "notifications/tools/list_changed")).toHaveLength(1);
@@ -458,6 +459,10 @@ describe("find_tools + the catalogue", () => {
     expect(names(after)).not.toContain("bench");
     expect(structured(unmatched)).toMatchObject({ count: 0 });
     expect(structured(unmatched).available).toEqual(["theme", "site", "bench", "content.explain"]);
+    // R4 (docs/22 §3): a query that names a resource is answered with the resource — a live model asked
+    // find_tools for an item's history six times and was handed `site` every time.
+    expect(history.result.content[0].text).toContain("snypd://history/{type}/{slug}");
+    expect(structured(history).resources.map((r: any) => r.uri)).toContain("snypd://history/{type}/{slug}");
   });
 
   test("a catalogue tool is callable before it was ever listed", async () => {

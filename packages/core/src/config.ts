@@ -470,7 +470,16 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     const v = getPath(raw, parsePath(key));
     if (v === undefined && !prov.has(key)) return `\`${key}\` is not set`;
     const s = prov.get(key) ?? nearest(prov, key);
-    return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}`;
+    // A type's own key over one its base has (R4, docs/20 §2.4 · 2): `types.work.layout` is the site's
+    // line *and* the value it hid, the way a site's line over the spec's already says what it overrides.
+    // The resolved type keeps `extends` (decision 196), which is how the base is known here.
+    const path = parsePath(key);
+    const base = path[0] === "types" && path.length > 2 ? (raw.types as Record<string, { extends?: string } | undefined>)[String(path[1])]?.extends : undefined;
+    const basePath: Path | undefined = base ? ["types", base, ...path.slice(2)] : undefined;
+    const bv = basePath ? getPath(raw, basePath) : undefined;
+    const over = basePath && bv !== undefined && s?.layer !== "inherited" && JSON.stringify(bv) !== JSON.stringify(v)
+      ? `, overrides inherited ${JSON.stringify(bv)} (${pathKey(basePath)}, ${describeSource(prov.get(pathKey(basePath)))})` : "";
+    return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}${over}`;
   };
   return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, settingDecls, variations, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
 }

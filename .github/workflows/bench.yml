@@ -42,6 +42,12 @@ jobs:
       - run: bun run snypd bench gallery --ci
       - run: bun run snypd bench agent
         continue-on-error: true
+      # S29 · R4: the registry demo (docs/20 §2.4) — a `work` type declared in fifteen lines of the studio
+      # specimen's snypd.yaml, and what every tool says about it, twelve steps checked against the sentence
+      # each should answer. `registry.test.ts` enforces it in `bun test` above; this step makes the record
+      # (`bench/registry.md` and the transcript) for the artefact, and is non-enforcing for `agent`'s reason.
+      - run: bun run snypd bench registry
+        continue-on-error: true
       # S18g, and the same split for the same reason. `bun test` above enforces first run exactly
       # (`smoke/onboard.test.ts`: five actions, not 5.2), so this step exists to produce
       # `bench/onboard.md` — the breakdown decision 65 asks for, and the artefact F1 is read off.

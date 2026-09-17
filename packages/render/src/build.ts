@@ -70,6 +70,13 @@ export interface BuildResult {
    * `types.<t>.layout`, then the layout of each type it extends, then `post`. One line each in `snypd build`.
    */
   fallbacks: { type: string; wanted: string; used: string }[];
+  /**
+   * The list pages this build planned (R4: what `site › build` names): `/` when no page holds it, and one
+   * archive per dated type (decision 194), each with how many entries it lists; `terms` is the count of
+   * term pages. Bounded by the types and the terms a site uses, never by its items.
+   */
+  lists: { route: string; title: string; type?: string; entries: number }[];
+  terms: number;
   /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. `record` is present only when the caller asked for one (P4, `content.explain`). */
   hooks: { plugins: string[]; diagnostics: HookDiagnostic[]; record?: HookRun[] };
 }
@@ -380,12 +387,15 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
    * as cards and `/posts/` as a list without a seventh required file. Keyed on the type's own entries, so
    * a note published does not re-render the work.
    */
+  const listSummary: BuildResult["lists"] = [];
+  let termPages = 0;
   if (theme.layouts.index) {
     const lists: { route: string; title: string; entries: Entry[]; schema: Record<string, unknown>; layout: string; archive?: Archive }[] = [];
     if (!contentRoutes.has("/")) lists.push({ route: "/", title: site.name, entries: listEntries, schema: webSite(), layout: "index" });
     for (const a of archives) lists.push({ route: a.route, title: a.title, entries: a.entries, schema: { "@context": "https://schema.org", "@type": "CollectionPage", name: a.title, url: url(a.route), description: site.description }, layout: theme.layouts[`${a.type}-index`] ? `${a.type}-index` : "index", archive: { type: a.type, route: a.route, title: a.title } });
     for (const l of lists) {
       if (contentRoutes.has(l.route)) continue;
+      listSummary.push({ route: l.route, title: l.title, ...(l.archive ? { type: l.archive.type } : {}), entries: l.entries.length });
       const fc = fctx(l.route);
       const dir = routeDir(l.route);
       lastmod.set(l.route, l.entries[0]?.updated ?? l.entries[0]?.date);
@@ -396,6 +406,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   if (theme.layouts.term) {
     for (const { link, files } of byTerm.values()) {
       if (contentRoutes.has(link.route)) continue;
+      termPages++;
       const entries = files.map(entryOf);
       lastmod.set(link.route, entries[0]?.updated ?? entries[0]?.date);
       const dir = routeDir(link.route);
@@ -542,7 +553,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, profile, drafts, preview, ...(branch ? { branch } : {}), theme: { name: theme.name, coverage: theme.coverage }, fallbacks, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
+  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, profile, drafts, preview, ...(branch ? { branch } : {}), theme: { name: theme.name, coverage: theme.coverage }, fallbacks, lists: listSummary, terms: termPages, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
 }
 
 /**

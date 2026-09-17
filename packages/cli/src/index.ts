@@ -93,6 +93,19 @@ switch (verb) {
       if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
       break;
     }
+    if (args[0] === "registry") {   // S29 · R4: the registry demo — docs/20 §2.4's twelve steps, run and checked against what each tool said
+      const which = [...flags].find((f) => f.startsWith("--driver="))?.slice(9);
+      const driver = which?.startsWith("claude:") ? bench.liveRegistry(which.slice(7), { onLine: (l) => { if (/"type":"assistant"/.test(l) && /"tool_use"/.test(l)) process.stderr.write("·"); } }) : undefined;
+      if (which && !driver) { console.error(`unknown driver ${which} — scripted (default) or claude:<model>`); process.exit(2); }
+      const { report, run } = await bench.registry({ keep: flags.has("--keep"), driver });
+      if (driver) process.stderr.write("\n");
+      console.log(bench.toMarkdown(report));
+      console.log(`\n${bench.formatSteps(run)}`);
+      if (run.model) console.log(`\nmodel ${run.model.model} · ${run.model.turns} turns · ${run.model.tokensIn} in / ${run.model.tokensOut} out · $${run.model.costUsd} · ended ${run.model.ended}\n${run.model.closing.trim()}`);
+      const over = bench.breaches(report);
+      if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
+      break;
+    }
     if (args[0] === "writes") {   // S21: first-attempt lint on `write-post`, 20 topics × the models named
       const models = [...flags].find((f) => f.startsWith("--models="))?.slice(9).split(",").filter(Boolean);
       const t = [...flags].find((f) => f.startsWith("--topics="))?.slice(9);

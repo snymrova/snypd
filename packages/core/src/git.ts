@@ -28,6 +28,9 @@ import { userInfo } from "node:os";
 export interface GitResult { ok: boolean; stdout: string; stderr: string; code: number }
 export interface CommitResult { committed: boolean; sha?: string; branch?: string; reason?: string; hint?: string }
 
+/** Extra git trailers on a commit — `Snypd-Approved-By` on a publish a person approved (R4). One per line, after the principal's. */
+const trailerLines = (t: Record<string, string>) => Object.entries(t).map(([k, v]) => `${k}: ${v.replace(/\s+/g, " ").trim()}\n`).join("");
+
 /** `agent:claude-code/<user>` (docs/02 §11). `SNYPD_PRINCIPAL` overrides; the trailer is the audit trail. */
 export function principal(env: NodeJS.ProcessEnv = process.env): string {
   if (env.SNYPD_PRINCIPAL) return env.SNYPD_PRINCIPAL;
@@ -217,13 +220,13 @@ export class Repo {
   }
 
   /** Stage exactly these paths and commit them with the principal trailer. No paths changed → no commit. */
-  commit(paths: string[], subject: string, who = principal()): CommitResult {
+  commit(paths: string[], subject: string, who = principal(), trailers: Record<string, string> = {}): CommitResult {
     if (!paths.length) return { committed: false, reason: "nothing to commit" };
     const add = this.run("add", "--", ...paths);
     if (!add.ok) return { committed: false, reason: `git add: ${add.stderr}` };
     const staged = this.run("diff", "--cached", "--name-only", "--", ...paths).stdout;
     if (!staged) return { committed: false, reason: "no change" };
-    const message = `${subject}\n\nSnypd-Principal: ${who}\n`;
+    const message = `${subject}\n\nSnypd-Principal: ${who}\n${trailerLines(trailers)}`;
     const c = this.run("-c", "core.hooksPath=/dev/null", "commit", "-q", "--no-verify", "-m", message, "--only", "--", ...paths);
     if (!c.ok) return { committed: false, reason: `git commit: ${c.stderr || c.stdout}`, hint: commitHint(c.stderr || c.stdout) };
     return { committed: true, sha: this.run("rev-parse", "HEAD").stdout, branch: this.branch() };
@@ -245,7 +248,7 @@ export class Repo {
    * — a record, not a merge: it keeps `main` an ancestor of `snypd/drafts` so the two never diverge, and
    * because the tree is identical the checked-out files and the index stay exactly as they were.
    */
-  land(paths: string[], subject: string, who = principal()): { ok: boolean; base?: string; sha?: string; changed: boolean; reason?: string } {
+  land(paths: string[], subject: string, who = principal(), trailers: Record<string, string> = {}): { ok: boolean; base?: string; sha?: string; changed: boolean; reason?: string } {
     const files = [...new Set(paths.filter(Boolean))];
     if (!files.length) return { ok: false, changed: false, reason: "nothing to land" };
     const from = this.branch();
@@ -280,7 +283,7 @@ export class Repo {
       if (tree.stdout === baseTree) return { ok: true, base, changed: false, reason: `${base} already has this version` };
 
       const parents = baseExists ? ["-p", this.run("rev-parse", base).stdout] : [];
-      const commit = this.run("-c", "core.hooksPath=/dev/null", "commit-tree", tree.stdout, ...parents, "-m", `${subject}\n\nSnypd-Principal: ${who}\n`);
+      const commit = this.run("-c", "core.hooksPath=/dev/null", "commit-tree", tree.stdout, ...parents, "-m", `${subject}\n\nSnypd-Principal: ${who}\n${trailerLines(trailers)}`);
       if (!commit.ok) return { ok: false, base, changed: false, reason: `git commit-tree: ${commit.stderr}` };
       const sha = commit.stdout;
       // With the old value named: another process that moved `main` between the read-tree and here loses
@@ -289,7 +292,7 @@ export class Repo {
       if (!ref.ok) return { ok: false, base, changed: false, reason: `git update-ref ${base}: ${ref.stderr}` };
 
       const head = this.run("rev-parse", from).stdout;
-      const record = this.run("-c", "core.hooksPath=/dev/null", "commit-tree", this.run("rev-parse", `${from}^{tree}`).stdout, "-p", head, "-p", sha, "-m", `${subject} (landed on ${base})\n\nSnypd-Principal: ${who}\n`);
+      const record = this.run("-c", "core.hooksPath=/dev/null", "commit-tree", this.run("rev-parse", `${from}^{tree}`).stdout, "-p", head, "-p", sha, "-m", `${subject} (landed on ${base})\n\nSnypd-Principal: ${who}\n${trailerLines(trailers)}`);
       if (record.ok) this.run("update-ref", `refs/heads/${from}`, record.stdout, head);
       return { ok: true, base, sha, changed: true };
     } finally { rmSync(join(this.root, index), { force: true }); }
@@ -363,10 +366,18 @@ export class Repo {
       ["push", "--porcelain", ...(opts.setUpstream ? ["--set-upstream"] : []), remote, `${branch}:${branch}`], opts.timeoutMs ?? 60_000);
   }
 
-  /** Commits touching one path, newest first (`snypd://history/{type}/{slug}`). */
-  history(path: string, limit = 20): { sha: string; date: string; subject: string; principal?: string }[] {
-    const r = this.run("log", `-n${limit}`, "--format=%H%x1f%aI%x1f%s%x1f%(trailers:key=Snypd-Principal,valueonly)", "--", path);
+  /**
+   * Commits touching one path, newest first (`snypd://history/{type}/{slug}`), each with the principal
+   * that made it and, on a publish a person approved, who approved it (R4: the `Snypd-Approved-By` trailer
+   * the publish writes). NUL between records: a trailer value ends in its own newline, which split the
+   * old one-line-per-commit format and left a blank commit in every history that had one.
+   */
+  history(path: string, limit = 20): { sha: string; date: string; subject: string; principal?: string; approvedBy?: string }[] {
+    const r = this.run("log", "-z", `-n${limit}`, "--format=%H%x1f%aI%x1f%s%x1f%(trailers:key=Snypd-Principal,valueonly)%x1f%(trailers:key=Snypd-Approved-By,valueonly)", "--", path);
     if (!r.ok || !r.stdout) return [];
-    return r.stdout.split("\n").map((l) => { const [sha, date, subject, who] = l.split("\x1f"); return { sha: sha!, date: date!, subject: subject!, principal: who?.trim() || undefined }; });
+    return r.stdout.split("\0").filter((l) => l.trim()).map((l) => {
+      const [sha, date, subject, who, approved] = l.split("\x1f").map((f) => f?.trim());
+      return { sha: sha!, date: date!, subject: subject!, ...(who ? { principal: who } : {}), ...(approved ? { approvedBy: approved } : {}) };
+    });
   }
 }

@@ -49,6 +49,24 @@ other lane docs/05 asked for: twenty topics, the server's own `write-post` promp
 The corpus has **all four plugins on** since S21, and `scenario.ts` scores each off the finished site:
 a beacon in the page, a term linked in prose, a merged type, an emitted key file.
 
+## The registry demo (S29 · R4)
+
+    bun run snypd bench registry                          # → bench/registry.md, bench/registry.json, bench/registry-transcript.md
+    bun run snypd bench registry --driver=claude:sonnet   # a live model walks it → bench/registry.claude-sonnet.*
+
+docs/20 §2.4's twelve steps over Ferrule, the studio specimen: a `work` type declared in fifteen lines
+of `snypd.yaml`, and what every tool says about it — the missing field named with the declaration's own
+description, the publish of a `draft`-policy type refused with the next call in the sentence, the build
+naming the archive, the other theme saying which layout drew the case. `registry.ts` is the whole lane:
+`STEPS` as data, a scripted route, a `claude:<model>` driver whose harness presses the review page's
+button the moment the model asks for the preview, and a judge.
+
+**This one is scored on the transcript** (decision 199), the opposite of the rule above and on purpose:
+the claim is about what the tools *say*. The site the run leaves is checked under it — the case on
+`main` with its client and chart, the approval on the publish commit, the note, the redirect, the theme,
+eight routes in `dist/`, the feed — so a sentence without the site behind it does not pass.
+`registry.test.ts` enforces the scripted route at 12/12 and exactly 18 calls; docs/22 has the outcome.
+
 ## Status
 
 D1 is **green at 15/15 with all three models** (15 Sep 2026): the scripted route in 18 calls, haiku in
