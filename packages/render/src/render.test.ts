@@ -246,7 +246,9 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
   test("a title edit re-renders the post and every list that shows it", async () => {
     writeFileSync(join(root, "content/posts/b.md"), post("b", "Post B2", { body: "Changed body." }));
     const r = await build(root);
-    expect(r.rendered).toBe(13);   // post, index, category/eng, tag/ai + the 9 artefacts that list titles (robots.txt does not)
+    // post, index, category/eng, tag/ai + the 9 artefacts that list titles (robots.txt does not) — and, since R3,
+    // post A, whose neighbour card names B (`adjacent` is in a dated item's key). Not the draft: it is not listed.
+    expect(r.rendered).toBe(14);
     expect(read("")).toContain("Post B2");
   });
   test("a theme edit re-renders everything (in a fresh process — see loadTheme); a config edit too", async () => {

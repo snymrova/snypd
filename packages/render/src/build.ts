@@ -217,12 +217,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // `title` and `description` are filtered here (P2), on the entry, so a page, the lists that show it,
   // the feed and the JSON all agree on what the item is called — one value, filtered once, read everywhere.
   const entryOf = (f: IndexedFile): Entry => {
-    const e = rawEntry(f);
+    const e = { ...rawEntry(f), terms: termsOf(f) };   // R3: a listed entry carries its terms, so a card can name one
     if (hooks.empty) return e;
     const ctx = fctx(f.route, e);
     return { ...e, title: applyFilter(hooks, "title", e.title, ctx), description: applyFilter(hooks, "description", e.description, ctx) };
   };
-  const listKey = (es: Entry[]) => sha1(es.map((e) => [e.route, e.title, e.date ?? "", e.description ?? ""].join("|")).join("\n"));
+  const listKey = (es: Entry[]) => sha1(es.map((e) => [e.route, e.title, e.date ?? "", e.description ?? "", ...(e.terms ?? []).map((t) => t.title)].join("|")).join("\n"));
   const termFiles = new Map<string, Record<string, unknown>>();
   const termMeta = (taxonomy: string, term: string): TermLink => {
     const k = `${taxonomy}/${term}`;
@@ -348,7 +348,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     // The front page lists the latest posts under its body (S25), so the list is in its key as it is in the index's.
     const home = layout === "home";
     const listing = home ? (homeArchive?.entries ?? []).slice(0, HOME_ENTRIES) : byAuthor;
-    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}`);
+    // The item's neighbours in its type's list (R3): what a *next case* card is drawn from, and in the
+    // key, so a case re-renders when the one after it is published — not when any post anywhere is.
+    const siblings = dated(f.type) && !home ? listEntries.filter((e) => e.type === f.type) : [];
+    const at = siblings.findIndex((e) => e.route === f.route);
+    const adjacent = at >= 0 ? { newer: siblings[at - 1], older: siblings[at + 1] } : undefined;
+    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}${adjacent ? `:${listKey([adjacent.newer, adjacent.older].filter((e): e is Entry => !!e))}` : ""}`);
     contentRoutes.add(f.route);
     const dir = routeDir(f.route);
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
@@ -363,7 +368,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const schemas = applyFilter(hooks, "jsonLd", [home ? webSite() : pageSchema(s, entry.description ?? derived.description ?? description, ctx, typeLineage(c.types, f.type)), ...derived.schemas], fc);
       const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings, sections };
       const entries = layout === "author" || home ? applyFilter(hooks, "entries", listing, fc) : [];
-      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}) });
+      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}), ...(adjacent ? { adjacent } : {}) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });
   }

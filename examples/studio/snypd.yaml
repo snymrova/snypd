@@ -24,6 +24,8 @@ theme:
   settings:
     bands: dark-first
     dateFormat: long
+    caseCtaTitle: Have something to make?
+    caseCtaHref: /studio/
     footerNote: "Ferrule is a fictional studio — a specimen for the snypd studio theme. Photographs CC0 and CC BY via Wikimedia Commons, [credited here](/studio/credits/)."
     offices:
       - { label: "Porto, Portugal", url: "https://www.openstreetmap.org/search?query=Porto%2C%20Portugal" }

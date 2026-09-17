@@ -20,7 +20,8 @@ export default function Entries({ ctx, entries }: EntriesProps): Html {
         const cover = e.frontmatter.cover as { image?: string } | undefined;
         const src = cover?.image;
         const size = src ? ctx.media[src] : undefined;
-        const kind = typeof e.frontmatter.category === "string" ? e.frontmatter.category : undefined;
+        // The card's word for the item: its first term (R3 — *Product* for a case filed under product, *Process* for a note), which the build hands every listed entry; a site with no taxonomies shows none.
+        const kind = e.terms?.[0]?.title ?? (typeof e.frontmatter.category === "string" ? e.frontmatter.category : undefined);
         return (
           <li class="snypd-card">
             <a href={`${e.route}/`}>

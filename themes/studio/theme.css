@@ -27,7 +27,7 @@ body {
 /* ── The column. One grid, three tracks — text, breakout, full — on the `main` of a reading page and on
    every band of the front page, so a figure that asks for `wide` gets it inside a band exactly as it
    would in a post. `full` in a band is the band's own edge. */
-main:not(.snypd-home), .snypd-band, body > footer {
+main:not(.snypd-home, .snypd-work), .snypd-band, body > footer {
   display: grid;
   grid-template-columns:
     [full-start] 1fr
@@ -37,9 +37,10 @@ main:not(.snypd-home), .snypd-band, body > footer {
     1fr [full-end];
   row-gap: var(--space-3);
 }
-main:not(.snypd-home) { padding-block: calc(var(--masthead) + var(--space-5)) var(--space-6); }
+main:not(.snypd-home, .snypd-work) { padding-block: calc(var(--masthead) + var(--space-5)) var(--space-6); }
 main > *, .snypd-post > * { grid-column: text; }
-.snypd-post, .snypd-home > .snypd-page { display: contents; }
+/* A case is bands too (R3): like the front page, `main` is a plain block and each band is the grid. */
+.snypd-post, .snypd-home > .snypd-page, .snypd-work > .snypd-page { display: contents; }
 
 figure.snypd-chart, figure.snypd-diagram, figure.snypd-flow,
 .snypd-figure[data-width="wide"], .snypd-stat-row, .snypd-entries, .snypd-home .snypd-steps { grid-column: wide; }
@@ -342,6 +343,48 @@ body:has(.snypd-home-entries[data-tone="light"]) > footer { color-scheme: dark; 
 .snypd-twin { margin: 0; }
 .snypd-twin a { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-muted); text-decoration: underline dotted; text-underline-offset: 0.2em; }
 .snypd-twin a:hover { color: var(--color-text); text-decoration-style: solid; }
+
+/* ── A case (layouts/work.tsx, R3): three bands. The hero holds the cover and, under it, the facts strip
+   — one hairline, four cells, the term in small caps and the value in the display face — on the wide
+   track, which is the cover's edge. The picture is capped at a screen so a tall cover does not push the
+   facts below the fold. The body band is the reading column on one scheme, its `##` numbered like the
+   front page's bands and spaced like a post's — the band rule that pulls a band's first title to the
+   top must not reach a heading mid-body. The close band pairs the studio's call to action with the next
+   case as one card; on a phone they stack. */
+.snypd-work { padding: 0; counter-reset: band; }
+.snypd-work-hero { min-height: 0; align-content: start; }
+.snypd-work-hero .snypd-cover > img:not(.snypd-cover-media) { max-height: 72vh; object-fit: cover; }
+.snypd-work-hero .snypd-cover { margin-bottom: 0; }
+.snypd-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3) var(--space-4); margin: var(--space-5) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border); max-width: none; }
+.snypd-facts[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.snypd-facts[data-count="2"] { grid-template-columns: repeat(2, 1fr); }
+.snypd-facts > div { margin: 0; min-width: 0; }
+.snypd-facts dt { font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+.snypd-facts dd { margin: var(--space-2) 0 0; font: 600 var(--size-h3) / 1.2 var(--font-display); letter-spacing: -0.01em; text-wrap: balance; }
+.snypd-facts dd a { color: inherit; text-decoration: underline dotted; text-decoration-color: var(--color-muted); text-underline-offset: 0.16em; }
+.snypd-facts dd a:hover { color: var(--color-accent); text-decoration-style: solid; }
+@media (max-width: 48rem) { .snypd-facts, .snypd-facts[data-count="3"] { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 30rem) { .snypd-facts, .snypd-facts[data-count="3"], .snypd-facts[data-count="2"] { grid-template-columns: 1fr; } }
+.snypd-work-body { padding-top: var(--space-5); }
+.snypd-work-body > h2 { margin-top: var(--space-5); max-width: none; }
+.snypd-work-body > h2:first-child { margin-top: 0; }
+.snypd-work-close { row-gap: var(--space-5); }
+.snypd-work-end { display: grid; grid-template-columns: minmax(min(100%, 22rem), 1fr) minmax(min(100%, 22rem), 1.4fr); gap: var(--space-5) var(--space-6); align-items: start; max-width: none; }
+.snypd-work-end:not(:has(.snypd-work-cta)) { grid-template-columns: minmax(0, 34rem); }
+.snypd-work-cta > p:first-child { font: 600 var(--size-h2) / 1.05 var(--font-display); letter-spacing: -0.025em; max-width: 14ch; text-wrap: balance; }
+.snypd-work-cta > p + p { margin-top: var(--space-4); }
+.snypd-work-next > h2 { margin-top: 0; font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+.snypd-work-next .snypd-entries { grid-template-columns: 1fr; margin-top: var(--space-3); }
+.snypd-work-meta { margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border); font: var(--size-small) / 1.5 var(--font-ui); color: var(--color-muted); max-width: none; }
+.snypd-work-meta a { color: inherit; }
+.snypd-work-meta .snypd-twin-link { text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.snypd-work-meta a:hover { color: var(--color-text); }
+@media (max-width: 64rem) { .snypd-work-end { grid-template-columns: 1fr; } }
+/* The footer keeps the alternation after a case as it does after the front page. */
+body:has(.snypd-work-close[data-tone="dark"]) > footer  { color-scheme: light; }
+body:has(.snypd-work-close[data-tone="light"]) > footer { color-scheme: dark; }
+/* The archive (layouts/work-index.tsx): a lede under the title, at the cards' edge. */
+.snypd-lede { font-size: var(--size-h3); line-height: 1.35; color: var(--color-muted); max-width: 34rem; text-wrap: pretty; }
 
 /* ── The cards (parts/entries.tsx): a grid of hairline cards, the cover on each, the picture scaling
    under the pointer — the reference's case cards, with a static cursor where theirs trails a blob. */

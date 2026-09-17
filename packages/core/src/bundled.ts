@@ -98,7 +98,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "studio": {
-    hash: "9d1093432d15a904c558050b07ab0f905f04e2e5",
+    hash: "c4d4a7215d941ed627f4273c1f2d1c1103d559e0",
     files: {
       "fonts/OFL.txt": _studio_fonts_OFL_txt,
       "theme.css": _studio_theme_css,
@@ -109,6 +109,8 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
     modules: {
       "layouts/home.tsx": () => import("../../../themes/studio/layouts/home.tsx"),
+      "layouts/work-index.tsx": () => import("../../../themes/studio/layouts/work-index.tsx"),
+      "layouts/work.tsx": () => import("../../../themes/studio/layouts/work.tsx"),
       "parts/entries.tsx": () => import("../../../themes/studio/parts/entries.tsx"),
       "parts/footer.tsx": () => import("../../../themes/studio/parts/footer.tsx"),
       "parts/header.tsx": () => import("../../../themes/studio/parts/header.tsx"),

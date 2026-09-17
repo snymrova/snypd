@@ -35,10 +35,15 @@ font:
     ascent-override: 99.7%
     descent-override: 29.0%
     line-gap-override: 0%
+# The layouts: the six every theme draws, `home` and the two that are this theme's own (R3, docs/20):
+# `work`, a case as three bands with a facts strip, for a type that declares `layout: work`; and
+# `work-index`, its archive, which the build prefers over `index` for that type. The list restates the
+# six because arrays replace up the chain (theme.ts) — `post`, `page`, `index`, `term` and `author` are
+# still `base`'s files, found up the chain by name.
+layouts: [post, page, index, term, author, home, work, work-index]
 # Three parts of its own: the masthead, which is sticky and blurs what passes under it; the entry list,
 # which is a grid of cards with the post's cover on each — the reference's case cards; and the footer,
-# a band on the page's grid that ends on the name set huge. `home` is this theme's one layout file; the
-# other five are `base`'s (docs/09 U1, D8).
+# a band on the page's grid that ends on the name set huge (docs/09 U1, D8).
 parts:
   header:  ./parts/header.tsx
   entries: ./parts/entries.tsx
@@ -52,6 +57,9 @@ settings:
   - { id: tldrLabel,  type: text,      label: "Summary label", group: Posts,       default: "In short", info: "The word above a `tldr` block. \"TL;DR\" is a blog's word; an agency page says it plainer. A page may still set its own `label`." }
   - { id: showDates,  type: boolean,   label: "Show dates",   group: Posts,        default: true,  info: "Off hides the date on the byline and on every card — for a site whose posts are not news." }
   - { id: dateFormat, type: select,    label: "Date format",  group: Posts,        default: iso, options: [iso, long, short], info: "2026-09-12 · 12 September 2026 · 12 Sep 2026. English month names; the <time> element always carries the machine-readable date." }
+  - { id: caseCtaTitle, type: text,    label: "Case call to action", group: Work,   info: "The line at the end of every case — \"Have something to make?\" With no link below, nothing is shown." }
+  - { id: caseCtaHref,  type: text,    label: "Case call to action link", group: Work, info: "Where the button under it goes — /studio/, a mailto:, a form. Site-relative or absolute." }
+  - { id: caseCtaLabel, type: text,    label: "Case call to action button", group: Work, default: "Talk to the studio", info: "The word on the button." }
   - { id: footerNote, type: richtext,  label: "Footer note",  group: Footer,       info: "One line of markdown under the name, last in the footer — a licence, a colophon, a copyright." }
   - { id: offices,    type: link_list, label: Offices,        group: Footer,       info: "[{ label, url }] in the footer: where the studio is. A city and a map link, or an address and a mailto." }
   - { id: social,     type: link_list, label: "Social links", group: Footer,       info: "[{ label, url }] in the footer. Links off this site, so they are urls and not refs — a menu of your own pages is content/nav/footer.yaml." }

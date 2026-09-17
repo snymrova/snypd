@@ -111,6 +111,8 @@ export interface Entry {
   route: string; type: string; slug: string; title: string;
   date?: string; updated?: string; description?: string; status: string;
   frontmatter: Record<string, unknown>;
+  /** The item's terms, in the order of its type's taxonomies (R3, decision 198) — so a card can say *Product* without knowing which field held it. Present on every listed entry; a page's are `Page.terms`. */
+  terms?: TermLink[];
 }
 export interface TermLink { taxonomy: string; term: string; title: string; route: string; description?: string }
 /**
@@ -184,6 +186,8 @@ export interface LayoutProps {
   term?: TermLink;
   /** For `index` (and a `<type>-index`): the archive this page is; for `home`: the archive its entries come from and link to. Absent on the `/` list, which is every dated type's. */
   archive?: Archive;
+  /** For a content route of a dated type (R3): the item before and after it in its type's list, newest first — what a *next case* card is drawn from. Absent for a page, an author, a list. */
+  adjacent?: { newer?: Entry; older?: Entry };
   /** JSON-LD for the page (emit.ts): one or more objects, newline-separated, ready for one <script>. */
   jsonLd?: string;
 }
