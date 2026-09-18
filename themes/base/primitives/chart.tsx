@@ -26,7 +26,9 @@ export default function Chart({ props, data }: PrimitiveProps): Html {
   const caption = props.caption as string | undefined;
   const rows = data ?? props.data;
   const chart = renderChart({ type, data: rows, unit, caption, title: props.title as string | undefined });
-  const figcaption = <figcaption>{inline(caption)}{props.source ? <> (<a href={props.source as string} rel="external">source</a>)</> : null}</figcaption>;
+  // The source is a named link, `a.snypd-source`, the same class a stat's carries (docs/19 §2 · 8), so one
+  // sheet rule sets both — editorial and technical put the parentheses back with `::before`/`::after`.
+  const figcaption = <figcaption>{inline(caption)}{props.source ? <> <a class="snypd-source" href={props.source as string} rel="external">source</a></> : null}</figcaption>;
   const figure = (inner: Html | null) => <figure class="snypd-chart" data-type={type}>{inner}{figcaption}</figure>;
 
   if (chart) return figure(<div class="snypd-scroll" tabindex="0">{raw(chart.svg)}</div>);

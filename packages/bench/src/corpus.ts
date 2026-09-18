@@ -130,7 +130,16 @@ export function png(width: number, height: number, rgb: [number, number, number]
 }
 
 /**
- * `corpora/theme` — the fixture `snypd bench page` runs against: every one of the 13 primitives and all
+ * Two seconds of one flat colour, 320 × 180 at 12 fps, H.264 in an MP4 — 2.1 KB, made once with
+ * `ffmpeg -f lavfi -i color=c=0x8a3324:s=320x180:d=2:r=12 -c:v libx264 -preset veryslow -crf 45
+ * -pix_fmt yuv420p -movflags +faststart -an` and kept here as text for the same reason `png()` above
+ * draws its rasters: the fixture needs a real clip a browser will decode, and a flat colour is honest
+ * about what the bytes are — a duration and a size, not a film.
+ */
+const SHOWREEL_MP4 = "AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAQGbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAzB0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAUAAAAC0AAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAIAAABAAAAAAKobWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAwAAAAYABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAACU21pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAhNzdGJsAAAAw3N0c2QAAAAAAAAAAQAAALNhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAUAAtABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAOWF2Y0MBZAAV/+EAG2dkABWscgRBQZ+fARAAAAMAEAAAAwGA8WLYRgEAB2joQ4E0siz9+PgAAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAEOwAABDsAAAAGHN0dHMAAAAAAAAAAQAAABgAAAQAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAB4Y3R0cwAAAAAAAAANAAAAAQAACAAAAAABAAAoAAAAAAEAABAAAAAAAwAAAAAAAAAEAAAEAAAAAAEAACgAAAAAAQAAEAAAAAADAAAAAAAAAAQAAAQAAAAAAQAAGAAAAAABAAAIAAAAAAEAAAAAAAAAAgAABAAAAAAcc3RzYwAAAAAAAAABAAAAAQAAABgAAAABAAAAdHN0c3oAAAAAAAAAAAAAABgAAALtAAAADwAAAA0AAAAOAAAADgAAAA4AAAAOAAAADgAAAA4AAAAOAAAAEwAAAA4AAAAOAAAADgAAAA4AAAAOAAAADgAAAA4AAAAOAAAAFQAAAA4AAAAOAAAADgAAAA4AAAAUc3RjbwAAAAAAAAABAAAENgAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAARDbWRhdAAAArAGBf//rNxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0xIHJlZj0xNiBkZWJsb2NrPTE6MDowIGFuYWx5c2U9MHgzOjB4MTMzIG1lPXVtaCBzdWJtZT0xMCBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTI0IGNocm9tYV9tZT0xIHRyZWxsaXM9MiA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTYgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz04IGJfcHlyYW1pZD0yIGJfYWRhcHQ9MiBiX2JpYXM9MCBkaXJlY3Q9MyB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTEyIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NjAgcmM9Y3JmIG1idHJlZT0xIGNyZj00NS4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAANWWIgQACX/1CZ4FFAg5qJxsQI+Uf9sM0yA7QapfAAEnbT/islYG14ARsAAK8PfXSGlOIyV6BAAAAC0GaCS2II/8AALuAAAAACUGeEIcQ/wA6YQAAAAoBnhgmiGf/AFBAAAAACgGeGEaIZ/8AUEEAAAAKAZ4YZohn/wBQQQAAAAoBnhitSGf/AFBBAAAACgGeGM1IZ/8AUEEAAAAKAZ4Y7Uhn/wBQQAAAAAoBnhkNSGf/AFBAAAAAD0GaGkk1AgLRMpgQ/wABxwAAAApBniGlxD//ADpgAAAACgGeKUWiGf8AUEAAAAAKAZ4pZaIZ/wBQQQAAAAoBnimFohn/AFBBAAAACgGeKcySGf8AUEEAAAAKAZ4p7JIZ/wBQQAAAAAoBnioMkhn/AFBAAAAACgGeKiySGf8AUEEAAAARQZoq6bUCAtrRMpgBDP8ABSQAAAAKQZ4yhLEO/wA/wAAAAAoBnjpkqIZ/AFBBAAAACgGeOqzSGf8AUEAAAAAKAZ46zNIZ/wBQQQ==";
+
+/**
+ * `corpora/theme` — the fixture `snypd bench page` runs against: every one of the 14 primitives and all
  * six layouts on a site small enough to read. The 100-post corpus cannot do this job — it is generated
  * from a word list to exercise the *build*, uses eight primitives, and has no page, author or media — and
  * a theme that is only ever seen rendering the same eight blocks is a theme with five untested holes.
@@ -145,6 +154,14 @@ export function generateTheme(root = "corpora/theme") {
   for (const d of ["content/posts", "content/pages", "content/authors", "content/media", "content/taxonomies/category", "content/taxonomies/tag"]) mkdirSync(join(root, d), { recursive: true });
 
   writeFileSync(join(root, "content/media/cover.png"), png(1200, 630, [0x8a, 0x33, 0x24]));
+  // The front page's showreel (S29, docs/17 §4.1–4.2): a real clip, because `autoplay`, the poster under
+  // reduced motion and `page.media.kb` are all properties of bytes a browser fetches, and a poster the
+  // same shape as the clip so the box is reserved before either arrives.
+  writeFileSync(join(root, "content/media/showreel.mp4"), Buffer.from(SHOWREEL_MP4, "base64"));
+  writeFileSync(join(root, "content/media/showreel.png"), png(1280, 720, [0x8a, 0x33, 0x24]));
+  // Four marks for the wall (§4.3): flat rasters the size a logo is, in the viz palette's colours.
+  for (const [name, rgb] of [["acme", [0x2f, 0x5d, 0x62]], ["globex", [0x96, 0x70, 0x2a]], ["initech", [0x4a, 0x45, 0x60]], ["umbrella", [0x5c, 0x6b, 0x3f]]] as const)
+    writeFileSync(join(root, `content/media/logo-${name}.png`), png(240, 80, [...rgb]));
   writeFileSync(join(root, "content/media/twin.png"), png(960, 540, [0x2f, 0x5d, 0x62]));
   writeFileSync(join(root, "content/media/icon.png"), png(32, 32, [0x8a, 0x33, 0x24]));
 
@@ -153,7 +170,7 @@ export function generateTheme(root = "corpora/theme") {
     "title: Every primitive, once",
     "date: 2026-08-28",
     "status: published",
-    "description: One post that uses all thirteen primitives, so a theme can be reviewed in a single page.",
+    "description: One post that uses all fourteen primitives, so a theme can be reviewed in a single page.",
     "author: sunny",
     "category: engineering",
     "tags: [markdown, agents]",
@@ -168,7 +185,7 @@ export function generateTheme(root = "corpora/theme") {
     "",
     "## What this page is for",
     "",
-    "Thirteen primitives and six layouts is the whole vocabulary. A theme is finished when every one of",
+    "Fourteen primitives and six layouts is the whole vocabulary. A theme is finished when every one of",
     "them has been looked at, in both colour schemes, at a phone width and a desktop one — so they are all",
     "here, in one route, exactly as the spec writes them.",
     "",
@@ -193,6 +210,10 @@ export function generateTheme(root = "corpora/theme") {
     example("faq"),
     "",
     "## Blocks that carry a thing to look at",
+    "",
+    // The fourteenth (S29): its example names marks this fixture does not have, so the wall is written
+    // here over the four rasters above — the same shape, real bytes.
+    ":::logo-wall{title=\"Runs on it\"}\n- [![Acme](/media/logo-acme.png)](https://acme.example)\n- ![Globex](/media/logo-globex.png)\n- [![Initech](/media/logo-initech.png)](https://initech.example) — since 2024\n- ![Umbrella](/media/logo-umbrella.png)\n:::",
     "",
     example("figure"),
     "",
@@ -248,11 +269,18 @@ export function generateTheme(root = "corpora/theme") {
   writeFileSync(join(root, "content/pages/home.md"),
     "---\ntitle: A CMS whose only interface is your agent\nstatus: published\nhome: true\n"
     + "description: The front page, under the home layout — a page's body, then the latest posts.\n---\n\n"
+    // The one autoplay a page gets (lint rule 15), with its poster — the reference's showreel behind the headline.
+    + "::cover{subtitle=\"Publish a website from the harness you already have open.\" media=\"/media/showreel.mp4\" poster=\"/media/showreel.png\" autoplay=true}\n\n"
     + ":::tldr\nWrite in the harness you already have open. The site is markdown in git, built to static HTML with no script on the page.\n:::\n\n"
-    + ":::stat-row\n::stat{value=\"13\" label=\"primitives\" source=\"https://snypd.rocks/posts/every-primitive-once/\"}\n::stat{value=\"6\" label=\"layouts\" source=\"https://snypd.rocks/themes/\"}\n::stat{value=\"0 KB\" label=\"JavaScript\" source=\"https://snypd.rocks/bench/\"}\n:::\n\n"
+    // The numbers sit in the first section, not the hero: a hero is a cover and one block (lint rule 17, docs/18).
     + "## How it starts\n\n"
+    + ":::stat-row\n::stat{value=\"13\" label=\"primitives\" source=\"https://snypd.rocks/posts/every-primitive-once/\"}\n::stat{value=\"6\" label=\"layouts\" source=\"https://snypd.rocks/themes/\"}\n::stat{value=\"0 KB\" label=\"JavaScript\" source=\"https://snypd.rocks/bench/\"}\n:::\n\n"
     + ":::steps{title=\"Four lines\"}\n1. `mkdir site && cd site`\n2. `bunx @snypd/cli init`\n3. `claude`\n4. *Write me a first post.*\n:::\n\n"
     + "::figure{src=\"/media/twin.png\" alt=\"Side-by-side HTML and markdown of the same post\" caption=\"Every page ships its markdown twin.\" width=\"wide\"}\n\n"
+    // The marquee (S29, docs/17 §3): the wall as a moving strip, which a theme with a marquee animates and
+    // every other theme lays out as the grid — the duplicate row is markup either way.
+    + "## Runs on it\n\n"
+    + ":::logo-wall{layout=\"marquee\"}\n- [![Acme](/media/logo-acme.png)](https://acme.example)\n- ![Globex](/media/logo-globex.png)\n- [![Initech](/media/logo-initech.png)](https://initech.example)\n- ![Umbrella](/media/logo-umbrella.png)\n:::\n\n"
     + "::cta{title=\"Read the posts\" button=\"All posts\" href=\"/posts/\"}\n");
 
   // The `author` type declares no `status` or `description` field (spec defaults), and lint says so about

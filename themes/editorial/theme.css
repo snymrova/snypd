@@ -123,8 +123,9 @@ th { font-weight: 600; color: var(--color-muted); text-transform: uppercase; let
   font-size: var(--size-h3); line-height: 1.35; color: var(--color-muted);
   margin-top: var(--space-3); max-width: 30rem; text-wrap: pretty;
 }
-/* The cover image is the only thing on the page that may leave the reading column. */
-.snypd-cover img {
+/* The cover image is the only thing on the page that may leave the reading column. A cover's `media`
+   (S29) — a picture or a clip — sits under the title the same way; this theme has no hero to put it behind. */
+.snypd-cover img, .snypd-cover-media {
   display: block; width: 100%; margin-top: var(--space-4);
   border-radius: var(--radius); background: var(--color-surface);
 }
@@ -198,7 +199,9 @@ blockquote {
 }
 .snypd-button:hover { filter: brightness(1.1); }
 
-.snypd-faq h2, .snypd-steps h2 { margin-top: 0; }
+.snypd-faq > :is(h2, h3, h4), .snypd-steps > :is(h2, h3, h4) { margin-top: 0; }
+/* A source link — a stat's, a chart's — as the parenthesis it was before it became a named link (docs/18, docs/19 §2 · 8). */
+.snypd-source::before { content: "("; } .snypd-source::after { content: ")"; }
 .snypd-faq h3 { font-family: var(--font-ui); font-size: 1rem; }
 .snypd-steps ol { counter-reset: step; list-style: none; padding: 0; }
 .snypd-steps ol > li { counter-increment: step; padding-left: 2.4rem; position: relative; margin-top: var(--space-3); }
@@ -341,3 +344,13 @@ html { scrollbar-gutter: stable; }
    them, by class, and a quieter cross-fade for everything else on the page. */
 ::view-transition-group(.snypd-title) { animation-duration: 280ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
+
+/* ── The wall (S29, `logo-wall`): marks in a row under a hairline. This theme has no marquee — the
+   duplicate row `base` renders for one is hidden, and a `marquee` wall is the grid. */
+.snypd-logo-wall { margin-block: var(--space-4); }
+.snypd-logo-wall-title { font: 600 var(--size-small) / 1.2 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-muted); margin-bottom: var(--space-2); }
+.snypd-logo-wall ul { list-style: none; margin: 0; padding: var(--space-3) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); border-top: 1px solid var(--color-border); }
+.snypd-logo-wall li { margin: 0; display: grid; gap: var(--space-1); justify-items: start; }
+.snypd-logo-wall img { display: block; height: 2rem; width: auto; max-width: 10rem; object-fit: contain; }
+.snypd-marquee { display: contents; }
+.snypd-marquee ul[aria-hidden] { display: none; }

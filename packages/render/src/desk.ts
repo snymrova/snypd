@@ -57,7 +57,7 @@
  *
  * **S23 (decisions 175–177) gave the page a shape.** Five equal tables answered "did it work?" and
  * nothing after it. Three things a person could not learn here: what the other themes *look* like (a
- * name and "13/13 primitives"), what to say to their agent once the first-run card had gone (its prompt
+ * name and "14/14 primitives"), what to say to their agent once the first-run card had gone (its prompt
  * list went with it), and what the agent reads before it writes. So: a strip under the title with the
  * three facts a person arrives for; a permanent, computed **say this to your agent** card; and a shelf
  * where every theme and every look it ships is drawn from its own tokens, at request time, with the
@@ -458,7 +458,7 @@ function sayCard(f: DeskFacts): string {
     : "";
   const reads = `<h3>What it reads before it writes</h3><ul class="plain agent">`
     + `<li><code>snypd://config</code> — this site: name, URL, types, theme.</li>`
-    + `<li><code>snypd://spec/primitives</code> — the thirteen blocks a post is made of, and the reason to use this CMS instead of a folder of markdown.</li>`
+    + `<li><code>snypd://spec/primitives</code> — the fourteen blocks a post is made of, and the reason to use this CMS instead of a folder of markdown.</li>`
     + `<li><code>snypd://theme</code> — the active theme, its tokens, the looks it ships.</li>`
     + `<li><code>snypd://themes</code> — every theme this site can switch to, described.</li>`
     + `</ul>`;
@@ -624,7 +624,7 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
   // own card. The S18b card stays only for a caller that passes no `looks` at all.
   const themeRows: [string, string][] = [
     ["theme", `<code>${escape(f.theme.name)}</code>${f.theme.chain.length > 1 ? ` <span class="meta">→ ${f.theme.chain.slice(1).map((n) => `<code>${escape(n)}</code>`).join(" → ")}</span>` : ""}`],
-    // `editorial` renders 13/13 with zero `.tsx` of its own (S12), so "0 own, 13 inherited" is the
+    // `editorial` renders 14/14 with zero `.tsx` of its own (S12), so "0 own, 14 inherited" is the
     // normal case for a well-behaved theme, not a deficiency — the copy says so rather than implying
     // a score. Only a *missing* primitive is a problem, because that one falls back to generic markup.
     ["coverage", missing === 0

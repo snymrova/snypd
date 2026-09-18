@@ -111,6 +111,8 @@ export interface Entry {
   route: string; type: string; slug: string; title: string;
   date?: string; updated?: string; description?: string; status: string;
   frontmatter: Record<string, unknown>;
+  /** The item's terms, in the order of its type's taxonomies (R3, decision 198) — so a card can say *Product* without knowing which field held it. Present on every listed entry; a page's are `Page.terms`. */
+  terms?: TermLink[];
 }
 export interface TermLink { taxonomy: string; term: string; title: string; route: string; description?: string }
 /**
@@ -127,7 +129,18 @@ export interface AuthorLink extends Entry { page: boolean }
  * expected to start at 2, because the page's h1 is the layout's title and lint rule 6 says so.
  */
 export interface PageHeading { depth: number; id: string; text: string }
-export interface Page extends Entry { body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink; /** The body's headings, in order (U6b) — what a `toc` part draws. Empty for a page with none. */ headings: PageHeading[] }
+export interface Page extends Entry {
+  body: Html; cover?: Html; terms: TermLink[]; layout: string; markdownUrl: string; author?: AuthorLink;
+  /** The body's headings, in order (U6b) — what a `toc` part draws. Empty for a page with none. */
+  headings: PageHeading[];
+  /**
+   * `body` again, split at its `##` headings (S29, docs/17 §3): `lead` is everything before the first,
+   * then one entry per section. The pieces joined are `body` byte for byte, so a layout renders one or
+   * the other — the studio theme's front page paints each section as a band; every other layout renders
+   * `body` and never looks. A body with no `##` is all `lead`.
+   */
+  sections: Sectioned;
+}
 export interface PrimitiveProps {
   name: string;
   /** Coerced props from the spec (tree.ts). */
@@ -140,6 +153,12 @@ export interface PrimitiveProps {
    * nothing to a primitive that never calls it; the heading ids are the ones `body` carries.
    */
   sections: () => Sectioned;
+  /**
+   * The heading level of the section this block sits in (docs/18, decision 189): 1 before the page's first
+   * `##`, 2 under one, 3 under a `###`. A primitive that emits a heading for its title — `steps`, `faq` —
+   * emits `h{depth + 1}`, so the outline nests and no `level` attribute exists for an author to learn.
+   */
+  depth: number;
   /** Parsed YAML body for chart / diagram / flow. */
   data?: unknown;
   children: Block[];
@@ -151,6 +170,13 @@ export interface PrimitiveProps {
 }
 export type PrimitiveComponent = (p: PrimitiveProps) => Html;
 export type LayoutKind = "post" | "page" | "index" | "term" | "author" | "home" | (string & {});
+/** The six layouts the contract asks of every theme (docs/04). A theme may declare more — `work`, `work-index` — and `check theme` lists them. */
+export const LAYOUT_NAMES = ["post", "page", "index", "term", "author", "home"] as const;
+/**
+ * One type's list page (R1, decision 194): where it is, what it is headed — the site's own word for it
+ * when a menu links it, else the plural of the type's name — and which type it lists.
+ */
+export interface Archive { type: string; route: string; title: string }
 export interface LayoutProps {
   ctx: SiteCtx; kind: LayoutKind; route: string; title: string; description?: string;
   /** The content item, for content layouts. */
@@ -158,6 +184,17 @@ export interface LayoutProps {
   /** Listed items (index, term, author; the newest few for home). */
   entries: Entry[];
   term?: TermLink;
+  /** For `index` (and a `<type>-index`): the archive this page is; for `home`: the archive its entries come from and link to. Absent on the `/` list, which is every dated type's. */
+  archive?: Archive;
+  /** For a content route of a dated type (R3): the item before and after it in its type's list, newest first — what a *next case* card is drawn from. Absent for a page, an author, a list. */
+  adjacent?: { newer?: Entry; older?: Entry };
+  /**
+   * For `home` (S31 · G1, decision 200): every dated type's archive with its newest few, in the order the
+   * types are declared — what a front page with releases beside its log beside its posts draws its bands
+   * from. `entries` stays the one type decision 195 chose, so a theme that reads only `entries` is unchanged;
+   * a theme that reads `lists` finds the same type there too. In the key: a release published re-renders `/`.
+   */
+  lists?: (Archive & { entries: Entry[] })[];
   /** JSON-LD for the page (emit.ts): one or more objects, newline-separated, ready for one <script>. */
   jsonLd?: string;
 }
@@ -223,7 +260,7 @@ export interface Theme {
   font?: LoadedFont;
   layouts: Record<string, LayoutComponent>;
   primitives: Record<string, PrimitiveComponent>;
-  /** Per primitive, all 13. */
+  /** Per primitive, all 14. */
   coverage: Coverage[];
   parts: Parts;
   /** Per part: the four in `PART_NAMES` first, then anything else the chain declares. `missing` here has no generic — a layout that asks for it throws (see `part`). */

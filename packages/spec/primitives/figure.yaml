@@ -9,6 +9,7 @@ props:
   width: { type: enum, values: [content, wide, full], default: content }
   lightbox: { type: boolean, default: true, description: Click opens it full-size. Ignored for a video. }
   poster: { type: image, description: A clip's first frame. }
+  autoplay: { type: boolean, default: false, description: The clip plays by itself — muted, looping, inline, no controls. At most one autoplay per page; the poster shows under reduced motion. }
 intent: Show a thing the text refers to; the caption says why it matters.
 anti-intent: Not decoration. Not screenshots of text (write the text). Not for charts (use chart).
 example: |

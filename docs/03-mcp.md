@@ -19,7 +19,7 @@ MCP spec target: **2025-11-25** (stable) with the **2026-07-28** RC tracked (cac
 | `snypd://theme` · `snypd://theme/tokens` · `snypd://theme/coverage` | the active theme, its palette, and which primitives it implements itself (S16). `theme` is part of what docs/05 counts as learning the site; the other two are read by an agent that is restyling, and are not in that budget. `theme/patterns` — the class contract a stylesheet targets — is not built yet; `base`'s `snypd-<name>` classes are the contract in the meantime |
 | `snypd://content/{type}/{slug}` · `snypd://content/{type}/{slug}.md` | frontmatter+body as YAML/markdown |
 | `snypd://media/{id}` | manifest entry |
-| `snypd://history/{type}/{slug}` | commits touching it |
+| `snypd://history/{type}/{slug}` | commits touching it, newest first, each with the principal that made it and — on a publish a person approved — who approved it (R4) |
 | `snypd://bench/latest` | the last full report as Markdown (S16). `snypd://bench/profile/{id}` follows when profiles do |
 | `snypd://lint/{type}/{slug}` | diagnostics: rules 0–9 (docs/01) as `{rule, n, severity, line, message, hint}` — every entry carries a fix hint the agent can act on; served from S5, rules 10–11 need the S6 index |
 

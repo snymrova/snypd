@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- The share card (docs/25 §5): the hero at 1200 × 630 — the sentence on the light ground, the button,
+     the name. Photographed by headless Chrome into sites/snypd.rocks/content/media/og.png:
+     google-chrome --headless=new --screenshot=og.png --window-size=1200,800 --hide-scrollbars docs/mock/25-og.html, then cropped to 630 (the headless viewport is shorter than its window). -->
+<html lang="en"><head><meta charset="utf-8"><title>snypd.rocks — the share card</title>
+<style>
+@font-face { font-family: Inter; src: url(../../sites/snypd.rocks/themes/folio/fonts/inter-latin.woff2) format("woff2"); font-weight: 500; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1200px; height: 630px; background: #f9f9f9; color: #121214; font-family: Inter, Arial, sans-serif; font-weight: 500; -webkit-font-smoothing: antialiased; }
+body { padding: 64px 80px; display: flex; flex-direction: column; justify-content: space-between; }
+.top { display: flex; justify-content: space-between; align-items: baseline; font-size: 26px; letter-spacing: -0.02em; }
+.top span { font-size: 20px; color: #6a6a6e; letter-spacing: 0; }
+h1 { font-size: 92px; line-height: 1.02; letter-spacing: -0.035em; font-weight: 500; max-width: 14ch; }
+.btn { display: inline-block; background: #121214; color: #fff; padding: 18px 26px; border-radius: 10px; font-size: 24px; letter-spacing: -0.005em; }
+.foot { display: flex; justify-content: space-between; align-items: center; }
+.foot span { font-size: 20px; color: #6a6a6e; }
+</style></head><body>
+<div class="top">snypd.rocks<span>Launching 6 October 2026</span></div>
+<h1>A CMS with no dashboard. Your agent writes it.</h1>
+<div class="foot"><div class="btn">Start in four lines</div><span>Markdown in your repo · static HTML out · 0 KB JS</span></div>
+</body></html>

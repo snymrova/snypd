@@ -1,0 +1,4 @@
+# The masthead menu. `ref` resolves at build; `url` is verbatim. Work and Notes are the two archives (R1).
+- { label: Work, ref: "/work" }
+- { label: Notes, ref: "/posts" }
+- { label: Studio, ref: "page/studio" }

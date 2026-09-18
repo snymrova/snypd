@@ -53,7 +53,7 @@ Each primitive is a YAML file in `@snypd/spec/primitives/` with `name, purpose, 
 
 **Evidence** — `stat` (value, label, **source required**, delta?) · `stat-row` (2–4 stats) · `comparison` (columns, rows) · `chart` (type, data|src, **source required**, caption) · `citation` (url, title, author?, date?, quote?) · `receipt` (kind: screenshot|log|diff|commit, src, caption)
 
-**Media** — `figure` (src — an image, or a `.mp4`/`.webm` clip since S25, **alt required**, caption?, width: content|wide|full, poster? for a clip) · `gallery` (layout) · ~~`video`~~ (folded into `figure`, decision 181) · `embed` (url) · `code` (lang, title?, highlight?) · `file` (src, label) · `before-after` (before, after, alt)
+**Media** — `figure` (src — an image, or a `.mp4`/`.webm` clip since S25, **alt required**, caption?, width: content|wide|full, poster? for a clip) · `logo-wall` (layout: grid|marquee, title?; a list of three or more marks — S29, docs/17 §4.3) · `gallery` (layout) · ~~`video`~~ (folded into `figure`, decision 181) · `embed` (url) · `code` (lang, title?, highlight?) · `file` (src, label) · `before-after` (before, after, alt)
 
 **Interaction & conversion** — `faq` (→ FAQPage schema) · `steps` (→ HowTo schema) · `tabs` · `accordion` · `cta` (title, body?, button, href, variant) · `newsletter` (provider) · `author-card` · `related` (strategy: cluster|tags|manual) · `share` · `discussion` (slot for a comments plugin)
 

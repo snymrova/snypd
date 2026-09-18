@@ -13,9 +13,12 @@
 import { raw, part, Slot, type Html, type ShellProps } from "@snypd/render";
 
 export default function Shell({ ctx, title, description, markdownUrl, route, jsonLd, page, children }: ShellProps): Html {
-  // At `/` the title *is* the site's name (the index layout passes it), so it is not repeated; it is still
-  // `title` and not `ctx.site.name`, so a `title` filter (P2) reaches the front page too.
-  const full = route === "/" ? title : `${title} - ${ctx.site.name}`;
+  // At `/` the site comes first: the index layout passes the site's name as the title, so the tab is the
+  // name alone; a `home: true` page passes its own (decision 206), and the tab reads `name - pitch` — the
+  // one place the order flips, because a front page's tab is the site's before it is the page's. Decided
+  // on the page, not on the string: a `title` filter (P2) may have rewritten `title`, and it reaches the
+  // front page too. A home page titled after the site gets the name alone.
+  const full = route !== "/" ? `${title} - ${ctx.site.name}` : page && page.title !== ctx.site.name ? `${ctx.site.name} - ${title}` : title;
   const url = `${ctx.site.url}${route === "/" ? "/" : `${route}/`}`;
   const cover = page?.frontmatter.cover as { image?: string; alt?: string } | undefined;
   const image = cover?.image ?? ctx.site.image;

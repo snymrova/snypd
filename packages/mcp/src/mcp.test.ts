@@ -56,7 +56,7 @@ describe("stdio", () => {
     expect(init.result.serverInfo.name).toBe("snypd");
     const uris = list.result.resources.map((r: any) => r.uri);
     expect(uris[0]).toBe("snypd://config");
-    expect(uris.filter((u: string) => u.startsWith("snypd://spec/primitives/")).length).toBe(13);
+    expect(uris.filter((u: string) => u.startsWith("snypd://spec/primitives/")).length).toBe(14);
     expect(uris).toEqual(expect.arrayContaining(["snypd://types", "snypd://types/post", "snypd://taxonomies/category"]));
     expect(cfg.result.contents[0].mimeType).toBe("application/yaml");
     expect(cfg.result.contents[0].text).toContain("name: corpus-100 # ← snypd.yaml:3");
@@ -202,6 +202,29 @@ describe("content.* tools", () => {
     // Publishing twice is a no-op rather than an error: under `draft` policy the second call failed
     // because the approval was spent, and there is no approval to spend here.
     expect(again.result.isError).toBeUndefined();
+  });
+
+  test("a publish lands the picture the post names beside it, and says so (S31 · H5)", async () => {
+    const c = await import("@snypd/core");
+    // Media added by hand on the drafts branch, the way every picture on snypd.rocks was: committed there, absent on main.
+    mkdirSync(`${site}/content/media`, { recursive: true });
+    writeFileSync(`${site}/content/media/still.png`, Buffer.alloc(64, 1));
+    writeFileSync(`${site}/content/media/loose.png`, Buffer.alloc(64, 2));
+    c.Repo.open(site)!.useDrafts(["content/media/still.png", "content/media/loose.png"]);
+    c.git(site, "add", "content/media/still.png"); c.git(site, "commit", "-q", "-m", "media: a still");
+    const [, , published] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", frontmatter: { title: "Pictured" }, body: "## A still\n\n::figure{src=\"/media/still.png\" alt=\"a still\" caption=\"The still\"}\n\n![loose](/media/loose.png)\n" }),
+      call(3, "content.publish", { type: "post", slug: "pictured" }),
+    ], site);
+    expect(structured(published)).toMatchObject({ ok: true, status: "published" });
+    expect(structured(published).git).toMatchObject({ landed: true, base: "main", media: ["content/media/still.png"] });
+    expect(published.result.content[0].text).toContain("with 1 media file (still.png)");
+    // main has the post and the still it names; the untracked picture is nobody's commit and stays where it is.
+    expect(c.git(site, "ls-tree", "-r", "main", "--name-only", "content/media/").stdout).toBe("content/media/still.png");
+    expect(c.git(site, "ls-tree", "main", "--name-only", "content/posts/pictured.md").stdout).toBe("content/posts/pictured.md");
+    expect(c.git(site, "rev-parse", "--abbrev-ref", "HEAD").stdout).toBe("snypd/drafts");
+    rmSync(`${site}/content/media/loose.png`, { force: true });
   });
 
   test("a type whose policy is `draft` still refuses without a human, and merges after approval", async () => {
@@ -441,8 +464,9 @@ describe("find_tools + the catalogue", () => {
       call(3, "find_tools", { query: "change the accent colour" }),
       req(4, "tools/list"),
       call(5, "find_tools", { query: "xyzzy" }),
+      call(6, "find_tools", { query: "who approved each version of a post, its audit history" }),
     ], "corpora/theme");
-    const [, before, found, after, unmatched] = out.filter((m: any) => m.id !== undefined);
+    const [, before, found, after, unmatched, history] = out.filter((m: any) => m.id !== undefined);
 
     // The client is told its list grew, once — the second find unlocks nothing new and stays quiet.
     expect(out.filter((m: any) => m.method === "notifications/tools/list_changed")).toHaveLength(1);
@@ -458,6 +482,10 @@ describe("find_tools + the catalogue", () => {
     expect(names(after)).not.toContain("bench");
     expect(structured(unmatched)).toMatchObject({ count: 0 });
     expect(structured(unmatched).available).toEqual(["theme", "site", "bench", "content.explain"]);
+    // R4 (docs/22 §3): a query that names a resource is answered with the resource — a live model asked
+    // find_tools for an item's history six times and was handed `site` every time.
+    expect(history.result.content[0].text).toContain("snypd://history/{type}/{slug}");
+    expect(structured(history).resources.map((r: any) => r.uri)).toContain("snypd://history/{type}/{slug}");
   });
 
   test("a catalogue tool is callable before it was ever listed", async () => {
@@ -663,7 +691,7 @@ describe("find_tools + the catalogue", () => {
     expect(text).toContain("    extends: base");
     expect(text).toMatch(/technical:\n[\s\S]*reads as: >-\n {6}Reference\./);
     // `snypd://theme` still names the others and says nothing about them: the session-start read stays what it costs.
-    expect(one.result.contents[0].text).toContain("installed: [editorial, base, technical]");
+    expect(one.result.contents[0].text).toContain("installed: [editorial, base, studio, technical]");
     expect(one.result.contents[0].text).not.toContain("Reference.");
     expect(after.result.isError).toBeUndefined();
     const [, again] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://themes" })], site);

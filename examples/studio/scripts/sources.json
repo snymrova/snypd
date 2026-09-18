@@ -1,0 +1,36 @@
+[
+  { "commons": "File:CNC lathe.webm", "out": "reel.mp4", "poster": "reel.webp", "clip": { "start": 0, "seconds": 9.5 }, "width": 1280, "used": "Front page, behind the headline" },
+  { "commons": "File:LEXUS design awards - inaho by tangent.webm", "out": "stem-field.mp4", "poster": "stem-field.webp", "clip": { "start": 6, "seconds": 8 }, "width": 1280, "used": "Stem, the lamp field" },
+
+  { "commons": "File:Table in workroom (Unsplash).jpg", "out": "studio-workroom.webp", "width": 1800, "used": "Front page, the studio" },
+  { "commons": "File:Man in a messy workshop (Unsplash).jpg", "out": "studio-floor.webp", "width": 1800, "used": "About, the floor" },
+  { "commons": "File:Woodworking workshop (Unsplash).jpg", "out": "studio-tools.webp", "width": 1600, "used": "About, the tool wall" },
+
+  { "commons": "File:Large ceramic bottles (Unsplash).jpg", "out": "kiln-cover.webp", "width": 1800, "aspect": "3:2", "used": "Kiln to table, cover" },
+  { "commons": "File:Making pottery (Unsplash).jpg", "out": "kiln-wheel.webp", "width": 1600, "used": "Kiln to table, the wheel" },
+  { "commons": "File:Pottery and craft (Unsplash).jpg", "out": "kiln-hands.webp", "width": 1600, "used": "Kiln to table, wedging" },
+  { "commons": "File:The Studio (Unsplash).jpg", "out": "kiln-shelf.webp", "width": 1600, "used": "Kiln to table, the shelf" },
+
+  { "commons": "File:Bulb in white lamp and room (Unsplash).jpg", "out": "stem-cover.webp", "width": 1800, "aspect": "3:2", "used": "Stem, cover" },
+  { "commons": "File:Lamp on phone under lamp (Unsplash).jpg", "out": "stem-desk.webp", "width": 1600, "used": "Stem, on the desk" },
+  { "commons": "File:The Workshop (Unsplash).jpg", "out": "stem-press.webp", "width": 1600, "used": "Stem, the drill press" },
+  { "commons": "File:Light bulb in a wire cage (Unsplash).jpg", "out": "stem-cage.webp", "width": 1600, "used": "Stem, the cage that lost" },
+
+  { "commons": "File:Empty coffee shop interior with wooden table and water skis.jpg", "out": "mares-cover.webp", "width": 1800, "aspect": "3:2", "used": "Marés, cover" },
+  { "commons": "File:Coffee shop entrance in Leiden (Unsplash).jpg", "out": "mares-terrace.webp", "width": 1600, "used": "Marés, the terrace" },
+  { "commons": "File:Two men at coffee shop counter (Unsplash).jpg", "out": "mares-counter.webp", "width": 1600, "used": "Marés, the counter" },
+  { "commons": "File:Light bulbs in a coffee shop (Unsplash).jpg", "out": "mares-bulbs.webp", "width": 1200, "used": "Marés, the bulbs" },
+
+  { "commons": "File:Black Eames Style Chair (Unsplash).jpg", "out": "sela-cover.webp", "width": 1800, "aspect": "3:2", "used": "Sela, cover" },
+  { "commons": "File:Woodworker in a workshop (Unsplash).jpg", "out": "sela-sanding.webp", "width": 1600, "used": "Sela, sanding" },
+  { "commons": "File:Karton (Unsplash).jpg", "out": "sela-room.webp", "width": 1600, "used": "Sela, the room" },
+
+  { "commons": "File:Architectural Frames (Unsplash).jpg", "out": "bloco-cover.webp", "width": 1800, "aspect": "3:2", "used": "Bloco, cover" },
+  { "commons": "File:Building Interior Lisbonne (Unsplash).jpg", "out": "bloco-stair.webp", "width": 1200, "used": "Bloco, the stair" },
+  { "commons": "File:Black white concrete interior (Unsplash).jpg", "out": "bloco-interior.webp", "width": 1600, "used": "Bloco, the hall" },
+  { "commons": "File:Marta Arts Center Station Northbound Platform (Unsplash).jpg", "out": "bloco-platform.webp", "width": 1600, "used": "Bloco, the platform" },
+
+  { "commons": "File:Metal typesetting (Unsplash).jpg", "out": "tarn-cover.webp", "width": 1800, "aspect": "3:2", "used": "Tarn & Vale, cover" },
+  { "commons": "File:Math tools utensils (Unsplash).jpg", "out": "tarn-hand.webp", "width": 1600, "used": "Tarn & Vale, drawing" },
+  { "commons": "File:Unique Present Packaging (Unsplash).jpg", "out": "tarn-packaging.webp", "width": 1600, "used": "Tarn & Vale, packaging" }
+]

@@ -1,0 +1,508 @@
+/* studio — one stylesheet over `base`'s markup (S29, docs/17). Token vars are emitted above this by the
+   build (tokens.ts), so every value here is a var: recolour the theme in snypd.yaml, never in this file.
+   The order of the sheet is the order of docs/17 §3: bands, type, hairline cards, buttons, the masthead —
+   the tier-A half, plain — then, at the end and under `@supports`, the tier-B half. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  color-scheme: var(--color-scheme);
+  --content: min(100% - var(--space-4) * 2, var(--measure));
+  --breakout: min(100% - var(--space-4) * 2, calc(var(--measure) + 24rem));
+  /* The masthead's height, so a band's first line clears it and a `#section` link lands below it. */
+  --masthead: 4rem;
+}
+
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; scroll-padding-top: var(--masthead); }
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: var(--size-body) / var(--leading-body) var(--font-body);
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none;
+}
+
+/* ── The column. One grid, three tracks — text, breakout, full — on the `main` of a reading page and on
+   every band of the front page, so a figure that asks for `wide` gets it inside a band exactly as it
+   would in a post. `full` in a band is the band's own edge. */
+main:not(.snypd-home, .snypd-work), .snypd-band, body > footer {
+  display: grid;
+  grid-template-columns:
+    [full-start] 1fr
+    [wide-start] calc((var(--breakout) - var(--content)) / 2)
+    [text-start] var(--content) [text-end]
+    calc((var(--breakout) - var(--content)) / 2) [wide-end]
+    1fr [full-end];
+  row-gap: var(--space-3);
+}
+main:not(.snypd-home, .snypd-work) { padding-block: calc(var(--masthead) + var(--space-5)) var(--space-6); }
+main > *, .snypd-post > * { grid-column: text; }
+/* A case is bands too (R3): like the front page, `main` is a plain block and each band is the grid. */
+.snypd-post, .snypd-home > .snypd-page, .snypd-work > .snypd-page { display: contents; }
+
+figure.snypd-chart, figure.snypd-diagram, figure.snypd-flow,
+.snypd-figure[data-width="wide"], .snypd-stat-row, .snypd-entries, .snypd-home .snypd-steps { grid-column: wide; }
+.snypd-figure[data-width="full"] { grid-column: full; }
+/* One edge (docs/18, decision 188). On the front page every child of a band starts on the `wide` track —
+   the band's title, its prose, its numbers, its cards — and prose is limited by the measure, never by an
+   indent; the reference's grid, where a title and the cards under it share one left edge. A post keeps
+   the reading column above. The same rule reaches a list page: its title sits over a grid of cards and
+   starts where the cards start. */
+.snypd-band > *, main:has(> .snypd-entries) > * { grid-column: wide; max-width: var(--measure); }
+.snypd-band > :is(.snypd-cover, .snypd-stat-row, .snypd-steps, .snypd-entries, .snypd-logo-wall, figure, .snypd-chart, .snypd-diagram, .snypd-flow),
+main:has(> .snypd-entries) > .snypd-entries { max-width: none; }
+.snypd-band > .snypd-figure[data-width="full"] { grid-column: full; }
+/* One edge inside a figure too (docs/19 §2 · 2). A chart or a diagram keeps the size it was drawn at
+   (decision 17) and sat centred on the `wide` track, while its caption started at the track's edge —
+   two left edges in one block, 192 px apart at 1280. The figure now shrinks to its drawing and centres
+   itself: a 640 chart sits in the reading column with its caption under its own left edge, a 1000
+   diagram takes the breakout, and a phone still scrolls it (`max-width` holds it to the track; the
+   band's `max-width: none` above must not reach it, hence the second selector). */
+figure:is(.snypd-chart, .snypd-diagram, .snypd-flow), .snypd-band > figure:is(.snypd-chart, .snypd-diagram, .snypd-flow) { justify-self: center; width: fit-content; max-width: 100%; }
+/* The caption must not set the figure's width — a long sentence's max-content is the whole track, which
+   is exactly the two-edge figure again. Inline-size containment takes the caption out of the figure's
+   intrinsic width, so the figure is as wide as its drawing and the caption wraps under it. */
+figure:is(.snypd-chart, .snypd-diagram, .snypd-flow) > figcaption { contain: inline-size; }
+
+/* ── 1. Bands (docs/17 §3, first row). A band is one declaration: `color-scheme` on the section, over the
+   same `light-dark()` tokens the rest of the page reads, and every colour inside it — text, hairlines,
+   the accent, a chart's palette — resolves to that side. The tokens do not change; X1's contrast gate
+   already reads both sides of every one of them. */
+.snypd-home { padding: 0; }
+.snypd-band { padding-block: var(--space-6); background: var(--color-bg); color: var(--color-text); }
+.snypd-band[data-tone="dark"]  { color-scheme: dark; }
+.snypd-band[data-tone="light"] { color-scheme: light; }
+/* The hero band starts under the masthead, which is sticky and transparent, and takes the fold. */
+.snypd-hero { position: relative; isolation: isolate; padding-top: calc(var(--masthead) + var(--space-5)); min-height: 78vh; align-content: center; }
+/* The showreel (docs/17 §4.1): a cover's `media` fills the hero behind the type, and a scrim in the
+   band's own background keeps the headline readable over whatever frame is under it. `base` swaps the
+   clip for its still under reduced motion; the still takes the same place. */
+.snypd-hero .snypd-cover-media { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; margin: 0; border-radius: 0; opacity: 0.6; }
+.snypd-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, var(--color-bg) 12%, color-mix(in oklab, var(--color-bg) 45%, transparent) 55%, color-mix(in oklab, var(--color-bg) 60%, transparent)); pointer-events: none; }
+.snypd-hero:not(:has(.snypd-cover-media))::before { content: none; }
+/* The subtitle over the reel is the weakest text on the page when it is muted grey over a highlight, so in
+   the hero it is the text colour, barely softened (docs/18 §2 · 12). */
+.snypd-hero .snypd-subtitle { color: var(--color-text); opacity: 0.85; }
+/* Elsewhere a cover's media is a picture under the title, like its image. No `display` here: which of the
+   clip and its still is shown is `base`'s sheet's decision (reduced motion, the motion control), in a
+   lower cascade layer, and a `display: block` in this one would override it both ways. */
+.snypd-cover-media { vertical-align: top; width: 100%; margin-top: var(--space-4); border-radius: var(--radius); background: var(--color-surface); }
+
+/* ── 2. Type. One display face, very large, tight, balanced; eyebrows in small caps above the headings;
+   the body in the system sans. */
+h1, h2, h3, h4 { font-family: var(--font-heading); line-height: var(--leading-tight); font-weight: 700; text-wrap: balance; margin: 0; }
+h1 { font-size: var(--size-h1); letter-spacing: -0.035em; }
+h2 { font-size: var(--size-h2); letter-spacing: -0.025em; margin-top: var(--space-5); }
+h3 { font-size: var(--size-h3); letter-spacing: -0.01em; margin-top: var(--space-4); line-height: 1.15; }
+.snypd-hero h1 { font-size: var(--size-display); letter-spacing: -0.045em; max-width: 12ch; }
+/* A band's title is its first line and carries its number as an eyebrow — the reference's `01`, `02`
+   above every section — counted by the page, so the author writes headings and nothing else. */
+.snypd-home { counter-reset: band; }
+.snypd-band > h2 { margin-top: 0; max-width: 18ch; counter-increment: band; }
+.snypd-band > h2::before {
+  content: counter(band, decimal-leading-zero) / "";
+  display: block; margin-bottom: var(--space-3);
+  font: 500 var(--size-small) / 1 var(--font-display); letter-spacing: 0.14em; color: var(--color-accent);
+}
+/* The entries band is the theme's, not the author's: it is not numbered, so three sections read 01–03 and
+   the cards read as the page's end (docs/18 §2 · 14). After the general rule, because the two pseudo-
+   element rules weigh the same and the later one wins — above it, the number still painted (as `04`, the
+   count unincremented) on every studio front page. */
+.snypd-home-entries > h2 { counter-increment: none; }
+.snypd-home-entries > h2::before { content: none; }
+.snypd-band > h2 a { color: inherit; text-decoration: none; }
+.snypd-band > h2 a:hover { color: var(--color-accent); }
+
+p, ul, ol, dl, blockquote, pre, table, figure, figcaption { margin: 0; }
+p { text-wrap: pretty; }
+ul, ol { padding-inline-start: 1.35em; }
+li + li { margin-top: var(--space-2); }
+a { color: var(--color-accent); text-underline-offset: 0.16em; text-decoration-thickness: from-font; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: 4px; }
+strong { font-weight: 650; }
+small, time, figcaption { font-family: var(--font-ui); font-size: var(--size-small); color: var(--color-muted); }
+code, kbd, samp, pre { font-family: var(--font-mono); font-size: 0.875em; }
+code { background: var(--color-surface); padding: 0.1em 0.32em; border-radius: 4px; }
+pre { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--space-3); overflow-x: auto; }
+pre code { background: none; padding: 0; }
+hr { border: 0; border-top: 1px solid var(--color-border); margin-block: var(--space-5); }
+img, svg { max-width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; font-family: var(--font-ui); font-size: var(--size-small); }
+th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); }
+th { font-family: var(--font-display); font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ── Cover. The eyebrow above, the subtitle under, at a size that reads from across the room. */
+.snypd-cover { margin-bottom: var(--space-3); }
+.snypd-eyebrow {
+  font: 500 var(--size-small) / 1.2 var(--font-display);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--color-accent); margin-bottom: var(--space-3);
+}
+.snypd-subtitle { font-size: var(--size-h3); line-height: 1.35; color: var(--color-muted); margin-top: var(--space-4); max-width: 34rem; text-wrap: pretty; }
+/* The cover's *image* — not its media and never the still beside a clip, whose `display` is `base`'s to
+   decide: a `display: block` here reached the still and it covered the reel on every load (docs/18). */
+.snypd-cover > img:not(.snypd-cover-media) { display: block; width: 100%; margin-top: var(--space-4); border-radius: var(--radius); background: var(--color-surface); }
+.snypd-byline { font: var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted); margin-bottom: var(--space-5); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border); }
+.snypd-byline a { color: inherit; }
+
+/* ── 3. Hairline cards. Nothing here is a box: a card is a rule above it and the space under. */
+.snypd-tldr { border-top: 1px solid var(--color-border); padding-top: var(--space-3); font-size: var(--size-h3); line-height: 1.4; max-width: 34rem; }
+.snypd-tldr > p:first-child strong { display: block; font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent); margin-bottom: var(--space-2); }
+.snypd-callout { border-top: 1px solid var(--color-border); border-left: 3px solid var(--kind, var(--color-border)); padding: var(--space-3) var(--space-4); background: var(--color-surface); border-radius: 0 var(--radius) var(--radius) 0; }
+.snypd-callout[data-kind="note"]    { --kind: var(--color-viz-2); }
+.snypd-callout[data-kind="tip"]     { --kind: var(--color-viz-5); }
+.snypd-callout[data-kind="warning"] { --kind: var(--color-viz-3); }
+.snypd-callout[data-kind="danger"]  { --kind: var(--color-viz-1); }
+blockquote { margin-block: var(--space-4); padding-left: var(--space-4); border-left: 2px solid var(--color-border); color: var(--color-muted); }
+.snypd-pullquote { border: 0; padding: 0; margin-block: var(--space-4); font: 500 var(--size-h2) / 1.1 var(--font-display); letter-spacing: -0.02em; color: var(--color-text); text-wrap: balance; }
+.snypd-pullquote p::before { content: "“"; color: var(--color-accent); }
+.snypd-pullquote p::after { content: "”"; color: var(--color-accent); }
+.snypd-pullquote footer { font: 400 var(--size-small) / 1.4 var(--font-ui); letter-spacing: 0; color: var(--color-muted); margin-top: var(--space-3); }
+
+/* The numbers: the stat row is the reference's "numbers" band — hairline columns, a figure in the
+   display face at a size that competes with the heading, the label small under it. */
+.snypd-stat-row { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+/* No orphans (docs/18 §2 · 5): a row of three is three across, then one — never two and a widow; a row of
+   four is four, then two, then one. `data-count` is the renderer's (stat-row.tsx). */
+.snypd-stat-row[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.snypd-stat-row[data-count="4"] { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 48rem) { .snypd-stat-row[data-count="4"] { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 30rem) { .snypd-stat-row[data-count="3"], .snypd-stat-row[data-count="4"] { grid-template-columns: 1fr; } }
+.snypd-stat { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+.snypd-stat-value { font: 600 clamp(2.25rem, 1.5rem + 3vw, 4rem) / 1 var(--font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.snypd-stat-value strong { font-weight: inherit; }
+.snypd-stat-value small { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-muted); margin-left: 0.4em; }
+.snypd-stat-label { font-family: var(--font-ui); font-size: var(--size-small); color: var(--color-muted); margin-top: var(--space-2); }
+/* The source, in the label's own colour under a dotted rule — a link a reader finds when they look for it,
+   and the hero keeps one accent (docs/18 §2 · 10). */
+/* One idiom for every source link — a stat's, a chart's (docs/19 §2 · 8): the label's colour under a
+   dotted rule, never an orange parenthesis one block under three muted ones. */
+.snypd-source { color: inherit; text-decoration: underline dotted; text-underline-offset: 0.2em; margin-left: 0.35em; }
+.snypd-source:hover { color: var(--color-text); text-decoration-style: solid; }
+
+/* Numbered hairline cards: `steps` renders an `<ol>` with a counter already; the theme sets it as `01`
+   and draws rules, not boxes. On the front page the steps stand side by side, the reference's service
+   cards; in a post they are a list. */
+/* A block's title is a heading one level under the band's (decision 189) — an `<h3>` on the front page,
+   and the theme sets it as one: a sub-heading, not a second headline (docs/18 §2 · 2). */
+.snypd-steps > :is(h2, h3, h4), .snypd-faq > :is(h2, h3, h4) { margin-top: 0; }
+/* A `faq` renders a title only when the author gives one (docs/19 §2 · 3); given, it gets one token of
+   air before the first question's hairline instead of sitting flush on it. */
+.snypd-faq > :is(h2, h3, h4, h5, h6) { margin-bottom: var(--space-3); }
+.snypd-band :is(.snypd-steps, .snypd-faq) > h3 { font-size: var(--size-h3); letter-spacing: -0.01em; line-height: 1.15; }
+.snypd-steps ol { counter-reset: step; list-style: none; padding: 0; margin-top: var(--space-4); }
+.snypd-steps ol > li { counter-increment: step; border-top: 1px solid var(--color-border); padding-top: var(--space-3); margin-top: 0; padding-bottom: var(--space-3); }
+.snypd-steps ol > li::before {
+  content: counter(step, decimal-leading-zero) / "";
+  display: block; margin-bottom: var(--space-2);
+  font: 500 var(--size-h3) / 1 var(--font-display); letter-spacing: -0.02em; color: var(--color-accent);
+}
+.snypd-home .snypd-steps ol { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+/* The same no-orphans rule as the numbers: four steps are four across, then two, then one; three are three,
+   then one. `data-count` is on the block (steps.tsx). */
+.snypd-home .snypd-steps[data-count="3"] ol { grid-template-columns: repeat(3, 1fr); }
+.snypd-home .snypd-steps[data-count="4"] ol { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 56rem) { .snypd-home .snypd-steps[data-count="4"] ol { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 34rem) { .snypd-home .snypd-steps[data-count="3"] ol, .snypd-home .snypd-steps[data-count="4"] ol { grid-template-columns: 1fr; } }
+.snypd-faq h2 { margin-top: 0; }
+.snypd-faq-item { border-top: 1px solid var(--color-border); padding-block: var(--space-3); }
+.snypd-faq-item:last-child { border-bottom: 1px solid var(--color-border); }
+.snypd-faq-item summary { list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.snypd-faq-item summary::-webkit-details-marker { display: none; }
+.snypd-faq-item summary::after { content: "+"; font: 400 var(--size-h2) / 1 var(--font-display); color: var(--color-accent); transition: rotate 200ms ease-out; }
+.snypd-faq-item[open] summary::after { rotate: 45deg; }
+.snypd-faq-item h3 { margin: 0; font-size: var(--size-h3); }
+.snypd-faq-answer { padding-block: var(--space-2) var(--space-1); max-width: 34rem; }
+
+/* ── 4. Pill buttons with an arrow. The arrow is `content` with empty alt, so a screen reader hears the
+   label and nothing else. */
+.snypd-cta { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+.snypd-cta > p:first-child { font: 600 var(--size-h2) / var(--leading-tight) var(--font-display); letter-spacing: -0.025em; text-wrap: balance; max-width: 18ch; }
+.snypd-cta > p:first-child strong { font-weight: inherit; }
+/* Inside a band the call's title is the band's sub-heading, at h3 size (docs/18 §2 · 2). */
+.snypd-band .snypd-cta > p:first-child { font-size: var(--size-h3); letter-spacing: -0.01em; line-height: 1.15; max-width: 24ch; }
+.snypd-cta > p:nth-child(2) { color: var(--color-muted); max-width: 34rem; margin-top: var(--space-3); }
+.snypd-button {
+  display: inline-flex; align-items: center; gap: 0.6em;
+  background: var(--color-text); color: var(--color-bg);
+  font: 600 var(--size-body) / 1 var(--font-display); letter-spacing: -0.01em; text-decoration: none;
+  padding: 0.9em 1.5em; border-radius: 100px; margin-top: var(--space-3);
+  transition: background 150ms ease-out, gap 150ms ease-out;
+}
+.snypd-button::after { content: "→" / ""; }
+.snypd-button:hover { background: var(--color-accent); color: var(--color-on-accent); gap: 0.9em; }
+
+/* Every block gets the same breath as a figure. */
+.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow, .snypd-tldr, .snypd-callout, .snypd-stat-row, .snypd-steps, .snypd-faq, .snypd-cta { margin-block: var(--space-4); }
+.snypd-figure img, .snypd-figure video { display: block; width: 100%; border-radius: var(--radius); }
+
+/* ── Viz keeps the size it was drawn at (docs/07 decision 17) — the same rule editorial carries. */
+.snypd-scroll { --viz-max-width: none; overflow-x: auto; overscroll-behavior-x: contain; }
+.snypd-scroll > svg { display: block; margin-inline: auto; }
+.snypd-diagram .snypd-scroll, .snypd-flow .snypd-scroll { --viz-max-width: 100%; }
+.snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }
+.snypd-scroll:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+figcaption { margin-top: var(--space-2); }
+.snypd-chart figcaption:empty, .snypd-diagram figcaption:empty, .snypd-flow figcaption:empty { display: none; }
+
+/* ── 5. The masthead. Sticky, a translucent bar of the page's own background blurring what passes under
+   it (both Baseline), in the scheme of the band it starts on: the hero's on the front page, the page's
+   on a post. docs/17 §3 asked for a masthead that *flips* with the band under it, and the CSS-only way —
+   white type in `mix-blend-mode: difference` — was here for an hour: axe cannot see a blend, read white
+   on the post's light page as five contrast failures, and `gallery.studio.a11y.violations` went 0 → 1.
+   The gate's rule from U7 applies (docs/17 §5: the effect goes, not the gate), so the bar carries its
+   own colour instead, which is what the reference's masthead does between its flips anyway. */
+body > header.snypd-masthead {
+  position: sticky; top: 0; z-index: 3;
+  /* In flow it would sit *above* the hero as a strip of page; the negative margin slides the page up
+     under it, and the hero's padding-top (above) gives the headline the room back. */
+  margin-bottom: calc(-1 * var(--masthead));
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4);
+  min-height: var(--masthead); padding: var(--space-2) var(--space-4);
+  /* 88 % is the tier-A floor: at 72 % a dark bar over a light band was a mid grey the muted nav text
+     measured 3.1:1 on (docs/18 §2 · 3). Once stuck, the bar is opaque (scroll-state, below). */
+  color: var(--color-text); background: color-mix(in oklab, var(--color-bg) 88%, transparent);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  font: 500 var(--size-small) / 1.4 var(--font-display); letter-spacing: 0.02em;
+}
+/* The scheme of the band it starts on (layouts/home.tsx sets the hero's tone). */
+body:has(.snypd-hero[data-tone="dark"]) > header.snypd-masthead { color-scheme: dark; }
+body:has(.snypd-hero[data-tone="light"]) > header.snypd-masthead { color-scheme: light; }
+.snypd-masthead a { color: inherit; text-decoration: none; }
+.snypd-brand { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
+.snypd-logo { display: block; height: 1.8em; width: auto; max-width: 12rem; }
+body > header nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+body > header nav li { margin-top: 0; }
+/* The links: the text colour softened, never the muted grey, so they read on the bar over either band; and
+   a hit area of 24 px (WCAG 2.5.8) grown with padding the negative margin takes back, so the bar does not.
+   The underline is a rule inside the padding, where the pointer is. */
+body > header nav a { display: inline-block; padding-block: 0.5em; margin-block: -0.5em; color: var(--color-text); opacity: 0.8; box-shadow: inset 0 -1px transparent; }
+body > header nav a:hover { opacity: 1; }
+body > header nav a[aria-current="page"] { opacity: 1; box-shadow: inset 0 -1px var(--color-accent); }
+/* The phone menu is a sheet: `base` lays it out, this colours it. */
+.snypd-menu-button { font: inherit; border-color: currentColor; color: inherit; border-radius: 100px; padding: 0.4em 0.9em; }
+#snypd-menu:popover-open { color: var(--color-text); background: var(--color-bg); font-size: var(--size-body); border-top: 1px solid var(--color-border); }
+#snypd-menu:popover-open a { color: var(--color-text); }
+
+/* ── The footer (parts/footer.tsx): a band of its own, on the page's grid — the one edge (decision 188)
+   reaches the last thing on the page, where before the footer sat at the viewport's edge, thirty-two
+   pixels in, under bands whose every line started a hundred and twenty. Three rows: the description
+   with the lists beside it, the name set huge, the note under a hairline. */
+body > footer {
+  margin-top: 0; padding-block: var(--space-6) var(--space-4); row-gap: var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg); color: var(--color-text);
+  font: 500 var(--size-body) / 1.5 var(--font-display);
+}
+/* No margin above the footer off the front page: the post's bottom padding is the one token between
+   the last thing on the page and the footer's rule (docs/19 §2 · 6); with a margin too they stacked to
+   173 px of nothing under the tags. */
+body > footer > * { grid-column: wide; }
+/* On the front page the footer keeps the alternation going — the scheme the band before it is not — so
+   the page ends on one more band and not on two of the same colour with a hairline between. Off the
+   front page, and with `bands: off`, it stays in the reader's scheme, like the masthead. */
+body:has(.snypd-home-entries[data-tone="dark"]) > footer  { color-scheme: light; }
+body:has(.snypd-home-entries[data-tone="light"]) > footer { color-scheme: dark; }
+/* Row one: the description on the left at a display size, the lists to its right, each list a column.
+   The description has a floor (docs/19 §2 · 1): with `minmax(0, 1fr)` three link columns took the row
+   and the lede was a column of single words, 112 px wide and twenty lines tall at 820. Now it holds
+   ≥ 20 characters a line beside the lists, the lists give up their slack, and below 64 rem — not 48 —
+   the lists go under it. */
+.snypd-footer-top { display: grid; grid-template-columns: minmax(min(100%, 26rem), 1fr) auto; gap: var(--space-5) var(--space-6); align-items: start; }
+.snypd-footer-lede { margin: 0; font: 500 clamp(1.5rem, 1.1rem + 1.6vw, 2.4rem) / 1.15 var(--font-display); letter-spacing: -0.02em; max-width: 24ch; text-wrap: balance; }
+.snypd-footer-lists { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-5); }
+.snypd-footer-lists ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); min-width: 6rem; }
+.snypd-footer-lists li { margin-top: 0; }
+/* The links in the text colour, not the muted grey — they are the footer's content, not its meta — and
+   the hit area grown to 24 px with padding the negative margin takes back (WCAG 2.5.8). */
+.snypd-footer-lists a { display: inline-block; padding-block: 0.25em; margin-block: -0.25em; color: var(--color-text); text-decoration: none; opacity: 0.8; }
+.snypd-footer-lists a:hover, .snypd-footer-lists a[aria-current="page"] { opacity: 1; color: var(--color-accent); }
+/* Row two: the name, set as the wordmark the reference ends on — as wide as the display face allows
+   at the breakout's width, and allowed to break rather than to overflow a phone with a long name. */
+.snypd-wordmark { margin: 0; font: 700 clamp(3.5rem, 1rem + 10vw, 12rem) / 0.9 var(--font-display); letter-spacing: -0.05em; color: var(--color-text); overflow-wrap: anywhere; }
+/* Row three, under a hairline: the note and whatever a plugin puts in `footer-end`. Empty, it is gone,
+   hairline and all. */
+.snypd-footer-end { border-top: 1px solid var(--color-border); padding-top: var(--space-3); display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); font: var(--size-small) / 1.5 var(--font-ui); color: var(--color-muted); }
+.snypd-footer-end:empty { display: none; }
+.snypd-footer-note { margin: 0; max-width: 64ch; }
+.snypd-footer-note a { color: inherit; text-underline-offset: 0.2em; }
+@media (max-width: 64rem) {
+  .snypd-footer-top { grid-template-columns: 1fr; }
+}
+
+/* ── The post footer, tags and the twin — one band under a rule. The tags are pills on one baseline
+   (`li + li` reached the second and third and dropped them 8 px, docs/19 §2 · 4); the Markdown twin is
+   not a fourth pill but a text link in the idiom the source links set — muted, dotted rule — so at
+   390, where it wraps under the tags, it does not read as one of them (§2 · 7). */
+.snypd-post-footer { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--color-border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); }
+.snypd-terms { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.snypd-terms li { margin-top: 0; }
+.snypd-terms a { font: 500 var(--size-small) / 1 var(--font-display); text-decoration: none; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 100px; padding: 0.5em 1em; }
+.snypd-terms a:hover { color: var(--color-text); border-color: var(--color-text); }
+.snypd-twin { margin: 0; }
+.snypd-twin a { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-muted); text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.snypd-twin a:hover { color: var(--color-text); text-decoration-style: solid; }
+
+/* ── A case (layouts/work.tsx, R3): three bands. The hero holds the cover and, under it, the facts strip
+   — one hairline, four cells, the term in small caps and the value in the display face — on the wide
+   track, which is the cover's edge. The picture is capped at a screen so a tall cover does not push the
+   facts below the fold. The body band is the reading column on one scheme, its `##` numbered like the
+   front page's bands and spaced like a post's — the band rule that pulls a band's first title to the
+   top must not reach a heading mid-body. The close band pairs the studio's call to action with the next
+   case as one card; on a phone they stack. */
+.snypd-work { padding: 0; counter-reset: band; }
+.snypd-work-hero { min-height: 0; align-content: start; }
+.snypd-work-hero .snypd-cover > img:not(.snypd-cover-media) { max-height: 72vh; object-fit: cover; }
+.snypd-work-hero .snypd-cover { margin-bottom: 0; }
+.snypd-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3) var(--space-4); margin: var(--space-5) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border); max-width: none; }
+.snypd-facts[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.snypd-facts[data-count="2"] { grid-template-columns: repeat(2, 1fr); }
+.snypd-facts > div { margin: 0; min-width: 0; }
+.snypd-facts dt { font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+.snypd-facts dd { margin: var(--space-2) 0 0; font: 600 var(--size-h3) / 1.2 var(--font-display); letter-spacing: -0.01em; text-wrap: balance; }
+.snypd-facts dd a { color: inherit; text-decoration: underline dotted; text-decoration-color: var(--color-muted); text-underline-offset: 0.16em; }
+.snypd-facts dd a:hover { color: var(--color-accent); text-decoration-style: solid; }
+@media (max-width: 48rem) { .snypd-facts, .snypd-facts[data-count="3"] { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 30rem) { .snypd-facts, .snypd-facts[data-count="3"], .snypd-facts[data-count="2"] { grid-template-columns: 1fr; } }
+.snypd-work-body { padding-top: var(--space-5); }
+.snypd-work-body > h2 { margin-top: var(--space-5); max-width: none; }
+.snypd-work-body > h2:first-child { margin-top: 0; }
+.snypd-work-close { row-gap: var(--space-5); }
+.snypd-work-end { display: grid; grid-template-columns: minmax(min(100%, 22rem), 1fr) minmax(min(100%, 22rem), 1.4fr); gap: var(--space-5) var(--space-6); align-items: start; max-width: none; }
+.snypd-work-end:not(:has(.snypd-work-cta)) { grid-template-columns: minmax(0, 34rem); }
+.snypd-work-cta > p:first-child { font: 600 var(--size-h2) / 1.05 var(--font-display); letter-spacing: -0.025em; max-width: 14ch; text-wrap: balance; }
+.snypd-work-cta > p + p { margin-top: var(--space-4); }
+.snypd-work-next > h2 { margin-top: 0; font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+.snypd-work-next .snypd-entries { grid-template-columns: 1fr; margin-top: var(--space-3); }
+.snypd-work-meta { margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border); font: var(--size-small) / 1.5 var(--font-ui); color: var(--color-muted); max-width: none; }
+.snypd-work-meta a { color: inherit; }
+.snypd-work-meta .snypd-twin-link { text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.snypd-work-meta a:hover { color: var(--color-text); }
+@media (max-width: 64rem) { .snypd-work-end { grid-template-columns: 1fr; } }
+/* The footer keeps the alternation after a case as it does after the front page. */
+body:has(.snypd-work-close[data-tone="dark"]) > footer  { color-scheme: light; }
+body:has(.snypd-work-close[data-tone="light"]) > footer { color-scheme: dark; }
+/* The archive (layouts/work-index.tsx): a lede under the title, at the cards' edge. */
+.snypd-lede { font-size: var(--size-h3); line-height: 1.35; color: var(--color-muted); max-width: 34rem; text-wrap: pretty; }
+
+/* ── The cards (parts/entries.tsx): a grid of hairline cards, the cover on each, the picture scaling
+   under the pointer — the reference's case cards, with a static cursor where theirs trails a blob. */
+.snypd-entries { list-style: none; padding: 0; margin-top: var(--space-4); display: grid; gap: var(--space-4) var(--space-4); grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+.snypd-home-entries > h2 { margin-top: 0; }
+.snypd-card { margin-top: 0; border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+/* The cursor is a black disc with a white ring, so it is still a disc over a dark cover (docs/18 §2 · 13). */
+.snypd-card > a { display: grid; gap: var(--space-2); color: inherit; text-decoration: none; cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Ccircle cx='22' cy='22' r='20' fill='%23111' stroke='%23fff' stroke-width='1.5'/%3E%3Cpath d='M15 22h14m-5-5 5 5-5 5' stroke='%23fff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 22 22, pointer; }
+.snypd-card-image { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: var(--radius); background: var(--color-surface); transition: scale 400ms cubic-bezier(0.2, 0, 0, 1); }
+.snypd-card > a:hover .snypd-card-image, .snypd-card > a:focus-visible .snypd-card-image { scale: 1.03; }
+.snypd-card-meta { display: flex; gap: var(--space-3); font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); margin-top: var(--space-2); }
+.snypd-card-title { display: block; font: 600 var(--size-h3) / 1.15 var(--font-display); letter-spacing: -0.02em; text-wrap: balance; }
+.snypd-card > a:hover .snypd-card-title { color: var(--color-accent); }
+.snypd-card-text { display: block; color: var(--color-muted); text-wrap: pretty; }
+
+/* ── The wall (docs/17 §3, §4.3): marks in a hairline row, muted until the pointer; as a marquee, one
+   `@keyframes` over the duplicated row `base` already renders, paused under the pointer and stood still
+   for a reader who asked for reduced motion. Tier A throughout. */
+.snypd-logo-wall { margin-block: var(--space-4); }
+.snypd-logo-wall-title { font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); margin-bottom: var(--space-3); }
+.snypd-logo-wall ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+/* Every mark on one baseline: the caption has a row of its own whether or not the mark has one, so a mark
+   with "since 2019" under it does not sit higher than its neighbour (docs/18 §2 · 9). */
+.snypd-logo-wall li { margin: 0; display: grid; grid-template-rows: 2.5rem auto; align-items: start; gap: var(--space-2); justify-items: start; }
+.snypd-logo-wall:has(small) li { grid-template-rows: 2.5rem 1.2em; }
+/* 0.85 at rest: a black mark on a light band still reads (0.7 measured 2.2:1); 1 under the pointer (§2 · 11). */
+.snypd-logo-wall img { display: block; height: 2.5rem; width: auto; max-width: 12rem; object-fit: contain; opacity: 0.85; transition: opacity 200ms ease-out; }
+.snypd-logo-wall li:hover img, .snypd-logo-wall a:focus-visible img { opacity: 1; }
+.snypd-logo-wall small { font-size: var(--size-small); line-height: 1.2; color: var(--color-muted); white-space: nowrap; }
+.snypd-band > .snypd-logo-wall { grid-column: wide; }
+.snypd-marquee { display: flex; overflow: hidden; gap: var(--space-5); mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
+.snypd-marquee ul { flex: none; flex-wrap: nowrap; border-top: 0; padding-top: 0; animation: snypd-marquee 28s linear infinite; }
+.snypd-marquee:hover ul { animation-play-state: paused; }
+@keyframes snypd-marquee { to { translate: calc(-100% - var(--space-5)) 0; } }
+/* Stood still, as the grid the primitive already has: for a reader who asked for reduced motion (the one
+   control this masthead offers, since Sunny cut the pill), and on anything narrower than 48 rem, where the mask
+   ate half of every mark and "since 2019" read "e 2019" (§2 · 9). The author writes `layout="marquee"`
+   once and gets the right thing at every width. */
+@media (prefers-reduced-motion: reduce) {
+  .snypd-marquee { display: block; mask-image: none; overflow: visible; }
+  .snypd-marquee ul { animation: none; flex-wrap: wrap; border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+  .snypd-marquee ul[aria-hidden] { display: none; }
+}
+@media (max-width: 48rem) {
+  .snypd-marquee { display: block; mask-image: none; overflow: visible; }
+  .snypd-marquee ul { animation: none; flex-wrap: wrap; border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+  .snypd-marquee ul[aria-hidden] { display: none; }
+}
+
+/* ── The lightbox's close button, in the theme's voice (base draws the dialog). */
+.snypd-lightbox-close { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-text); background: var(--color-bg); border-radius: 100px; padding: 0.5em 1em; }
+
+/* Footnotes: the card `base` shows on hover, and the list at the end. */
+.footnotes { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--color-border); font-size: var(--size-small); color: var(--color-muted); }
+.footnotes ol { padding-inline-start: 1.5em; }
+.snypd-fnref a { text-decoration: none; }
+
+/* Cross-document view transitions (docs/14 §4.4): the card's title becomes the post's. */
+@view-transition { navigation: auto; }
+::view-transition-group(.snypd-title) { animation-duration: 280ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+@media print { body > header.snypd-masthead { position: static; background: none; } }
+
+/* A number sits on the baseline the designer meant, once the browser can trim the half-leading. */
+@supports (text-box: trim-both cap alphabetic) { .snypd-stat-value, .snypd-hero h1 { text-box: trim-both cap alphabetic; } }
+
+/* ── The tier-B half (docs/17 §3, §6 item 4): two engines, under `@supports`, never load-bearing. The
+   page above this line is the page a browser without them gets. */
+
+/* Reveals on scroll. U7's finding stands: an opacity reveal starts text at a fraction of its opacity and
+   axe reads it as a contrast failure — so only `translate` moves, opacity never leaves 1, and the range
+   ends before the element reaches the middle of the viewport, so axe's load-time pass sees settled
+   text. Cards, stats, steps and the wall's marks; never prose. */
+@supports (animation-timeline: view()) {
+  .snypd-card, .snypd-stat, .snypd-home .snypd-steps ol > li, .snypd-logo-wall li {
+    animation: snypd-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 35%;
+  }
+  @keyframes snypd-rise { from { translate: 0 1.25rem; } to { translate: 0 0; } }
+  /* The counters: `@property` makes `--n` an integer the timeline can drive — the renderer sets it inline
+     from the stat's own value (stat.tsx) and it inherits into a `::before` that counts from 0 up to it,
+     `counter-reset` reading the number and painting it in the band's own background over the real one,
+     which stays in the DOM as text. Once the count has run, the overlay steps aside (`visibility`,
+     a second keyframe on the same timeline) and the real text is what a reader selects. */
+  @property --n { syntax: "<integer>"; initial-value: 0; inherits: true; }
+  .snypd-stat-value[data-n] { position: relative; }
+  .snypd-stat-value[data-n]::before {
+    content: counter(n) attr(data-unit) / "";
+    counter-reset: n var(--n);
+    position: absolute; inset: 0; background: var(--color-bg); pointer-events: none;
+    animation: snypd-count linear both, snypd-uncover linear both;
+    animation-timeline: view(); animation-range: entry 0% entry 45%, entry 45% entry 46%;
+  }
+  @keyframes snypd-count { from { --n: 0; } }
+  @keyframes snypd-uncover { to { visibility: hidden; } }
+}
+/* A reader who asked for reduced motion: no rise, no count — the numbers as written. */
+@media (prefers-reduced-motion: reduce) {
+  .snypd-card, .snypd-stat, .snypd-home .snypd-steps ol > li, .snypd-logo-wall li, .snypd-stat-value[data-n]::before { animation: none; }
+  .snypd-stat-value[data-n]::before { content: none; }
+}
+/* The masthead once it is stuck (one engine): opaque, in its own colour, so its links measure against one
+   background whatever band is passing under it (docs/18 §2 · 3); and the brand steps down a size, the
+   height under the pointer staying where it was. */
+@supports (container-type: scroll-state) {
+  body > header.snypd-masthead { container-type: scroll-state; }
+  /* A container cannot style itself from its own query, so the opaque bar is its `::after`, faded in. */
+  body > header.snypd-masthead { isolation: isolate; }
+  body > header.snypd-masthead::after { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--color-bg); opacity: 0; transition: opacity 150ms ease-out; pointer-events: none; }
+  @container scroll-state(stuck: top) {
+    .snypd-brand { font-size: 1rem; }
+    body > header.snypd-masthead::after { opacity: 1; }
+  }
+}

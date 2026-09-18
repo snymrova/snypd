@@ -197,6 +197,17 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e)).spl
 /** Note one hook run, when anyone is recording. One `if` on a build that is not. */
 const noteRun = (hooks: Hooks, run: HookRun) => { hooks.record?.push(run); };
 /**
+ * What a transform did, said cheaply (R4, `content.explain`): whether the tree changed, and how many links
+ * it gained — the one edit a transform most often makes (`autolink`), counted on the serialised trees the
+ * record already paid for rather than by walking either. Only while a record is being kept.
+ */
+const transformNote = (before: string, after: string, how: string): { changed: boolean; note: string } => {
+  if (after === before) return { changed: false, note: "left the tree as it was" };
+  const links = (s: string) => (s.match(/"type":"link"/g) ?? []).length;
+  const added = links(after) - links(before);
+  return { changed: true, note: added > 0 ? `${how} — ${added} link${added === 1 ? "" : "s"} added` : how };
+};
+/**
  * One line per distinct failure. A filter runs wherever its value is read — a title is read by the page,
  * every list that shows it and the surface — so the same broken filter would otherwise say the same thing
  * thirty times a build. It also runs at plan time, so a build that renders nothing still reports a
@@ -278,11 +289,11 @@ export function applyTransforms(hooks: Hooks, root: Root, ctx: Omit<TransformCtx
       const before = hooks.record ? JSON.stringify(tree) : "";
       const next = c.fn(work, { ...ctx, options: c.options, plugin: c.plugin });
       if (next === undefined || next === null) {
-        if (hooks.record) noteRun(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, changed: JSON.stringify(work) !== before, note: "changed the tree in place" });
+        if (hooks.record) noteRun(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, ...transformNote(before, JSON.stringify(work), "changed the tree in place") });
         tree = work; continue;
       }
       if (!isRoot(next)) { report(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, message: `returned ${Array.isArray(next) ? "an array" : `a ${typeof next}`} where transform returns the root (or nothing, having changed it in place); tree left as it was` }); continue; }
-      if (hooks.record) noteRun(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, changed: JSON.stringify(next) !== before, note: "returned a tree" });
+      if (hooks.record) noteRun(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, ...transformNote(before, JSON.stringify(next), "returned a tree") });
       tree = next;
     } catch (e) {
       report(hooks, { plugin: c.plugin, hook: "stages.transform", route: ctx.route, message: message(e) });

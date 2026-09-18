@@ -1,0 +1,74 @@
+# Ferrule — a specimen site for the `studio` theme (S29). The studio, its clients and its numbers are
+# fictional; the photographs and clips are CC0 and CC BY files from Wikimedia Commons, credited on
+# /studio/credits/ and in content/media/credits.json. `scripts/media.py` fetched and converted them.
+snypd: 1
+
+site:
+  name: Ferrule
+  url: https://ferrule.snypd.rocks
+  description: Ferrule is a product design and engineering studio in Porto. We design the thing, and the thing that makes it.
+  icon: /media/icon.svg
+  # The six cases were posts until R2 (docs/20); every old URL still lands. `site › set_redirect` writes these.
+  redirects:
+    /posts/kiln-to-table: /work/kiln-to-table
+    /posts/stem: /work/stem
+    /posts/sela: /work/sela
+    /posts/mares: /work/mares
+    /posts/bloco: /work/bloco
+    /posts/tarn-and-vale: /work/tarn-and-vale
+    /about: /studio
+    /credits: /studio/credits
+
+theme:
+  use: studio
+  settings:
+    bands: dark-first
+    dateFormat: long
+    caseCtaTitle: Have something to make?
+    caseCtaHref: /studio/
+    footerNote: "Ferrule is a fictional studio — a specimen for the snypd studio theme. Photographs CC0 and CC BY via Wikimedia Commons, [credited here](/studio/credits/)."
+    offices:
+      - { label: "Porto, Portugal", url: "https://www.openstreetmap.org/search?query=Porto%2C%20Portugal" }
+    social:
+      - { label: Instagram, url: https://instagram.com/ferrule.studio }
+      - { label: Are.na, url: https://are.na/ferrule }
+      - { label: Mail, url: "mailto:hello@ferrule.example" }
+
+# The registry (docs/20 §2.1). A case is a `work`: a post with a client, filed under services and an
+# industry, drawn by the studio's `work` layout — and drafted by an agent, published by a person.
+# The notes stay `post`: the journal, on the reading page, tagged.
+types:
+  work:
+    extends: post
+    dir: content/work
+    urlPattern: /work/{slug}
+    layout: work
+    taxonomies: [service, industry]
+    mcp: { read: true, write: draft }
+    fields:
+      client:   { type: string, required: true, description: "Who it was for. Shown in the facts strip." }
+      year:     { type: string, description: "The year on the facts strip, when the date is not the story." }
+      service:  { type: list, of: { type: ref, to: service }, description: "What the studio did — a parent (product, space, identity) and its children." }
+      industry: { type: ref, to: industry, description: "The client's line of business." }
+  author:
+    layout: author
+
+taxonomies:
+  service:
+    hierarchical: true
+    attaches: [work]
+    urlPattern: /service/{term}
+    fields:
+      title: { type: string, required: true }
+      description: { type: text }
+      parent: { type: ref, to: service }
+  industry:
+    hierarchical: false
+    attaches: [work]
+    urlPattern: /industry/{term}
+    fields:
+      title: { type: string, required: true }
+      description: { type: text }
+
+plugins:
+  - autolink

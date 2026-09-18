@@ -1,0 +1,13 @@
+node_modules/
+renders/
+snapshots/
+.hyperframes/
+.media/
+assets/audio/takes/
+assets/captures/
+*.log
+.venv/
+# raw stems: cut-1 per-line VO, the unmastered mix, the uncut bed — regenerate with scripts/audio.py + scripts/mix.py
+assets/audio/vo-*.wav
+assets/audio/mix-pre.wav
+assets/audio/bed.wav

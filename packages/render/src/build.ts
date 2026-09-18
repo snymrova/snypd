@@ -11,10 +11,10 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
-import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, RACY_MS, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, builtBranch, DRAFTS_BRANCH, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
+import { formatDiagnostics, loadConfig, MdastCache, settingValues, SiteIndex, sha1, RACY_MS, readFrontmatter, redirects, siteNav, routeLookup, termRoutes, listContent, pluginDirs, buildTree, builtBranch, DRAFTS_BRANCH, typeLineage, typeArchives, type LoadedConfig, type IndexedFile, type Block } from "@snypd/core";
 import type { Root, Node } from "mdast";
 import { toHtml, excerpt, type Sectioned } from "./html";
-import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps, type PageHeading } from "./theme";
+import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type AuthorLink, type TermLink, type PrimitiveProps, type PageHeading, type Archive } from "./theme";
 import { Html } from "./jsx-runtime";
 import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
@@ -65,6 +65,18 @@ export interface BuildResult {
   /** The branch this build was for and who said so, when the build had to find out (S19d); absent when the caller decided. */
   branch?: { name?: string; from: string };
   theme: { name: string; coverage: Theme["coverage"] };
+  /**
+   * Types the theme has no layout for, and the layout each rendered through instead (R1, decision 197):
+   * `types.<t>.layout`, then the layout of each type it extends, then `post`. One line each in `snypd build`.
+   */
+  fallbacks: { type: string; wanted: string; used: string }[];
+  /**
+   * The list pages this build planned (R4: what `site › build` names): `/` when no page holds it, and one
+   * archive per dated type (decision 194), each with how many entries it lists; `terms` is the count of
+   * term pages. Bounded by the types and the terms a site uses, never by its items.
+   */
+  lists: { route: string; title: string; type?: string; entries: number }[];
+  terms: number;
   /** The plugins that decorated this build and what went wrong inside a hook (P2): a line each in `snypd build`, never a failed build. `record` is present only when the caller asked for one (P4, `content.explain`). */
   hooks: { plugins: string[]; diagnostics: HookDiagnostic[]; record?: HookRun[] };
 }
@@ -212,12 +224,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // `title` and `description` are filtered here (P2), on the entry, so a page, the lists that show it,
   // the feed and the JSON all agree on what the item is called — one value, filtered once, read everywhere.
   const entryOf = (f: IndexedFile): Entry => {
-    const e = rawEntry(f);
+    const e = { ...rawEntry(f), terms: termsOf(f) };   // R3: a listed entry carries its terms, so a card can name one
     if (hooks.empty) return e;
     const ctx = fctx(f.route, e);
     return { ...e, title: applyFilter(hooks, "title", e.title, ctx), description: applyFilter(hooks, "description", e.description, ctx) };
   };
-  const listKey = (es: Entry[]) => sha1(es.map((e) => [e.route, e.title, e.date ?? "", e.description ?? ""].join("|")).join("\n"));
+  const listKey = (es: Entry[]) => sha1(es.map((e) => [e.route, e.title, e.date ?? "", e.description ?? "", ...(e.terms ?? []).map((t) => t.title)].join("|")).join("\n"));
   const termFiles = new Map<string, Record<string, unknown>>();
   const termMeta = (taxonomy: string, term: string): TermLink => {
     const k = `${taxonomy}/${term}`;
@@ -238,7 +250,32 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // The front page (S25, docs/16 §2): the page that holds `/` renders with the theme's `home` layout — the
   // page layout's body with the latest posts under it — when the theme has one, and as a plain page when
   // it does not. An explicit `layout:` in the frontmatter still wins, as it does for every other item.
-  const layoutOf = (f: IndexedFile): string | null => { const fm = f.frontmatter.layout; if (typeof fm === "string") return fm; if (f.route === "/" && f.frontmatter.home === true && theme.layouts.home) return "home"; return c.types[f.type]?.layout ?? null; };
+  /**
+   * The layout a type renders through on *this* theme (R1, decision 197): the one it names, or — when
+   * the theme has no file by that name — the layout of the type it extends, then of that one's base,
+   * then `post`. WordPress's `single-work → single → singular`, so a site that declares a `work` still
+   * builds when it switches to a theme that never heard of one. Decided once per type; `fallbacks`
+   * carries what was substituted so the build line can say it, and a type with nothing to fall to
+   * (no `post` layout either) is the same refusal a missing layout always was.
+   */
+  const fallbacks: BuildResult["fallbacks"] = [];
+  const layoutForType = new Map<string, string | null>();
+  const layoutFor = (type: string): string | null => {
+    if (layoutForType.has(type)) return layoutForType.get(type)!;
+    const wanted = c.types[type]?.layout ?? null;
+    let used = wanted;
+    if (wanted && !theme.layouts[wanted]) {
+      const tried = [wanted];
+      for (const t of typeLineage(c.types, type).slice(1)) { const l = c.types[t]?.layout; if (l && !tried.includes(l)) tried.push(l); }
+      if (!tried.includes("post")) tried.push("post");
+      used = tried.find((l) => theme.layouts[l]) ?? null;
+      if (!used) throw new Error(`theme ${theme.name} has no layout "${wanted}" for type ${type}, and none of ${tried.slice(1).map((l) => `"${l}"`).join(", ")} to render it through instead`);
+      fallbacks.push({ type, wanted, used });
+    }
+    layoutForType.set(type, used);
+    return used;
+  };
+  const layoutOf = (f: IndexedFile): string | null => { const fm = f.frontmatter.layout; if (typeof fm === "string") return fm; if (f.route === "/" && f.frontmatter.home === true && theme.layouts.home) return "home"; return layoutFor(f.type); };
   // `page` is whether the author's route is built: a type with no layout emits nothing, and a byline
   // that linked there anyway was the dead link S19b found on a default site (docs/07 §5, finding 1).
   const authorOf = (f: IndexedFile): AuthorLink | undefined => { const a = f.frontmatter.author; if (typeof a !== "string") return undefined; const af = sync.files.find((x) => x.type === "author" && x.slug === a); return af ? { ...entryOf(af), page: layoutOf(af) !== null } : undefined; };
@@ -270,9 +307,32 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const dated = (t: string) => Boolean(c.types[t]?.fields?.date);
   const listed = published.filter((f) => layoutOf(f) && dated(f.type));
   const listEntries = listed.map(entryOf);
-  /** What the front page lists under its body (S25): the newest few, and the `home` layout links the rest at `/posts/`. */
+  /** What the front page lists under its body (S25): the newest few, and the `home` layout links the rest at the archive. */
   const HOME_ENTRIES = 6;
   const webSite = () => ({ "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: `${site.url}/`, description: site.description });
+  /**
+   * The archives (R1, decision 194): one list per dated type at the directory of its url pattern —
+   * `/posts/` for `post`, `/work/` for a `work` — unless a page holds the route; `typeArchives` says when
+   * `/` is the only list a site needs. Each is headed by the site's own word for the type when a menu
+   * links it (the header's first, then any location), else the plural of the type's name: the same word
+   * the studio's front page already put over its entries band (docs/18 §2 · 10), now the page's title
+   * too. A menu edit re-renders it — `nav.hash` is in every key.
+   */
+  const held = new Set(published.filter((f) => layoutOf(f) !== null).map((f) => f.route));
+  const navLabel = (route: string): string | undefined => {
+    for (const loc of Object.keys(nav.nav).sort((a, b) => (a === "header" ? -1 : b === "header" ? 1 : 0))) { const hit = nav.nav[loc]!.find((i) => i.route === route); if (hit) return hit.label; }
+    return undefined;
+  };
+  const archives: (Archive & { entries: Entry[] })[] = typeArchives(c, held.has("/")).filter((a) => !held.has(a.route))
+    .map((a) => ({ ...a, title: navLabel(a.route) ?? titleCase(plural(a.type)), entries: listEntries.filter((e) => e.type === a.type) }));
+  /**
+   * What the front page lists (R1, decision 195): one type — the one whose archive the header menu links
+   * first (*Work* on a studio, *Posts* on a blog), else the first dated type declared. Until R1 it was
+   * the newest six of every dated type, which on every site so far was the same list; a site with a
+   * `work` beside its notes wants its front page to show the work, and its menu already says so.
+   */
+  const headerMenu = nav.nav.header ?? Object.values(nav.nav)[0] ?? [];
+  const homeArchive = headerMenu.map((i) => archives.find((a) => a.route === i.route)).find(Boolean) ?? archives[0];
 
   const plan: Planned[] = [];
   const contentRoutes = new Set<string>();
@@ -294,46 +354,62 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     const byAuthor = layout === "author" ? published.filter((x) => x.frontmatter.author === f.slug && x.type !== "author").map(entryOf) : [];
     // The front page lists the latest posts under its body (S25), so the list is in its key as it is in the index's.
     const home = layout === "home";
-    const listing = home ? listEntries.slice(0, HOME_ENTRIES) : byAuthor;
-    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}`);
+    const listing = home ? (homeArchive?.entries ?? []).slice(0, HOME_ENTRIES) : byAuthor;
+    // Every dated type's newest few, for the front page (G1, decision 200): a band per type is the site's
+    // call, and each list is in the key by its title and its entries, as the one list already was.
+    const lists = home ? archives.map((a) => ({ type: a.type, route: a.route, title: a.title, entries: a.entries.slice(0, HOME_ENTRIES) })) : [];
+    // The item's neighbours in its type's list (R3): what a *next case* card is drawn from, and in the
+    // key, so a case re-renders when the one after it is published — not when any post anywhere is.
+    const siblings = dated(f.type) && !home ? listEntries.filter((e) => e.type === f.type) : [];
+    const at = siblings.findIndex((e) => e.route === f.route);
+    const adjacent = at >= 0 ? { newer: siblings[at - 1], older: siblings[at + 1] } : undefined;
+    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}${home ? lists.map((l) => `:${l.title}:${listKey(l.entries)}`).join("") : ""}${adjacent ? `:${listKey([adjacent.newer, adjacent.older].filter((e): e is Entry => !!e))}` : ""}`);
     contentRoutes.add(f.route);
     const dir = routeDir(f.route);
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
       const source = readFileSync(join(root, f.path), "utf8");
       const entry = entryOf(f);
-      const { body, cover, root: mdast, blocks, headings } = renderBody(source, entry);
+      const { body, cover, root: mdast, blocks, headings, sections } = renderBody(source, entry);
       const derived = blockSchemas(blocks);
       const fc = fctx(f.route, entry);
       const description = entry.description ?? applyFilter(hooks, "excerpt", excerpt(mdast), fc);
       // The front page keeps the `WebSite` schema `/` always had (S25), and its document title is the site's
       // name — the page's own title is its heading. Everything else about it is a page's.
-      const schemas = applyFilter(hooks, "jsonLd", [home ? webSite() : pageSchema(s, entry.description ?? derived.description ?? description, ctx), ...derived.schemas], fc);
-      const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings };
+      const schemas = applyFilter(hooks, "jsonLd", [home ? webSite() : pageSchema(s, entry.description ?? derived.description ?? description, ctx, typeLineage(c.types, f.type)), ...derived.schemas], fc);
+      const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings, sections };
       const entries = layout === "author" || home ? applyFilter(hooks, "entries", listing, fc) : [];
-      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas) });
+      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}), ...(home ? { lists: lists.map((l) => ({ ...l, entries: applyFilter(hooks, "entries", l.entries, fc) })) } : {}), ...(adjacent ? { adjacent } : {}) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });
   }
   /**
-   * The list (S25): at `/` under the index layout, as it always was — or at `/posts/` when a page holds `/`.
-   * One list, one layout, two addresses; the front page's own entries are the same list (above), so the
-   * `WebSite` schema stays on `/` and the list page is a `CollectionPage` like a term's.
+   * The lists. At `/` under the index layout, every dated type newest first, as it always was — when no
+   * page holds `/`; the `WebSite` schema stays there. And one archive per dated type (R1, decision 194,
+   * `archives` above): a `CollectionPage` like a term's, headed by the site's word for the type, rendered
+   * through `<type>-index` when the theme declares one and `index` otherwise — so a studio draws `/work/`
+   * as cards and `/posts/` as a list without a seventh required file. Keyed on the type's own entries, so
+   * a note published does not re-render the work.
    */
+  const listSummary: BuildResult["lists"] = [];
+  let termPages = 0;
   if (theme.layouts.index) {
-    const route = contentRoutes.has("/") ? "/posts" : "/";
-    if (!contentRoutes.has(route)) {
-      const fc = fctx(route);
-      const dir = routeDir(route);
-      lastmod.set(route, listEntries[0]?.updated ?? listEntries[0]?.date);
-      const title = route === "/" ? site.name : "Posts";
-      const schema = route === "/" ? webSite() : { "@context": "https://schema.org", "@type": "CollectionPage", name: title, url: url(route), description: site.description };
-      plan.push({ route, key: sha1(`${base}:index:${route}:${listKey(listEntries)}`), kind: "route", outputs: [join(dir, "index.html")], render: () => ({ [join(dir, "index.html")]: theme.layouts.index!({ ctx, kind: "index", route, title: applyFilter(hooks, "title", title, fc), description: applyFilter(hooks, "description", site.description, fc), entries: applyFilter(hooks, "entries", listEntries, fc), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fc)) }).html }) });
+    const lists: { route: string; title: string; entries: Entry[]; schema: Record<string, unknown>; layout: string; archive?: Archive }[] = [];
+    if (!contentRoutes.has("/")) lists.push({ route: "/", title: site.name, entries: listEntries, schema: webSite(), layout: "index" });
+    for (const a of archives) lists.push({ route: a.route, title: a.title, entries: a.entries, schema: { "@context": "https://schema.org", "@type": "CollectionPage", name: a.title, url: url(a.route), description: site.description }, layout: theme.layouts[`${a.type}-index`] ? `${a.type}-index` : "index", archive: { type: a.type, route: a.route, title: a.title } });
+    for (const l of lists) {
+      if (contentRoutes.has(l.route)) continue;
+      listSummary.push({ route: l.route, title: l.title, ...(l.archive ? { type: l.archive.type } : {}), entries: l.entries.length });
+      const fc = fctx(l.route);
+      const dir = routeDir(l.route);
+      lastmod.set(l.route, l.entries[0]?.updated ?? l.entries[0]?.date);
+      plan.push({ route: l.route, key: sha1(`${base}:index:${l.route}:${l.layout}:${l.title}:${listKey(l.entries)}`), kind: "route", outputs: [join(dir, "index.html")], render: () => ({ [join(dir, "index.html")]: theme.layouts[l.layout]!({ ctx, kind: l.layout, route: l.route, title: applyFilter(hooks, "title", l.title, fc), description: applyFilter(hooks, "description", site.description, fc), entries: applyFilter(hooks, "entries", l.entries, fc), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [l.schema], fc)), ...(l.archive ? { archive: l.archive } : {}) }).html }) });
     }
   }
   // terms: one page per used term of every taxonomy
   if (theme.layouts.term) {
     for (const { link, files } of byTerm.values()) {
       if (contentRoutes.has(link.route)) continue;
+      termPages++;
       const entries = files.map(entryOf);
       lastmod.set(link.route, entries[0]?.updated ?? entries[0]?.date);
       const dir = routeDir(link.route);
@@ -344,7 +420,8 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // site artefacts (emit.ts): keyed on everything they show, so an unchanged list rewrites nothing
   const siteSurface: SurfaceSite = {
     name: site.name, url: site.url, description: site.description, locale: c.site.defaultLocale,
-    types: Object.keys(c.types).filter((t) => c.types[t]!.layout).map((t) => ({ name: t, label: titleCase(plural(t)), entries: surface.filter((e) => e.type === t) })),
+    // A type's label is its archive's title where it has one (R1): `llms.txt` says *Work*, as the menu and the page do.
+    types: Object.keys(c.types).filter((t) => c.types[t]!.layout).map((t) => ({ name: t, label: archives.find((a) => a.type === t)?.title ?? titleCase(plural(t)), entries: surface.filter((e) => e.type === t) })),
     taxonomies: Object.keys(c.taxonomies).map((t) => ({ name: t, label: titleCase(plural(t)), terms: [...byTerm.values()].filter((x) => x.link.taxonomy === t).map((x) => ({ term: x.link.term, title: x.link.title, route: x.link.route, url: url(x.link.route), count: x.files.length })).sort((a, b) => a.term.localeCompare(b.term)) })),
     routes: plan.filter((p) => p.kind === "route").map((p) => ({ route: p.route, url: url(p.route), lastmod: lastmod.get(p.route) })),
   };
@@ -479,7 +556,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const t5 = performance.now();
   const routes = plan.filter((p) => p.kind === "route").length;
   const media = plan.filter((p) => p.kind === "media").length;
-  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, profile, drafts, preview, ...(branch ? { branch } : {}), theme: { name: theme.name, coverage: theme.coverage }, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
+  return { routes, artefacts: plan.length - routes - media, media, emitted, rendered, cached, removed, recovered, ms: t5 - t0, phases: { config: t1 - t0, theme: t2 - t1, sync: t3 - t2, plan: t4 - t3, render: t5 - t4 }, profile, drafts, preview, ...(branch ? { branch } : {}), theme: { name: theme.name, coverage: theme.coverage }, fallbacks, lists: listSummary, terms: termPages, hooks: { plugins: hooks.plugins, diagnostics: [...hooks.diagnostics], ...(hooks.record ? { record: [...hooks.record] } : {}) } };
 }
 
 /**
@@ -491,7 +568,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
  * dispatch would have been a second answer to "what does this theme do with a `stat-row`", which is the
  * one question the empty state exists to answer honestly.
  */
-export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: Pick<MdastCache, "get">; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[]; headings: PageHeading[] } {
+export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page: Entry; cache: Pick<MdastCache, "get">; /** the plugins' `transform` stages over a copy of the cached tree (P3); the typed blocks are rebuilt from what comes back */ transform?: (root: Root, blocks: Block[]) => Root }): { body: Html; cover?: Html; root: Root; blocks: Block[]; headings: PageHeading[]; sections: Sectioned } {
   let { doc, tree } = o.cache.get(source);
   if (o.transform) {
     const next = o.transform(doc.tree, tree.all);
@@ -501,10 +578,10 @@ export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page:
   // A block rendered on its own (a `stat` inside its row, the lifted cover) goes through the same door as
   // one met in the document: a root holding the block, so `onBlock` gets the same `body` and `sections`.
   const renderBlock = (b: Block): Html => toHtml({ type: "root", children: [b.node as Node] } as Root, { blocks: blocks.has(b.node) ? blocks : new Map([...blocks, [b.node, b]]), onBlock, headingIds: false });
-  const onBlock = (b: Block, body: () => Html, sections: () => Sectioned): Html => {
+  const onBlock = (b: Block, body: () => Html, sections: () => Sectioned, depth: number): Html => {
     const comp = o.theme.primitives[b.name];
     if (!comp) return new Html("");
-    const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx: o.ctx, page: o.page, sections };
+    const p: PrimitiveProps = { name: b.name, props: b.props, body: body(), data: b.data, children: b.children, block: b, render: renderBlock, ctx: o.ctx, page: o.page, sections, depth };
     return comp(p);
   };
   // A leading `cover` is the page's header, not its first paragraph (spec: "at most one, first in the
@@ -524,5 +601,8 @@ export function renderDoc(source: string, o: { theme: Theme; ctx: SiteCtx; page:
   // a toc whose anchors came from anywhere else is a toc whose links can be wrong, and the ids are
   // de-duplicated as they are issued, so only the renderer knows that the second "Notes" is `notes-1`.
   const headings: PageHeading[] = [];
-  return { body: toHtml(root, { blocks, onBlock, headings }), cover, root: doc.tree, blocks: tree.all, headings };
+  // The same body, split at its `##` headings (S29): what a layout that bands its sections reads.
+  let sections: Sectioned = { lead: new Html(""), sections: [] };
+  const body = toHtml(root, { blocks, onBlock, headings, sectioned: (s) => { sections = s; } });
+  return { body, cover, root: doc.tree, blocks: tree.all, headings, sections };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { lintMarkdown, parseMarkdown, buildTree, countNodes, MdastCache, lintSite, hashSource, type Diagnostic } from "./index";
-import { mkdirSync, rmSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { lintMarkdown, parseMarkdown, buildTree, countNodes, MdastCache, lintSite, hashSource, mediaRefs, type Diagnostic } from "./index";
+import { mkdirSync, rmSync, writeFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 
 const FM = `---\ntitle: T\ndate: 2026-01-02\nstatus: draft\n---\n\n`;
 const POST_TYPE = { fields: { title: { type: "string", required: true }, date: { type: "date", required: true }, updated: { type: "date" }, status: { type: "ref", to: "status" }, slug: { type: "string", pattern: "^[a-z0-9-]+$" }, tags: { type: "list", of: { type: "ref", to: "tag" } }, cover: { type: "object", fields: { image: { type: "image" }, alt: { type: "string" } } } } } as const;
@@ -39,6 +39,9 @@ describe("lint rules", () => {
     const st = find(`---\ntitle: T\ndate: 2026-01-01\nstatus: live\n---\n`, "frontmatter")!;
     expect(st.message).toBe("Unknown status `live`"); expect(st.line).toBe(4);
     expect(find(`---\ntitle: [\n---\n`, "frontmatter")!.message).toContain("not valid YAML");
+    // The line is the file's, not the YAML's, and a colon in an unquoted value gets the hint that names it (docs/19 §2 · 5).
+    const colon = find(`---\ntitle: T\ndate: 2026-01-01\ndescription: Objects that get made: tooling, materials\n---\n`, "frontmatter")!;
+    expect(colon.line).toBe(4); expect(colon.hint).toBe("Quote the value on line 4 — a colon inside an unquoted value starts a nested mapping");
     expect(lintMarkdown(`${FM}x`).skipped).toEqual(["frontmatter", "dead-internal-link"]);
   });
   test("1 unknown block, never silent", () => {
@@ -223,6 +226,51 @@ describe("lint rules", () => {
     // code is not raw HTML: a post *about* script must be writable
     expect(find(`${FM}\`\`\`html\n<script>alert(1)</script>\n\`\`\`\n\nUse \`<button onclick="x()">\` sparingly.\n`, "inline-script")).toBeUndefined();
   });
+  // ── S29 / docs/17 §4.2 ────────────────────────────────────────────────────────────────────────
+  test("15 autoplay: one clip per page may play by itself; the second is an error naming the first; no poster and not-a-clip are warnings", () => {
+    const one = `::figure{src="/media/a.mp4" alt="a" poster="/media/a.png" autoplay=true}\n`;
+    expect(find(`${FM}${one}`, "autoplay")).toBeUndefined();
+    // A cover's `media` is the other place a clip can play by itself, and the same one-per-page counts it.
+    const d = find(`${FM}::cover{media="/media/reel.mp4" poster="/media/reel.png" autoplay=true}\n\n${one}`, "autoplay")!;
+    expect(d.severity).toBe("error");
+    expect(d.message).toContain("the `cover` on line 7");
+    expect(d.line).toBe(9); expect(d.block).toBe("figure");
+    expect(d.hint).toContain("One autoplay per page");
+    // Without a poster there is nothing to show a reader who asked for reduced motion.
+    const p = find(`${FM}::figure{src="/media/a.mp4" alt="a" autoplay=true}\n`, "autoplay")!;
+    expect(p.severity).toBe("warning"); expect(p.message).toContain("no poster");
+    // On a picture, autoplay is a word that does nothing.
+    const i = find(`${FM}::figure{src="/media/a.png" alt="a" autoplay=true}\n`, "autoplay")!;
+    expect(i.severity).toBe("warning"); expect(i.message).toContain("names a picture");
+    // A clip with the platform's play button is what every other clip is; nothing to say about it.
+    expect(find(`${FM}::figure{src="/media/a.mp4" alt="a" poster="/media/a.png"}\n\n${one}`, "autoplay")).toBeUndefined();
+  });
+
+  test("17 hero-too-tall: on a home page, the second block before the first `##` is named and told where to go", () => {
+    const home = (body: string) => `---\ntitle: T\nstatus: draft\nhome: true\n---\n\n${body}`;
+    const cover = `::cover{subtitle="S"}\n\n`, tldr = `:::tldr\nOne line.\n:::\n\n`;
+    const stats = `:::stat-row\n::stat{value="1" label="l" source="https://x.y"}\n:::\n\n`;
+    // A cover and one block is the shape; the cover does not count.
+    expect(find(home(`${cover}${tldr}## More\n\nText.\n`), "hero-too-tall")).toBeUndefined();
+    const d = find(home(`${cover}${tldr}${stats}## More\n\nText.\n`), "hero-too-tall")!;
+    expect(d.severity).toBe("warning");
+    expect(d.message).toContain("`stat-row` is the 2nd block before the first `##`");
+    expect(d.hint).toContain("Move `stat-row` under a `##` heading");
+    expect(d.block).toBe("stat-row");
+    // The same page that is not the front page: a post may open with two blocks, and this rule says nothing.
+    expect(find(`${FM}${cover}${tldr}${stats}## More\n\nText.\n`, "hero-too-tall")).toBeUndefined();
+    // Blocks after the first `##` are sections, not hero.
+    expect(find(home(`${cover}${tldr}## Numbers\n\n${stats}`), "hero-too-tall")).toBeUndefined();
+  });
+
+  test("18 duplicate-title: a block title that repeats or restates its `##` heading is a second headline", () => {
+    const steps = (title: string) => `:::steps{title="${title}"}\n1. One\n2. Two\n:::\n`;
+    expect(find(`${FM}## How we work\n\n${steps("How we work")}`, "duplicate-title")!.message).toContain("repeats the heading “How we work”");
+    expect(find(`${FM}## Start a project\n\n${steps("Start your project")}`, "duplicate-title")).toBeDefined();
+    expect(find(`${FM}## How we work\n\n${steps("Four stages, one room")}`, "duplicate-title")).toBeUndefined();
+    // Before any heading there is nothing to repeat.
+    expect(find(`${FM}${steps("How we work")}`, "duplicate-title")).toBeUndefined();
+  });
 
   test("diagnostics are sorted by line, carry file and fix hints", () => {
     const r = lintMarkdown(`${FM}::hero\n\n::stat{value="1" label="l"}\n`, { file: "p.md", type: POST_TYPE as never, routes: new Set() });
@@ -273,6 +321,73 @@ describe("lintSite", () => {
     expect(bad.diagnostics.map((d) => `${d.line} ${d.rule}`)).toEqual(["7 dead-internal-link", "9 unsourced-evidence"]);
     expect(s.errors).toBe(2);
     rmSync("corpora/_test/site", { recursive: true, force: true });
+  });
+  test("19 frontmatter-unparsed: a term file or an author file whose YAML fails is an error naming the line, not a silent slug", () => {
+    const root = "corpora/_test/side";
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/taxonomies/category", "content/taxonomies/tag", "content/authors"]) mkdirSync(`${root}/${d}`, { recursive: true });
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\n");
+    writeFileSync(`${root}/content/posts/a.md`, `---\ntitle: A\ndate: 2026-01-01\nstatus: published\ncategory: product\ntags: [tooling]\n---\n\nWords.\n`);
+    writeFileSync(`${root}/content/posts/b.md`, `---\ntitle: B\ndate: 2026-01-02\nstatus: published\ncategory: product\ntags: [tooling]\n---\n\nWords.\n`);
+    // The finding itself: a title the term has, and a description with an unquoted colon that costs it the title.
+    writeFileSync(`${root}/content/taxonomies/category/product.md`, "---\ntitle: Product\nstatus: published\ndescription: Objects that get made: tooling, materials, the first thousand units.\n---\n\nObjects.\n");
+    writeFileSync(`${root}/content/taxonomies/tag/tooling.md`, "---\ntitle: Tooling\n---\n");
+    writeFileSync(`${root}/content/authors/ana.md`, "---\nname: Ana\nbio: [\n---\n");
+    const s = lintSite(root);
+    const bad = s.files.find((f) => f.file === "content/taxonomies/category/product.md")!;
+    expect(bad.diagnostics.map((d) => [d.rule, d.n, d.severity, d.line])).toEqual([["frontmatter-unparsed", 19, "error", 4]]);
+    expect(bad.diagnostics[0]!.hint).toBe("Quote the value on line 4 — a colon inside an unquoted value starts a nested mapping");
+    expect(bad.diagnostics[0]!.message).toContain("falls back to its slug");
+    // `author` is a default type, so its files were always walked: rule 0 has that one, once, with the same line-naming hint.
+    const ana = s.files.filter((f) => f.file === "content/authors/ana.md");
+    expect(ana.length).toBe(1);
+    expect(ana[0]!.diagnostics.map((d) => [d.rule, d.n])).toEqual([["frontmatter", 0]]);
+    expect(ana[0]!.diagnostics[0]!.hint).toMatch(/^Fix the YAML on line \d+/);
+    // The clean term is in the count and clean.
+    expect(s.files.find((f) => f.file === "content/taxonomies/tag/tooling.md")!.diagnostics).toEqual([]);
+    expect(s.errors).toBe(2);
+    // Quoted, the term is what it says, and rule 19 has nothing to say.
+    writeFileSync(`${root}/content/taxonomies/category/product.md`, "---\ntitle: Product\nstatus: published\ndescription: \"Objects that get made: tooling, materials, the first thousand units.\"\n---\n\nObjects.\n");
+    writeFileSync(`${root}/content/authors/ana.md`, "---\nname: Ana\n---\n");
+    expect(lintSite(root).errors).toBe(0);
+    rmSync(root, { recursive: true, force: true });
+  });
+  test("20 media-size: a file over 300 KB warns with its size and who names it; a file nothing names warns unreferenced (S31 · H5)", () => {
+    const root = "corpora/_test/media";
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/taxonomies/tag", "content/authors", "content/media/stills"]) mkdirSync(`${root}/${d}`, { recursive: true });
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example, favicon: /media/icon.svg }\n");
+    // Named four ways: a figure's src and poster, a frontmatter cover, a markdown image, a term's picture — and the favicon above.
+    writeFileSync(`${root}/content/posts/a.md`, `---\ntitle: A\ndate: 2026-01-01\nstatus: published\ncover: { image: /media/stills/cover.png, alt: c }\ntags: [t]\n---\n\n::figure{src="/media/clip.mp4" poster="/media/stills/poster.png?v=2" alt="a" caption="c"}\n\n![big](/media/big.png)\n`);
+    writeFileSync(`${root}/content/posts/b.md`, `---\ntitle: B\ndate: 2026-01-02\nstatus: published\ntags: [t]\n---\n\n![big again](/media/big.png)\n`);
+    writeFileSync(`${root}/content/taxonomies/tag/t.md`, "---\ntitle: T\nimage: /media/stills/term.png\n---\n");
+    const png = (kb: number) => Buffer.alloc(kb * 1024, 1);
+    writeFileSync(`${root}/content/media/icon.svg`, "<svg/>");
+    writeFileSync(`${root}/content/media/big.png`, png(301));
+    writeFileSync(`${root}/content/media/clip.mp4`, png(900));
+    writeFileSync(`${root}/content/media/orphan.png`, png(12));
+    writeFileSync(`${root}/content/media/.gitkeep`, "");
+    writeFileSync(`${root}/content/media/stills/cover.png`, png(10));
+    writeFileSync(`${root}/content/media/stills/poster.png`, png(10));
+    writeFileSync(`${root}/content/media/stills/term.png`, png(10));
+    const s = lintSite(root);
+    const media = s.files.filter((f) => f.file?.startsWith("content/media/"));
+    expect(media.map((f) => f.file)).toEqual(["content/media/big.png", "content/media/clip.mp4", "content/media/orphan.png"]);
+    expect(media.every((f) => f.diagnostics.length === 1 && f.diagnostics[0]!.rule === "media-size" && f.diagnostics[0]!.n === 20 && f.diagnostics[0]!.severity === "warning")).toBe(true);
+    expect(media[0]!.diagnostics[0]!.message).toBe("`big.png` is 301 KB, named by content/posts/a.md, content/posts/b.md");
+    expect(media[0]!.diagnostics[0]!.hint).toMatch(/^Resize or re-encode it/);
+    expect(media[1]!.diagnostics[0]!.message).toBe("`clip.mp4` is 900 KB, named by content/posts/a.md");
+    expect(media[1]!.diagnostics[0]!.hint).toMatch(/object storage.*docs\/23/);
+    expect(media[2]!.diagnostics[0]!.message).toBe("`orphan.png` (12 KB) is named by no page, term, author or setting");
+    expect(media[2]!.diagnostics[0]!.hint).toMatch(/^The build copies every file here/);
+    // Report-only: warnings, and no errors from this rule.
+    expect(s.errors).toBe(0); expect(s.warnings).toBeGreaterThanOrEqual(3);
+    // The walk itself, once: every `/media/…` value the document wrote, each url once, with where it was written.
+    const md = readFileSync(`${root}/content/posts/a.md`, "utf8");
+    const refs = mediaRefs(parseMarkdown(md), buildTree(parseMarkdown(md), md));
+    expect(refs.map((r) => [r.path, r.via])).toEqual([["content/media/stills/cover.png", "cover.image"], ["content/media/clip.mp4", "figure.src"], ["content/media/stills/poster.png", "figure.poster"], ["content/media/big.png", "image"]]);
+    expect(refs[2]!.url).toBe("/media/stills/poster.png");
+    rmSync(root, { recursive: true, force: true });
   });
 });
 

@@ -205,6 +205,9 @@ function resolveExtends(types: Record<string, unknown>, prov: Provenance, diags:
     for (const [k, v] of Object.entries(t)) out[k] = isObj(v) && isObj(b[k]) ? { ...(b[k] as object), ...v } : v;
     // one level of object merge (fields, mcp) is what extends means; nested field specs replace whole
     if (isObj(t.fields) && isObj(b.fields)) for (const k of Object.keys(b.fields)) if (!(k in (t.fields as object))) inherit(["types", name, "fields", k], ["types", base, "fields", k]);
+    // The base's name stays on the resolved type (R1, decision 196): a build that follows `extends` —
+    // the schema a `work` emits, the layout it falls back to — reads it here, not from the provenance.
+    out.extends = base;
     done.set(name, out); return out;
   };
   for (const n of Object.keys(types)) types[n] = visit(n, []);
@@ -467,7 +470,16 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
     const v = getPath(raw, parsePath(key));
     if (v === undefined && !prov.has(key)) return `\`${key}\` is not set`;
     const s = prov.get(key) ?? nearest(prov, key);
-    return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}`;
+    // A type's own key over one its base has (R4, docs/20 §2.4 · 2): `types.work.layout` is the site's
+    // line *and* the value it hid, the way a site's line over the spec's already says what it overrides.
+    // The resolved type keeps `extends` (decision 196), which is how the base is known here.
+    const path = parsePath(key);
+    const base = path[0] === "types" && path.length > 2 ? (raw.types as Record<string, { extends?: string } | undefined>)[String(path[1])]?.extends : undefined;
+    const basePath: Path | undefined = base ? ["types", base, ...path.slice(2)] : undefined;
+    const bv = basePath ? getPath(raw, basePath) : undefined;
+    const over = basePath && bv !== undefined && s?.layer !== "inherited" && JSON.stringify(bv) !== JSON.stringify(v)
+      ? `, overrides inherited ${JSON.stringify(bv)} (${pathKey(basePath)}, ${describeSource(prov.get(pathKey(basePath)))})` : "";
+    return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}${over}`;
   };
   return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, settingDecls, variations, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
 }
@@ -567,6 +579,39 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
     ...(diags.length ? ["# Diagnostics:", ...diags.map((x) => `#   ${x.level}: ${x.path ? `${x.path}: ` : ""}${x.message}${x.where ? ` (${x.where})` : ""}`)] : []),
   ];
   return `${head.join("\n")}\n${String(doc)}`;
+}
+
+/**
+ * A type and the types it extends, nearest first: `work` → `["work", "post"]`. Only a base the resolver
+ * accepted is on the resolved type, so the walk cannot cycle; the bound is belt and braces.
+ */
+export function typeLineage(types: Record<string, { extends?: string }>, name: string): string[] {
+  const out = [name];
+  for (let t = types[name]?.extends; t && !out.includes(t) && out.length < 10; t = types[t]?.extends) out.push(t);
+  return out;
+}
+
+/** The directory of a url pattern: `/work/{slug}` → `/work`, `/posts/{year}/{slug}` → `/posts`, `/{path}` → `/`. */
+export const patternDir = (pattern: string) => normalizeRoute(pattern.replace(/\{[\s\S]*$/, ""));
+
+/**
+ * The archive each dated type has (R1, decision 194): every type with a layout and a `date` field lists
+ * at the directory of its url pattern, rendered through the theme's `index` layout — `/posts/` for `post`,
+ * `/work/` for a `work` — unless a page holds that route. When nothing holds `/` and there is one such
+ * type, its archive *is* `/`, the list a blog always had, and this returns none: a default site keeps
+ * every route it had before types could be more than one. `nav.ts` resolves a `ref` against these and
+ * `build.ts` plans them, from the one rule.
+ */
+export function typeArchives(config: Pick<Config, "types">, homeHeld: boolean): { type: string; route: string }[] {
+  const seen = new Set<string>();
+  const all: { type: string; route: string }[] = [];
+  for (const [type, t] of Object.entries(config.types)) {
+    if (!t.layout || !t.fields.date) continue;
+    const route = patternDir(t.urlPattern);
+    if (seen.has(route)) continue;   // two dated types under one directory: the first declared lists there
+    seen.add(route); all.push({ type, route });
+  }
+  return !homeHeld && all.length <= 1 ? [] : all;
 }
 
 export function formatDiagnostics(d: Diagnostic[]): string {

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>snypd home mockup B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f9f9f9;--fg:#121214;--mute:#6f6f73;--line:#e2e2e4;--dark:#121214;--display:'Inter Tight',system-ui,sans-serif;--body:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
+*{box-sizing:border-box;margin:0}
+html,body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1166px;margin-inline:auto;padding-inline:24px}
+.btn{display:inline-block;background:var(--dark);color:#fff;padding:14px 20px;border-radius:8px;font:500 17px/1.2 var(--body)}
+.btn.light{background:transparent;color:var(--fg);border:1px solid #cfcfd2}
+header{border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
+.brand{font:500 22px/1 var(--display);letter-spacing:-.02em}
+nav{display:flex;gap:28px;align-items:center}nav a{font-size:14px}nav .btn{padding:8px 14px;font-size:14px;border-radius:7px;background:transparent;color:var(--fg);border:1px solid #cfcfd2}
+.hero{padding-block:96px 120px}
+h1{font:500 clamp(44px,6.6vw,96px)/1.02 var(--display);letter-spacing:-.035em;max-width:14ch}
+.hero .btn{margin-top:64px}
+.lead{display:grid;grid-template-columns:1fr 1fr;gap:40px;padding-bottom:120px}
+.lead div:first-child{}
+.lead p{max-width:36em}
+.lead p+p{margin-top:16px}
+.shot{margin-top:40px;border-radius:16px;overflow:hidden;background:#0c0c0c;aspect-ratio:16/10;position:relative}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shot pre{position:absolute;left:20px;bottom:20px;color:#fcfcfc;font:400 14px/1.6 var(--mono);background:rgba(12,12,12,.7);padding:12px 16px;border-radius:8px}
+section{border-top:1px solid var(--line);padding:96px 0}
+.sec{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+h2{font:500 clamp(28px,3vw,40px)/1.1 var(--display);letter-spacing:-.025em;max-width:14ch}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.num b{display:block;font:500 clamp(36px,4.4vw,64px)/1 var(--display);letter-spacing:-.035em}
+.num span{display:block;margin-top:12px;font-size:15px;color:var(--mute);max-width:22ch}
+.list{list-style:none;padding:0}
+.list li{display:grid;grid-template-columns:1fr auto;gap:24px;padding:18px 0;border-top:1px solid var(--line)}
+.list li:last-child{border-bottom:1px solid var(--line)}
+.list b{font-weight:500;display:block}
+.list small{color:var(--mute);font-size:14px}
+.list time{color:var(--mute);font-size:14px;white-space:nowrap}
+.more{display:inline-block;margin-top:24px;font-size:15px;border-bottom:1px solid var(--fg)}
+.steps{counter-reset:s}
+.steps li{display:grid;grid-template-columns:40px 1fr;gap:16px;padding:20px 0;border-top:1px solid var(--line);counter-increment:s}
+.steps li::before{content:counter(s,decimal-leading-zero);font:500 14px/1.6 var(--mono);color:var(--mute)}
+.steps li:last-child{border-bottom:1px solid var(--line)}
+.steps b{font-weight:500}.steps span{color:var(--mute)}
+.steps code{font:400 15px var(--mono);background:#ededef;padding:2px 6px;border-radius:5px}
+.close{background:var(--dark);color:#f9f9f9;padding:96px 0 120px;margin-top:0}
+.close h2{color:#fff;max-width:12ch}
+.close p{color:#a5a5a5;max-width:34em;margin-top:16px}
+.close pre{font:400 16px/1.7 var(--mono);color:#fcfcfc;margin-top:8px}
+.close .btn{background:#fff;color:var(--dark);margin-top:32px}
+footer{background:var(--dark);color:#a5a5a5;padding:40px 0;border-top:1px solid #2a2a2e;font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+footer nav{gap:20px}
+@media (max-width:760px){
+  nav a:not(.btn){display:none}
+  .hero{padding-block:56px 64px}.hero .btn{margin-top:40px}
+  .lead,.sec{grid-template-columns:1fr;gap:28px}.lead{padding-bottom:72px}
+  section{padding:64px 0}.nums{grid-template-columns:1fr;gap:28px}
+  .shot{aspect-ratio:4/3}.shot pre{font-size:12px;left:12px;bottom:12px}
+  .close{padding:64px 0 72px}
+}
+</style></head><body>
+<header><div class="wrap"><a class="brand" href="#">snypd</a><nav><a href="#">Start</a><a href="#">Log</a><a href="#">Posts</a><a href="#">Bench</a><a class="btn" href="#">GitHub</a></nav></div></header>
+
+<div class="wrap hero">
+  <h1>A CMS with no dashboard. Your agent writes it.</h1>
+  <a class="btn" href="#">Start in four lines</a>
+</div>
+
+<div class="wrap lead">
+  <div></div>
+  <div>
+    <p>You know how every CMS assumes a person at a screen, filling in fields? The person at the screen now has Claude Code, Cursor or Codex open, and it can write.</p>
+    <p>snypd is the CMS for that. Markdown in a repo you own; your agent writes it through one MCP server; static HTML comes out, and no JavaScript with it. Launching 6 October 2026.</p>
+    <div class="shot"><img src="../../sites/snypd.rocks/content/media/front-door-poster.png" alt=""><pre>$ mkdir field-notes &amp;&amp; cd field-notes
+$ bunx @snypd/cli init
+$ claude
+❯ Write me a first post.</pre></div>
+  </div>
+</div>
+
+<section><div class="wrap sec">
+  <h2>Measured in CI, or not claimed.</h2>
+  <div>
+    <div class="nums">
+      <div class="num"><b>23 ms</b><span>MCP cold start, release binary</span></div>
+      <div class="num"><b>510</b><span>tokens to read one page as markdown</span></div>
+      <div class="num"><b>0 KB</b><span>JavaScript on the page, every theme</span></div>
+    </div>
+    <p style="margin-top:40px;color:var(--mute);max-width:36em">Sixty rows run on every push. Thirty-three of them are budgets, and a breach fails the build.</p>
+    <a class="more" href="#">Every number, with its row</a>
+  </div>
+</div></section>
+
+<section><div class="wrap sec">
+  <h2>How things will go. Four lines.</h2>
+  <ol class="steps list" style="list-style:none;padding:0">
+    <li><div><b>A directory.</b> <span><code>mkdir field-notes &amp;&amp; cd field-notes</code> — the site is named after it.</span></div></li>
+    <li><div><b>The scaffold.</b> <span><code>bunx @snypd/cli init</code> writes the config, the content folders and an <code>.mcp.json</code>, and commits them.</span></div></li>
+    <li><div><b>Your agent.</b> <span><code>claude</code>, or the directory open in Cursor or Codex. Anything that reads an <code>.mcp.json</code> is the interface.</span></div></li>
+    <li><div><b>One sentence.</b> <span><em>Write me a first post.</em> It writes on a drafts branch, builds, and shows you the page. You approve what lands.</span></div></li>
+  </ol>
+</div></section>
+
+<section><div class="wrap sec">
+  <h2>Built in public. Every session, logged.</h2>
+  <div>
+    <ul class="list">
+      <li><div><b>The terminal look</b><small>Shipped · S32</small></div><time>18 Sep 2026</time></li>
+      <li><div><b>The registry demo, scored on what the tools said</b><small>Measured · S29 R4</small></div><time>18 Sep 2026</time></li>
+      <li><div><b>Ferrule declares work</b><small>Shipped · S29 R2</small></div><time>18 Sep 2026</time></li>
+      <li><div><b>An archive per dated type</b><small>Decided · S29 R1</small></div><time>18 Sep 2026</time></li>
+    </ul>
+    <a class="more" href="#">The whole log</a>
+  </div>
+</div></section>
+
+<section><div class="wrap sec">
+  <h2>The gate says no.</h2>
+  <div>
+    <ul class="list">
+      <li><div><b>A masthead that inverted over each band.</b><small>Five contrast failures on the light bands.</small></div><time>Refused</time></li>
+      <li><div><b>A benchmark taken on a busy machine.</b><small>The numbers were the load's; CI's stand.</small></div><time>Refused</time></li>
+      <li><div><b>A noindex on every preview build.</b><small>It broke the byte-identical rule and lasted an hour.</small></div><time>Refused</time></li>
+    </ul>
+    <a class="more" href="#">Everything the gate refused</a>
+  </div>
+</div></section>
+
+<div class="close"><div class="wrap sec">
+  <div><h2>Four lines. First post.</h2><p>The source, the spec and every benchmark are on GitHub, MIT.</p></div>
+  <div><pre>$ mkdir field-notes &amp;&amp; cd field-notes
+$ bunx @snypd/cli init
+$ claude
+❯ Write me a first post.</pre><a class="btn" href="#">Install from npm</a></div>
+</div></div>
+<footer><div class="wrap"><span>snypd.rocks · built in public · MIT</span><nav><a href="#">Why MCP</a><a href="#">Plugins</a><a href="#">Feed</a><a href="#">llms.txt</a><a href="#">npm</a><a href="#">GitHub</a></nav><span>0 KB JS · 18 rules</span></div></footer>
+</body></html>

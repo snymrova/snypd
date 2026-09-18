@@ -5,7 +5,7 @@
  * plain noise.
  *
  *  a. Nothing throws: parse, the typed tree, lint, and a render through the base theme — every one of
- *     the thirteen primitives with props it never meant, YAML bodies that are not YAML, a chart with
+ *     the fourteen primitives with props it never meant, YAML bodies that are not YAML, a chart with
  *     no rows. A throw here is a build that stops on one file with a stack trace, and `snypd dev`
  *     serving a 500 for a typo.
  *  b. The index and the parser read the same frontmatter. `readFrontmatter` is the fast path the

@@ -13,7 +13,7 @@
  * same files, because they are produced here.
  *
  * Neither scaffold writes a layout or a primitive, and that is the contract restated as a default. A
- * theme that declares only `extends:` and `css:` renders all thirteen primitives and all six layouts
+ * theme that declares only `extends:` and `css:` renders all fourteen primitives and all six layouts
  * through the chain (D8, proved in U6b by a second theme that forks neither) — so the starting point is
  * one stylesheet, which is the one file the author actually wants to write.
  */
@@ -128,7 +128,7 @@ ${inherited
 
 /** The `theme.yaml` a new theme starts with: `extends:` and `css:`, and a comment about each key it leaves out. */
 export function starterThemeYaml(name: string, parent: string, inheritedTokens = 0): string {
-  return `# ${name} — extends \`${parent}\`, which brings every layout and all 13 primitives with it.
+  return `# ${name} — extends \`${parent}\`, which brings every layout and all 14 primitives with it.
 # Nothing below is required: a theme that declares only \`extends:\` and \`css:\` already renders the whole
 # vocabulary. Redeclare a token here to change its default; set \`customisable: true\` to let snypd.yaml
 # move it. \`snypd://theme/tokens\` lists what you inherited. To change the header or footer, override

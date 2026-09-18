@@ -39,6 +39,8 @@ switch (verb) {
     console.log(`built ${r.routes} routes + ${r.artefacts} artefacts${r.emitted ? ` (${r.emitted} emitted by plugins)` : ""}${r.media ? ` + ${r.media} media` : ""} (${r.rendered} rendered, ${r.cached} cached, ${r.removed} removed${r.recovered ? `, ${r.recovered} left unfinished by an interrupted build and rebuilt` : ""}) in ${r.ms.toFixed(0)} ms · theme ${r.theme.name} (${covered}/${r.theme.coverage.length} primitives${inherited ? `, ${inherited} inherited` : ""})`);
     // Said every time, not only under --verbose: a dist/ with drafts in it going to a host as the site is
     // the mistake this line exists to make visible in the build log.
+    // A type the theme has no layout for is said, not hidden (R1, decision 197): the page went out through its base type's layout.
+    for (const f of r.fallbacks) console.log(`${f.type} renders through \`${f.used}\` — ${r.theme.name} declares no \`${f.wanted}\` layout`);
     if (r.preview) console.log(`drafts included${r.branch ? ` — this build is for \`${r.branch.name}\` (${r.branch.from})` : " (--drafts)"}: a preview, not the site. Every page is noindex and robots.txt disallows.`);
     if (flags.has("--verbose")) {
       if (r.branch) console.log(`branch ${r.branch.name ?? "(none)"} · ${r.branch.from}`);
@@ -86,6 +88,19 @@ switch (verb) {
       if (driver) process.stderr.write("\n");
       console.log(bench.toMarkdown(report));
       console.log(`\n${run.checks.map((c) => `${c.ok ? "✅" : "❌"} ${c.what} — ${c.detail}`).join("\n")}`);
+      if (run.model) console.log(`\nmodel ${run.model.model} · ${run.model.turns} turns · ${run.model.tokensIn} in / ${run.model.tokensOut} out · $${run.model.costUsd} · ended ${run.model.ended}\n${run.model.closing.trim()}`);
+      const over = bench.breaches(report);
+      if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
+      break;
+    }
+    if (args[0] === "registry") {   // S29 · R4: the registry demo — docs/20 §2.4's twelve steps, run and checked against what each tool said
+      const which = [...flags].find((f) => f.startsWith("--driver="))?.slice(9);
+      const driver = which?.startsWith("claude:") ? bench.liveRegistry(which.slice(7), { onLine: (l) => { if (/"type":"assistant"/.test(l) && /"tool_use"/.test(l)) process.stderr.write("·"); } }) : undefined;
+      if (which && !driver) { console.error(`unknown driver ${which} — scripted (default) or claude:<model>`); process.exit(2); }
+      const { report, run } = await bench.registry({ keep: flags.has("--keep"), driver });
+      if (driver) process.stderr.write("\n");
+      console.log(bench.toMarkdown(report));
+      console.log(`\n${bench.formatSteps(run)}`);
       if (run.model) console.log(`\nmodel ${run.model.model} · ${run.model.turns} turns · ${run.model.tokensIn} in / ${run.model.tokensOut} out · $${run.model.costUsd} · ended ${run.model.ended}\n${run.model.closing.trim()}`);
       const over = bench.breaches(report);
       if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
@@ -372,7 +387,7 @@ switch (verb) {
       const committed = Repo.open(root)?.commit(r.files, `${kind}: scaffold ${r.name}${r.extends ? ` extends ${r.extends}` : ""}`);
       if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
       say.push("", kind === "theme"
-        ? `Write theme.css. Everything else already renders — all 13 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
+        ? `Write theme.css. Everything else already renders — all 14 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
         : `Write slots/note.tsx, then add \`${r.name}\` to \`plugins:\` in snypd.yaml. The manifest lists the other four tiers as one commented line each.`,
         `\`snypd check ${kind} ${r.name}\` says whether it is shelf-ready; \`snypd dev\` shows it.`);
       console.log(say.join("\n"));

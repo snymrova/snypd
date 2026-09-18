@@ -5,10 +5,10 @@ import { ASSETS, assetDir } from "./assets";
 import { ASSET_DIRS } from "./assets.gen";
 import { defaults, exportJsonSchema, fieldToJsonSchema, frontmatterSchema, primitive, primitiveNames, primitives, primitiveSchema, primitivesIndex, resource, resources, specOverview } from "./index";
 
-const LOCKED = ["callout", "chart", "cover", "cta", "diagram", "faq", "figure", "flow", "pullquote", "stat", "stat-row", "steps", "tldr"];
+const LOCKED = ["callout", "chart", "cover", "cta", "diagram", "faq", "figure", "flow", "logo-wall", "pullquote", "stat", "stat-row", "steps", "tldr"];
 
 describe("primitives", () => {
-  test("exactly the 13 locked in docs/07 §2", () => expect(primitiveNames()).toEqual(LOCKED));
+  test("exactly the 13 locked in docs/07 §2, and the fourteenth S29 added (docs/17 §4.3)", () => expect(primitiveNames()).toEqual(LOCKED));
   test("every primitive has the required keys and a parseable example", () => {
     for (const p of primitives()) {
       for (const k of ["name", "kind", "group", "purpose", "props", "intent", "anti-intent", "example", "fallback"]) expect(p, p.name).toHaveProperty(k);
@@ -81,7 +81,7 @@ describe("resources", () => {
     expect(uris).toContain("snypd://spec");
     expect(uris).toContain("snypd://spec/primitives");
     for (const n of LOCKED) expect(uris).toContain(`snypd://spec/primitives/${n}`);
-    expect(primitivesIndex().split("\n").filter((l) => l.startsWith("- **")).length).toBe(13);
+    expect(primitivesIndex().split("\n").filter((l) => l.startsWith("- **")).length).toBe(14);
     expect(primitivesIndex()).not.toContain("..");
     expect(specOverview()).toContain("## Statuses");
     expect(resource("snypd://spec/primitives/stat")!.text()).toContain("source:");
@@ -118,7 +118,7 @@ describe("bundled assets", () => {
   });
 
   test("a primitive with no detector file is a packaging fault, not a silent opt-out", () => {
-    // Every one of the 13 ships a detector; if `detect/` ever fails to bundle, `suggest_blocks` must say
+    // Every one of the 14 ships a detector; if `detect/` ever fails to bundle, `suggest_blocks` must say
     // so rather than quietly find nothing (the pre-S18a binary's failure mode, one layer down).
     for (const n of LOCKED) expect(ASSETS[`detect/${n}.yaml`]).toBeString();
   });

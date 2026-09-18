@@ -14,7 +14,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { loadConfig, normalizeRoute, redirects, type LoadedConfig } from "./config";
+import { loadConfig, normalizeRoute, redirects, typeArchives, type LoadedConfig } from "./config";
 import { listContent, type ContentFile } from "./content";
 import type { Diagnostic } from "./content/tree";
 import { readFrontmatter, sha1, taxonomyFields, type Move } from "./store";
@@ -125,8 +125,9 @@ export function routeLookup(root: string, cfg: LoadedConfig, content: ContentFil
   terms: Iterable<string> = termRoutes(cfg, content.map((c) => ({ type: c.type, frontmatter: readFrontmatter(readFileSync(c.file, "utf8")) }))),
   moves: Move[] = [],
 ): RouteLookup {
-  // `/posts` exists when a page holds `/` (S25): the list the index layout drew there moves to it (build.ts).
-  const routes = new Set<string>(["/", ...content.map((c) => c.route), ...(content.some((c) => c.route === "/") ? ["/posts"] : []), ...terms]);
+  // Every dated type's archive (R1, `typeArchives`): `/posts` when a page holds `/`, `/work` beside it
+  // when a site declares a `work` — the routes build.ts plans from the same rule.
+  const routes = new Set<string>(["/", ...content.map((c) => c.route), ...typeArchives(cfg.config, content.some((c) => c.route === "/")).map((a) => a.route), ...terms]);
   const byPath = new Map<string, string>();
   for (const c of content) { byPath.set(`${c.type}/${c.path}`, c.route); if (c.path !== c.slug) byPath.set(`${c.type}/${c.slug}`, c.route); }
   const aliases = new Map<string, string>(Object.entries(redirects(cfg)));

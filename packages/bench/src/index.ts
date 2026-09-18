@@ -541,7 +541,7 @@ export function themeFixture(): string {
 /**
  * `snypd bench page` (S13, Phase-3 exit): the built site in a real browser — zero JavaScript, zero axe
  * violations, and the bytes and vitals beside them. Runs against the theme fixture, not `corpora/100`:
- * a11y and coverage are claims about the *vocabulary*, and the generated corpus uses eight of thirteen
+ * a11y and coverage are claims about the *vocabulary*, and the generated corpus uses eight of fourteen
  * primitives and three of six layouts.
  */
 export async function page(opts: { root?: string; quick?: boolean } = {}): Promise<Report> {
@@ -577,7 +577,7 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
  *
  * `SNYPD_ENV=technical` and `dist-technical`, the same shape `editorialLane` uses on `corpora/100`: one
  * four-line file in the corpus, no second copy of the content, and the comparison is between two themes
- * rendering the same thirteen primitives rather than between two sites.
+ * rendering the same fourteen primitives rather than between two sites.
  */
 async function themeLane(root: string): Promise<Metric[]> {
   const cfg = loadConfig(root, { env: "technical" });
@@ -699,6 +699,8 @@ export { live, KILL_PROMPT, phaseOf, phasesFor, type LiveDriver } from "../agent
 export { claude, MODELS, mcpName, type Model, type ClaudeRun, type ClaudeUsage } from "../agent/claude";
 export { writes, runWrites, runWrite, writesMetrics, formatAttempts, readLint, TOPICS, FIRST_ATTEMPT_RULE, type WriteAttempt } from "../agent/writes";
 export { recordPaths, PHASES } from "../agent/run";
+// S29 · R4: the registry demo — docs/20 §2.4's twelve steps over the studio specimen, scored on what the tools said.
+export { registry, runRegistry, registryMetrics, formatSteps, registryTranscript, registryPaths, judge, assessSite, stepsFor, scriptedRegistry, liveRegistry, STEPS, CASE, NOTE, QUERY, SWAP_TO, REGISTRY_PROMPT, REGISTRY_CALLS, type RegistryRun, type RegistryDriver, type StepResult } from "../agent/registry";
 export { benchPage, parseRecord, FAMILIES, HEADLINES, RECORD_URL, type BenchRecord, type RecordRow } from "./benchpage";
 export { gallery, looks, lookMetrics, formatShots, GALLERY_ROUTE, type Look, type Shot } from "./gallery";
 export { Session, type Turn } from "../agent/session";

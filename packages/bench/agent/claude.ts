@@ -72,6 +72,15 @@ export interface ClaudeOptions {
   bin?: string;
 }
 
+/** `ReadMcpResourceTool` hands the model the `resources/read` envelope as one JSON string; the transcript keeps the resource it carried, as session.ts records the scripted driver's reads (R4). */
+function unwrapRead(out: string): string {
+  try {
+    const j = JSON.parse(out) as { contents?: { text?: string }[] };
+    if (Array.isArray(j.contents)) return j.contents.map((c) => c.text ?? "").join("\n");
+  } catch { /* not the envelope — a list, or a refusal */ }
+  return out;
+}
+
 /** `mcp__snypd__content_suggest_blocks` → `content.suggest_blocks`, so a transcript reads in the server's own names. */
 export function mcpName(tool: string, known: readonly string[]): string {
   const bare = tool.slice(PREFIX.length);
@@ -147,8 +156,8 @@ export async function claude(opts: ClaudeOptions): Promise<ClaudeRun> {
         const p = pending.get(b.tool_use_id);
         if (!p) continue;
         pending.delete(b.tool_use_id);
-        const out = resultText(b.content);
         const isRead = READ_TOOLS.has(p.name);
+        const out = isRead ? unwrapRead(resultText(b.content)) : resultText(b.content);
         const isCall = p.name.startsWith(PREFIX);
         if (!isRead && !isCall) continue;   // a built-in that slipped through is not the surface
         const input = (p.input ?? {}) as Record<string, unknown>;

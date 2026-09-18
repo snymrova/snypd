@@ -36,7 +36,7 @@ import {
   themeTokens, themeVariations, themeFile, isPlaceholder, pluginShortName, tiersOf, tokenVars,
   type LoadedConfig, type Mode, type Rgb,
 } from "@snypd/core";
-import { loadTheme, type Theme } from "./theme";
+import { loadTheme, type Theme, LAYOUT_NAMES } from "./theme";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
 /** One rule, one verdict. `detail` is what a passing run prints — evidence, not "ok". */
@@ -221,6 +221,13 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
       missingPrim.length
         ? `${missingPrim.length} of ${theme.coverage.length} render as a labelled wrapper and nothing else: ${missingPrim.map((c) => c.name).join(", ")}`
         : `${theme.coverage.length}/${theme.coverage.length}${theme.coverage.some((c) => c.status === "inherited") ? ` (${theme.coverage.filter((c) => c.status === "inherited").length} inherited)` : ""}`);
+    // What this theme does with a type of the site's own (R1, decision 197): a `work` renders through
+    // `layouts/work.tsx` where the theme declares it and through its base type's layout everywhere else,
+    // so the row names what is declared beyond the six — the answer to "does this theme draw a `work`?".
+    const beyond = Object.keys(theme.layouts).filter((l) => !(LAYOUT_NAMES as readonly string[]).includes(l));
+    add("coverage.layouts", "pass", beyond.length
+      ? `the six, and ${beyond.join(", ")} — a type whose layout is one of these renders through it here, and through its base type's layout on a theme without it`
+      : "the six; a type with a layout of its own renders through its base type's layout here (post, for a type that extends post)");
     const missingPart = theme.partCoverage.filter((c) => c.status === "missing");
     add("coverage.parts", missingPart.length ? "fail" : "pass",
       missingPart.length

@@ -104,7 +104,35 @@ const asObject = (v: unknown, key: string): Record<string, unknown> | undefined 
 /** Diagnostics as the agent should see them: the fix hint is the point, so it is never dropped. */
 const diag = (r: { file?: string; diagnostics: { rule: string; n: number; severity: string; line: number; message: string; hint: string }[] }) =>
   r.diagnostics.map((d) => ({ file: r.file, rule: d.rule, n: d.n, severity: d.severity, line: d.line, message: d.message, hint: d.hint }));
+/**
+ * What `find_tools` says when the thing asked for is a resource (R4, docs/22 §5). The third live run
+ * looked for an item's history six times — *"audit history"*, *"who approved each version"*, *"git log"*
+ * — and `find_tools` answered with `site` and `content.explain` every time, because a history is not a
+ * tool: it is `snypd://history/{type}/{slug}`, a template, which `resources/list` does not print. A
+ * search for a thing that is a read answers with the read. Words a person types, uri, one clause.
+ */
+const RESOURCE_HINTS: { words: string[]; uri: string; what: string }[] = [
+  { words: ["history", "audit", "approval", "approved", "approver", "commit", "commits", "log", "who", "versions", "principal"], uri: "snypd://history/{type}/{slug}", what: "commits touching one item, newest first, each with the principal that made it and who approved a publish" },
+  { words: ["source", "markdown", "raw", "body", "file", "read post", "content of"], uri: "snypd://content/{type}/{slug}", what: "one item's source — frontmatter and body — as it is on the drafts branch" },
+  { words: ["types", "type", "schema", "fields", "frontmatter", "required"], uri: "snypd://types", what: "every content type as JSON Schema, `snypd://types/{name}` for one" },
+  { words: ["taxonomy", "taxonomies", "terms", "term", "tags", "categories"], uri: "snypd://taxonomies/{name}", what: "a taxonomy's merged schema; `content.query` lists what uses a term" },
+  { words: ["config", "configuration", "where did", "came from", "provenance", "snypd.yaml"], uri: "snypd://config", what: "the merged config with provenance on every line; `site` › explain_config for one path" },
+  { words: ["primitive", "primitives", "vocabulary", "block", "blocks", "directive"], uri: "snypd://spec/primitives", what: "the vocabulary — every block primitive, `snypd://spec/primitives/{name}` for its sheet" },
+  { words: ["theme", "tokens", "token", "settings", "coverage", "variations", "looks"], uri: "snypd://theme", what: "the active theme; `/tokens`, `/settings`, `/variations`, `/coverage` under it, `snypd://themes` for the rest" },
+  { words: ["nav", "menu", "menus", "header", "footer"], uri: "snypd://nav", what: "the menus, every `ref` resolved to its route" },
+  { words: ["plugins", "plugin", "hooks"], uri: "snypd://plugins", what: "the plugins named in `plugins:`, what each declares, and the bundled set" },
+  { words: ["bench", "benchmark", "budget", "budgets", "report"], uri: "snypd://bench/latest", what: "the last full benchmark report" },
+];
+const resourceHints = (q: string): { uri: string; what: string }[] => {
+  const words = q.toLowerCase().split(/[^a-z0-9.]+/).filter((w) => w.length > 2);
+  if (!words.length) return [];
+  return RESOURCE_HINTS.filter((r) => r.words.some((k) => k.includes(" ") ? q.toLowerCase().includes(k) : words.includes(k))).map(({ uri, what }) => ({ uri, what }));
+};
 const lintLine = (r: { errors: number; warnings: number }) => `lint: ${r.errors} error${r.errors === 1 ? "" : "s"}, ${r.warnings} warning${r.warnings === 1 ? "" : "s"}`;
+/** The first dozen diagnostics as `content.lint` prints them, errors first — the fix comes back in the same turn as the write. */
+const lintLines = (r: { diagnostics: { rule: string; severity: string; line: number; message: string; hint: string }[] }) =>
+  [...r.diagnostics].sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1)).slice(0, 12)
+    .map((d) => `  ${d.line} ${d.severity} [${d.rule}] ${d.message}\n    ↳ ${d.hint}`);
 
 /**
  * Where a preview URL comes from, in the order that respects who owns what (S18e, decision 51).
@@ -205,12 +233,12 @@ export function handlers(root: string, notify?: (method: string, params?: Record
   };
 
   /** Put the write on the site's drafts branch and commit exactly the paths it touched (docs/02 §6). */
-  const commitWrite = async (r: { paths: string[] }, subject: string) => {
+  const commitWrite = async (r: { paths: string[] }, subject: string, trailers: Record<string, string> = {}) => {
     const c = await loadCore();
     const repo = c.Repo.open(root);
     if (!repo) return { enabled: false as const };
     const draft = repo.useDrafts(r.paths);
-    const commit = repo.commit(r.paths, subject);
+    const commit = repo.commit(r.paths, subject, undefined, trailers);
     return { enabled: true as const, branch: draft.branch, base: draft.base, committed: commit.committed, sha: commit.sha, reason: commit.reason };
   };
   const gitLine = (g: Awaited<ReturnType<typeof commitWrite>>) =>
@@ -219,7 +247,10 @@ export function handlers(root: string, notify?: (method: string, params?: Record
   const wrote = async (r: Awaited<ReturnType<Core["createContent"]>>, subject: string) => {
     const g = await commitWrite(r, subject);
     const lines = [`${r.action} ${r.type}/${r.slug} → ${r.route} (${r.status})`, gitLine(g)];
-    if (r.lint) lines.push(lintLine(r.lint));
+    // The diagnostics themselves, not only their count (R4, docs/20 §2.4 · 3): a harness that shows
+    // the model the text and not the structured half was sending it to `content.lint` for the sentence
+    // the write already had. Errors first; a write with none costs nothing more than it did.
+    if (r.lint) lines.push(lintLine(r.lint), ...lintLines(r.lint));
     return text(lines.join("\n"), { ok: true, type: r.type, slug: r.slug, route: r.route, path: r.path, status: r.status, git: g, ...(r.lint ? { lint: { errors: r.lint.errors, warnings: r.lint.warnings, diagnostics: diag(r.lint) } } : {}) });
   };
 
@@ -246,16 +277,22 @@ export function handlers(root: string, notify?: (method: string, params?: Record
         const { tools: added } = await speak();
         const found = searchAll(added, q);
         const all = [...CATALOG.map((t) => t.name), ...added.map((p) => p.tool.name).filter((n) => !CATALOG.some((t) => t.name === n))];
-        if (!found.length)
-            return text(`nothing matches "${q}"\nThere are ${all.length} tools here: ${all.join(", ")}. Call find_tools with no query to see them all.`,
-              { ok: true, count: 0, available: all });
+        if (!found.length) {
+          const resources = resourceHints(q);
+          return text([`nothing matches "${q}"`,
+            ...(resources.length ? ["Not a tool but a resource — read it, it costs no call:", ...resources.map((r) => `- ${r.uri} — ${r.what}`)] : []),
+            `There are ${all.length} tools here: ${all.join(", ")}. Call find_tools with no query to see them all.`].join("\n"),
+            { ok: true, count: 0, available: all, ...(resources.length ? { resources } : {}) });
+        }
         const fresh = found.filter((t) => !unlocked.has(t.name));
         for (const t of found) unlocked.add(t.name);
         // Tell the client its list grew. A client that acts on it can call these natively; one that
         // does not still has the schemas printed below, and callTool takes them either way.
         if (fresh.length) notify?.("notifications/tools/list_changed");
         const body = found.map((t) => `## ${t.name}\n${t.description}\n\ninput: ${JSON.stringify(t.inputSchema)}`).join("\n\n");
-        return text(`${found.length} tool${found.length === 1 ? "" : "s"} ready to call:\n\n${body}`, { ok: true, count: found.length, tools: found });
+        const resources = resourceHints(q);
+        const tail = resources.length ? `\n\nNot a tool but a resource — read it, it costs no call:\n${resources.map((r) => `- ${r.uri} — ${r.what}`).join("\n")}` : "";
+        return text(`${found.length} tool${found.length === 1 ? "" : "s"} ready to call:\n\n${body}${tail}`, { ok: true, count: found.length, tools: found, ...(resources.length ? { resources } : {}) });
       }
       const c = await loadCore();
       try {
@@ -312,26 +349,37 @@ export function handlers(root: string, notify?: (method: string, params?: Record
             // just finish the half that is left — the merge.
             const current = String(c.readFrontmatter(readFileSync(t.file, "utf8")).status ?? cfg.config.initialStatus);
             let status = current, g: Awaited<ReturnType<typeof commitWrite>> = { enabled: false };
+            // Who approved, on the commits themselves (R4): `snypd://history` then shows the publish with
+            // its principal *and* the person whose approval it carried, which is docs/02 §7's audit trail.
+            const trailers: Record<string, string> = check.approval ? { "Snypd-Approved-By": `${check.approval.by} at ${check.approval.at}` } : {};
             if (current !== "published") {
               await enterDrafts();
               const r = c.setStatus(root, { type, slug, status: "published", cfg });
               status = r.status;
-              g = await commitWrite(r, `content: publish ${type}/${slug}`);
+              g = await commitWrite(r, `content: publish ${type}/${slug}`, trailers);
             }
-            // The publish itself: one item's path, from the drafts branch onto the branch it was cut
+            // The publish itself: the item's path, from the drafts branch onto the branch it was cut
             // from, without moving the working tree (git.ts `land`). Every other draft stays where it is.
+            // With it (S31 · H5, docs/23 §6.1): the media the page names — `figure.src`, a `cover.poster`,
+            // a `![]()` — that is tracked on the drafts branch. A published post on `main` naming a picture
+            // `main` does not have is a 404 the product made; decision 179 refused the same state for a
+            // theme. Untracked media is left alone (a file nobody committed is not part of what was
+            // approved), and an unpublish leaves media where it is — another page may name it.
             const repo = c.Repo.open(root);
-            const landed = repo?.land([t.path], `content: publish ${type}/${slug}`);
+            const media = repo ? c.documentMedia(readFileSync(t.file, "utf8")).map((m) => m.path) : [];
+            const tracked = media.length ? repo!.tracked(media) : [];
+            const landed = repo?.land([t.path, ...tracked], `content: publish ${type}/${slug}`, undefined, trailers);
             if (landed && !landed.ok) return fail(`published ${type}/${slug}, but landing it on ${landed.base ?? "the base branch"} failed: ${landed.reason}`, "The file itself is published — this is git's problem, not the post's. `git log snypd/drafts` shows the commit that has not landed.");
             c.clearApproval(store, type, slug);
-            const where = !landed ? "not a git repo" : landed.changed ? `landed on ${landed.base} as ${landed.sha!.slice(0, 8)}` : `${landed.base} already has this version`;
+            const where = !landed ? "not a git repo" : landed.changed ? `landed on ${landed.base} as ${landed.sha!.slice(0, 8)}${tracked.length ? ` with ${tracked.length} media file${tracked.length === 1 ? "" : "s"} (${tracked.map((p) => p.slice("content/media/".length)).join(", ")})` : ""}` : `${landed.base} already has this version`;
             // The `publish` event (P3, docs/10 §4.5): after the item is on the base branch — or, on a site that
             // is not a repo, after it is published, which is the same fact without the branch. Fire and
             // report: what each listening plugin said is a line here and a row in .snypd/events.json, and
             // nothing it says can unpublish the words.
             const events = await c.fireEvent(root, cfg, "publish", { type, slug, route: t.route, url: c.urlOf(cfg.config.site.url, t.route), path: t.path, base: landed?.base, sha: landed?.sha });
             return text([`published ${type}/${slug} → ${t.route}`, where, `approved by ${check.approval?.by ?? `policy ${check.policy}`}`, ...c.eventLines(events)].join("\n"),
-              { ok: true, type, slug, route: t.route, status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base, landedSha: landed?.sha }, approval: check.approval, events });
+              // `policy` and `approvedBy` (R4): the text says "approved by policy publish" or "by a human at the review page"; the structured half — what Claude Code shows a model — says it too.
+              { ok: true, type, slug, route: t.route, status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base, landedSha: landed?.sha, media: tracked }, policy: check.policy, approvedBy: check.approval?.by ?? `policy ${check.policy}`, approval: check.approval, events });
           }
           case "content.suggest_blocks": {
             const cfg = await cfgOf();

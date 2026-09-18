@@ -36,9 +36,19 @@ export default function Figure({ props, ctx, block }: PrimitiveProps): Html {
   // (a plugin's transform can build one) falls back to the url, which is unique enough for one figure.
   const id = `lb-${block.node.position?.start.line ?? src.replace(/[^\w-]+/g, "-")}`;
   const lightbox = !!src && !video && props.lightbox !== false;
+  // `autoplay` (S29, docs/17 §4.2, amending decision 181): the four attributes that keep an autoplaying
+  // clip honest are written here, never by the author — muted, looping, inline, and the poster repeated
+  // as a still that `base`'s own sheet shows instead of the clip under `prefers-reduced-motion`. Lint
+  // rule 15 allows one per page. No controls: a clip that plays itself is a picture that moves.
+  const auto = video && props.autoplay === true;
   return (
     <figure class="snypd-figure" data-width={props.width as string}>
-      {video
+      {auto
+        ? <>
+            <video src={src} poster={poster} autoplay muted loop playsinline preload="none" width={w} height={h} aria-label={alt}>{alt}</video>
+            {poster ? <img class="snypd-still" src={poster} alt={alt} loading="lazy" decoding="async" width={w} height={h} /> : null}
+          </>
+        : video
         ? <video src={src} poster={poster} controls preload="metadata" playsinline width={w} height={h} aria-label={alt}>{alt}</video>
         : lightbox
         ? <button type="button" class="snypd-figure-open" commandfor={id} command="show-modal" aria-label={alt ? `View larger: ${alt}` : "View larger"}>

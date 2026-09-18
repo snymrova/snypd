@@ -136,6 +136,9 @@ export function rank(list: Tool[], keywordsOf: (t: Tool) => string[], query: str
 
 const text = (s: string, structured?: Record<string, unknown>): ToolResult => ({ content: [{ type: "text", text: s }], ...(structured ? { structuredContent: structured } : {}) });
 const fail = (message: string, hint?: string): ToolResult => ({ content: [{ type: "text", text: hint ? `${message}\n↳ ${hint}` : message }], structuredContent: { ok: false, error: message, ...(hint ? { hint } : {}) }, isError: true });
+/** A dotted path into a plain object, for the structured half of `explain_config`; a bracketed key (`tokens["color.accent"]`) is one segment. */
+const getAt = (o: Record<string, unknown>, path: string): unknown =>
+  (path.match(/\[("[^"]*"|'[^']*')\]|[^.[\]]+/g) ?? []).map((k) => k.replace(/^\[|\]$/g, "").replace(/^["']|["']$/g, "")).reduce<unknown>((v, k) => (v && typeof v === "object" ? (v as Record<string, unknown>)[k] : undefined), o);
 const need = (args: Record<string, unknown>, key: string): string => {
   const v = args[key];
   if (typeof v !== "string" || !v) throw new Error(`${key} required`);
@@ -349,7 +352,9 @@ export async function call(root: string, name: string, args: Record<string, unkn
             ...(r.placeholderUrl ? [`site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — content.publish refuses until then, and says so. Do not ask for it yet.`] : []),
             "Next: read snypd://spec/primitives, then content.create a post and content.render_preview to look at it."].join("\n"), { ok: true, ...r });
         }
-        if (action === "explain_config") return text(cfgOf().explain(need(args, "path")), { ok: true });
+        // The sentence is in both halves (R4, decision 199): Claude Code hands a model `structuredContent` when
+        // a result has one, so `{ ok: true }` beside a text-only answer reached the model as nothing at all.
+        if (action === "explain_config") { const path = need(args, "path"), cfg = cfgOf(); return text(cfg.explain(path), { ok: true, path, value: cfg.source(path) ? getAt(cfg.raw as Record<string, unknown>, path) : undefined, explanation: cfg.explain(path) }); }
         if (action === "set_config") {
           const path = need(args, "path");
           if (!("value" in args)) return fail("value required", "Pass `value: null` to delete the key instead.");
@@ -381,7 +386,7 @@ export async function call(root: string, name: string, args: Record<string, unkn
             to === null ? `removed the redirect from ${w.from_}` : `${w.from_} → ${w.to_} (301)`,
             git,
             to === null ? "" : "The next build writes `_redirects` and a meta-refresh page at the old route, so it works on any static host.",
-          ].filter(Boolean).join("\n"), { ok: true, from: w.from_, to: w.to_ });
+          ].filter(Boolean).join("\n"), { ok: true, from: w.from_, to: w.to_, ...(to === null ? { removed: true } : { status: 301 }), git });
         }
         if (action === "build") {
           const { build } = await import("@snypd/render");
@@ -389,6 +394,14 @@ export async function call(root: string, name: string, args: Record<string, unkn
           return text([
             `built ${r.routes} route${r.routes === 1 ? "" : "s"} in ${r.ms.toFixed(0)} ms`,
             `  ${r.rendered} rendered, ${r.cached} from cache, ${r.artefacts} artefacts${r.emitted ? ` (${r.emitted} emitted by plugins)` : ""}, ${r.media} media${r.removed ? `, ${r.removed} removed` : ""}`,
+            // The lists, by name (R4, docs/20 §2.4 · 11): an archive per dated type is the one route an
+            // agent that just declared a type is waiting to see, and a count of routes does not say it.
+            ...(r.lists.length || r.terms ? [`  lists: ${[
+              ...r.lists.map((l) => `${l.route === "/" ? "/" : `${l.route}/`} ${l.type ? `${l.title} (${l.entries} ${l.type})` : `(${l.entries} newest)`}`),
+              ...(r.terms ? [`${r.terms} term page${r.terms === 1 ? "" : "s"}`] : []),
+            ].join(" · ")}`] : []),
+            // A type this theme has no layout for, and what drew it instead (decision 197) — the same line `snypd build` prints.
+            ...r.fallbacks.map((f) => `  ${f.type} renders through \`${f.used}\` — ${r.theme.name} declares no \`${f.wanted}\` layout`),
             // A hook that failed is a line here and never a failed build (P2): the page went out without that plugin's contribution.
             ...r.hooks.diagnostics.map((d) => `  ⚠ plugin ${d.plugin} ${d.hook}${d.route ? ` on ${d.route}` : ""}: ${d.message}`),
           ].join("\n"), { ok: true, ...r });

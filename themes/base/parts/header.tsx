@@ -7,11 +7,14 @@
  * focus — and on anything wider the same sheet puts the list back in flow and hides the button, so a
  * theme styles one `<ul>` and never sees the popover unless it wants to. The button is a button and
  * not a link or a label because `popovertarget` is what makes it work without a script.
+ *
+ * Last in the header, the motion control (`parts/motion.tsx`) — on the pages that need one, and on no other.
  */
-import { menu, type Html, type PartProps } from "@snypd/render";
+import { menu, part, type Html, type PartProps } from "@snypd/render";
 
-export default function Header({ ctx, route }: PartProps): Html {
+export default function Header({ ctx, route, title, page }: PartProps): Html {
   const items = menu(ctx, "header", route);
+  const Motion = part(ctx, "motion");
   return (
     <header>
       <a href="/" rel="home">{ctx.site.name}</a>
@@ -21,6 +24,7 @@ export default function Header({ ctx, route }: PartProps): Html {
           <ul id="snypd-menu" popover>{items.map((i) => <li><a href={i.href} rel={i.rel} aria-current={i.current ? "page" : undefined}>{i.label}</a></li>)}</ul>
         </nav>
       ) : null}
+      <Motion ctx={ctx} route={route} title={title} page={page} />
     </header>
   );
 }

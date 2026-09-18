@@ -77,7 +77,8 @@ export class Session {
   async listTools(): Promise<Tool[]> { return ((await this.rpc("read", "tools/list")) as { tools: Tool[] }).tools; }
   async listResources(): Promise<Resource[]> { return ((await this.rpc("read", "resources/list")) as { resources: Resource[] }).resources; }
   async read(uri: string): Promise<string> {
-    const r = (await this.rpc("read", "resources/read", { uri })) as { contents: { text: string }[] };
+    // The uri rides as the turn's `name`, as claude.ts records a model's reads — a transcript says which resource, and a judge can ask (registry.ts).
+    const r = (await this.rpc("read", "resources/read", { uri }, uri)) as { contents: { text: string }[] };
     return r.contents.map((c: { text: string }) => c.text).join("\n");
   }
 
@@ -102,9 +103,13 @@ export class Session {
     const res = await this.awaitResponse(id);
     const ms = performance.now() - t0;
     const result = "result" in res ? res.result : undefined;
+    // What the agent reads: a tool's content, a resource's contents — the text, not the envelope around it.
+    // (A read used to be recorded as the JSON envelope, quotes escaped, which is neither what a model sees
+    // nor something a judge can match against; R4's registry demo is scored on what a resource said.)
+    const contents = (result as { contents?: { text?: string }[] } | undefined)?.contents;
     const text = "error" in res
       ? `error ${res.error.code}: ${res.error.message}`
-      : ((result as ToolResult | undefined)?.content?.map((c) => c.text).join("\n") ?? JSON.stringify(result));
+      : ((result as ToolResult | undefined)?.content?.map((c) => c.text).join("\n") ?? contents?.map((c) => c.text ?? "").join("\n") ?? JSON.stringify(result));
     // `isError` is a *tool* failure the agent can read and fix, so it is a completed turn that did not
     // work — not a protocol error. Both are `ok: false`; only the protocol one ends the run.
     const ok = !("error" in res) && !(result as ToolResult | undefined)?.isError;

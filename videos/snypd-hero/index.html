@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>snypd — the hero film (docs/26), second cut</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      /* Second cut (Sunny, 18 Sep 2026: "too fast, music not going with the video, sound up and down, script loose").
+         Seven ideas, two to four bars each, cuts on bar lines of the bed (110 bpm, bar = 2.18 s); the words on screen are the
+         narrator's own sentences; the sound is one mixed file (scripts/mix.py). The site's look: folio's ground and ink,
+         Inter 500, a mono for the prompt bar and terminal text, oxblood for hits only. */
+      @font-face { font-family: "Inter"; font-weight: 500; src: url("assets/fonts/inter-latin.woff2") format("woff2"); }
+      @font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url("assets/fonts/JetBrainsMono-Regular.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f9f9f9; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #f9f9f9; color: #121214; font-family: "Inter", sans-serif; font-weight: 500; }
+      .clip { position: absolute; inset: 0; overflow: hidden; }
+      .dark { background: #121214; color: #f9f9f9; }
+      .center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+      .big { font-size: 150px; line-height: 1; letter-spacing: -0.045em; }
+      .line { display: block; }
+      .w { display: inline-block; opacity: 0; }
+      .mono { font-family: "JetBrains Mono", monospace; font-weight: 400; }
+
+      /* 01 — the sentence on the left, the dashboard it is about on the right */
+      #t1, #t1b { position: absolute; left: 120px; top: 250px; width: 920px; font-size: 100px; line-height: 1.02; letter-spacing: -0.045em; text-align: left; }
+      #dash { position: absolute; left: 1040px; top: 190px; width: 780px; height: 640px; border: 4px solid #cfcfd4; border-radius: 18px; background: #fff; opacity: 0; }
+      #dash .p { position: absolute; border: 4px solid #cfcfd4; border-radius: 10px; background: #fff; }
+      #dash .bar { position: absolute; height: 10px; border-radius: 5px; background: #dcdce0; }
+      #dash #d4 { background: #121214; border-color: #121214; color: #f9f9f9; font-size: 30px; display: flex; align-items: center; justify-content: center; }
+
+      /* the prompt bar */
+      #bar { position: absolute; left: 380px; top: 948px; width: 1160px; height: 84px; border-radius: 18px; background: #121214; color: #f4f4f5; opacity: 0;
+             box-shadow: 0 24px 60px -20px rgba(0,0,0,.55), 0 0 0 2px rgba(255,255,255,.28); display: flex; align-items: center; padding: 0 34px; font-size: 32px; white-space: nowrap; }
+      #bar .gt { color: #8b8b90; margin-right: 18px; }
+      #bar .say { position: absolute; left: 75px; top: 0; height: 84px; display: flex; align-items: center; white-space: pre; }
+      #bar .ch { opacity: 0; }
+      #caret { display: inline-block; width: 16px; height: 38px; background: #f4f4f5; margin-left: 4px; }
+
+      /* a browser window holding a real plate */
+      .win { position: absolute; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 40px 90px -30px rgba(0,0,0,.5), 0 0 0 1px rgba(0,0,0,.12); }
+      .win .chrome { position: absolute; left: 0; right: 0; top: 0; height: 36px; background: #ececef; border-bottom: 1px solid #dcdce0; z-index: 3; }
+      .win .chrome i { position: absolute; top: 12px; width: 12px; height: 12px; border-radius: 6px; background: #cfcfd4; }
+      .win .view { position: absolute; left: 0; right: 0; top: 36px; bottom: 0; overflow: hidden; }
+      .win img { position: absolute; left: 0; top: 0; width: 100%; display: block; }
+      .full { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+      .band { position: absolute; left: 0; right: 0; bottom: 0; height: 330px; background: #f9f9f9; border-top: 1px solid #e2e2e4; opacity: 0; }
+      .band .t { position: absolute; left: 110px; top: 34px; font-size: 84px; letter-spacing: -0.04em; }
+      #zero { position: absolute; inset: 0; background: #f9f9f9; opacity: 0; }
+      #zero .v { font-size: 380px; line-height: 1; letter-spacing: -0.06em; }
+      #zero .l { font-size: 64px; letter-spacing: -0.035em; margin-top: 26px; }
+      .side { position: absolute; left: 1320px; top: 230px; width: 580px; text-align: left; }
+      .side .t { font-size: 88px; line-height: 1.02; letter-spacing: -0.045em; white-space: nowrap; position: absolute; left: 0; top: 0; }
+      .side .name { position: absolute; left: 0; top: 330px; font-size: 30px; color: #6a6a6e; height: 40px; width: 560px; }
+      .side .name span { position: absolute; left: 0; top: 0; opacity: 0; white-space: nowrap; }
+      #words6 { position: absolute; left: 110px; top: 822px; display: flex; gap: 18px; }
+      #words6 span, #files6t { background: #f9f9f9; color: #121214; font-size: 46px; letter-spacing: -0.03em; padding: 12px 26px; border-radius: 14px; opacity: 0; box-shadow: 0 16px 40px -16px rgba(0,0,0,.6); }
+      #files6 { position: absolute; right: 150px; top: 150px; width: 700px; background: #121214; color: #f4f4f5; border-radius: 18px; padding: 34px 40px; font-size: 30px; line-height: 1.8; opacity: 0; box-shadow: 0 30px 70px -20px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.08); }
+      #files6 .d { color: #8b8b90; }
+      #files6t { position: absolute; right: 150px; top: 560px; }
+      #gate { font-size: 38px; line-height: 1.7; text-align: left; margin-top: 60px; }
+      #gate div { opacity: 0; white-space: nowrap; }
+      #refused { position: absolute; inset: 0; opacity: 0; }
+      #log { position: absolute; left: 120px; top: 150px; font-size: 31px; line-height: 1.9; }
+      #log div { opacity: 0; white-space: nowrap; }
+      #log .h { color: #8b8b90; margin-right: 22px; }
+      #landed { color: #8a3324; opacity: 0; display: inline-block; }
+      #words9 { position: absolute; left: 120px; top: 500px; font-size: 128px; letter-spacing: -0.045em; line-height: 1.04; text-align: left; }
+      .mark { width: 860px; display: block; opacity: 0; }
+      #tag2 { margin-top: 50px; font-size: 54px; letter-spacing: -0.03em; color: #6a6a6e; opacity: 0; }
+      #install { margin-top: 56px; background: #121214; color: #f4f4f5; font-size: 36px; padding: 22px 38px; border-radius: 16px; opacity: 0; }
+      #install b { color: #8b8b90; font-weight: 400; margin-right: 16px; }
+      #door { margin-top: 40px; font-size: 60px; letter-spacing: -0.035em; opacity: 0; }
+      #foot { margin-top: 26px; font-size: 28px; color: #6a6a6e; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="44.8">
+
+      <!-- 01 · bars 1–3 · "Every CMS was built for a person at a dashboard. But you have an agent now. So we threw the dashboard away." -->
+      <section id="s1" class="clip" data-start="0" data-duration="6.653" data-track-index="1">
+        <div id="t1">
+          <span class="line"><span class="w" id="w1a">Every CMS was built</span></span><span class="line"><span class="w" id="w1b">for a person</span></span><span class="line"><span class="w" id="w1c">at a dashboard.</span></span>
+        </div>
+        <div id="t1b">
+          <span class="line"><span class="w" id="w1d">But you have an agent now.</span></span>
+          <span class="line" style="margin-top:40px"><span class="w" id="w1e">So we threw the dashboard away.</span></span>
+        </div>
+        <div id="dash">
+          <div class="p" id="d1" style="left:-4px;top:-4px;bottom:-4px;width:190px">
+            <div class="bar" style="left:28px;top:60px;width:110px"></div><div class="bar" style="left:28px;top:110px;width:130px"></div>
+            <div class="bar" style="left:28px;top:160px;width:90px"></div><div class="bar" style="left:28px;top:210px;width:120px"></div><div class="bar" style="left:28px;top:260px;width:100px"></div>
+          </div>
+          <div class="p" id="d2" style="left:230px;top:60px;width:500px;height:80px"><div class="bar" style="left:24px;top:31px;width:260px"></div></div>
+          <div class="p" id="d3" style="left:230px;top:180px;width:500px;height:290px">
+            <div class="bar" style="left:24px;top:40px;width:420px"></div><div class="bar" style="left:24px;top:90px;width:380px"></div>
+            <div class="bar" style="left:24px;top:140px;width:440px"></div><div class="bar" style="left:24px;top:190px;width:300px"></div>
+          </div>
+          <div class="p" id="d4" style="right:46px;bottom:50px;width:230px;height:80px">Publish</div>
+        </div>
+      </section>
+
+      <!-- 02 · bar 4, the lift · "This is snypd." -->
+      <section id="s2" class="clip center" data-start="6.653" data-duration="2.182" data-track-index="1">
+        <img class="mark" id="mark2" src="assets/img/wordmark.svg" alt="snypd." />
+        <div id="tag2">A CMS with no dashboard.</div>
+      </section>
+
+      <!-- 03 · bar 5 · "One sentence in. A finished page out." -->
+      <section id="s3" class="clip center" data-start="8.835" data-duration="2.182" data-track-index="1">
+        <div class="big" style="margin-bottom:140px">
+          <span class="line"><span class="w" id="w3a">One sentence in.</span></span>
+          <span class="line"><span class="w" id="w3b">A finished page out.</span></span>
+        </div>
+      </section>
+
+      <!-- 04 · bars 6–8 · the page; "Charts, diagrams, sourced numbers. Static HTML, zero JavaScript." -->
+      <section id="s4" class="clip" data-start="11.017" data-duration="6.545" data-track-index="1">
+        <div class="win" id="win4" style="left:150px;top:64px;width:1620px;height:1100px">
+          <div class="chrome"><i style="left:16px"></i><i style="left:36px"></i><i style="left:56px"></i></div>
+          <div class="view"><img id="plate4" src="assets/img/look-editorial-paper.jpg" alt="" /></div>
+        </div>
+        <img class="full" id="p4a" src="assets/img/punch-chart.jpg" alt="" />
+        <img class="full" id="p4b" src="assets/img/punch-flow.jpg" alt="" />
+        <div class="band" id="band4"><div class="t"><span class="w" id="w4a">Charts.</span> <span class="w" id="w4b">Diagrams.</span> <span class="w" id="w4c">Sourced numbers.</span></div></div>
+        <div id="zero" class="center"><div class="v"><span id="v4">512</span> KB</div><div class="l">Static HTML. Zero JavaScript.</div></div>
+      </section>
+
+      <!-- 05 · bars 9–12 · "Want a new look? Just say so." — then the looks, one every two beats -->
+      <section id="s5" class="clip" data-start="17.562" data-duration="8.727" data-track-index="1">
+        <div class="win" style="left:90px;top:64px;width:1180px;height:1100px">
+          <div class="chrome"><i style="left:16px"></i><i style="left:36px"></i><i style="left:56px"></i></div>
+          <div class="view">
+            <img id="l1" src="assets/img/look-editorial-paper-b.jpg" alt="" />
+            <img id="l2" src="assets/img/look-editorial-ink.jpg" alt="" style="opacity:0" />
+            <img id="l3" src="assets/img/look-editorial-broadsheet.jpg" alt="" style="opacity:0" />
+            <img id="l4" src="assets/img/look-base.jpg" alt="" style="opacity:0" />
+            <img id="l5" src="assets/img/look-technical-graphite.jpg" alt="" style="opacity:0" />
+            <img id="l6" src="assets/img/look-technical-phosphor.jpg" alt="" style="opacity:0" />
+            <img id="l7" src="assets/img/look-studio.jpg" alt="" style="opacity:0" />
+          </div>
+        </div>
+        <div class="side">
+          <div class="t" id="t5a"><span class="line"><span class="w" id="w5a">Want a</span></span><span class="line"><span class="w" id="w5b">new look?</span></span><span class="line"><span class="w" id="w5c">Just say so.</span></span></div>
+          <div class="t" id="t5b"><span class="line"><span class="w" id="w5d">Seven looks</span></span><span class="line"><span class="w" id="w5e">in the box.</span></span></div>
+          <div class="name mono"><span id="n1">editorial › paper</span><span id="n2">editorial › ink</span><span id="n3">editorial › broadsheet</span><span id="n4">base</span><span id="n5">technical › graphite</span><span id="n6">technical › phosphor</span><span id="n7">studio</span></div>
+        </div>
+      </section>
+
+      <!-- 06 · bars 13–15 · "A blog, case studies, a whole studio site. All of it, files in your repo." -->
+      <section id="s6" class="clip dark" data-start="26.289" data-duration="6.545" data-track-index="1">
+        <div class="win" style="left:100px;top:56px;width:1720px;height:1100px;background:#121214">
+          <div class="chrome" style="background:#1d1d20;border-color:#2a2a2e"><i style="left:16px;background:#3a3a40"></i><i style="left:36px;background:#3a3a40"></i><i style="left:56px;background:#3a3a40"></i></div>
+          <div class="view">
+            <img id="f1" src="assets/img/ferrule-posts.jpg" alt="" />
+            <img id="f2" src="assets/img/ferrule-work.jpg" alt="" style="opacity:0" />
+            <img id="f3" src="assets/img/ferrule-home.jpg" alt="" style="opacity:0" />
+          </div>
+        </div>
+        <div id="words6"><span id="w6a">A blog.</span><span id="w6b">Case studies.</span><span id="w6c">A whole studio site.</span></div>
+        <div id="files6" class="mono">
+          <div><span class="d">content/work/</span>stem.md</div>
+          <div><span class="d">content/work/</span>kiln-to-table.md</div>
+          <div><span class="d">content/posts/</span>a-note-on-grog.md</div>
+          <div><span class="d">content/pages/</span>studio.md</div>
+          <div>snypd.yaml</div>
+        </div>
+        <div id="files6t">All of it, files in your repo.</div>
+      </section>
+
+      <!-- 07 · bars 16–17 · "And it checks the agent's work. A number with no source? Refused." -->
+      <section id="s7" class="clip dark center" data-start="32.834" data-duration="4.363" data-track-index="1">
+        <div class="big" style="font-size:120px"><span class="w" id="w7">It checks the agent’s work.</span></div>
+        <div id="gate" class="mono">
+          <div id="g7a"><span style="color:#8b8b90">posts/what-a-markdown-twin-actually-saves.md:27</span> <span style="color:#ff6b57">error [unsourced-evidence]</span></div>
+          <div id="g7b" style="color:#ff6b57">`stat` has no checkable source — a stat without one is an opinion</div>
+        </div>
+        <div id="refused" class="dark center"><div class="big" style="font-size:300px;color:#ff6b57">Refused.</div></div>
+      </section>
+
+      <!-- 08 · bars 18–19 · "Your repo. Your markdown. Your site." -->
+      <section id="s8" class="clip" data-start="37.197" data-duration="4.363" data-track-index="1">
+        <div id="log" class="mono">
+          <div id="c8a"><span class="h">1b44047</span>site: init field-notes</div>
+          <div id="c8b"><span class="h">e448df4</span>content: create post/what-a-markdown-twin-actually-saves</div>
+          <div id="c8c"><span class="h">6a358ad</span>content: publish post/what-a-markdown-twin-actually-saves</div>
+          <div id="c8d"><span class="h">f3e4f8f</span>content: publish post/what-a-markdown-twin-actually-saves <span id="landed">(landed on main)</span></div>
+        </div>
+        <div id="words9"><span class="line"><span class="w" id="w8a">Your repo.</span> <span class="w" id="w8b">Your markdown.</span></span><span class="line"><span class="w" id="w8c">Your site.</span></span></div>
+      </section>
+
+      <!-- 09 · bar 20, the music stops · "snypd. Give your agent a front door." -->
+      <section id="s9" class="clip center" data-start="41.56" data-duration="3.24" data-track-index="1">
+        <img class="mark" id="mark9" src="assets/img/wordmark.svg" alt="snypd." />
+        <div id="door">Give your agent a front door.</div>
+        <div id="install" class="mono"><b>$</b>bunx @snypd/cli init</div>
+        <div id="foot">Open source · MIT · snypd.rocks</div>
+      </section>
+
+      <!-- the prompt bar: bars 5–15, and again for "Publish." -->
+      <section id="sbar" class="clip" data-start="8.835" data-duration="32.725" data-track-index="2" style="overflow:visible">
+        <div id="bar" class="mono">
+          <span class="gt">&gt;</span><span id="caret"></span>
+          <span class="say" id="say1"></span><span class="say" id="say2"></span><span class="say" id="say3"></span><span class="say" id="say4"></span>
+        </div>
+      </section>
+
+      <!-- one soundtrack, mixed and mastered in scripts/mix.py -->
+      <audio id="mix" src="assets/audio/mix.wav" data-start="0" data-duration="44.8" data-track-index="10" data-volume="1"></audio>
+    </div>
+
+    <script>
+      // The bed's grid, fitted (scripts/mix.py): 110 bpm, film bar 1 at 0.108 s. B(n, b) is bar n, beat b, in film seconds.
+      const BEAT = 0.54542, BAR = 4 * BEAT, B = (n, b = 1) => 0.1084 + (n - 1) * BAR + (b - 1) * BEAT;
+      const tl = gsap.timeline({ paused: true });
+      tl.set("#caret", { x: 0 }, 0);
+      const on = (sel, t) => tl.set(sel, { opacity: 1 }, t);
+      const off = (sel, t) => tl.set(sel, { opacity: 0 }, t);
+      const rise = (sel, t, d = 0.34) => tl.fromTo(sel, { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: d, ease: "power3.out" }, t);
+      const slam = (sel, t, from = 1.1) => tl.fromTo(sel, { opacity: 0, scale: from }, { opacity: 1, scale: 1, duration: 0.2, ease: "power4.out" }, t);
+
+      const SAY = { say1: "Write me a first post.", say2: "Switch this site to editorial, the ink look.", say3: "Give the studio a “work” type for case studies.", say4: "Publish." };
+      for (const [id, text] of Object.entries(SAY)) {
+        const el = document.getElementById(id);
+        for (const c of text) { const s = document.createElement("span"); s.className = "ch"; s.textContent = c; el.appendChild(s); }
+      }
+      const type = (id, t, dur) => { const n = SAY[id].length; tl.set(`#${id} .ch`, { opacity: 1, stagger: dur / n }, t); tl.fromTo("#caret", { x: 0 }, { x: n * 19.2, duration: dur, ease: `steps(${n})`, immediateRender: false }, t); };
+      const clear = (id, t) => { tl.set(`#${id} .ch`, { opacity: 0 }, t); tl.set("#caret", { x: 0 }, t); };
+
+      // 01 — the sentence arrives as it is said; the dashboard is thrown away piece by piece, the last of it on the lift
+      tl.fromTo("#dash", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.1);
+      rise("#w1a", 0.40); rise("#w1b", 1.50); rise("#w1c", 2.20);
+      tl.to("#t1", { opacity: 0, duration: 0.2 }, 3.35);
+      rise("#w1d", 3.60); rise("#w1e", 4.95);
+      const toss = (sel, t, x, r) => tl.to(sel, { x, y: 900, rotation: r, opacity: 0, duration: 0.7, ease: "power2.in" }, t);
+      toss("#d2", B(3, 2), 260, 18); toss("#d3", B(3, 3), -120, -14); toss("#d4", B(3, 3) + BEAT / 2, 320, 24); toss("#d1", B(3, 4), -200, -10);
+      tl.to("#dash", { y: 1100, rotation: 8, duration: 0.55, ease: "power2.in" }, B(4) - 0.5);
+
+      // 02 — the mark, on the lift
+      slam("#mark2", B(4), 1.16); rise("#tag2", B(4, 3));
+
+      // 03 — one sentence in (typed), a finished page out
+      rise("#w3a", B(5)); tl.fromTo("#bar", { y: 200, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "back.out(1.5)" }, B(5));
+      type("say1", B(5) + 0.35, 0.95); rise("#w3b", B(5, 4) - 0.1);
+
+      // 04 — the page lands on the bar line and is read; then its blocks, two beats each; then the number
+      tl.fromTo("#win4", { opacity: 0, scale: 1.08, y: 70 }, { opacity: 1, scale: 1, y: 0, duration: 0.24, ease: "power4.out" }, B(6));
+      tl.fromTo("#plate4", { y: 0 }, { y: -1010, duration: 1.3, ease: "power2.inOut", immediateRender: false }, B(6, 2) + 0.25);
+      clear("say1", B(6, 3));
+      on("#band4", B(6, 3));
+      slam("#w4a", 12.12); slam("#w4b", 12.85); slam("#w4c", 13.55);
+      on("#p4a", B(7)); tl.fromTo("#p4a", { scale: 1.0 }, { scale: 1.04, duration: 2 * BEAT, ease: "none", immediateRender: false }, B(7));
+      on("#p4b", B(7, 3)); tl.fromTo("#p4b", { scale: 1.0 }, { scale: 1.04, duration: 2 * BEAT, ease: "none", immediateRender: false }, B(7, 3));
+      on("#zero", B(8)); tl.set("#bar", { opacity: 0 }, B(8));
+      const o4 = { v: 512 }; tl.to(o4, { v: 0, duration: 0.9, ease: "power3.out", onUpdate: () => { document.getElementById("v4").textContent = Math.round(o4.v); } }, B(8));
+
+      // 05 — a new look: asked for, then seven of them, one every two beats
+      tl.set("#bar", { opacity: 1 }, B(9)); rise("#w5a", B(9)); rise("#w5b", B(9) + 0.12); type("say2", B(9) + 0.3, 1.1); rise("#w5c", B(9, 3) + 0.1);
+      on("#n1", B(9));
+      [["#l2", "#n2"], ["#l3", "#n3"], ["#l4", "#n4"], ["#l5", "#n5"], ["#l6", "#n6"], ["#l7", "#n7"]]
+        .forEach(([img, name], i, a) => { const t = B(10) + i * 2 * BEAT; on(img, t); off(i ? a[i - 1][1] : "#n1", t); on(name, t); });
+      tl.to("#t5a", { opacity: 0, duration: 0.2 }, B(11) - 0.2); rise("#w5d", B(11)); rise("#w5e", B(11) + 0.12);
+
+      // 06 — a whole studio site, and what it is made of
+      clear("say2", B(13)); type("say3", B(13) + 0.1, 1.1);
+      tl.fromTo("#f1", { y: 0 }, { y: -90, duration: 2 * BEAT, ease: "none", immediateRender: false }, B(13));
+      slam("#w6a", B(13) + BEAT / 2, 1.15); slam("#w6b", B(13, 3), 1.15); slam("#w6c", B(14), 1.15);
+      on("#f2", B(13, 3)); tl.fromTo("#f2", { y: 0 }, { y: -90, duration: 2 * BEAT, ease: "none", immediateRender: false }, B(13, 3));
+      on("#f3", B(14)); tl.fromTo("#f3", { y: 0 }, { y: -1500, duration: 2 * BAR - 0.3, ease: "power1.inOut", immediateRender: false }, B(14) + 0.3);
+      tl.fromTo("#files6", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.3, ease: "power3.out" }, B(14, 4)); slam("#files6t", B(14, 4) + 0.3, 1.1);
+
+      // 07 — the gate
+      tl.set("#bar", { opacity: 0 }, B(16)); clear("say3", B(16));
+      rise("#w7", B(16)); on("#g7a", B(17)); on("#g7b", B(17) + BEAT / 2); off("#w7", B(17, 3)); off("#g7a", B(17, 3)); off("#g7b", B(17, 3)); slam("#refused", B(17, 3), 1.2);
+
+      // 08 — yours
+      on("#c8a", B(18)); on("#c8b", B(18, 2)); on("#c8c", B(18, 3)); on("#c8d", B(18, 4));
+      rise("#w8a", B(18) + BEAT / 2); rise("#w8b", B(18, 3)); rise("#w8c", B(19));
+      tl.set("#bar", { opacity: 1 }, B(19)); type("say4", B(19) + 0.1, 0.35); slam("#landed", B(19, 3), 1.3);
+
+      // 09 — the music stops; the mark, and the ask
+      slam("#mark9", B(20), 1.16); rise("#door", B(20, 3) + 0.2); rise("#install", B(21) - 0.3); rise("#foot", B(21) + 0.1);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

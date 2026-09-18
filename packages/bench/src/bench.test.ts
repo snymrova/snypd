@@ -156,9 +156,9 @@ test("S22: parseRecord refuses what is not a record", () => {
   expect(() => parseRecord("**Version** 1 · **Bun** 1 · **Date** d · **Tokenizer** t\n")).toThrow(/no metric rows/);
 });
 
-test("S22: the gallery lists every look every installed theme ships — six today, dark-only ones marked", () => {
+test("S22: the gallery lists every look every installed theme ships — seven since S29, dark-only ones marked", () => {
   const ls = looks("corpora/theme");
-  expect(ls.map((l) => l.slug)).toEqual(["editorial-paper", "editorial-ink", "editorial-broadsheet", "base", "technical-graphite", "technical-phosphor"]);
+  expect(ls.map((l) => l.slug)).toEqual(["editorial-paper", "editorial-ink", "editorial-broadsheet", "base", "studio", "technical-graphite", "technical-phosphor"]);
   expect(ls.filter((l) => l.dark).map((l) => l.slug)).toEqual(["editorial-ink", "technical-phosphor"]);
   expect(ls.find((l) => l.slug === "base")!.variation).toBeUndefined();
   expect(ls.find((l) => l.slug === "base")!.description).toMatch(/^Unstyled/);

@@ -210,6 +210,9 @@ export function candidates(doc: ParsedDoc, source: string): Candidate[] {
         allLeadWithNumber: items.length > 0 && leading.length === items.length,
         hasUnits: UNIT.test(text),
         maxItemWords: Math.max(0, ...items.map(words)),
+        // A wall (S29, `logo-wall`): every item is one picture and nothing else — inside a link or not.
+        imageItems: l.children.filter(isImageItem).length,
+        allImages: l.children.length > 0 && l.children.every(isImageItem),
       };
       make(shape, [n], base, i);
     }
@@ -484,6 +487,19 @@ function firstLink(n: Node): string | undefined {
   if ("children" in n) for (const c of (n as Parent).children) { const u = firstLink(c); if (u) return u; }
   return undefined;
 }
+/** A list item that is one image — bare, or wrapped in a link — and no words: what a logo is. */
+function isImageItem(li: Node): boolean {
+  const kids = ("children" in li ? (li as Parent).children : []).filter((c) => c.type !== "list");
+  if (kids.length !== 1 || kids[0]!.type !== "paragraph") return false;
+  const inline = (kids[0] as Paragraph).children.filter((c) => !(c.type === "text" && !toText(c).trim()));
+  const one = inline.length === 1 ? inline[0]! : undefined;
+  if (!one) return false;
+  if (one.type === "image") return true;
+  return one.type === "link" && (one as Link).children.length === 1 && (one as Link).children[0]!.type === "image";
+}
+
+/** The list as written is already the wall's body: the spec's own slot is "one list; each item an image". */
+const rewriteLogoWall: Rewriter = (c) => (c.facts.allImages === true ? { markdown: container("logo-wall", {}, bodyOf(c)) } : undefined);
 
 const rewriteCta: Rewriter = (c) => {
   const href = String(c.facts.href ?? "");
@@ -495,7 +511,7 @@ const rewriteCta: Rewriter = (c) => {
 export const REWRITERS: Record<string, Rewriter> = {
   chart: rewriteChart, steps: rewriteSteps, flow: rewriteFlow, faq: rewriteFaq, callout: rewriteCallout,
   pullquote: rewritePullquote, tldr: rewriteTldr, figure: rewriteFigure, cover: rewriteCover,
-  "stat-row": rewriteStatRow, cta: rewriteCta,
+  "stat-row": rewriteStatRow, cta: rewriteCta, "logo-wall": rewriteLogoWall,
 };
 
 // ── verification and the public API ───────────────────────────────────────────

@@ -1,0 +1,124 @@
+# The studio theme: an agency site's feel at 0 KB (S29 · U8, docs/17).
+#
+# The reference is phenomenonstudio.com, measured on 17 Sep 2026 — 390 KB of JavaScript, 305 KB of CSS
+# and 22.5 MB of video on one load — and what it *feels* like is made of five things: dark and light
+# bands that alternate down the page, one display face at a hundred pixels, cards separated by hairlines
+# rather than boxes, motion that is mostly a sticky blurred masthead and a marquee, and one clip playing
+# behind the headline. Every one of those is CSS or markup this renderer already owns (docs/14), so this
+# theme is tokens, one stylesheet, one webfont, two parts and one layout over `base` — and the same
+# eighteen gated rows the other looks are held to (docs/17 §5).
+#
+# **The bands are the front page's** (`layouts/home.tsx`): each `##` section of the `home: true` page is
+# one full-bleed band, and a band is one declaration — `color-scheme: dark` over the same `light-dark()`
+# tokens every theme here uses — so the palette below is written once and read twice. A post is a
+# reading page in the same type and stays one scheme; the `bands` setting turns the alternation off.
+#
+# **The face is for display, not prose.** Bricolage Grotesque, subsetted by `scripts/vendor-font.sh
+# studio` to one optical size and one width (33 KB against decision 118's 40 KB lane; both axes together
+# are 65 KB, measured). Headings, eyebrows, the stat figures and the buttons are set in it; the body is
+# the system sans, which is what the reference's second face is for and what a 40 KB lane can afford.
+theme: studio
+version: 0.1.0
+spec: ^1
+extends: base
+css: ./theme.css
+font:
+  family: Bricolage Grotesque
+  file: ./fonts/bricolage-grotesque-latin.woff2
+  weight: 400 800
+  kb: 33
+  # Computed by `scripts/vendor-font.sh studio` at the weight the headings are set in (700), against
+  # Arial Bold — the face a swap is seen against, on every Mac and every Windows.
+  fallback:
+    local: Arial Bold
+    size-adjust: 93.2%
+    ascent-override: 99.7%
+    descent-override: 29.0%
+    line-gap-override: 0%
+# The layouts: the six every theme draws, `home` and the two that are this theme's own (R3, docs/20):
+# `work`, a case as three bands with a facts strip, for a type that declares `layout: work`; and
+# `work-index`, its archive, which the build prefers over `index` for that type. The list restates the
+# six because arrays replace up the chain (theme.ts) — `post`, `page`, `index`, `term` and `author` are
+# still `base`'s files, found up the chain by name.
+layouts: [post, page, index, term, author, home, work, work-index]
+# Three parts of its own: the masthead, which is sticky and blurs what passes under it; the entry list,
+# which is a grid of cards with the post's cover on each — the reference's case cards; and the footer,
+# a band on the page's grid that ends on the name set huge (docs/09 U1, D8).
+parts:
+  header:  ./parts/header.tsx
+  entries: ./parts/entries.tsx
+  footer:  ./parts/footer.tsx
+# What a site chooses without writing CSS (U3). Five are the ones `base`'s footer, byline and entry list
+# already read; `bands` is this theme's — whether the front page alternates its sections, and which
+# scheme the hero takes — and so is `offices`, the footer's third column (docs/17 §4.4's one settings row).
+settings:
+  - { id: logo,       type: image,     label: Logo,           group: Identity,     info: "Site-relative url of an image — put the file in content/media/. Without one the masthead sets the site's name in the display face." }
+  - { id: bands,      type: select,    label: Bands,          group: "Front page", default: dark-first, options: [dark-first, light-first, off], info: "The front page's sections as alternating dark and light bands, starting with the hero; `off` keeps the whole page in the reader's scheme." }
+  - { id: tldrLabel,  type: text,      label: "Summary label", group: Posts,       default: "In short", info: "The word above a `tldr` block. \"TL;DR\" is a blog's word; an agency page says it plainer. A page may still set its own `label`." }
+  - { id: showDates,  type: boolean,   label: "Show dates",   group: Posts,        default: true,  info: "Off hides the date on the byline and on every card — for a site whose posts are not news." }
+  - { id: dateFormat, type: select,    label: "Date format",  group: Posts,        default: iso, options: [iso, long, short], info: "2026-09-12 · 12 September 2026 · 12 Sep 2026. English month names; the <time> element always carries the machine-readable date." }
+  - { id: caseCtaTitle, type: text,    label: "Case call to action", group: Work,   info: "The line at the end of every case — \"Have something to make?\" With no link below, nothing is shown." }
+  - { id: caseCtaHref,  type: text,    label: "Case call to action link", group: Work, info: "Where the button under it goes — /studio/, a mailto:, a form. Site-relative or absolute." }
+  - { id: caseCtaLabel, type: text,    label: "Case call to action button", group: Work, default: "Talk to the studio", info: "The word on the button." }
+  - { id: footerNote, type: richtext,  label: "Footer note",  group: Footer,       info: "One line of markdown under the name, last in the footer — a licence, a colophon, a copyright." }
+  - { id: offices,    type: link_list, label: Offices,        group: Footer,       info: "[{ label, url }] in the footer: where the studio is. A city and a map link, or an address and a mailto." }
+  - { id: social,     type: link_list, label: "Social links", group: Footer,       info: "[{ label, url }] in the footer. Links off this site, so they are urls and not refs — a menu of your own pages is content/nav/footer.yaml." }
+
+personality: >-
+  The agency look. Full-bleed bands that alternate dark and light down the front page, one display face
+  set very large and tight, numbered cards separated by hairlines, pill buttons, a masthead that blurs
+  what scrolls under it. Posts are the same type on one scheme. Zero JS.
+
+tokens:
+  # ── Colour. Every value is a light-dark() pair; `color-scheme` decides which side, and on the front
+  # page a band decides it per section. White body, near-black dark side, one orange.
+  color.scheme:    { default: "light dark", customisable: true, kind: keyword, description: "What `color-scheme` this theme asks the browser for outside the bands. `light dark` follows the reader; `dark` or `light` commits." }
+  color.bg:        { default: "light-dark(#fbfbf9, #101010)", customisable: true, kind: color, description: "Page background — and a band's, on whichever side the band is." }
+  color.surface:   { default: "light-dark(#f1f1ee, #1b1b1b)", customisable: true, kind: color, description: "Raised blocks — callout, tldr, code." }
+  color.text:      { default: "light-dark(#121212, #f3f3f0)", customisable: true, kind: color, description: "Body text." }
+  color.muted:     { default: "light-dark(#5c5c58, #a6a6a1)", customisable: true, kind: color, description: "Dates, captions, eyebrows, card meta." }
+  color.accent:    { default: "light-dark(#b83b0a, #ff8a4c)", customisable: true, kind: color, description: "Links and the one emphatic colour — the reference's orange." }
+  color.on-accent: { default: "light-dark(#fbfbf9, #101010)", customisable: true, kind: color, description: "Text on an accent fill." }
+  color.border:    { default: "light-dark(#e3e3df, #2a2a2a)", customisable: true, kind: color, description: "Hairlines — the only edge a card has." }
+
+  # ── Viz. `@snypd/viz` reads these directly (docs/07 decision 17: the theme brings colour, never geometry).
+  color.viz.1:           { default: "light-dark(#b83b0a, #ff8a4c)", customisable: true, kind: color, description: "First series." }
+  color.viz.2:           { default: "light-dark(#1f5f8b, #7fb8e6)", customisable: true, kind: color, description: "Second series." }
+  color.viz.3:           { default: "light-dark(#8a6d00, #e0c04a)", customisable: true, kind: color, description: "Third series." }
+  color.viz.4:           { default: "light-dark(#4b4b8f, #a8a8e8)", customisable: true, kind: color, description: "Fourth series." }
+  color.viz.5:           { default: "light-dark(#3f6b3a, #9bcf8f)", customisable: true, kind: color, description: "Fifth series." }
+  color.viz.6:           { default: "light-dark(#8b3f68, #e59bc4)", customisable: true, kind: color, description: "Sixth series." }
+  color.viz.axis:        { default: "light-dark(#5c5c58, #a6a6a1)", customisable: true, kind: color, description: "Axis lines." }
+  color.viz.grid:        { default: "light-dark(#e8e8e4, #242424)", customisable: true, kind: color, description: "Gridlines." }
+  color.viz.tick:        { default: "light-dark(#5c5c58, #a6a6a1)", customisable: true, kind: color, description: "Tick labels." }
+  color.viz.label:       { default: "light-dark(#121212, #f3f3f0)", customisable: true, kind: color, description: "Node and edge labels." }
+  color.viz.edge:        { default: "light-dark(#8c8c88, #6e6e6a)", customisable: true, kind: color, description: "Diagram and flow edges." }
+  color.viz.node:        { default: "light-dark(#f1f1ee, #1b1b1b)", customisable: true, kind: color, description: "Node fill." }
+  color.viz.node-stroke: { default: "light-dark(#cfcfca, #3a3a3a)", customisable: true, kind: color, description: "Node outline." }
+
+  # ── Type. One display face (see `font:` above) and the system sans for everything a reader reads at
+  # length. `Bricolage Grotesque fallback` is the generated face between them: Arial Bold with its
+  # advances and line box overridden to the webfont's, so the swap moves no line.
+  font.display: { default: "'Bricolage Grotesque', 'Bricolage Grotesque fallback', Arial, Helvetica, sans-serif", customisable: true, kind: font, description: "The display face — headings, eyebrows, stat figures, buttons, the masthead." }
+  font.body:    { default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", customisable: true, kind: font, description: "Prose." }
+  font.ui:      { default: "var(--font-body)", customisable: true, kind: font, description: "Meta, nav, captions, table headers." }
+  font.mono:    { default: "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", customisable: true, kind: font, description: "Code." }
+  font.heading: { default: "var(--font-display)", customisable: true, kind: font, description: "Headings. The display face; point it at font.body for a quieter page." }
+  size.body:    { default: "clamp(1.0625rem, 1rem + 0.3vw, 1.1875rem)", customisable: true, kind: size, description: "Body size; fluid between phone and desktop." }
+  size.display: { default: "clamp(2.75rem, 1.4rem + 6.6vw, 6.75rem)", customisable: true, kind: size, description: "The front page's headline — a hundred pixels on a desktop, which is the reference's size." }
+  size.h1:      { default: "clamp(2.4rem, 1.5rem + 3.6vw, 4.25rem)", customisable: true, kind: size, description: "Post and page title." }
+  size.h2:      { default: "clamp(1.85rem, 1.25rem + 2.4vw, 3.1rem)", customisable: true, kind: size, description: "Section heading — and a band's title on the front page." }
+  size.h3:      { default: "clamp(1.2rem, 1.05rem + 0.6vw, 1.5rem)", customisable: true, kind: size, description: "Sub-heading." }
+  size.small:   { default: "0.8125rem", customisable: true, kind: size, description: "Meta and caption." }
+  leading.body: { default: "1.6", customisable: true, kind: number, description: "Prose line height." }
+  leading.tight: { default: "1.0", customisable: true, kind: number, description: "Heading line height. Tight, because the face is drawn for it." }
+  measure:      { default: "40rem", customisable: true, kind: size, description: "Width of the reading column. Wider than editorial's — copy on an agency page is short and set large." }
+
+  # ── Space. One ratio, six steps; the top two are the reference's enormous section padding.
+  space.1: { default: "0.25rem", customisable: true, kind: size, description: "Hairline gap." }
+  space.2: { default: "0.5rem",  customisable: true, kind: size, description: "Inside a line." }
+  space.3: { default: "1rem",    customisable: true, kind: size, description: "Between paragraphs." }
+  space.4: { default: "2rem",    customisable: true, kind: size, description: "Around a block." }
+  space.5: { default: "4rem",    customisable: true, kind: size, description: "Between sections." }
+  space.6: { default: "clamp(3.5rem, 2rem + 6vw, 7rem)", customisable: true, kind: size, description: "A band's padding, top and bottom. Fluid: the reference's 7 rem on a desktop, half that on a phone, where 7 rem of black between two bands was most of a screen." }
+  radius:  { default: "12px",    customisable: true, kind: size, description: "Corner radius on pictures and cards; buttons are pills regardless." }
