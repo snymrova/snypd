@@ -18,10 +18,9 @@
 
 A CMS your agent can actually use — markdown in your repo, static HTML out, zero JS. Snypd's **only interface is MCP**: you write, edit, theme and publish a site from Claude Code, Cursor or Codex, and nothing here has a dashboard. Content is markdown + YAML in a git repo you own; the product is one Bun binary; the output is static HTML with no JavaScript by default, and every chart, diagram and flow on the page is SVG the build wrote.
 
-<p align="center">
-  <a href="https://snypd.rocks/media/hero.mp4"><img src=".github/readme/video/hero.webp" alt="Play the film: one sentence to an agent, a finished post, a new look, a gate, a publish" width="820"></a><br>
-  <sub><a href="https://snypd.rocks/media/hero.mp4">▶ Watch the 45-second film</a> (sound on) · or see it on <a href="https://snypd.rocks">snypd.rocks</a></sub>
-</p>
+https://github.com/user-attachments/assets/8e13f1b4-6ad0-4329-8523-b32fa1d9d3fb
+
+<p align="center"><sub><strong>The launch film</strong> — 45 s, sound on · also on <a href="https://snypd.rocks">snypd.rocks</a></sub></p>
 
 ## Start here
 
@@ -129,10 +128,9 @@ The same post, photographed in every look the shelf carries. Each look is measur
 
 <p align="center"><img src=".github/readme/phones/strip.png" alt="The six looks at 390 px" width="100%"></p>
 
-<p align="center">
-  <a href="https://snypd.rocks/media/six-looks.mp4"><img src=".github/readme/video/six-looks.webp" alt="Play: an agent switches the site to technical › phosphor, then the same post in all six looks" width="820"></a><br>
-  <sub><a href="https://snypd.rocks/media/six-looks.mp4">▶ Six looks, one sentence</a> — "switch this site to technical › phosphor and rebuild" (38 s)</sub>
-</p>
+https://github.com/user-attachments/assets/75d77f6c-29b9-45b9-ac43-bb5ec1a36574
+
+<p align="center"><sub><strong>Six looks, one sentence</strong> — "switch this site to technical › phosphor and rebuild" (38 s)</sub></p>
 
 ### Write a theme
 
@@ -140,10 +138,9 @@ A theme is the one artefact that is not content, so it is the one thing a termin
 
 <p align="center"><img src=".github/readme/terminal/check-theme.png" alt="snypd check theme editorial — passes, 17 rules" width="820"></p>
 
-<p align="center">
-  <a href="https://snypd.rocks/media/theme-from-nothing.mp4"><img src=".github/readme/video/theme-from-nothing.webp" alt="Play: an agent scaffolds a theme called slate, runs check theme until every rule passes, and switches the site to it" width="820"></a><br>
-  <sub><a href="https://snypd.rocks/media/theme-from-nothing.mp4">▶ A theme from nothing</a> — scaffolded, checked until every rule passes, switched on (65 s)</sub>
-</p>
+https://github.com/user-attachments/assets/75ba1c76-72c0-4207-9b88-3593ba943ec4
+
+<p align="center"><sub><strong>A theme from nothing</strong> — scaffolded, checked until every rule passes, switched on (65 s)</sub></p>
 
 ## The MCP surface
 
