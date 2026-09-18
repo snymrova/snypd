@@ -25,11 +25,14 @@ import { harnessState, type HarnessState, type HeartbeatRecord } from "./heartbe
 import { MCP_FILE, onPath } from "./site";
 
 /**
- * The sentence a person pastes into the harness they already have open (docs/08 decision 58).
+ * The sentence a person pastes into a harness that is already open (docs/08 decision 58).
  *
- * Named here rather than retyped because it is used in four places — the README, snypd.rocks, the
- * first-run Desk and the `onboard.*` lane — and a funnel whose first step is spelled differently in
- * each of them is measuring four different funnels. It names its first command on purpose: an agent
+ * Since decision 178 the front door in the README is `bunx @snypd/cli init` typed in a terminal *before*
+ * the harness opens — the harness has to start to read `.mcp.json` either way, so running `init` first
+ * turns a restart into an open. This sentence is the other door, for somebody already inside a harness:
+ * the first-run Desk offers it, and the `onboard.*` lane walks it. Named here rather than retyped
+ * because a funnel whose first step is spelled differently in each place is measuring several
+ * different funnels. It names its first command on purpose: an agent
  * that has never heard of snypd cannot infer `bunx @snypd/cli init`, and a sentence whose first step is
  * a web search has a nondeterministic first step. The package is scoped and the binary is not — see
  * `deploy.ts` › `LAUNCHER`, and note that it is the *package* that has to appear here, because this
