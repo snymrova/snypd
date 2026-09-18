@@ -23,6 +23,7 @@
  * 18 duplicate-title    a block's `title` inside a `##` section that repeats or restates the heading
  * 19 frontmatter-unparsed  a taxonomy term's or an author's frontmatter that does not parse — the build reads those with
  *                       `readFrontmatter`, which returns `{}`, so the term showed its slug and nothing said why (lintSite)
+ * 20 media-size        report-only: a file in content/media/ over 300 KB, with who names it; a file nothing names (lintSite, media.ts)
  */
 import type { Node, Parent, Heading, Link, Image, Text, Literal } from "mdast";
 import type { FieldSpec } from "@snypd/spec";

@@ -358,13 +358,20 @@ export function handlers(root: string, notify?: (method: string, params?: Record
               status = r.status;
               g = await commitWrite(r, `content: publish ${type}/${slug}`, trailers);
             }
-            // The publish itself: one item's path, from the drafts branch onto the branch it was cut
+            // The publish itself: the item's path, from the drafts branch onto the branch it was cut
             // from, without moving the working tree (git.ts `land`). Every other draft stays where it is.
+            // With it (S31 · H5, docs/23 §6.1): the media the page names — `figure.src`, a `cover.poster`,
+            // a `![]()` — that is tracked on the drafts branch. A published post on `main` naming a picture
+            // `main` does not have is a 404 the product made; decision 179 refused the same state for a
+            // theme. Untracked media is left alone (a file nobody committed is not part of what was
+            // approved), and an unpublish leaves media where it is — another page may name it.
             const repo = c.Repo.open(root);
-            const landed = repo?.land([t.path], `content: publish ${type}/${slug}`, undefined, trailers);
+            const media = repo ? c.documentMedia(readFileSync(t.file, "utf8")).map((m) => m.path) : [];
+            const tracked = media.length ? repo!.tracked(media) : [];
+            const landed = repo?.land([t.path, ...tracked], `content: publish ${type}/${slug}`, undefined, trailers);
             if (landed && !landed.ok) return fail(`published ${type}/${slug}, but landing it on ${landed.base ?? "the base branch"} failed: ${landed.reason}`, "The file itself is published — this is git's problem, not the post's. `git log snypd/drafts` shows the commit that has not landed.");
             c.clearApproval(store, type, slug);
-            const where = !landed ? "not a git repo" : landed.changed ? `landed on ${landed.base} as ${landed.sha!.slice(0, 8)}` : `${landed.base} already has this version`;
+            const where = !landed ? "not a git repo" : landed.changed ? `landed on ${landed.base} as ${landed.sha!.slice(0, 8)}${tracked.length ? ` with ${tracked.length} media file${tracked.length === 1 ? "" : "s"} (${tracked.map((p) => p.slice("content/media/".length)).join(", ")})` : ""}` : `${landed.base} already has this version`;
             // The `publish` event (P3, docs/10 §4.5): after the item is on the base branch — or, on a site that
             // is not a repo, after it is published, which is the same fact without the branch. Fire and
             // report: what each listening plugin said is a line here and a row in .snypd/events.json, and
@@ -372,7 +379,7 @@ export function handlers(root: string, notify?: (method: string, params?: Record
             const events = await c.fireEvent(root, cfg, "publish", { type, slug, route: t.route, url: c.urlOf(cfg.config.site.url, t.route), path: t.path, base: landed?.base, sha: landed?.sha });
             return text([`published ${type}/${slug} → ${t.route}`, where, `approved by ${check.approval?.by ?? `policy ${check.policy}`}`, ...c.eventLines(events)].join("\n"),
               // `policy` and `approvedBy` (R4): the text says "approved by policy publish" or "by a human at the review page"; the structured half — what Claude Code shows a model — says it too.
-              { ok: true, type, slug, route: t.route, status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base, landedSha: landed?.sha }, policy: check.policy, approvedBy: check.approval?.by ?? `policy ${check.policy}`, approval: check.approval, events });
+              { ok: true, type, slug, route: t.route, status, git: { ...g, landed: landed?.changed ?? false, base: landed?.base, landedSha: landed?.sha, media: tracked }, policy: check.policy, approvedBy: check.approval?.by ?? `policy ${check.policy}`, approval: check.approval, events });
           }
           case "content.suggest_blocks": {
             const cfg = await cfgOf();

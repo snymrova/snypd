@@ -3049,6 +3049,26 @@ describe("R1 (docs/20): a type of the site's own — archives, the front page's 
     writeFileSync(join(root, "snypd.yaml"), yaml("base"));
   });
 
+  test("200: the front page is handed every dated type's list, and a release in one re-renders it", async () => {
+    // A theme that draws a band per list: the type, its archive, its title, its count, its newest title.
+    writeFileSync(join(root, "themes/t/layouts/home.tsx"), 'export default ({ title, entries, archive, lists }) => ({ html: `<!doctype html><title>${title}</title><p>ENTRIES ${archive.type} ${entries.length}</p>${lists.map((l) => `<p>LIST ${l.type} ${l.route} ${l.title} ${l.entries.length} ${l.entries[0].title}</p>`).join("")}` });');
+    writeFileSync(join(root, "snypd.yaml"), yaml("t"));
+    await build(root);
+    const h = read("");
+    // `entries` is still decision 195's one type; `lists` is every dated type, in the order declared, each newest first
+    expect(h).toContain("<p>ENTRIES work 2</p>");
+    expect(h).toContain("<p>LIST post /posts Notes 1 A note on grog</p><p>LIST work /work Work 2 Kiln</p>");
+    // a note published re-renders `/` — the list it is in is in the key — and nothing about the menu's choice moved
+    writeFileSync(join(root, "content/posts/hops.md"), item("A note on hops", "2026-09-04"));
+    const r = await build(root);
+    expect(r.rendered).toBeGreaterThan(0);
+    expect(read("")).toContain("<p>LIST post /posts Notes 2 A note on hops</p>");
+    expect(read("")).toContain("<p>ENTRIES work 2</p>");
+    rmSync(join(root, "content/posts/hops.md"));
+    rmSync(join(root, "themes/t/layouts/home.tsx"));
+    writeFileSync(join(root, "snypd.yaml"), yaml("base"));
+  });
+
   test("a blog is byte-for-byte the blog it was: one dated type and nothing at `/` means the list is `/` and no /posts/ exists", async () => {
     const blog = "corpora/_test/registry-blog";
     rmSync(blog, { recursive: true, force: true });

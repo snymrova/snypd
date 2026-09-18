@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { loadConfig } from "./index";
-import { createContent, updateContent, setStatus, trashContent, restoreContent, splitFrontmatter, target, publishCheck, approve, approvals, contentHash } from "./write";
+import { loadConfig, documentMedia } from "./index";
+import { createContent, updateContent, setStatus, trashContent, restoreContent, splitFrontmatter, target, publishCheck, approve, approvals, contentHash, TRASH_DIR } from "./write";
 import { Repo, git, initRepo, isRepoRoot, principal, DRAFTS_BRANCH } from "./git";
 
 const root = "corpora/_test/write";
@@ -251,6 +251,30 @@ describe("git (S11)", () => {
     const landed = r.land(["content/posts/fourth.md"], "content: publish post/fourth");
     expect(landed.ok).toBe(false);
     expect(landed.reason).toMatch(/uncommitted/);
+  });
+
+  test("a publish lands the media the page names, tracked ones only; an unpublish leaves media where it is (S31 · H5)", () => {
+    setup();
+    const r = Repo.open(repo)!;
+    const cfg = loadConfig(repo);
+    mkdirSync(`${repo}/content/media`, { recursive: true });
+    writeFileSync(`${repo}/content/media/still.png`, Buffer.alloc(64, 1));
+    writeFileSync(`${repo}/content/media/loose.png`, Buffer.alloc(64, 2));   // never committed
+    const c = createContent(repo, { type: "post", slug: "pictured", frontmatter: { title: "Pictured" }, body: "![a still](/media/still.png)\n\n![loose](/media/loose.png)\n", cfg });
+    r.useDrafts([...c.paths, "content/media/still.png", "content/media/loose.png"]);
+    r.commit([...c.paths, "content/media/still.png"], "content: create post/pictured");
+    const media = documentMedia(readFileSync(`${repo}/${c.path}`, "utf8")).map((m) => m.path);
+    expect(media).toEqual(["content/media/still.png", "content/media/loose.png"]);
+    expect(r.tracked(media)).toEqual(["content/media/still.png"]);
+    const landed = r.land([c.path, ...r.tracked(media)], "content: publish post/pictured");
+    expect(landed).toMatchObject({ ok: true, changed: true, base: "main" });
+    expect(r.run("ls-tree", "-r", "main", "--name-only", "content/").stdout.split("\n").sort()).toEqual(["content/media/still.png", "content/posts/pictured.md"]);
+    // The unpublish lands the item's path alone: `still.png` stays on main, where another page may name it.
+    expect(r.land([c.path], "content: unpublish post/pictured")).toMatchObject({ ok: true, changed: false });
+    trashContent(repo, { type: "post", slug: "pictured", cfg });
+    r.commit([c.path, `${TRASH_DIR}/post/pictured.md`], "content: trash post/pictured");
+    expect(r.land([c.path], "content: unpublish post/pictured")).toMatchObject({ ok: true, changed: true });
+    expect(r.run("ls-tree", "-r", "main", "--name-only", "content/").stdout).toBe("content/media/still.png");
   });
 
   test("useDrafts refuses to carry someone else's uncommitted work onto the drafts branch", () => {

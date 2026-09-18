@@ -188,6 +188,13 @@ export interface LayoutProps {
   archive?: Archive;
   /** For a content route of a dated type (R3): the item before and after it in its type's list, newest first — what a *next case* card is drawn from. Absent for a page, an author, a list. */
   adjacent?: { newer?: Entry; older?: Entry };
+  /**
+   * For `home` (S31 · G1, decision 200): every dated type's archive with its newest few, in the order the
+   * types are declared — what a front page with releases beside its log beside its posts draws its bands
+   * from. `entries` stays the one type decision 195 chose, so a theme that reads only `entries` is unchanged;
+   * a theme that reads `lists` finds the same type there too. In the key: a release published re-renders `/`.
+   */
+  lists?: (Archive & { entries: Entry[] })[];
   /** JSON-LD for the page (emit.ts): one or more objects, newline-separated, ready for one <script>. */
   jsonLd?: string;
 }

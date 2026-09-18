@@ -173,6 +173,12 @@ export class Repo {
     const lines = (r: GitResult) => (r.ok && r.stdout ? r.stdout.split("\n").filter(Boolean) : []);
     return [...new Set([...lines(tracked), ...lines(untracked)])];
   }
+  /** Of `paths`, the ones the index tracks — what a `land` may carry; an untracked file is nobody's commit. */
+  tracked(paths: string[]): string[] {
+    if (!paths.length) return [];
+    const r = this.run("ls-files", "-z", "--", ...paths);
+    return r.ok && r.stdout ? r.stdout.split("\0").filter(Boolean) : [];
+  }
   /** The branch this one was cut from — recorded in its config so `land()` knows what a publish moves. */
   baseOf(branch: string): string | undefined { const r = this.run("config", "--get", `branch.${branch}.snypdBase`); return r.ok && r.stdout ? r.stdout : undefined; }
 

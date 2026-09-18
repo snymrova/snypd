@@ -204,6 +204,29 @@ describe("content.* tools", () => {
     expect(again.result.isError).toBeUndefined();
   });
 
+  test("a publish lands the picture the post names beside it, and says so (S31 · H5)", async () => {
+    const c = await import("@snypd/core");
+    // Media added by hand on the drafts branch, the way every picture on snypd.rocks was: committed there, absent on main.
+    mkdirSync(`${site}/content/media`, { recursive: true });
+    writeFileSync(`${site}/content/media/still.png`, Buffer.alloc(64, 1));
+    writeFileSync(`${site}/content/media/loose.png`, Buffer.alloc(64, 2));
+    c.Repo.open(site)!.useDrafts(["content/media/still.png", "content/media/loose.png"]);
+    c.git(site, "add", "content/media/still.png"); c.git(site, "commit", "-q", "-m", "media: a still");
+    const [, , published] = await session([
+      req(1, "initialize"),
+      call(2, "content.create", { type: "post", frontmatter: { title: "Pictured" }, body: "## A still\n\n::figure{src=\"/media/still.png\" alt=\"a still\" caption=\"The still\"}\n\n![loose](/media/loose.png)\n" }),
+      call(3, "content.publish", { type: "post", slug: "pictured" }),
+    ], site);
+    expect(structured(published)).toMatchObject({ ok: true, status: "published" });
+    expect(structured(published).git).toMatchObject({ landed: true, base: "main", media: ["content/media/still.png"] });
+    expect(published.result.content[0].text).toContain("with 1 media file (still.png)");
+    // main has the post and the still it names; the untracked picture is nobody's commit and stays where it is.
+    expect(c.git(site, "ls-tree", "-r", "main", "--name-only", "content/media/").stdout).toBe("content/media/still.png");
+    expect(c.git(site, "ls-tree", "main", "--name-only", "content/posts/pictured.md").stdout).toBe("content/posts/pictured.md");
+    expect(c.git(site, "rev-parse", "--abbrev-ref", "HEAD").stdout).toBe("snypd/drafts");
+    rmSync(`${site}/content/media/loose.png`, { force: true });
+  });
+
   test("a type whose policy is `draft` still refuses without a human, and merges after approval", async () => {
     const reviewed = "corpora/_test/mcp-site-draft";
     rmSync(reviewed, { recursive: true, force: true });

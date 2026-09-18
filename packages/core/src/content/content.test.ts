@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { lintMarkdown, parseMarkdown, buildTree, countNodes, MdastCache, lintSite, hashSource, type Diagnostic } from "./index";
-import { mkdirSync, rmSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { lintMarkdown, parseMarkdown, buildTree, countNodes, MdastCache, lintSite, hashSource, mediaRefs, type Diagnostic } from "./index";
+import { mkdirSync, rmSync, writeFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 
 const FM = `---\ntitle: T\ndate: 2026-01-02\nstatus: draft\n---\n\n`;
 const POST_TYPE = { fields: { title: { type: "string", required: true }, date: { type: "date", required: true }, updated: { type: "date" }, status: { type: "ref", to: "status" }, slug: { type: "string", pattern: "^[a-z0-9-]+$" }, tags: { type: "list", of: { type: "ref", to: "tag" } }, cover: { type: "object", fields: { image: { type: "image" }, alt: { type: "string" } } } } } as const;
@@ -350,6 +350,43 @@ describe("lintSite", () => {
     writeFileSync(`${root}/content/taxonomies/category/product.md`, "---\ntitle: Product\nstatus: published\ndescription: \"Objects that get made: tooling, materials, the first thousand units.\"\n---\n\nObjects.\n");
     writeFileSync(`${root}/content/authors/ana.md`, "---\nname: Ana\n---\n");
     expect(lintSite(root).errors).toBe(0);
+    rmSync(root, { recursive: true, force: true });
+  });
+  test("20 media-size: a file over 300 KB warns with its size and who names it; a file nothing names warns unreferenced (S31 · H5)", () => {
+    const root = "corpora/_test/media";
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/taxonomies/tag", "content/authors", "content/media/stills"]) mkdirSync(`${root}/${d}`, { recursive: true });
+    writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example, favicon: /media/icon.svg }\n");
+    // Named four ways: a figure's src and poster, a frontmatter cover, a markdown image, a term's picture — and the favicon above.
+    writeFileSync(`${root}/content/posts/a.md`, `---\ntitle: A\ndate: 2026-01-01\nstatus: published\ncover: { image: /media/stills/cover.png, alt: c }\ntags: [t]\n---\n\n::figure{src="/media/clip.mp4" poster="/media/stills/poster.png?v=2" alt="a" caption="c"}\n\n![big](/media/big.png)\n`);
+    writeFileSync(`${root}/content/posts/b.md`, `---\ntitle: B\ndate: 2026-01-02\nstatus: published\ntags: [t]\n---\n\n![big again](/media/big.png)\n`);
+    writeFileSync(`${root}/content/taxonomies/tag/t.md`, "---\ntitle: T\nimage: /media/stills/term.png\n---\n");
+    const png = (kb: number) => Buffer.alloc(kb * 1024, 1);
+    writeFileSync(`${root}/content/media/icon.svg`, "<svg/>");
+    writeFileSync(`${root}/content/media/big.png`, png(301));
+    writeFileSync(`${root}/content/media/clip.mp4`, png(900));
+    writeFileSync(`${root}/content/media/orphan.png`, png(12));
+    writeFileSync(`${root}/content/media/.gitkeep`, "");
+    writeFileSync(`${root}/content/media/stills/cover.png`, png(10));
+    writeFileSync(`${root}/content/media/stills/poster.png`, png(10));
+    writeFileSync(`${root}/content/media/stills/term.png`, png(10));
+    const s = lintSite(root);
+    const media = s.files.filter((f) => f.file?.startsWith("content/media/"));
+    expect(media.map((f) => f.file)).toEqual(["content/media/big.png", "content/media/clip.mp4", "content/media/orphan.png"]);
+    expect(media.every((f) => f.diagnostics.length === 1 && f.diagnostics[0]!.rule === "media-size" && f.diagnostics[0]!.n === 20 && f.diagnostics[0]!.severity === "warning")).toBe(true);
+    expect(media[0]!.diagnostics[0]!.message).toBe("`big.png` is 301 KB, named by content/posts/a.md, content/posts/b.md");
+    expect(media[0]!.diagnostics[0]!.hint).toMatch(/^Resize or re-encode it/);
+    expect(media[1]!.diagnostics[0]!.message).toBe("`clip.mp4` is 900 KB, named by content/posts/a.md");
+    expect(media[1]!.diagnostics[0]!.hint).toMatch(/object storage.*docs\/23/);
+    expect(media[2]!.diagnostics[0]!.message).toBe("`orphan.png` (12 KB) is named by no page, term, author or setting");
+    expect(media[2]!.diagnostics[0]!.hint).toMatch(/^The build copies every file here/);
+    // Report-only: warnings, and no errors from this rule.
+    expect(s.errors).toBe(0); expect(s.warnings).toBeGreaterThanOrEqual(3);
+    // The walk itself, once: every `/media/…` value the document wrote, each url once, with where it was written.
+    const md = readFileSync(`${root}/content/posts/a.md`, "utf8");
+    const refs = mediaRefs(parseMarkdown(md), buildTree(parseMarkdown(md), md));
+    expect(refs.map((r) => [r.path, r.via])).toEqual([["content/media/stills/cover.png", "cover.image"], ["content/media/clip.mp4", "figure.src"], ["content/media/stills/poster.png", "figure.poster"], ["content/media/big.png", "image"]]);
+    expect(refs[2]!.url).toBe("/media/stills/poster.png");
     rmSync(root, { recursive: true, force: true });
   });
 });

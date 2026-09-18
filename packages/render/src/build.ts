@@ -355,12 +355,15 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     // The front page lists the latest posts under its body (S25), so the list is in its key as it is in the index's.
     const home = layout === "home";
     const listing = home ? (homeArchive?.entries ?? []).slice(0, HOME_ENTRIES) : byAuthor;
+    // Every dated type's newest few, for the front page (G1, decision 200): a band per type is the site's
+    // call, and each list is in the key by its title and its entries, as the one list already was.
+    const lists = home ? archives.map((a) => ({ type: a.type, route: a.route, title: a.title, entries: a.entries.slice(0, HOME_ENTRIES) })) : [];
     // The item's neighbours in its type's list (R3): what a *next case* card is drawn from, and in the
     // key, so a case re-renders when the one after it is published — not when any post anywhere is.
     const siblings = dated(f.type) && !home ? listEntries.filter((e) => e.type === f.type) : [];
     const at = siblings.findIndex((e) => e.route === f.route);
     const adjacent = at >= 0 ? { newer: siblings[at - 1], older: siblings[at + 1] } : undefined;
-    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}${adjacent ? `:${listKey([adjacent.newer, adjacent.older].filter((e): e is Entry => !!e))}` : ""}`);
+    const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}${home ? lists.map((l) => `:${l.title}:${listKey(l.entries)}`).join("") : ""}${adjacent ? `:${listKey([adjacent.newer, adjacent.older].filter((e): e is Entry => !!e))}` : ""}`);
     contentRoutes.add(f.route);
     const dir = routeDir(f.route);
     plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
@@ -375,7 +378,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const schemas = applyFilter(hooks, "jsonLd", [home ? webSite() : pageSchema(s, entry.description ?? derived.description ?? description, ctx, typeLineage(c.types, f.type)), ...derived.schemas], fc);
       const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings, sections };
       const entries = layout === "author" || home ? applyFilter(hooks, "entries", listing, fc) : [];
-      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}), ...(adjacent ? { adjacent } : {}) });
+      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}), ...(home ? { lists: lists.map((l) => ({ ...l, entries: applyFilter(hooks, "entries", l.entries, fc) })) } : {}), ...(adjacent ? { adjacent } : {}) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });
   }
