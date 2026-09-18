@@ -378,7 +378,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const schemas = applyFilter(hooks, "jsonLd", [home ? webSite() : pageSchema(s, entry.description ?? derived.description ?? description, ctx, typeLineage(c.types, f.type)), ...derived.schemas], fc);
       const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings, sections };
       const entries = layout === "author" || home ? applyFilter(hooks, "entries", listing, fc) : [];
-      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: home ? site.name : page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}), ...(home ? { lists: lists.map((l) => ({ ...l, entries: applyFilter(hooks, "entries", l.entries, fc) })) } : {}), ...(adjacent ? { adjacent } : {}) });
+      const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}), ...(home ? { lists: lists.map((l) => ({ ...l, entries: applyFilter(hooks, "entries", l.entries, fc) })) } : {}), ...(adjacent ? { adjacent } : {}) });
       return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
     } });
   }

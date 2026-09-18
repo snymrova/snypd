@@ -34,7 +34,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "6cb4c8ef82a491eba5c4681ffe3c802e0d26a62b",
+    hash: "295c64b5c4e3d669716880c67b834ca98673e32b",
     files: {
       "theme.css": _base_theme_css,
       "theme.yaml": _base_theme_yaml,

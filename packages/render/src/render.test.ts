@@ -2022,7 +2022,8 @@ describe("the front page is a page (S25): `home: true` takes `/`, and the list m
     writeFileSync(join(root, "content/pages/welcome.md"), welcome(true));
     await build(root);
     const h = read("");
-    expect(h).toContain("<title>H</title>");                                   // the tab is the site; the heading is the page's
+    expect(h).toContain("<title>H - Welcome</title>");                         // the tab is the site, then the page's own title (206); the heading is the page's
+    expect(h).toContain('<meta property="og:title" content="Welcome">');
     expect(h).toContain('<article class="snypd-page snypd-home"><h1>Welcome</h1>');
     expect(h).toContain('<section class="snypd-tldr"');                        // every primitive, as on a page
     expect(h).toContain("<p>The pitch.</p>");
