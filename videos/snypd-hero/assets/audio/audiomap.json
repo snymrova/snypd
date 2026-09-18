@@ -1,0 +1,2621 @@
+{
+  "version": 2,
+  "phraseBars": 4,
+  "summary": "129 BPM · 78 beats / 20 bars · 160 events ({'snare': 91, 'kick': 12, 'perc': 11, 'hihat': 46}) · 10 rolls · 22 energy phases · 38.2s",
+  "audio": {
+    "path": "assets/audio/bed.wav",
+    "duration_sec": 38.24,
+    "sr": 22050
+  },
+  "tempo": {
+    "bpm": 129.2,
+    "beats_per_bar": 4,
+    "downbeat_phase": 1,
+    "n_beats": 78,
+    "n_bars": 20
+  },
+  "grid": {
+    "beats_sec": [
+      0.116,
+      0.604,
+      1.068,
+      1.533,
+      1.997,
+      2.461,
+      2.926,
+      3.39,
+      3.855,
+      4.342,
+      4.807,
+      5.271,
+      5.759,
+      6.223,
+      6.687,
+      7.152,
+      7.616,
+      8.104,
+      8.568,
+      9.033,
+      9.497,
+      9.961,
+      10.426,
+      10.89,
+      11.355,
+      11.726,
+      12.074,
+      12.539,
+      13.003,
+      13.491,
+      13.955,
+      14.42,
+      14.884,
+      15.372,
+      15.836,
+      16.3,
+      16.765,
+      17.229,
+      17.694,
+      18.158,
+      18.646,
+      19.11,
+      19.574,
+      20.039,
+      20.503,
+      20.991,
+      21.455,
+      21.92,
+      22.407,
+      22.872,
+      23.313,
+      23.777,
+      24.242,
+      24.706,
+      25.194,
+      25.658,
+      26.122,
+      26.587,
+      27.051,
+      27.539,
+      28.003,
+      28.468,
+      28.932,
+      29.396,
+      29.861,
+      30.325,
+      30.79,
+      31.277,
+      31.742,
+      32.206,
+      32.67,
+      33.135,
+      33.599,
+      34.087,
+      34.551,
+      35.016,
+      35.48,
+      35.944
+    ],
+    "downbeats_sec": [
+      0.604,
+      2.461,
+      4.342,
+      6.223,
+      8.104,
+      9.961,
+      11.726,
+      13.491,
+      15.372,
+      17.229,
+      19.11,
+      20.991,
+      22.872,
+      24.706,
+      26.587,
+      28.468,
+      30.325,
+      32.206,
+      34.087,
+      35.944
+    ]
+  },
+  "energy_phases": [
+    {
+      "start": 0.0,
+      "end": 1.0,
+      "level": "VOID",
+      "energy": 0.0,
+      "feel": {
+        "character": "sparse",
+        "bands": []
+      },
+      "onsets": 1,
+      "onsetRate": 1.0,
+      "rolls": [],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 1.0,
+      "end": 2.0,
+      "level": "LOW",
+      "energy": 0.37,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 4,
+      "onsetRate": 4.0,
+      "rolls": [],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 2.0,
+      "end": 3.0,
+      "level": "HIGH",
+      "energy": 0.66,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 5,
+      "onsetRate": 5.0,
+      "rolls": [],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 3.0,
+      "end": 8.0,
+      "level": "LOW",
+      "energy": 0.3,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 25,
+      "onsetRate": 5.0,
+      "rolls": [
+        {
+          "start": 3.344,
+          "end": 5.689,
+          "kind": "accel-roll",
+          "drum": "snare"
+        },
+        {
+          "start": 6.153,
+          "end": 7.454,
+          "kind": "sustained-fill",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "dense"
+    },
+    {
+      "start": 8.0,
+      "end": 12.0,
+      "level": "HIGH",
+      "energy": 0.81,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 16,
+      "onsetRate": 4.0,
+      "rolls": [
+        {
+          "start": 8.87,
+          "end": 9.404,
+          "kind": "fill",
+          "drum": "perc"
+        }
+      ],
+      "hardStops": [],
+      "density": "dense"
+    },
+    {
+      "start": 12.0,
+      "end": 13.0,
+      "level": "MEDIUM",
+      "energy": 0.52,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass"
+        ]
+      },
+      "onsets": 5,
+      "onsetRate": 5.0,
+      "rolls": [
+        {
+          "start": 12.26,
+          "end": 14.582,
+          "kind": "sustained-fill",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 13.0,
+      "end": 15.0,
+      "level": "HIGH",
+      "energy": 0.69,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass"
+        ]
+      },
+      "onsets": 10,
+      "onsetRate": 5.0,
+      "rolls": [
+        {
+          "start": 12.26,
+          "end": 14.582,
+          "kind": "sustained-fill",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "dense"
+    },
+    {
+      "start": 15.0,
+      "end": 16.0,
+      "level": "LOW",
+      "energy": 0.22,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 3,
+      "onsetRate": 3.0,
+      "rolls": [
+        {
+          "start": 15.999,
+          "end": 16.927,
+          "kind": "fill",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 16.0,
+      "end": 20.0,
+      "level": "HIGH",
+      "energy": 0.83,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 22,
+      "onsetRate": 5.5,
+      "rolls": [
+        {
+          "start": 15.999,
+          "end": 16.927,
+          "kind": "fill",
+          "drum": "snare"
+        },
+        {
+          "start": 17.183,
+          "end": 17.601,
+          "kind": "fill",
+          "drum": "snare"
+        },
+        {
+          "start": 19.064,
+          "end": 20.41,
+          "kind": "accel-roll",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "dense"
+    },
+    {
+      "start": 20.0,
+      "end": 21.0,
+      "level": "MEDIUM",
+      "energy": 0.51,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 4,
+      "onsetRate": 4.0,
+      "rolls": [
+        {
+          "start": 19.064,
+          "end": 20.41,
+          "kind": "accel-roll",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 21.0,
+      "end": 25.0,
+      "level": "LOW",
+      "energy": 0.32,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass"
+        ]
+      },
+      "onsets": 14,
+      "onsetRate": 3.5,
+      "rolls": [
+        {
+          "start": 21.06,
+          "end": 22.059,
+          "kind": "accel-roll",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "dense"
+    },
+    {
+      "start": 25.0,
+      "end": 26.0,
+      "level": "MEDIUM",
+      "energy": 0.44,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass"
+        ]
+      },
+      "onsets": 3,
+      "onsetRate": 3.0,
+      "rolls": [],
+      "hardStops": [
+        26
+      ],
+      "density": "sparse"
+    },
+    {
+      "start": 26.0,
+      "end": 27.0,
+      "level": "VOID",
+      "energy": 0.15,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass"
+        ]
+      },
+      "onsets": 4,
+      "onsetRate": 4.0,
+      "rolls": [],
+      "hardStops": [
+        26
+      ],
+      "density": "sparse"
+    },
+    {
+      "start": 27.0,
+      "end": 28.0,
+      "level": "LOW",
+      "energy": 0.33,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass",
+          "low_mid"
+        ]
+      },
+      "onsets": 4,
+      "onsetRate": 4.0,
+      "rolls": [],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 28.0,
+      "end": 29.0,
+      "level": "MEDIUM",
+      "energy": 0.41,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub",
+          "low_mid"
+        ]
+      },
+      "onsets": 5,
+      "onsetRate": 5.0,
+      "rolls": [
+        {
+          "start": 28.514,
+          "end": 30.256,
+          "kind": "sustained-fill",
+          "drum": "hihat"
+        }
+      ],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 29.0,
+      "end": 30.0,
+      "level": "LOW",
+      "energy": 0.27,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass",
+          "low_mid"
+        ]
+      },
+      "onsets": 6,
+      "onsetRate": 6.0,
+      "rolls": [
+        {
+          "start": 28.514,
+          "end": 30.256,
+          "kind": "sustained-fill",
+          "drum": "hihat"
+        }
+      ],
+      "hardStops": [],
+      "density": "dense"
+    },
+    {
+      "start": 30.0,
+      "end": 31.0,
+      "level": "VOID",
+      "energy": 0.19,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 5,
+      "onsetRate": 5.0,
+      "rolls": [
+        {
+          "start": 28.514,
+          "end": 30.256,
+          "kind": "sustained-fill",
+          "drum": "hihat"
+        },
+        {
+          "start": 30.534,
+          "end": 33.065,
+          "kind": "sustained-fill",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 31.0,
+      "end": 32.0,
+      "level": "MEDIUM",
+      "energy": 0.63,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 5,
+      "onsetRate": 5.0,
+      "rolls": [
+        {
+          "start": 30.534,
+          "end": 33.065,
+          "kind": "sustained-fill",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "sparse"
+    },
+    {
+      "start": 32.0,
+      "end": 34.0,
+      "level": "HIGH",
+      "energy": 0.72,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub"
+        ]
+      },
+      "onsets": 9,
+      "onsetRate": 4.5,
+      "rolls": [
+        {
+          "start": 30.534,
+          "end": 33.065,
+          "kind": "sustained-fill",
+          "drum": "snare"
+        }
+      ],
+      "hardStops": [],
+      "density": "dense"
+    },
+    {
+      "start": 34.0,
+      "end": 35.0,
+      "level": "MEDIUM",
+      "energy": 0.64,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "sub",
+          "bass"
+        ]
+      },
+      "onsets": 6,
+      "onsetRate": 6.0,
+      "rolls": [],
+      "hardStops": [],
+      "density": "medium"
+    },
+    {
+      "start": 35.0,
+      "end": 37.0,
+      "level": "HIGH",
+      "energy": 0.75,
+      "feel": {
+        "character": "heavy",
+        "bands": [
+          "bass",
+          "sub",
+          "low_mid"
+        ]
+      },
+      "onsets": 4,
+      "onsetRate": 2.0,
+      "rolls": [],
+      "hardStops": [
+        37
+      ],
+      "density": "sparse"
+    },
+    {
+      "start": 37.0,
+      "end": 38.2,
+      "level": "VOID",
+      "energy": 0.08,
+      "feel": {
+        "character": "sparse",
+        "bands": []
+      },
+      "onsets": 0,
+      "onsetRate": 0.0,
+      "rolls": [],
+      "hardStops": [
+        37
+      ],
+      "density": "sparse"
+    }
+  ],
+  "key_moments": [
+    {
+      "t": 37,
+      "kind": "DROP",
+      "delta": -0.67
+    },
+    {
+      "t": 8,
+      "kind": "SURGE",
+      "delta": 0.49
+    },
+    {
+      "t": 15,
+      "kind": "DROP",
+      "delta": -0.46
+    },
+    {
+      "t": 16,
+      "kind": "SURGE",
+      "delta": 0.44
+    },
+    {
+      "t": 31,
+      "kind": "SURGE",
+      "delta": 0.43
+    },
+    {
+      "t": 1,
+      "kind": "SURGE",
+      "delta": 0.37
+    },
+    {
+      "t": 17,
+      "kind": "SURGE",
+      "delta": 0.34
+    },
+    {
+      "t": 3,
+      "kind": "DROP",
+      "delta": -0.33
+    }
+  ],
+  "hard_stops": [
+    {
+      "t": 37,
+      "kind": "DROP",
+      "delta": -0.67
+    },
+    {
+      "t": 26,
+      "kind": "DROP",
+      "delta": -0.29
+    }
+  ],
+  "rolls": [
+    {
+      "start": 3.344,
+      "end": 5.689,
+      "dur_sec": 2.345,
+      "hits": 14,
+      "rate_per_min": 333,
+      "kind": "accel-roll",
+      "drum": "snare",
+      "leads_to": null
+    },
+    {
+      "start": 6.153,
+      "end": 7.454,
+      "dur_sec": 1.301,
+      "hits": 9,
+      "rate_per_min": 369,
+      "kind": "sustained-fill",
+      "drum": "snare",
+      "leads_to": "SURGE"
+    },
+    {
+      "start": 8.87,
+      "end": 9.404,
+      "dur_sec": 0.534,
+      "hits": 4,
+      "rate_per_min": 337,
+      "kind": "fill",
+      "drum": "perc",
+      "leads_to": null
+    },
+    {
+      "start": 12.26,
+      "end": 14.582,
+      "dur_sec": 2.322,
+      "hits": 14,
+      "rate_per_min": 336,
+      "kind": "sustained-fill",
+      "drum": "snare",
+      "leads_to": "DROP"
+    },
+    {
+      "start": 15.999,
+      "end": 16.927,
+      "dur_sec": 0.928,
+      "hits": 7,
+      "rate_per_min": 388,
+      "kind": "fill",
+      "drum": "snare",
+      "leads_to": "SURGE"
+    },
+    {
+      "start": 17.183,
+      "end": 17.601,
+      "dur_sec": 0.418,
+      "hits": 4,
+      "rate_per_min": 431,
+      "kind": "fill",
+      "drum": "snare",
+      "leads_to": null
+    },
+    {
+      "start": 19.064,
+      "end": 20.41,
+      "dur_sec": 1.346,
+      "hits": 10,
+      "rate_per_min": 401,
+      "kind": "accel-roll",
+      "drum": "snare",
+      "leads_to": null
+    },
+    {
+      "start": 21.06,
+      "end": 22.059,
+      "dur_sec": 0.999,
+      "hits": 7,
+      "rate_per_min": 360,
+      "kind": "accel-roll",
+      "drum": "snare",
+      "leads_to": null
+    },
+    {
+      "start": 28.514,
+      "end": 30.256,
+      "dur_sec": 1.742,
+      "hits": 12,
+      "rate_per_min": 379,
+      "kind": "sustained-fill",
+      "drum": "hihat",
+      "leads_to": "SURGE"
+    },
+    {
+      "start": 30.534,
+      "end": 33.065,
+      "dur_sec": 2.531,
+      "hits": 14,
+      "rate_per_min": 308,
+      "kind": "sustained-fill",
+      "drum": "snare",
+      "leads_to": null
+    }
+  ],
+  "silences": [
+    {
+      "start": 0.0,
+      "end": 1.0
+    },
+    {
+      "start": 26.0,
+      "end": 27.0
+    },
+    {
+      "start": 30.0,
+      "end": 31.0
+    },
+    {
+      "start": 37.0,
+      "end": 38.2
+    }
+  ],
+  "stats": {
+    "drum_counts": {
+      "snare": 91,
+      "kick": 12,
+      "perc": 11,
+      "hihat": 46
+    },
+    "grid_counts": {
+      "weak": 62,
+      "syncopated": 75,
+      "strong": 23
+    }
+  },
+  "events": [
+    {
+      "t": 0.07,
+      "bar": -1,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.02,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 1.138,
+      "bar": 0,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.15,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 1.44,
+      "bar": 0,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "kick",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 1.695,
+      "bar": 0,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 1.95,
+      "bar": 0,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 2.09,
+      "bar": 0,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 2.299,
+      "bar": 0,
+      "beat_in_bar": 4,
+      "step16": 15,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.01,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 2.438,
+      "bar": 1,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.25,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 2.647,
+      "bar": 1,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.02,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 2.856,
+      "bar": 1,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.01,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 3.088,
+      "bar": 1,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.01,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 3.344,
+      "bar": 1,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.02,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 3.599,
+      "bar": 1,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 3.831,
+      "bar": 1,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.13,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 4.063,
+      "bar": 1,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.1,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 4.18,
+      "bar": 1,
+      "beat_in_bar": 4,
+      "step16": 15,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 4.296,
+      "bar": 2,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "kick",
+      "energy": 0.1,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 4.528,
+      "bar": 2,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.08,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 4.667,
+      "bar": 2,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.08,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 4.76,
+      "bar": 2,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.07,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 4.876,
+      "bar": 2,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.02,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 4.992,
+      "bar": 2,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.07,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 5.224,
+      "bar": 2,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.06,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 5.457,
+      "bar": 2,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.05,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 5.689,
+      "bar": 2,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 6.153,
+      "bar": 2,
+      "beat_in_bar": 4,
+      "step16": 15,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 6.385,
+      "bar": 3,
+      "beat_in_bar": 1,
+      "step16": 1,
+      "grid": "syncopated",
+      "drum": "perc",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": "riser"
+    },
+    {
+      "t": 6.618,
+      "bar": 3,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 6.757,
+      "bar": 3,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 6.85,
+      "bar": 3,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 6.966,
+      "bar": 3,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 7.082,
+      "bar": 3,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.02,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 7.314,
+      "bar": 3,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.02,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 7.454,
+      "bar": 3,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "perc",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": "riser"
+    },
+    {
+      "t": 7.918,
+      "bar": 3,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 8.243,
+      "bar": 4,
+      "beat_in_bar": 1,
+      "step16": 1,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.2,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 8.499,
+      "bar": 4,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.26,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 8.591,
+      "bar": 4,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.72,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 8.87,
+      "bar": 4,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.23,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 8.963,
+      "bar": 4,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.05,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 9.172,
+      "bar": 4,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "perc",
+      "energy": 0.26,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 9.404,
+      "bar": 4,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "perc",
+      "energy": 0.24,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 9.776,
+      "bar": 4,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 10.124,
+      "bar": 5,
+      "beat_in_bar": 1,
+      "step16": 1,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.18,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 10.379,
+      "bar": 5,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.2,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 10.635,
+      "bar": 5,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.25,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 10.82,
+      "bar": 5,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.17,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 11.331,
+      "bar": 5,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.15,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 11.656,
+      "bar": 5,
+      "beat_in_bar": 4,
+      "step16": 15,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.01,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 11.796,
+      "bar": 6,
+      "beat_in_bar": 1,
+      "step16": 1,
+      "grid": "syncopated",
+      "drum": "kick",
+      "energy": 0.31,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 11.935,
+      "bar": 6,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "perc",
+      "energy": 0.42,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 12.26,
+      "bar": 6,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.25,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 12.353,
+      "bar": 6,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.66,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 12.585,
+      "bar": 6,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.25,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 12.725,
+      "bar": 6,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.09,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 12.957,
+      "bar": 6,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.16,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 13.166,
+      "bar": 6,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.22,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 13.305,
+      "bar": 6,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.66,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 13.537,
+      "bar": 7,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 13.677,
+      "bar": 7,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.38,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 13.769,
+      "bar": 7,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "perc",
+      "energy": 0.53,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 13.886,
+      "bar": 7,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.19,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 14.118,
+      "bar": 7,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.22,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 14.35,
+      "bar": 7,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.15,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 14.582,
+      "bar": 7,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.25,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 14.861,
+      "bar": 7,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.34,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 15.534,
+      "bar": 8,
+      "beat_in_bar": 1,
+      "step16": 1,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 15.743,
+      "bar": 8,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.24,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 15.999,
+      "bar": 8,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.28,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 16.115,
+      "bar": 8,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.61,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 16.231,
+      "bar": 8,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.23,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 16.347,
+      "bar": 8,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.16,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 16.463,
+      "bar": 8,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.05,
+      "feel": "sparse",
+      "special": null
+    },
+    {
+      "t": 16.695,
+      "bar": 8,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.16,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 16.927,
+      "bar": 8,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.28,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 17.183,
+      "bar": 9,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.09,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 17.276,
+      "bar": 9,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.05,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 17.415,
+      "bar": 9,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.43,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 17.601,
+      "bar": 9,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "perc",
+      "energy": 0.34,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 17.879,
+      "bar": 9,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.19,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 18.135,
+      "bar": 9,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.29,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 18.321,
+      "bar": 9,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.21,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 18.576,
+      "bar": 9,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.43,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 18.808,
+      "bar": 9,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.01,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 19.064,
+      "bar": 10,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.34,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 19.18,
+      "bar": 10,
+      "beat_in_bar": 1,
+      "step16": 1,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.1,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 19.296,
+      "bar": 10,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.35,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 19.505,
+      "bar": 10,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.16,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 19.76,
+      "bar": 10,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.32,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 19.853,
+      "bar": 10,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.69,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 19.992,
+      "bar": 10,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.13,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 20.132,
+      "bar": 10,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.28,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 20.225,
+      "bar": 10,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.1,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 20.41,
+      "bar": 10,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "perc",
+      "energy": 0.34,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 20.666,
+      "bar": 10,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.26,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 21.06,
+      "bar": 11,
+      "beat_in_bar": 1,
+      "step16": 1,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.17,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 21.177,
+      "bar": 11,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.27,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 21.386,
+      "bar": 11,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 21.618,
+      "bar": 11,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.19,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 21.757,
+      "bar": 11,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.02,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 21.873,
+      "bar": 11,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.04,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 22.059,
+      "bar": 11,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.02,
+      "feel": "sparse",
+      "special": null
+    },
+    {
+      "t": 22.825,
+      "bar": 12,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.13,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 23.475,
+      "bar": 12,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.07,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 23.824,
+      "bar": 12,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.07,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 24.195,
+      "bar": 12,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.1,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 24.404,
+      "bar": 12,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.05,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 24.66,
+      "bar": 13,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 24.985,
+      "bar": 13,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.13,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 25.101,
+      "bar": 13,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "perc",
+      "energy": 0.14,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 25.379,
+      "bar": 13,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.11,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 25.821,
+      "bar": 13,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.1,
+      "feel": "heavy",
+      "special": "hard_stop"
+    },
+    {
+      "t": 26.03,
+      "bar": 13,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.02,
+      "feel": "heavy",
+      "special": "hard_stop"
+    },
+    {
+      "t": 26.239,
+      "bar": 13,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.14,
+      "feel": "heavy",
+      "special": "hard_stop"
+    },
+    {
+      "t": 26.54,
+      "bar": 14,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.13,
+      "feel": "heavy",
+      "special": "hard_stop"
+    },
+    {
+      "t": 26.889,
+      "bar": 14,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.08,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 27.005,
+      "bar": 14,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.08,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 27.237,
+      "bar": 14,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.09,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 27.609,
+      "bar": 14,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.12,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 27.934,
+      "bar": 14,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.12,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 28.189,
+      "bar": 14,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.15,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 28.514,
+      "bar": 15,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.1,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 28.746,
+      "bar": 15,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.07,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 28.862,
+      "bar": 15,
+      "beat_in_bar": 1,
+      "step16": 3,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.07,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 28.955,
+      "bar": 15,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "perc",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 29.095,
+      "bar": 15,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 29.304,
+      "bar": 15,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.02,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 29.466,
+      "bar": 15,
+      "beat_in_bar": 3,
+      "step16": 9,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 29.582,
+      "bar": 15,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 29.675,
+      "bar": 15,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 29.791,
+      "bar": 15,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.02,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 30.023,
+      "bar": 15,
+      "beat_in_bar": 4,
+      "step16": 13,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.03,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 30.256,
+      "bar": 15,
+      "beat_in_bar": 4,
+      "step16": 15,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.04,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 30.534,
+      "bar": 16,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "perc",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": "riser"
+    },
+    {
+      "t": 30.743,
+      "bar": 16,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.06,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 30.975,
+      "bar": 16,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.2,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 31.208,
+      "bar": 16,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.32,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 31.324,
+      "bar": 16,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.63,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 31.533,
+      "bar": 16,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "kick",
+      "energy": 0.2,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 31.672,
+      "bar": 16,
+      "beat_in_bar": 3,
+      "step16": 11,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.06,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 31.927,
+      "bar": 16,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.24,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 32.16,
+      "bar": 17,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.27,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 32.392,
+      "bar": 17,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.28,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 32.624,
+      "bar": 17,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.13,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 32.74,
+      "bar": 17,
+      "beat_in_bar": 2,
+      "step16": 5,
+      "grid": "syncopated",
+      "drum": "snare",
+      "energy": 0.11,
+      "feel": "sparse",
+      "special": null
+    },
+    {
+      "t": 32.856,
+      "bar": 17,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.38,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 33.065,
+      "bar": 17,
+      "beat_in_bar": 2,
+      "step16": 7,
+      "grid": "syncopated",
+      "drum": "hihat",
+      "energy": 0.26,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 33.321,
+      "bar": 17,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.22,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 33.553,
+      "bar": 17,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.16,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 33.785,
+      "bar": 17,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.26,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 34.04,
+      "bar": 18,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.41,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 34.273,
+      "bar": 18,
+      "beat_in_bar": 1,
+      "step16": 2,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.05,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 34.505,
+      "bar": 18,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.3,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 34.598,
+      "bar": 18,
+      "beat_in_bar": 2,
+      "step16": 4,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.03,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 34.737,
+      "bar": 18,
+      "beat_in_bar": 2,
+      "step16": 6,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.23,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 34.969,
+      "bar": 18,
+      "beat_in_bar": 3,
+      "step16": 8,
+      "grid": "strong",
+      "drum": "hihat",
+      "energy": 0.13,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 35.294,
+      "bar": 18,
+      "beat_in_bar": 3,
+      "step16": 10,
+      "grid": "weak",
+      "drum": "snare",
+      "energy": 0.01,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 35.457,
+      "bar": 18,
+      "beat_in_bar": 4,
+      "step16": 12,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.23,
+      "feel": "heavy",
+      "special": null
+    },
+    {
+      "t": 35.666,
+      "bar": 18,
+      "beat_in_bar": 4,
+      "step16": 14,
+      "grid": "weak",
+      "drum": "hihat",
+      "energy": 0.04,
+      "feel": "intimate",
+      "special": null
+    },
+    {
+      "t": 35.921,
+      "bar": 19,
+      "beat_in_bar": 1,
+      "step16": 0,
+      "grid": "strong",
+      "drum": "snare",
+      "energy": 0.33,
+      "feel": "intimate",
+      "special": null
+    }
+  ],
+  "phrases": [
+    {
+      "index": 0,
+      "start": 0.604,
+      "end": 8.104,
+      "bars": 4
+    },
+    {
+      "index": 1,
+      "start": 8.104,
+      "end": 15.372,
+      "bars": 4
+    },
+    {
+      "index": 2,
+      "start": 15.372,
+      "end": 22.872,
+      "bars": 4
+    },
+    {
+      "index": 3,
+      "start": 22.872,
+      "end": 30.325,
+      "bars": 4
+    },
+    {
+      "index": 4,
+      "start": 30.325,
+      "end": 38.24,
+      "bars": 4
+    }
+  ]
+}

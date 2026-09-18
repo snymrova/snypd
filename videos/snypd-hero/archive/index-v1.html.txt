@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>snypd — the hero film (docs/26), rough cut</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      /* The site's own look (BRIEF.md › Notes): folio's ground and ink, Inter 500 for what is set, a mono for the
+         prompt bar and terminal text, oxblood for hits only. */
+      @font-face { font-family: "Inter"; font-weight: 500; src: url("assets/fonts/inter-latin.woff2") format("woff2"); }
+      @font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url("assets/fonts/JetBrainsMono-Regular.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f9f9f9; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #f9f9f9; color: #121214; font-family: "Inter", sans-serif; font-weight: 500; }
+      .clip { position: absolute; inset: 0; overflow: hidden; }
+      .dark { background: #121214; color: #f9f9f9; }
+      .center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+      .big { font-size: 168px; line-height: 0.98; letter-spacing: -0.045em; }
+      .line { display: block; }
+      .w { display: inline-block; opacity: 0; }
+      .mono { font-family: "JetBrains Mono", monospace; font-weight: 400; }
+
+      /* 01 — the ghost dashboard */
+      #ghost { position: absolute; left: 250px; top: 130px; width: 1420px; height: 820px; border: 4px solid #d0d0d5; border-radius: 18px; }
+      #ghost div { position: absolute; border: 4px solid #d0d0d5; border-radius: 10px; }
+
+      /* the prompt bar — the instrument, on screen from bar 4 to the last hit */
+      #bar { position: absolute; left: 380px; top: 948px; width: 1160px; height: 84px; border-radius: 18px; background: #121214; color: #f4f4f5;
+             box-shadow: 0 24px 60px -20px rgba(0,0,0,.55); display: flex; align-items: center; padding: 0 34px; font-size: 32px; white-space: nowrap; }
+      #bar .gt { color: #8b8b90; margin-right: 18px; }
+      #bar .say { position: absolute; left: 75px; top: 0; height: 84px; display: flex; align-items: center; white-space: pre; }
+      #bar .ch { opacity: 0; }
+      #caret { display: inline-block; width: 16px; height: 38px; background: #f4f4f5; margin-left: 4px; }
+
+      /* a browser window holding a real plate */
+      .win { position: absolute; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 40px 90px -30px rgba(0,0,0,.5), 0 0 0 1px rgba(0,0,0,.12); }
+      .win .chrome { position: absolute; left: 0; right: 0; top: 0; height: 36px; background: #ececef; border-bottom: 1px solid #dcdce0; z-index: 3; }
+      .win .chrome i { position: absolute; top: 12px; width: 12px; height: 12px; border-radius: 6px; background: #cfcfd4; }
+      .win .view { position: absolute; left: 0; right: 0; top: 36px; bottom: 0; overflow: hidden; }
+      .win img { position: absolute; left: 0; top: 0; width: 100%; display: block; }
+      .pill { position: absolute; background: #121214; color: #f4f4f5; font-size: 26px; padding: 14px 22px; border-radius: 12px; opacity: 0; }
+      .full { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+      .band { position: absolute; left: 0; right: 0; bottom: 0; height: 330px; background: #f9f9f9; border-top: 1px solid #e2e2e4; }
+      .band .t { position: absolute; left: 110px; top: 34px; font-size: 84px; letter-spacing: -0.04em; }
+      .side { position: absolute; left: 1320px; top: 250px; width: 580px; }
+      .side .t { font-size: 88px; white-space: nowrap; line-height: 1; letter-spacing: -0.045em; }
+      .side .name { margin-top: 40px; font-size: 30px; color: #6a6a6e; height: 40px; position: relative; }
+      .side .name span { position: absolute; left: 0; top: 0; opacity: 0; white-space: nowrap; }
+      #words6 { position: absolute; left: 110px; right: 110px; top: 822px; display: flex; gap: 18px; }
+      #words6 span { background: #f9f9f9; color: #121214; font-size: 46px; letter-spacing: -0.03em; padding: 12px 26px; border-radius: 14px; opacity: 0; box-shadow: 0 16px 40px -16px rgba(0,0,0,.6); }
+      .num { position: absolute; inset: 0; opacity: 0; }
+      .num .v { font-size: 400px; line-height: 1; letter-spacing: -0.06em; }
+      .num .l { font-size: 44px; color: #6a6a6e; margin-top: 18px; letter-spacing: -0.02em; }
+      #ci { position: absolute; left: 0; right: 0; bottom: 70px; text-align: center; font-size: 28px; color: #6a6a6e; }
+      #gate { font-size: 40px; line-height: 1.7; text-align: left; }
+      #gate div { opacity: 0; white-space: nowrap; }
+      #log { position: absolute; left: 120px; top: 180px; font-size: 31px; line-height: 1.9; }
+      #log div { opacity: 0; white-space: nowrap; }
+      #log .h { color: #8b8b90; margin-right: 22px; }
+      #landed { color: #8a3324; opacity: 0; }
+      #words9 { position: absolute; left: 120px; top: 620px; font-size: 120px; letter-spacing: -0.045em; line-height: 1.02; }
+      #mark { width: 860px; display: block; opacity: 0; }
+      #install { margin-top: 64px; background: #121214; color: #f4f4f5; font-size: 36px; padding: 22px 38px; border-radius: 16px; opacity: 0; }
+      #install b { color: #8b8b90; font-weight: 400; margin-right: 16px; }
+      #foot { margin-top: 34px; font-size: 30px; color: #6a6a6e; opacity: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="38.24">
+
+      <!-- 01 · cold open · bars 1–2 -->
+      <section id="s1" class="clip center" data-start="0" data-duration="4.34" data-track-index="1">
+        <div id="ghost">
+          <div id="g1" style="left:-4px;top:-4px;bottom:-4px;width:300px"></div>
+          <div id="g2" style="left:360px;top:70px;width:960px;height:120px"></div>
+          <div id="g3" style="left:360px;top:250px;width:960px;height:300px"></div>
+          <div id="g4" style="right:90px;bottom:70px;width:280px;height:100px"></div>
+        </div>
+        <div class="big">
+          <span class="line"><span class="w" id="w1a">A CMS</span> <span class="w" id="w1b">with</span></span>
+          <span class="line"><span class="w" id="w1c">no</span> <span class="w" id="w1d">dashboard.</span></span>
+        </div>
+      </section>
+
+      <!-- 02 · the instrument arrives · bars 3–4 -->
+      <section id="s2" class="clip center" data-start="4.34" data-duration="3.76" data-track-index="1">
+        <div class="big" id="t2" style="margin-bottom:120px">
+          <span class="line"><span class="w" id="w2a">Your agent</span></span>
+          <span class="line"><span class="w" id="w2b">writes it.</span></span>
+        </div>
+      </section>
+
+      <!-- 03 · the drop · bars 5–6 -->
+      <section id="s3" class="clip" data-start="8.10" data-duration="3.72" data-track-index="1">
+        <div class="win" id="win3" style="left:150px;top:64px;width:1620px;height:1100px">
+          <div class="chrome"><i style="left:16px"></i><i style="left:36px"></i><i style="left:56px"></i></div>
+          <div class="view"><img id="plate3" src="assets/img/look-editorial-paper.jpg" alt="" /></div>
+        </div>
+        <div class="pill mono" id="file3" style="right:190px;top:112px">content/posts/what-a-markdown-twin-actually-saves.md</div>
+      </section>
+
+      <!-- 04 · punch-ins · bars 7–8 -->
+      <section id="s4" class="clip" data-start="11.82" data-duration="3.55" data-track-index="1">
+        <img class="full" id="p4a" src="assets/img/punch-chart.jpg" alt="" />
+        <img class="full" id="p4b" src="assets/img/punch-flow.jpg" alt="" />
+        <img class="full" id="p4c" src="assets/img/punch-stat.jpg" alt="" />
+        <div class="band"><div class="t"><span class="w" id="w4a">Charts.</span> <span class="w" id="w4b">Flows.</span> <span class="w" id="w4c">Numbers with sources.</span></div></div>
+      </section>
+
+      <!-- 05 · the look flips · bars 9–10 -->
+      <section id="s5" class="clip" data-start="15.37" data-duration="3.74" data-track-index="1">
+        <div class="win" style="left:90px;top:64px;width:1180px;height:1100px">
+          <div class="chrome"><i style="left:16px"></i><i style="left:36px"></i><i style="left:56px"></i></div>
+          <div class="view">
+            <img id="l1" src="assets/img/look-editorial-paper-b.jpg" alt="" />
+            <img id="l2" src="assets/img/look-editorial-ink.jpg" alt="" style="opacity:0" />
+            <img id="l3" src="assets/img/look-editorial-broadsheet.jpg" alt="" style="opacity:0" />
+            <img id="l4" src="assets/img/look-base.jpg" alt="" style="opacity:0" />
+            <img id="l5" src="assets/img/look-technical-graphite.jpg" alt="" style="opacity:0" />
+            <img id="l6" src="assets/img/look-technical-phosphor.jpg" alt="" style="opacity:0" />
+            <img id="l7" src="assets/img/look-studio.jpg" alt="" style="opacity:0" />
+          </div>
+        </div>
+        <div class="side">
+          <div class="t"><span class="line"><span class="w" id="w5a">Seven looks.</span></span><span class="line"><span class="w" id="w5b">One sentence.</span></span></div>
+          <div class="name mono"><span id="n1">editorial › paper</span><span id="n2">editorial › ink</span><span id="n3">editorial › broadsheet</span><span id="n4">base</span><span id="n5">technical › graphite</span><span id="n6">technical › phosphor</span><span id="n7">studio</span></div>
+        </div>
+      </section>
+
+      <!-- 06 · a whole studio site · bars 11–12 -->
+      <section id="s6" class="clip dark" data-start="19.11" data-duration="3.76" data-track-index="1">
+        <div class="win" style="left:100px;top:56px;width:1720px;height:1100px;background:#121214">
+          <div class="chrome" style="background:#1d1d20;border-color:#2a2a2e"><i style="left:16px;background:#3a3a40"></i><i style="left:36px;background:#3a3a40"></i><i style="left:56px;background:#3a3a40"></i></div>
+          <div class="view">
+            <img id="f1" src="assets/img/ferrule-home.jpg" alt="" />
+            <img id="f2" src="assets/img/ferrule-work.jpg" alt="" style="opacity:0" />
+            <img id="f3" src="assets/img/ferrule-case.jpg" alt="" style="opacity:0" />
+          </div>
+        </div>
+        <div id="words6"><span id="w6a">Types.</span><span id="w6b">Taxonomies.</span><span id="w6c">Themes.</span><span id="w6d">Plugins.</span><span id="w6e">As files.</span></div>
+      </section>
+
+      <!-- 07 · the numbers · bars 13–15 -->
+      <section id="s7" class="clip" data-start="22.87" data-duration="5.60" data-track-index="1">
+        <div class="num center" id="n7a"><div class="v"><span id="v7a">512</span> KB</div><div class="l">JavaScript on the page</div></div>
+        <div class="num center" id="n7b"><div class="v"><span id="v7b">0</span> ms</div><div class="l">cold start</div></div>
+        <div class="num center" id="n7c"><div class="v"><span id="v7c">0</span></div><div class="l">tokens to read a page</div></div>
+        <div id="ci">measured in CI · snypd.rocks/bench</div>
+      </section>
+
+      <!-- 08 · the gate · bar 16 -->
+      <section id="s8" class="clip dark center" data-start="28.47" data-duration="1.85" data-track-index="1">
+        <div id="gate" class="mono">
+          <div id="g8a"><span style="color:#8b8b90">posts/what-a-markdown-twin-actually-saves.md:27</span> <span style="color:#ff6b57">error [unsourced-evidence]</span></div>
+          <div id="g8b" style="color:#ff6b57">`stat` has no checkable source — a stat without one is an opinion</div>
+          <div id="g8c" style="color:#7ddc8a;margin-top:14px">1 files · 0 errors</div>
+        </div>
+        <div class="big" style="font-size:120px;margin-top:50px"><span class="w" id="w8">The gate says no.</span></div>
+      </section>
+
+      <!-- 09 · publish · bars 17–18 -->
+      <section id="s9" class="clip" data-start="30.32" data-duration="3.77" data-track-index="1">
+        <div id="log" class="mono">
+          <div id="c9a"><span class="h">1b44047</span>site: init field-notes</div>
+          <div id="c9b"><span class="h">e448df4</span>content: create post/what-a-markdown-twin-actually-saves</div>
+          <div id="c9c"><span class="h">6a358ad</span>content: publish post/what-a-markdown-twin-actually-saves</div>
+          <div id="c9d"><span class="h">f3e4f8f</span>content: publish post/what-a-markdown-twin-actually-saves <span id="landed">(landed on main)</span></div>
+        </div>
+        <div id="words9"><span class="line"><span class="w" id="w9a">Your repo.</span></span><span class="line"><span class="w" id="w9b">Your markdown.</span></span></div>
+      </section>
+
+      <!-- 10 · the mark · bars 19–20 and the ring-out -->
+      <section id="s10" class="clip center" data-start="34.09" data-duration="4.15" data-track-index="1">
+        <img id="mark" src="assets/img/wordmark.svg" alt="snypd." />
+        <div id="install" class="mono"><b>$</b>bunx @snypd/cli init</div>
+        <div id="foot">Open source · MIT · snypd.rocks</div>
+      </section>
+
+      <!-- the prompt bar, over everything from bar 4 to the last hit -->
+      <section id="sbar" class="clip" data-start="6.22" data-duration="27.87" data-track-index="2" style="overflow:visible">
+        <div id="bar" class="mono">
+          <span class="gt">&gt;</span><span id="caret"></span>
+          <span class="say" id="say1"></span><span class="say" id="say2"></span><span class="say" id="say3"></span><span class="say" id="say4"></span>
+        </div>
+      </section>
+
+      <!-- sound: the bed is the clock; ten lines sit in its gaps -->
+      <audio id="bed" src="assets/audio/bed.mp3" data-start="0" data-duration="38.24" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo01" src="assets/audio/vo-01-m.wav" data-start="0.70" data-duration="3.14" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo02" src="assets/audio/vo-02-m.wav" data-start="6.30" data-duration="1.25" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo03" src="assets/audio/vo-03-m.wav" data-start="8.40" data-duration="2.34" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo04" src="assets/audio/vo-04-m.wav" data-start="11.86" data-duration="3.48" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo05" src="assets/audio/vo-05-m.wav" data-start="16.34" data-duration="2.44" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo06" src="assets/audio/vo-06-m.wav" data-start="19.55" data-duration="2.76" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo07" src="assets/audio/vo-07-m.wav" data-start="22.95" data-duration="5.50" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo08" src="assets/audio/vo-08-m.wav" data-start="28.50" data-duration="1.80" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo09" src="assets/audio/vo-09-m.wav" data-start="30.50" data-duration="3.47" data-track-index="11" data-volume="1.4"></audio>
+      <audio id="vo10" src="assets/audio/vo-10-m.wav" data-start="34.55" data-duration="2.78" data-track-index="11" data-volume="1.4"></audio>
+    </div>
+
+    <script>
+      // The grid is the chosen take's, measured (assets/audio/audiomap.json): 129.2 bpm, bar 1 at 0.60 s. Every time
+      // below is a beat of that grid, in global seconds. Nothing moves off it (docs/26 §4).
+      const tl = gsap.timeline({ paused: true });
+      tl.set("#caret", { x: 0 }, 0);
+      const on = (sel, t) => tl.set(sel, { opacity: 1 }, t);
+      const off = (sel, t) => tl.set(sel, { opacity: 0 }, t);
+      const slam = (sel, t, from = 1.12) => tl.fromTo(sel, { opacity: 0, scale: from }, { opacity: 1, scale: 1, duration: 0.16, ease: "power4.out" }, t);
+
+      // the sentences the bar types: split into characters once, revealed a few per frame
+      const SAY = { say1: "Write me a first post.", say2: "Switch this site to editorial, the ink look.", say3: "Give the studio a “work” type for case studies.", say4: "Publish." };
+      for (const [id, text] of Object.entries(SAY)) {
+        const el = document.getElementById(id);
+        for (const c of text) { const s = document.createElement("span"); s.className = "ch"; s.textContent = c; el.appendChild(s); }
+      }
+      const type = (id, t, dur) => { const n = SAY[id].length; tl.set(`#${id} .ch`, { opacity: 1, stagger: dur / n }, t); tl.fromTo("#caret", { x: 0 }, { x: n * 19.2, duration: dur, ease: `steps(${n})`, immediateRender: false }, t); };
+      const clear = (id, t) => { tl.set(`#${id} .ch`, { opacity: 0 }, t); tl.set("#caret", { x: 0 }, t); };
+
+      // 01 — words on beats; the dashboard loses a piece on every eighth; one strike
+      slam("#w1a", 0.60); slam("#w1b", 1.53); slam("#w1c", 2.00); slam("#w1d", 2.46);
+      tl.to("#w1c", { color: "#8a3324", duration: 0.01 }, 2.46);
+      off("#g1", 2.93); off("#g2", 3.16); off("#g3", 3.39); off("#g4", 3.62); tl.to("#ghost", { opacity: 0, duration: 0.2 }, 3.85);
+
+      // 02 — the second half of the sentence, then the bar drops in and the first sentence is typed over the roll
+      slam("#w2a", 4.34); slam("#w2b", 5.27);
+      tl.fromTo("#bar", { y: 220, opacity: 0 }, { y: 0, opacity: 1, duration: 0.28, ease: "back.out(1.6)" }, 6.22);
+      tl.to("#caret", { opacity: 0, duration: 0.01, repeat: 5, yoyo: true, repeatDelay: 0.22 }, 6.30);
+      type("say1", 7.15, 0.85);
+      tl.to("#t2", { opacity: 0, scale: 0.94, duration: 0.2, ease: "power2.in" }, 7.62);
+
+      // 03 — the page lands on the downbeat, then scrolls hard to the numbers
+      tl.fromTo("#win3", { opacity: 0, scale: 1.1, y: 80 }, { opacity: 1, scale: 1, y: 0, duration: 0.2, ease: "power4.out" }, 8.10);
+      tl.fromTo("#plate3", { y: 0 }, { y: -1010, duration: 2.7, ease: "power2.inOut" }, 9.03);
+      tl.fromTo("#file3", { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.14 }, 9.03); off("#file3", 10.89);
+
+      // 04 — one-beat punch-ins on the page's own blocks
+      clear("say1", 11.82);
+      on("#p4a", 11.82); tl.fromTo("#p4a", { scale: 1.0 }, { scale: 1.05, duration: 1.2, ease: "none", immediateRender: false }, 11.82); slam("#w4a", 11.82);
+      on("#p4b", 13.00); tl.fromTo("#p4b", { scale: 1.0 }, { scale: 1.05, duration: 1.45, ease: "none", immediateRender: false }, 13.00); slam("#w4b", 13.00);
+      on("#p4c", 14.42); tl.fromTo("#p4c", { scale: 1.0 }, { scale: 1.05, duration: 1.0, ease: "none", immediateRender: false }, 14.42); slam("#w4c", 14.42);
+
+      // 05 — the same page through all seven looks, one per beat
+      type("say2", 15.37, 0.8);
+      on("#n1", 15.37);
+      [["#l2", "#n2", 16.30], ["#l3", "#n3", 16.77], ["#l4", "#n4", 17.23], ["#l5", "#n5", 17.69], ["#l6", "#n6", 18.16], ["#l7", "#n7", 18.65]]
+        .forEach(([img, name, t], i, a) => { on(img, t); off(i ? a[i - 1][1] : "#n1", t); on(name, t); });
+      slam("#w5a", 16.30); slam("#w5b", 17.23);
+
+      // 06 — Ferrule: the front page, the work archive, a case
+      clear("say2", 19.11); type("say3", 19.11, 0.8);
+      tl.fromTo("#f1", { y: 0 }, { y: -620, duration: 0.93, ease: "power2.in" }, 19.11);
+      on("#f2", 20.04); tl.fromTo("#f2", { y: 0 }, { y: -160, duration: 0.95, ease: "none" }, 20.04);
+      on("#f3", 20.99); tl.fromTo("#f3", { y: 0 }, { y: -1500, duration: 1.85, ease: "power2.inOut" }, 20.99);
+      slam("#w6a", 20.99, 1.2); slam("#w6b", 21.45, 1.2); slam("#w6c", 21.92, 1.2); slam("#w6d", 22.18, 1.2); slam("#w6e", 22.41, 1.2);
+
+      // 07 — the break: one number per bar, counting to land
+      tl.set("#bar", { opacity: 0 }, 22.87); clear("say3", 22.87);
+      const count = (sel, from, to, t) => { const o = { v: from }; tl.to(o, { v: to, duration: 0.7, ease: "power3.out", onUpdate: () => { document.querySelector(sel).textContent = Math.round(o.v); } }, t); };
+      slam("#n7a", 22.87, 1.06); count("#v7a", 512, 0, 22.87); off("#n7a", 24.71);
+      slam("#n7b", 24.71, 1.06); count("#v7b", 0, 23, 24.71); off("#n7b", 26.59);
+      slam("#n7c", 26.59, 1.06); count("#v7c", 0, 510, 26.59);
+
+      // 08 — the gate: a real refusal, then the pass
+      on("#g8a", 28.47); on("#g8b", 28.47); slam("#w8", 28.93); on("#g8c", 29.40);
+
+      // 09 — publish: a real log, a line per beat
+      tl.set("#bar", { opacity: 1 }, 30.32); type("say4", 30.32, 0.3);
+      on("#c9a", 30.79); on("#c9b", 31.28); on("#c9c", 31.74); on("#c9d", 32.21); slam("#landed", 32.67, 1.3);
+      slam("#w9a", 32.67); slam("#w9b", 33.13);
+
+      // 10 — the mark on the last hit
+      slam("#mark", 34.09, 1.18);
+      tl.fromTo("#install", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.25, ease: "power3.out" }, 35.02);
+      tl.fromTo("#foot", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 35.94);
+
+      // the bed ducks under every line and is back on the beat after it
+      tl.set("#bed", { volume: 0.9 }, 0);
+      const duck = (a, b) => { tl.to("#bed", { volume: 0.27, duration: 0.12 }, a); tl.to("#bed", { volume: 0.9, duration: 0.2 }, b); };
+      duck(0.62, 3.85); duck(6.24, 7.55); duck(8.34, 10.75); duck(11.8, 15.30); duck(16.28, 18.75); duck(19.5, 22.3); duck(22.9, 28.2); duck(28.48, 30.1); duck(30.5, 33.95); duck(34.5, 37.35);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
