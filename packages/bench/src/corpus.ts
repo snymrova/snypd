@@ -3,7 +3,7 @@
  * `bun run packages/bench/src/corpus.ts 100` → corpora/100/content/posts/*.md
  * Seeded PRNG so the corpus is identical on every machine (never depends on Math.random).
  */
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { primitives } from "@snypd/spec";
@@ -284,7 +284,140 @@ export function generateTheme(root = "corpora/theme") {
   return root;
 }
 
+// ───────────────────────────────────────────────────────────────────────────────────────────────────────
+// The README fixture (R0, docs/15 §3.1).
+// ───────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A typographic plate as SVG: a ground, one rule, a title, a line beneath. The theme fixture's cover is a
+ * flat raster on purpose ("dimensions, not art"), which makes 40 % of every gallery picture a rectangle.
+ * The README cannot show that, and a photograph would be somebody else's. A plate is neither: a few
+ * hundred bytes, deterministic, drawn from the same three colours the fixture's theme uses, and it says
+ * what it is. Numeric `width`/`height` on the root so `svgSize` reads the box without a viewBox.
+ */
+export function plate(width: number, height: number, title: string, line: string, bg: string, fg: string): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  // The title is set as large as the plate allows: a serif at weight 600 runs about 0.52 em a glyph, so a
+  // long title shrinks rather than clips — the theme fixture's cover clipped its own name on the first run.
+  const pad = Math.round(width * 0.075);
+  const size = Math.round(Math.min(height * 0.19, (width - pad * 2) / (0.52 * title.length)));
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" role="img" aria-label="${esc(title)}">`
+    + `<rect width="${width}" height="${height}" fill="${bg}"/>`
+    + `<rect x="${pad}" y="${Math.round(height * 0.3)}" width="${Math.round(width * 0.09)}" height="4" fill="${fg}"/>`
+    + `<text x="${pad}" y="${Math.round(height * 0.62)}" font-family="'Source Serif 4', Georgia, serif" font-size="${size}" font-weight="600" fill="${fg}" letter-spacing="-0.02em">${esc(title)}</text>`
+    + `<text x="${pad}" y="${Math.round(height * 0.8)}" font-family="'Source Serif 4', Georgia, serif" font-size="${Math.round(size * 0.36)}" fill="${fg}" opacity="0.72">${esc(line)}</text>`
+    + `</svg>\n`;
+}
+
+/**
+ * `corpora/readme` — the site the README photographs (docs/15 §3.1). It is the theme fixture with three
+ * differences, each because a README picture is read as a promise where a bench picture is read as a
+ * measurement: the covers are plates rather than flat rasters; the site has a name a masthead can carry;
+ * and two posts are added whose blocks the README lifts out whole — a `chart` of the build clock and a
+ * `diagram` of the binary. The chart's rows come from `bench/latest.md`, which is CI's record, so the
+ * picture in the README is the number in the record, or the fixture does not generate.
+ */
+export function generateReadme(root = "corpora/readme", record = "bench/latest.md") {
+  generateTheme(root);
+  const BG = "#f7f3ea", INK = "#1d1a17", ACCENT = "#8a3324";
+  writeFileSync(join(root, "content/media/cover.svg"), plate(1200, 630, "Every primitive, once", "The whole vocabulary on one page", ACCENT, BG));
+  writeFileSync(join(root, "content/media/notes.svg"), plate(1200, 630, "Nothing but prose", "What most posts actually are", BG, INK));
+  writeFileSync(join(root, "content/media/twin.svg"), plate(960, 540, "page.html · page.md", "The same post, served twice", INK, BG));
+  for (const f of ["content/media/cover.png", "content/media/twin.png"]) rmSync(join(root, f), { force: true });
+
+  const swap = (file: string, pairs: [string, string][]) => {
+    let s = readFileSync(join(root, file), "utf8");
+    for (const [a, b] of pairs) s = s.replaceAll(a, b);
+    writeFileSync(join(root, file), s);
+  };
+  swap("content/posts/every-primitive-once.md", [["/media/cover.png", "/media/cover.svg"], ["/media/twin.png", "/media/twin.svg"]]);
+  swap("content/posts/prose-only.md", [["/media/cover.png", "/media/notes.svg"], ["A flat block of colour standing in for a cover photograph", "A typographic plate standing in for a cover photograph"]]);
+  swap("content/pages/about.md", [["About this fixture", "About"], ["This site exists to be looked at.", "This site exists to be photographed — it is the one in the README."]]);
+
+  // The build clock, as the product draws it. `parseRecord` is not imported — the bench package's own
+  // reader lives beside this file, but the generator stays dependency-free (see CHART_TYPES) and the
+  // record's table is one regex wide.
+  const md = readFileSync(record, "utf8");
+  const row = (name: string) => {
+    const m = new RegExp(`^\\| \`${name.replace(/\./g, "\\.")}\` \\| ([\\d.]+) (\\S+) \\|`, "m").exec(md);
+    if (!m) throw new Error(`generateReadme: ${record} has no \`${name}\` row`);
+    return { value: Number(m[1]), unit: m[2]! };
+  };
+  const cold = [100, 1000, 10000].map((n) => ({ n, ...row(`build.cold.${n}`) }));
+  const incremental = row("build.incremental.100"), start = row("mcp.coldStart.binary");
+  const src = "https://github.com/snymrova/snypd/blob/main/bench/latest.md";
+  writeFileSync(join(root, "content/posts/how-fast.md"), [
+    "---",
+    "title: How fast, measured",
+    "date: 2026-09-16",
+    "status: published",
+    "description: The build clock at three sizes, drawn by the chart primitive from the bench record.",
+    "author: sunny",
+    "category: engineering",
+    "tags: [agents]",
+    "---",
+    "",
+    ":::tldr",
+    `A cold build renders about ${(cold[1]!.value / 1024).toFixed(1)} ms a page and an edit rebuilds one page in ${incremental.value} ms. Every number here is a row in the bench record.`,
+    ":::",
+    "",
+    ":::stat-row",
+    `::stat{value="${start.value} ${start.unit}" label="MCP cold start, release binary" source="${src}"}`,
+    `::stat{value="${incremental.value} ${incremental.unit}" label="one edit, rebuilt" source="${src}"}`,
+    `::stat{value="0 KB" label="JavaScript on the page" source="${src}"}`,
+    ":::",
+    "",
+    `:::chart{type="bar" source="${src}" caption="A cold build — no \`dist/\`, no index — at 100, 1 000 and 10 000 posts. The clock is CI's, 4 vCPUs." unit="${cold[0]!.unit}"}`,
+    ...cold.map((c) => `- { label: "${c.n.toLocaleString("en-US")} posts", value: ${c.value} }`),
+    ":::",
+    "",
+    "The chart above is not an image file. It is the `chart` primitive rendered to inline SVG at build time from the",
+    "rows under it, which came from `bench/latest.md` when this fixture was generated. Regenerate the fixture and",
+    "the chart follows the record.",
+    "",
+  ].join("\n"));
+
+  writeFileSync(join(root, "content/posts/one-binary.md"), [
+    "---",
+    "title: One binary, one interface",
+    "date: 2026-09-16",
+    "status: published",
+    "description: What is inside the snypd binary and what comes out of it, drawn by the diagram primitive.",
+    "author: sunny",
+    "category: engineering",
+    "tags: [agents]",
+    "---",
+    "",
+    ':::diagram{direction="lr" caption="A harness speaks MCP over stdio to one binary; the binary writes markdown to a git repo you own and renders it to a static directory."}',
+    "nodes:",
+    '  - { id: harness, label: "Claude Code · Cursor · Codex", kind: pill }',
+    '  - { id: mcp, label: "MCP server" }',
+    '  - { id: content, label: "markdown + YAML in git" }',
+    '  - { id: render, label: "renderer + spec + themes" }',
+    '  - { id: index, label: "SQLite index" }',
+    '  - { id: html, label: "HTML, 0 KB JS", kind: rounded }',
+    '  - { id: twin, label: ".md twins · llms.txt · feeds · JSON", kind: rounded }',
+    "edges:",
+    '  - { from: harness, to: mcp, label: stdio }',
+    '  - { from: mcp, to: content, label: writes }',
+    '  - { from: content, to: render }',
+    '  - { from: render, to: index }',
+    '  - { from: render, to: html }',
+    '  - { from: render, to: twin }',
+    ":::",
+    "",
+    "The diagram is the `diagram` primitive: nodes and edges declared in YAML, laid out at build time,",
+    "rendered to inline SVG. No coordinates were typed.",
+    "",
+  ].join("\n"));
+
+  writeFileSync(join(root, "snypd.yaml"),
+    "snypd: 1\nsite:\n  name: Field Notes\n  url: https://readme.snypd.rocks\n  description: Notes on building a CMS whose only interface is an agent.\n"
+    + "  icon: /media/icon.png\ntheme:\n  use: editorial\ntypes:\n  author:\n    layout: author\n");
+  return root;
+}
+
 if (import.meta.main) {
   const arg = process.argv[2] ?? "100";
-  console.log(arg === "theme" ? generateTheme() : generate(Number(arg)));
+  console.log(arg === "theme" ? generateTheme() : arg === "readme" ? generateReadme() : generate(Number(arg)));
 }

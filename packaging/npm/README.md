@@ -4,13 +4,19 @@ An open-source CMS whose **only interface is MCP**. Write, edit, theme and publi
 you already live in. Markdown + YAML in a git repo you own; one binary; static HTML with zero JS by
 default; charts, diagrams and flows rendered to SVG at build time.
 
-**Start here — paste this into the harness you already have open** (Claude Code, Cursor, Codex):
+**Start here** — one command, then the harness:
 
-> Set up snypd here and write me a first post. Ask me what the site is called, then run `bunx @snypd/cli init`.
+```sh
+mkdir my-site && cd my-site
+bunx @snypd/cli init
+claude          # or Cursor, or Codex
+```
 
-That is the whole front door. The agent asks what the site is called, runs `init`, and relays the one
-thing it cannot do — restart the harness, so the tools load. On the far side it picks up from the
-`get-started` prompt and writes the post.
+Then say **“Write me a first post.”**
+
+That is the whole front door. `init` scaffolds the site, git-inits it, commits, and writes `.mcp.json`;
+the harness reads that file as it opens, and the agent picks up from the `get-started` prompt and
+writes the post. Already inside a harness? Ask it to run `bunx @snypd/cli init`, then restart it.
 
 ## What `init` does
 

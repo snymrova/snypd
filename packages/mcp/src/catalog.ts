@@ -22,7 +22,7 @@
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { activitySnapshot, type Tool, type ToolResult } from "./protocol";
 
 type Core = typeof import("@snypd/core");
@@ -231,6 +231,15 @@ export async function call(root: string, name: string, args: Record<string, unkn
           }
           const cfg = cfgOf();
           const stranded = c.themeTokens(cfg).filter((t) => t.overridden && !t.customisable);
+          // A theme in the site's own `themes/` travels with the config that names it (S24). `snypd new
+          // theme` commits its scaffold on whatever branch is checked out — the drafts branch, when an
+          // agent made it — and a landing carries only the paths it is given, so until this the switch
+          // reached `main` while the theme stayed behind and `main` could not build. The tracked files
+          // under the theme's directory ride the same commit and the same landing as `snypd.yaml`.
+          if (themeChanges) {
+            const local = installed.find((t) => t.name === wantTheme && t.dir.startsWith(join(root, "themes")));
+            if (local) paths.push(...c.Repo.open(root)?.run("ls-files", "--", relative(root, local.dir)).stdout.split("\n").filter(Boolean) ?? []);
+          }
           const git = await commit([...new Set(paths)], themeChanges ? `theme: use ${target}${after ? ` › ${after}` : ""}` : `theme: variation ${after ?? "cleared"}`);
           lines.push(git);
           if (stranded.length) lines.push(`⚠ ${stranded.length} token override${stranded.length === 1 ? "" : "s"} in snypd.yaml that ${target} does not declare: ${stranded.map((t) => t.name).join(", ")}`);

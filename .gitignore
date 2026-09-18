@@ -21,3 +21,4 @@ packaging/homebrew/snypd.rb
 # site the host builds from git cannot also be a subdirectory of this one. `bun run scratch` makes one.
 sites/
 bench/gallery/
+.playwright-mcp/

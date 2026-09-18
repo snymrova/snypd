@@ -27,39 +27,41 @@ That gap is short. It is also the whole funnel. A CMS that is excellent from tur
 
 This is the spine of the document. Everything below either serves this sequence or is explicitly named as serving somebody else.
 
-A person arrives at the repo, or at snypd.rocks. They do not open a terminal. They have a harness open already — that is the premise of the product — and what they see is **a sentence to paste into it**.
+A person arrives at the repo, or at snypd.rocks. What they see is **one command, then the harness**:
 
-> **Set up snypd here and write me a first post.** Ask me what the site is called, then run `bunx @snypd/cli init`.
+```
+mkdir field-notes && cd field-notes
+bunx @snypd/cli init
+claude
+> Write me a first post.
+```
 
 | # | Who acts | What happens | Human action? |
 |---|---|---|---|
-| 1 | person | pastes the sentence into Claude Code, Cursor or Codex | **yes** — paste |
-| 2 | agent | asks, in **one** message: what is the site called, and one line about it | — |
-| 3 | person | answers | **yes** — answer |
-| 4 | agent | runs `bunx @snypd/cli init --name=… --description=…` | **yes** — approve the shell command |
-| 5 | `init` | writes `snypd.yaml`, the content dirs, `.gitignore`, `.mcp.json`; `git init` if the directory is empty; commits the scaffold. **Prints an onboarding document addressed to the agent** (decision 60) | — |
-| 6 | agent | relays the one thing it cannot do: *restart your harness so the snypd tools load* | — |
-| 7 | person | restarts the harness | **yes** — restart |
-| 8 | — | **the agent's context dies here.** Whatever was in the conversation is gone (decision 61) | — |
-| 9 | agent, new session | `initialize` returns `instructions`, which name `get-started` for a site with no content. The agent reads `snypd://config`, `snypd://spec/primitives`, `snypd://theme` | — |
-| 10 | agent | writes one real post using at least two primitives, fixes the lint it gets back, calls `content.render_preview` | — |
-| 11 | agent | hands back the page, the markdown twin, and the review URL — the page a person reads if they want to, not a gate they must pass | — |
-| 12 | agent | `content.publish` — which refuses once, for the origin: the feed, sitemap and JSON-LD are absolute and `site.url` is still the placeholder | — |
-| 13 | person | says where the site will be served | **yes** — answer the URL |
-| 14 | agent | `content.publish` lands the one item on the deploy branch, then `site` › push sends it to the host | — |
+| 1 | person | makes a directory and runs `bunx @snypd/cli init` in it | **yes** — type |
+| 2 | `init` | writes `snypd.yaml`, the content dirs, `.gitignore`, `.mcp.json`; `git init` (the directory is empty, because nothing has touched it yet); commits the scaffold. Prints what exists, what is still unknown, and what to open and say next (decision 178) | — |
+| 3 | person | opens Claude Code, Cursor or Codex in the directory — it reads `.mcp.json` as it starts — and says *Write me a first post.* | **yes** — open, say |
+| 4 | agent | `initialize` returns `instructions`, which name `get-started` for a site with no content. The agent reads `snypd://config`, `snypd://spec/primitives`, `snypd://theme` | — |
+| 5 | agent | writes one real post using at least two primitives, fixes the lint it gets back, calls `content.render_preview` | — |
+| 6 | agent | hands back the page, the markdown twin, and the review URL — the page a person reads if they want to, not a gate they must pass | — |
+| 7 | agent | `content.publish` — which refuses once, for the origin: the feed, sitemap and JSON-LD are absolute and `site.url` is still the placeholder | — |
+| 8 | person | says where the site will be served | **yes** — answer the URL |
+| 9 | agent | `content.publish` lands the one item on the deploy branch, then `site` › push sends it to the host | — |
 
-**Five human actions, and only one of them is friction.** Answering a question is the product working. Approving a shell command is a correct security prompt. The restart is the only irreducible cost, and it exists because a harness reads `.mcp.json` when it starts — which is not ours to change.
+**Three human actions, and none of them is a restart.** The harness has to start *after* `.mcp.json` exists — that is not ours to change — so whoever runs `init` decides whether that start is an open or a restart. A person who runs it first opens the harness once.
+
+**Rewritten 16 Sep 2026 (decision 178).** From S18d to S23 the front door was a sentence pasted into a harness that was already open (decisions 58–60): the agent asked the site's name, ran `init`, and relayed *restart your harness* — six human touches, two of them the restart, one of them a Bash permission prompt for `bunx`, and a README paragraph explaining "the one thing the agent cannot do". The sentence still works and the Desk still offers it (§9), for somebody who is already inside a harness; it is no longer what the README leads with. **Step numbers elsewhere in this document refer to the fourteen-row table this replaced** — step 4 was `init`, step 12 the first publish; the old table is in git history and its sections were not renumbered, because they record what was measured when.
 
 **Rewritten in S19c (`07` decision 80).** Steps 11–13 used to be *hand back the review URL → a person approves → publish*, and the fifth action was that approval. The write policy's default moved from `draft` to `publish`, so an agent takes the post all the way and the one thing it still cannot answer for itself is where the site will live — a fact about the world, not a judgement about the words. A site that wants the older shape declares `types.post.mcp.write: draft` and gets step 12 back exactly as it was, review page and all.
 
-**The URL is absent from this table on purpose.** The feed, sitemap and JSON-LD are all absolute, so a real origin is genuinely required — at step 12, not step 4. Asking for a production domain before a person has seen one pixel is the single most common way a setup flow loses somebody (decision 63).
+**The URL is absent from this table on purpose.** The feed, sitemap and JSON-LD are all absolute, so a real origin is genuinely required — at the first publish, not at `init`. Asking for a production domain before a person has seen one pixel is the single most common way a setup flow loses somebody (decision 63).
 
-**Step 4 is built and waiting on one decision** (S18d′). The README carries the sentence, and everything `bunx @snypd/cli`
+**`init` is built and waiting on one decision** (S18d′). The README carries the command, and everything `bunx @snypd/cli`
 needs is written: a launcher on npm whose binary arrives as one platform-gated optional dependency, a release workflow
 that publishes it with provenance on a `v*` tag, and a test that builds the host package, links it the way an installer
 would and runs it under `node`. What has not happened is the publish — `07` decision 69 keeps that with Sunny, because a
-scoped unpublish window is 72 hours and the name is claimed permanently. Until it is pressed, step 4 reads
-`bun run snypd init` from a checkout, and F1 stays measured rather than claimed.
+scoped unpublish window is 72 hours and the name is claimed permanently. Until it is pressed, the command reads
+`bun run snypd init` from a checkout, and F1 stays measured rather than claimed. *(0.1.3 is on npm since S23; 0.1.5 is the one the README pictures.)*
 
 ---
 
@@ -379,6 +381,8 @@ Used verbatim in the README, on snypd.rocks, on the first-run Desk, and as the d
 **64. `site` › doctor is the agent's Desk.** One implementation of the derived facts, two renderings: doctor's text for the agent, the checklist for the person. Doctor gains registration-present, heartbeat (with `startedAt`, §10), dev-server-running, placeholder-URL and item-count; it already has config, theme, lint and git. The rule that follows: **no fact appears on the Desk that doctor cannot answer.** A page that knows something the agent cannot ask for is a second source of truth wearing a stylesheet.
 
 **65. The funnel number counts human actions, not seconds or commands.** `onboard.handoff` = the number of times a person must do something between reading the sentence and seeing their first post. Seconds drift with the model; commands are the wrong unit once the agent is the one typing them. Five today (§2), and **two of the five must never be optimised away** — approving a shell command and approving a publish are the safety story, and a funnel metric that rewards removing them is a metric pointed at the wrong thing. Report the breakdown, not just the total.
+
+**178. The front door is the command, typed before the harness opens** (16 Sep 2026, Sunny; supersedes 59, amends 58, 60 and 65). A harness reads `.mcp.json` when it starts, so the harness has to start *after* `init` — that was always the irreducible step. What decision 59 got wrong was who runs `init`: when the agent runs it, the harness that is already open has to be restarted; when the person runs it, in a directory they just made, the harness is opened once. So `mkdir · bunx @snypd/cli init · claude · "Write me a first post."` replaces the paste. What it removes: the restart and its relay, the Bash permission prompt for `bunx` and `git` (a real user hits the same prompts the README's own recording needed `--allowedTools` to suppress), the name question (`--name` falls back to the directory, decision 63), and the `.claude/`-made-the-directory-non-empty failure of `shouldInitRepo` (S24 log, found recording V1). What it costs: the tagline gets one terminal line in front of it, and F1's "none of them typing a command" is now false by one — F1 counts three actions, one of them typed, and the budget stays five. `init`'s stdout (60) is rewritten for its ordinary reader, a person at a terminal, with the one sentence an agent relays kept at the end for the case where an agent ran it. The sentence (58) survives as the second door — the Desk's first checklist row and the `onboard.*` lane — for somebody already inside a harness.
 
 ---
 
