@@ -98,7 +98,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "studio": {
-    hash: "c4d4a7215d941ed627f4273c1f2d1c1103d559e0",
+    hash: "047ab07d3841eee09a55cb28f49c874eb324088b",
     files: {
       "fonts/OFL.txt": _studio_fonts_OFL_txt,
       "theme.css": _studio_theme_css,

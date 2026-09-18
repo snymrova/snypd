@@ -14,14 +14,18 @@ export default function Entries({ ctx, entries }: EntriesProps): Html {
   if (!entries.length) return <p>Nothing published yet.</p>;
   const dates = settingFlag(ctx, "showDates", true);
   const format = settingText(ctx, "dateFormat");
+  // The card's word for the item: its first term (R3 — *Product* for a case filed under product, *Process* for a note), which the build hands every listed entry; a site with no taxonomies shows none.
+  const kindOf = (e: EntriesProps["entries"][number]) => e.terms?.[0]?.title ?? (typeof e.frontmatter.category === "string" ? e.frontmatter.category : undefined);
+  // When every card in the list would say the same word — six posts, all *Building in public* — the word tells a reader nothing and the date stands alone.
+  const kinds = new Set(entries.map(kindOf));
+  const uniform = entries.length > 1 && kinds.size === 1;
   return (
     <ol class="snypd-entries" reversed>
       {entries.map((e, i) => {
         const cover = e.frontmatter.cover as { image?: string } | undefined;
         const src = cover?.image;
         const size = src ? ctx.media[src] : undefined;
-        // The card's word for the item: its first term (R3 — *Product* for a case filed under product, *Process* for a note), which the build hands every listed entry; a site with no taxonomies shows none.
-        const kind = e.terms?.[0]?.title ?? (typeof e.frontmatter.category === "string" ? e.frontmatter.category : undefined);
+        const kind = uniform ? undefined : kindOf(e);
         return (
           <li class="snypd-card">
             <a href={`${e.route}/`}>
