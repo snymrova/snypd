@@ -310,25 +310,36 @@ switch (verb) {
       else say.push(`the scaffold could not be committed: ${committed?.reason ?? "unknown"}${committed?.hint ? `\n${committed.hint}` : ""}`);
       console.log(say.join("\n"));
 
-      // ── Everything below is addressed to an agent (S18d, docs/08 decision 60) ────────────────────
-      // Under docs/08 §2 the reader of this output is the agent that just ran the command, not a person
-      // at a screen: it pastes one sentence, this runs, and what it prints is the only briefing that
-      // reader gets. Until this session these were three human-facing lines ending in an instruction the
-      // agent cannot execute — so the one step that needs a human was written as though the human were
-      // already reading it. It says four things, in the order they are acted on: what exists, what is
-      // still unknown and when it comes due, the one thing only a person can do (phrased to be relayed
-      // verbatim), and where the far side picks up — because there is no far side to hand anything to.
-      const out: string[] = ["", `\`${r.name}\` is a snypd site. There is no admin UI: content is written over MCP, by you.`];
+      // ── Everything below has two possible readers (docs/08 decision 178) ─────────────────────────
+      // Since S18d this was written for an agent alone (decision 60): a person pasted one sentence, the
+      // agent ran this, and the printout was that agent's only briefing. The README's front door is now
+      // the command itself — a person types it in a terminal *before* any harness is open, because the
+      // harness has to (re)start to read `.mcp.json` either way, and a person who runs `init` first
+      // opens the harness once instead of restarting it. So the ordinary reader is a person at a
+      // terminal, and the agent that ran it on somebody's behalf is the other. Both get the same four
+      // things in the order they are acted on: what exists, what is still unknown and when it comes due,
+      // the one thing a harness needs (to be opened, or restarted — the agent relays the second), and
+      // where the far side picks up — because nothing is carried across a harness start.
+      // Wrapped at 100 columns: a paragraph this long breaks mid-word in a default terminal otherwise,
+      // and this is the first prose the product prints to a person.
+      const wrap = (text: string, width = 100): string => text.split("\n").map((line) => {
+        if (line.length <= width || line.startsWith("    ")) return line;
+        const words = line.split(" "), lines: string[] = []; let cur = "";
+        for (const w of words) { if (cur && cur.length + 1 + w.length > width) { lines.push(cur); cur = w; } else cur = cur ? `${cur} ${w}` : w; }
+        if (cur) lines.push(cur);
+        return lines.join("\n");
+      }).join("\n");
+      const out: string[] = ["", `\`${r.name}\` is a snypd site. There is no admin UI: content is written over MCP, by an agent.`];
       if (r.placeholderUrl)
-        out.push(`Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — and not before. Do not ask for it yet.`);
+        out.push(`Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — and not before.`);
       const registered = r.created.includes(MCP_FILE);
       out.push("",
         registered
-          ? `One thing here needs a person, and it is not something you can do: a harness reads ${MCP_FILE} when it starts, so the snypd tools are not loaded in this session. Ask for it in these words:`
-          : `${MCP_FILE} already existed and was left alone. If it does not name a \`snypd\` server, the tools will not load — check it, then ask for this in these words:`,
-        "", "    Restart your harness (Claude Code, Cursor or Codex) so the snypd tools load.", "",
-        `That restart ends this conversation, and nothing needs to be carried across it. The next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — run it and it will read the site, learn the vocabulary and write the first post.`);
-      console.log(out.join("\n"));
+          ? `Next: open Claude Code, Cursor or Codex in this directory — a harness reads ${MCP_FILE} when it starts — and say:`
+          : `${MCP_FILE} already existed and was left alone. If it does not name a \`snypd\` server the tools will not load — check it, then open Claude Code, Cursor or Codex in this directory and say:`,
+        "", "    Write me a first post.", "",
+        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary and write the post.`);
+      console.log(wrap(out.join("\n")));
     } catch (e) {
       const err = e as Error & { hint?: string };
       console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);

@@ -1,0 +1,11 @@
+snypd: 1
+site:
+  name: Field Notes
+  url: https://readme.snypd.rocks
+  description: Notes on building a CMS whose only interface is an agent.
+  icon: /media/icon.png
+theme:
+  use: editorial
+types:
+  author:
+    layout: author
