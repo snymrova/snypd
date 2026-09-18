@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>snypd home mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#050505;--fg:#fcfcfc;--mute:#8a8a8a;--line:#262626;color-scheme:dark;--gutter:24px;--display:'Inter Tight',system-ui,sans-serif;--body:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
+*{box-sizing:border-box;margin:0}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#050505;--fg:#fcfcfc}}:root[data-theme="dark"]{--bg:#050505;--fg:#fcfcfc}
+html,body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.wrap{padding-inline:var(--gutter)}
+.label{font:500 12px/1 var(--body);letter-spacing:.08em;text-transform:uppercase}
+.eyebrow{font:500 12px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);display:flex;gap:10px;align-items:center}
+.eyebrow::before{content:"";width:6px;height:6px;background:var(--fg);border-radius:50%}
+.btn{display:inline-block;background:var(--fg);color:var(--bg);padding:26px 32px;font:500 13px/1 var(--body);letter-spacing:.08em;text-transform:uppercase}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--fg)}
+/* masthead */
+header{display:flex;align-items:center;justify-content:space-between;height:74px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:20px}
+.brand b{font:600 26px/1 var(--display);letter-spacing:-.02em}
+.brand span{font:400 14px/1 var(--body);border-left:1px solid var(--line);padding-left:20px;height:40px;display:flex;align-items:center;color:var(--fg)}
+nav{display:flex;gap:32px}nav a{font:500 12px/1 var(--body);letter-spacing:.08em;text-transform:uppercase}
+/* hero */
+.hero{padding-top:56px}
+.tags{display:flex;justify-content:space-between;color:var(--fg)}
+h1{font:500 clamp(64px,17.3vw,252px)/.92 var(--display);letter-spacing:-.045em;text-transform:uppercase;margin-top:28px;margin-left:-.04em}
+.rule{border-top:1px solid var(--line);margin-top:40px;padding-top:32px;display:flex;justify-content:space-between;align-items:flex-start;gap:40px}
+.rule p{max-width:520px;font-size:18px;line-height:1.4}
+.rule p small{display:block;color:var(--mute);font-size:14px;margin-top:10px}
+/* image */
+.shot{margin-top:64px;position:relative;border:1px solid var(--line);background:#0c0c0c;overflow:hidden;aspect-ratio:16/9}
+.shot img{width:100%;height:100%;object-fit:cover;display:block;opacity:.95}
+.shot .tag{position:absolute;left:0;top:0;background:var(--bg);padding:14px 18px 18px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.shot .tag small{display:block;color:var(--mute);font-size:13px;margin-bottom:12px}
+.shot pre{position:absolute;left:24px;bottom:24px;font:400 clamp(13px,1.6vw,22px)/1.6 var(--mono);color:var(--fg);background:rgba(5,5,5,.65);padding:16px 20px;backdrop-filter:blur(6px)}
+.shot .play{position:absolute;right:24px;bottom:24px;font:500 12px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--fg)}
+/* sections */
+section{padding-top:200px}
+h2{font:500 clamp(36px,5vw,72px)/1 var(--display);letter-spacing:-.035em;text-transform:uppercase;margin-top:28px;max-width:20ch}
+.center{text-align:center}.center h2{margin-inline:auto}.center .eyebrow{justify-content:center}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:64px}
+.card{border:1px solid var(--line);padding:24px;min-height:300px;display:flex;flex-direction:column;justify-content:space-between}
+.card .big{font:500 clamp(48px,6vw,96px)/1 var(--display);letter-spacing:-.04em}
+.card .lbl{font:500 13px/1.2 var(--body);letter-spacing:.06em;text-transform:uppercase}
+.card p{color:var(--mute);font-size:14px;max-width:34ch}
+.split{display:flex;justify-content:space-between;align-items:flex-end;gap:40px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:64px}
+.item{border:1px solid var(--line);aspect-ratio:16/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center}
+.item .kind{font:500 11px/1 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.item .name{font:500 clamp(20px,2.2vw,30px)/1.1 var(--display);letter-spacing:-.02em;text-transform:uppercase;max-width:22ch}
+.item .when{font:500 11px/1 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+.two ul{list-style:none;padding:0;margin-top:0}
+.two li{border-top:1px solid var(--line);padding:22px 0;font-size:18px;line-height:1.4;max-width:44ch}
+.two li:last-child{border-bottom:1px solid var(--line)}
+.two li b{display:block;font-weight:500}
+.two li span{color:var(--mute);font-size:15px}
+/* closing */
+.close{padding-top:220px}
+.close h2{font-size:clamp(64px,17.3vw,252px);line-height:.92;letter-spacing:-.045em;max-width:none;margin-left:-.04em}
+.close pre{font:400 clamp(14px,1.3vw,18px)/1.7 var(--mono);color:var(--fg);margin-top:40px}
+.close .rule{margin-top:40px}
+footer{margin-top:160px;padding-block:40px 32px;border-top:1px solid var(--line)}
+footer .cols{display:grid;grid-template-columns:2fr 1fr 1fr;gap:24px}
+footer h3{font:500 12px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;margin-bottom:18px}
+footer a{display:block;font-size:14px;line-height:1.9;color:var(--mute)}
+footer .big{font:500 clamp(48px,8vw,120px)/1 var(--display);letter-spacing:-.04em;text-transform:uppercase;margin-top:80px}
+footer .status{display:flex;justify-content:space-between;margin-top:24px;color:var(--mute);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+@media (max-width:720px){
+  .brand span{display:none}nav{gap:20px}
+  .tags{display:grid;grid-template-columns:1fr 1fr;gap:28px 16px;order:2;margin-top:48px}
+  .hero{display:flex;flex-direction:column}.hero h1{order:0}.hero .rule{order:1;flex-direction:column;gap:28px}
+  .rule p{font-size:17px}.shot{order:3;margin-top:48px}
+  section{padding-top:120px}.cards,.grid,.two,footer .cols{grid-template-columns:1fr}.card{min-height:220px}
+  .split{flex-direction:column;align-items:flex-start;gap:24px}.item{aspect-ratio:auto;padding:40px 16px}
+  .shot pre{position:static;margin-top:0}
+}
+</style></head><body>
+<header class="wrap"><div class="brand"><b>snypd</b><span>A CMS for agents.</span></div><nav><a href="#">Start</a><a href="#">Log</a><a href="#">Posts</a><a href="#">Bench</a><a href="#">GitHub</a></nav></header>
+
+<div class="hero wrap">
+  <div class="tags label"><span>No dashboard</span><span>Markdown in your repo</span><span>Static HTML out</span><span>Zero JavaScript</span></div>
+  <h1>Your agent<br>is the CMS.</h1>
+  <div class="rule">
+    <p>snypd is a CMS with no dashboard. Claude Code, Cursor or Codex writes; markdown lives in a repo you own; static HTML comes out, and no JavaScript with it.<small>Launching 6 October 2026 · built in public · MIT</small></p>
+    <a class="btn" href="#">Start in four lines</a>
+  </div>
+  <div class="shot">
+    <img src="../../sites/snypd.rocks/content/media/front-door-poster.png" alt="">
+    <div class="tag"><small>A real session, 50 s</small><a class="btn ghost" href="#" style="padding:16px 20px">Watch</a></div>
+    <pre>$ mkdir field-notes &amp;&amp; cd field-notes
+$ bunx @snypd/cli init
+$ claude
+❯ Write me a first post.</pre>
+  </div>
+</div>
+
+<section class="wrap center">
+  <div class="eyebrow">The numbers</div>
+  <h2>Measured in CI.<br>Or not claimed.</h2>
+  <div class="cards">
+    <div class="card"><div class="lbl">Cold start</div><div class="big">23 ms</div><p>The MCP server, release binary, from nothing to the first tool call.</p></div>
+    <div class="card"><div class="lbl">One page</div><div class="big">510 tk</div><p>Tokens to read a page as markdown: what a turn costs your agent.</p></div>
+    <div class="card"><div class="lbl">JavaScript</div><div class="big">0 KB</div><p>On every page, on every theme, or the build fails. Sixty rows, thirty-three of them gates.</p></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="split"><div><div class="eyebrow">Built in public</div><h2>Every session, logged.</h2></div><a class="btn ghost" href="#">See the log</a></div>
+  <div class="grid">
+    <a class="item" href="#"><span class="kind">Shipped</span><span class="name">The terminal look</span><span class="when">18 Sep 2026 · S32</span></a>
+    <a class="item" href="#"><span class="kind">Measured</span><span class="name">The registry demo, scored</span><span class="when">18 Sep 2026 · S29 R4</span></a>
+    <a class="item" href="#"><span class="kind">Shipped</span><span class="name">Ferrule declares work</span><span class="when">18 Sep 2026 · S29 R2</span></a>
+    <a class="item" href="#"><span class="kind">Decided</span><span class="name">An archive per dated type</span><span class="when">18 Sep 2026 · S29 R1</span></a>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="two">
+    <div><div class="eyebrow">Refused</div><h2>The gate<br>says no.</h2></div>
+    <ul>
+      <li><b>A masthead that inverted over each band.</b><span>Five contrast failures on the light bands.</span></li>
+      <li><b>A benchmark taken on a busy machine.</b><span>The numbers were the load's; CI's stand.</span></li>
+      <li><b>A noindex on every preview build.</b><span>It broke the byte-identical rule and lasted an hour.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="wrap close">
+  <h2>Four lines.<br>First post.</h2>
+  <div class="rule">
+    <pre style="margin-top:0">$ mkdir field-notes &amp;&amp; cd field-notes
+$ bunx @snypd/cli init
+$ claude
+❯ Write me a first post.</pre>
+    <a class="btn" href="#">Install from npm</a>
+  </div>
+</section>
+
+<footer class="wrap">
+  <div class="cols">
+    <div><h3>snypd.rocks</h3><a href="#">Start</a><a href="#">Why MCP is the only interface</a><a href="#">Plugins</a><a href="#">Themes</a></div>
+    <div><h3>Record</h3><a href="#">Log</a><a href="#">Changelog</a><a href="#">Bench</a><a href="#">Feed</a></div>
+    <div><h3>Elsewhere</h3><a href="#">GitHub</a><a href="#">npm</a><a href="#">llms.txt</a></div>
+  </div>
+  <div class="big">snypd.rocks</div>
+  <div class="status"><span>Built in public · MIT</span><span>0 KB JS · 18 rules</span></div>
+</footer>
+</body></html>
