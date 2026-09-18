@@ -408,7 +408,7 @@ Everything here is written through MCP, from the harness you already have open. 
 The blocks on this page are the theme rendering the vocabulary — a \`tldr\`, a \`steps\`, this \`callout\`, and the questions below. Your posts get the same components, because a theme implements the vocabulary rather than a stylesheet implementing your posts.
 :::
 
-:::faq
+:::faq{title="Questions"}
 ### Where does the content live?
 Markdown files under \`content/\`, in git. The database in \`.snypd/\` is a disposable index — delete it and the site is unchanged.
 

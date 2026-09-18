@@ -104,6 +104,8 @@ describe("E7 as a property: incremental ≡ cold", () => {
           if (r) open = false;
           continue;
         }
+        // every item deleted by an earlier step: nothing to retitle, so nothing to kill
+        if (!s.items.length) { log.push("kill: nothing"); continue; }
         const item = s.items[e.i % s.items.length]!;
         log.push(apply(root, s, { kind: "retitle", i: e.i, title: `${item.fm.title ?? item.fm.name ?? ""} again` }));
         writeFileSync(kill, e.at === "item" ? routeOf(item) : "/");
