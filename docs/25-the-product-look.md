@@ -156,6 +156,40 @@ Two hours if T1 measures clean; a third if the seam sends it back for Inter 400.
 
 ---
 
-## 10. Outcome
+## 10. Outcome — S34, built 18 Sep 2026, the same day as the brief
 
-*Written when S34 lands.*
+Sunny's answer was *"work on the theme"*, so §9's six calls are taken as recommended and decisions 207–209 are recorded in docs/11 §8.
+
+**Shipped from §7.** T1: a `folio` recipe in `scripts/vendor-font.sh` — Inter, `opsz` pinned at 32, `wght` at 500, Latin — **17,684 bytes**, under the ≈ 22 KB this brief guessed and well under the lane; the script learned that a recipe which pins every axis has no `fvar` left for the measuring instance. The fallback's `size-adjust` came out at exactly 100.0 % and was checked by hand before it was believed: Inter's `t` is wider than Arial's and its space narrower, and the frequency-weighted mean is the same 0.4442 em. T2 and T3: `sites/snypd.rocks/themes/folio/` — `theme.yaml` over `base` with the full token set (`base` declares none), eight settings, the font block; one sheet in §4.2's order; `home` with the settings button and the two-column bands; `log`, `release`, `log-index`, the ledger and the footer carried from `console` with the window, the prompts and the bracketed kinds removed; `console` deleted; `snypd.yaml` → `use: folio`; GitHub back as the header's last item, drawn as the outlined button because it is `rel="external"`, not because it is last. T4: `home.md` as §5, `start.md`'s steps in the same four lines with the `init` flags moved to a paragraph of their own — both written through the MCP server, driven over stdio from the working tree because the session's own connection timed out. T5: `og.png` from `docs/mock/25-og.html`; `folio-1280.png` and `-390.png`; the themes page names `folio` as the look the site wears and drops `console`'s sentence. T6: below.
+
+**Held to.** `check theme folio` passes — 18 rules, 17 checked (no named looks), `font.budget`, `font.used` and `font.fallback` among them. The page suite over eight routes × 1280/390: js 0, font 17.37 KB of the declared 18, axe 0 across sixteen pairs and 0 scrolled, cls 0, `page.bytes.kb` 163 worst (a post's poster, not the front page). Lint 0 errors. 483 tests, 0 fail; typecheck clean, the theme's own six files included.
+
+**Where the mockup bent to the renderer, beyond §3.** *The numbers are 52 px, not 64:* three values share half the container, `23 ms` at 64 px in Inter is wider than its third (Inter Tight just fitted), and a wrapped value broke the count-up's overlay — so a value never wraps, the token is the size that fits, and a row of three stacks at the fold. *A refusal's row ends on its session link,* set where a row's date sits, not on the word *Refused*: the word would have had to be `content` in a theme's sheet, and the heading already says it. *The close's one line lives in the `cta`,* whose `title` the spec requires, so the left column is the heading alone. *Row titles, step titles and a refusal's title are in the display face:* the system sans has no reliable 500 on Windows, and a title is set, not read.
+
+**Not done.** The second font file (§9 · 1): the seam between Inter headings and a system body is a question for a Windows screen and was not answerable on this box. The five-width pass: looked at 1440, 1280 and 390 only.
+
+**Owed.** The front-door poster frame (Sunny's), now more visible in the hero's column. 0.1.4 on npm. The live site. The film, which has now lost its matching site twice and should wait until this look has survived a day.
+
+---
+
+## 11. S35 — the hero redrawn, and the front page says what the CMS has (18 Sep 2026, local, uncommitted)
+
+Sunny's ask: *the hero first, then audit the front page for whether it shares the themes, plugins, templates and the rest, without naming the CMS they are compared to.*
+
+**The hero, as found.** At 1440 × 900 the first screen was the sentence, the button and an empty half; the two paragraphs started at 690 px and the four lines at 890 — below the fold the field audit (S33) had moved them above. The film sat at 540 px wide, where a terminal recording is unreadable, behind a near-black poster that read as a broken player.
+
+**The hero, as built — drawn on sight, round by round.** Sunny looked at each build on his dev server and said what was wrong; the rounds, in order: the lead beside the button (the half beside the sentence was empty, "the most important part"); the window beside an 80 px sentence (the pacing was wrong); a centred column of sentence, window, button; the film where the window was; the window left of the prose; the prose typeset; the wordmark under the window, then out again; the prose cut to its first paragraph; the row under the button centred. **What stands: one centred column — the sentence, the film, the button, the lede, the window.** One sheet and one part, no change to the layout: the lead is `display: contents`, so its children are placed in the band's grid among the cover and the button. The sentence is centred at the mockup's 96 px and breaks at its full stop (`max-width: 12.5em`, `text-wrap: balance`); the lead's `figure` spans the container under it, so the film is the page's one big picture at 1118 px and its text can be read, its caption centred; *Start in four lines* sits under it; then the lead's first paragraph set as a title — the display face, 34 px at 1440, balanced, centred — and the four lines under it as a dark window, 34 rem, the dark half of the same pairs. Source order is unchanged, so the reading and tab order are the author's. First screen at 1440 × 900: the sentence and the film's upper two thirds; the button is at 1,200 px, the cost of the film's size, taken knowingly. The poster is the film's frame at 33.6 s — *Done. The post is written, published to main, and built.* — as WebP, 112 KB (`front-door-done.webp`; the old `front-door-poster.png` is still named by the maker post).
+
+**The header carries the mark.** `folio` gained a `logo` setting and its own `parts/header.tsx` — `base`'s header with the name or the mark in the link home, the studio look's pattern, the image's size from the media index. The site sets `logo: /media/snypd-wordmark.svg`: the README's serif wordmark with its oxblood full stop, its viewBox cropped to the ink, 28 px tall in the header.
+
+**Copy cut from the hero, on Sunny's word.** The lead is now one paragraph — *You know how every CMS assumes…* — and the four lines. Gone: *snypd is the CMS for that…*, the sentence naming themes, plugins and content types, and *Launching 6 October 2026.* The capabilities are carried by the band below; **the launch date is now nowhere on the front page.**
+
+**The audit.** Against what ships (README, *Who it is for*: post types, taxonomies, hooks, themes, child themes, a plugin directory) the page had: themes — a header link; plugins — a footer link; types, taxonomies, layouts, menus, settings, blocks — nothing; drafts and approval — one clause in step 4. Four of eight bands were about how it is built and none about what it has.
+
+**What was added to `home.md`.** Two bands after the steps: `## Everything a CMS has. As files.` (six ruled rows: themes and child themes · plugins · content types and taxonomies · templates, menus, settings · blocks · drafts, preview, approval, each ending on its link) and `## One sentence changes the look.` (`four-looks.webp`, 63 KB, four of the bench's gallery stills on one sheet; the sentence an agent is told; the link to `/themes/`). No comparison product is named anywhere on the page.
+
+**Held to.** `check theme folio` 18 rules, 17 checked, passes. Page suite, eight routes × 1280/390: js 0, font 17.37/18, axe 0 across sixteen pairs, cls 0. Lint 0 errors, no new warnings. Looked at: 1440, 1236, 768, 390. Stills: [`25-s35-1440.png`](mock/25-s35-1440.png), [`25-s35-390.png`](mock/25-s35-390.png).
+
+**Recorded in docs/11 §8.** *210 — the front page's hero is one centred column — the sentence, the film, the button, the lede, the window — and the header carries the mark from a `logo` setting; this replaces §3's left-set sentence over an empty half.* Sunny's call on sight, per 209.
+
+**Found and left.** The blocks post says thirteen and the spec has fourteen (`logo-wall`); the row says fourteen and links the post. The front page is now ten bands and 7,400 px at 1440: the three list bands show six rows each and four would do. `home.md` was edited on disk, not through the MCP — send it through `content.update` when the look is approved, so the site's footer stays true.

@@ -16,6 +16,7 @@
 #
 #   scripts/vendor-font.sh editorial     # themes/editorial/fonts/source-serif-4-latin.woff2
 #   scripts/vendor-font.sh studio        # themes/studio/fonts/bricolage-grotesque-latin.woff2 (S29)
+#   scripts/vendor-font.sh folio         # sites/snypd.rocks/themes/folio/fonts/inter-latin.woff2 (S34)
 #
 set -euo pipefail
 
@@ -84,8 +85,28 @@ studio)
   MEASURE_WEIGHT=700
   DEFAULT_OUT="themes/studio/fonts/bricolage-grotesque-latin.woff2"
   ;;
+folio)
+  # ── what snypd.rocks's own theme ships (S34, docs/25 §3, *One face*) ──────────────────────────────
+  # Inter (Rasmus Andersson, OFL 1.1) at one weight. The look sets its headline, its section headings,
+  # the numbers and the buttons in a medium grotesk and reads its prose in the system sans, so the file
+  # is a static instance — `wght` pinned at 500, `opsz` at the display end — and the Latin subset is
+  # measured at ≈ 22 KB against the 40 lane. A second file (Inter 400 for the body) is docs/25 §7 · 2's
+  # call, taken only if the gallery still shows the seam; this recipe is the one file.
+  SRC_REF="e1d6480102fed30739fead0faee463101f892c8f"            # last touched the .ttf, 6 Jun 2024
+  LICENSE_REF="b0928647ba26c8d55548aa19feb2f7aeba622d4a"        # last touched OFL.txt, 29 Sep 2021
+  SRC_URL="https://raw.githubusercontent.com/google/fonts/$SRC_REF/ofl/inter/Inter%5Bopsz,wght%5D.ttf"
+  LICENSE_URL="https://raw.githubusercontent.com/google/fonts/$LICENSE_REF/ofl/inter/OFL.txt"
+  export SOURCE_DATE_EPOCH=1717679533
+  INSTANCE=(opsz=32 wght=500)
+  WEIGHT_RANGE="500"
+  # Arial: on every Mac and every Windows, and the closest of them to Inter in width. There is no local
+  # medium, so the fallback is the regular with its advances scaled to Inter 500's.
+  FALLBACK_LOCAL="Arial"
+  MEASURE_WEIGHT=500
+  DEFAULT_OUT="sites/snypd.rocks/themes/folio/fonts/inter-latin.woff2"
+  ;;
 *)
-  echo "no recipe \"$RECIPE\" — editorial or studio" >&2; exit 2 ;;
+  echo "no recipe \"$RECIPE\" — editorial, studio or folio" >&2; exit 2 ;;
 esac
 
 OUT="${2:-$DEFAULT_OUT}"
@@ -102,8 +123,13 @@ pyftsubset "$WORK/var.ttf" --output-file="$OUT" --flavor=woff2 \
 # redistributes the file, and a site built from this theme redistributes it on every page it serves.
 curl -sSL --fail -o "$(dirname "$OUT")/OFL.txt" "$LICENSE_URL"
 
-# The static instance the overrides are measured at — never shipped, only measured.
-fonttools varLib.instancer -q -o "$WORK/measure.ttf" "$WORK/var.ttf" "wght=$MEASURE_WEIGHT"
+# The static instance the overrides are measured at — never shipped, only measured. A recipe that pinned
+# every axis (folio) already made one, and the instancer has no `fvar` left to read.
+if python3 -c 'import sys; from fontTools.ttLib import TTFont; sys.exit(0 if "fvar" in TTFont(sys.argv[1]) else 1)' "$WORK/var.ttf"; then
+  fonttools varLib.instancer -q -o "$WORK/measure.ttf" "$WORK/var.ttf" "wght=$MEASURE_WEIGHT"
+else
+  cp "$WORK/var.ttf" "$WORK/measure.ttf"
+fi
 
 python3 - "$OUT" "$WORK/measure.ttf" "$(fc-match -f '%{file}' "$FALLBACK_LOCAL")" "$FALLBACK_LOCAL" "$WEIGHT_RANGE" <<'PY'
 import sys
