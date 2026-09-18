@@ -20,7 +20,8 @@ export function serve(root: string, opts: ServeOptions = {}) {
       const wantsMd = req.headers.get("accept")?.includes("text/markdown");
       let file = join(dist, path);
       if (existsSync(file) && statSync(file).isDirectory()) file = join(file, wantsMd ? "index.md" : "index.html");
-      if (!existsSync(file)) return new Response("not found", { status: 404 });
+      // A miss is the site's own not-found page when the build wrote one (S36), as a host serves it.
+      if (!existsSync(file)) { const nf = join(dist, "404.html"); return existsSync(nf) ? new Response(Bun.file(nf), { status: 404 }) : new Response("not found", { status: 404 }); }
       return new Response(Bun.file(file));
     },
   });

@@ -20,7 +20,7 @@
  * This module is imported only when `find_tools` runs or one of its tools is called, so nothing here is on
  * the path `mcp.coldStart` measures.
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { activitySnapshot, type Tool, type ToolResult } from "./protocol";
@@ -742,7 +742,7 @@ async function doctor(root: string): Promise<ToolResult> {
 
   const index = await c.SiteIndex.open(root);
   let lint: Awaited<ReturnType<Core["lintSite"]>>;
-  let stored: { slug: string }[] = [];
+  let stored: { slug: string; type: string; route: string; status: string; frontmatter: Record<string, unknown> }[] = [];
   try {
     index.sync(cfg);
     lint = c.lintSite(root, { cfg, moves: index.moves(), cache: new c.MdastCache(index.mdastStore()) });
@@ -834,6 +834,24 @@ async function doctor(root: string): Promise<ToolResult> {
   const items = facts.items;
   if (items) ok(`${items} item${items === 1 ? "" : "s"}`);
   else warn("no content yet — the `get-started` prompt writes the first post");
+
+  // The basics (S36): what a reader or a network sees before a word of the site — the tab's icon, the page
+  // a broken link lands on, the card a shared link shows, the line under a search result. Asked only of a
+  // site with content; each unfinished one names the prompt that finishes it.
+  if (items) {
+    const live = stored.filter((f) => cfg.config.statuses[f.status]?.public === true);
+    const icon = cfg.config.site.icon as string | undefined;
+    const media = join(root, "content", "media");
+    if (!icon) warn("no site.icon — browsers ask for one on every page; the `site-basics` prompt draws it as SVG");
+    else ok(`icon ${icon}${existsSync(join(media, "icons", "favicon.ico")) ? " + favicon.ico, apple-touch-icon" : " — `snypd cards` rasterises favicon.ico and apple-touch-icon from it"}`);
+    if (live.some((f) => f.route === "/404")) ok("a not-found page of the site's own at /404, also served as /404.html");
+    else warn("no not-found page — the build writes a plain /404.html; the `site-basics` prompt writes one in the site's voice");
+    const cards = existsSync(join(media, "cards")) ? readdirSync(join(media, "cards")).filter((f) => f.endsWith(".png")).length : 0;
+    if (cards) ok(`${cards} share card${cards === 1 ? "" : "s"} in content/media/cards — \`snypd cards\` redraws what changed`);
+    else warn("no share cards — every page shares the same image (or none); `snypd cards` draws one per page in the theme");
+    const bare = live.filter((f) => !(typeof f.frontmatter.description === "string" && f.frontmatter.description.trim()));
+    if (bare.length) warn(`${bare.length} published item${bare.length === 1 ? " has" : "s have"} no description — search results and share cards fall back to the first paragraph (${bare.slice(0, 3).map((f) => `${f.type}/${f.slug}`).join(", ")}${bare.length > 3 ? "…" : ""})`);
+  }
 
   if (facts.placeholderUrl)
     warn(`site.url is ${cfg.config.site.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before anything publishes (content.publish refuses until then)`);

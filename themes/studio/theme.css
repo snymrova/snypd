@@ -447,7 +447,8 @@ body:has(.snypd-work-close[data-tone="light"]) > footer { color-scheme: dark; }
 /* Cross-document view transitions (docs/14 §4.4): the card's title becomes the post's. */
 @view-transition { navigation: auto; }
 ::view-transition-group(.snypd-title) { animation-duration: 280ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
+/* No crossfade between pages (S36): the page swaps at once, and only the title glides into place. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

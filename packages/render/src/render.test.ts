@@ -84,11 +84,12 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     // 2 posts + about + author + index + category/eng + tag/ai + tag/mcp = 8; the draft is not built
     expect(r.routes).toBe(8);
     // llms.txt feed.xml sitemap.xml robots.txt api/site.json api/{post,page,author}.json api/{category,tag}.json + assets/theme.css (base has no tokens, and since U7 one sheet of behaviour)
-    expect(r.artefacts).toBe(11);
+    // + _headers and the default 404.html (S36)
+    expect(r.artefacts).toBe(13);
     expect(existsSync(join(dist, "posts/d"))).toBe(false);
     expect(r.theme.coverage.every((c) => c.status === "own")).toBe(true); expect(r.theme.coverage.length).toBe(14);
     const w = await build(root);
-    expect(w.rendered).toBe(0); expect(w.cached).toBe(19);
+    expect(w.rendered).toBe(0); expect(w.cached).toBe(21);
     // F1: the profile is the render phase, split. A cold build parses and writes; the warm one parses
     // nothing, writes nothing, and its render phase is the stat pass over the outputs it kept.
     const sum = (p: typeof r.profile) => Object.values(p).reduce((a, b) => a + b, 0);
@@ -168,7 +169,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(JSON.parse(read("api", "tag.json")).terms[1]).toEqual({ term: "mcp", title: "Model Context Protocol", route: "/tag/mcp", url: "https://t.example/tag/mcp/", count: 1 });
     const html = read("posts/a");
     expect(html).toContain('<link rel="alternate" type="application/rss+xml" title="T" href="/feed.xml">');
-    expect(html).toContain('<link rel="stylesheet" href="/assets/theme.css">');   // base's own sheet (U7)
+    expect(html).toMatch(/<link rel="stylesheet" href="\/assets\/theme\.css\?v=[0-9a-f]{10}">/);   // base's own sheet (U7), versioned by content (S36)
     const ld = /<script type="application\/ld\+json">([^]*?)<\/script>/.exec(html)![1]!;
     const obj = JSON.parse(ld);
     expect(obj).toMatchObject({ "@type": "BlogPosting", headline: "Post A", datePublished: "2026-03-02", dateModified: "2026-03-02", author: { "@type": "Person", name: "Sunny" }, keywords: "eng, ai, Model Context Protocol" });
@@ -240,7 +241,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
   test("a body edit re-renders exactly that route", async () => {
     writeFileSync(join(root, "content/posts/b.md"), post("b", "Post B", { body: "Changed body." }));
     const r = await build(root);
-    expect([r.rendered, r.cached]).toEqual([1, 18]);   // the surface did not change: no artefact rewritten
+    expect([r.rendered, r.cached]).toEqual([1, 20]);   // the surface did not change: no artefact rewritten
     expect(read("posts/b")).toContain("Changed body.");
   });
   test("a title edit re-renders the post and every list that shows it", async () => {
@@ -256,13 +257,13 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(f, readFileSync(f, "utf8").replace("<p>{ctx.site.name}</p>", "<p>{ctx.site.name} · edited</p>"));
     const cli = Bun.spawnSync([process.execPath, "packages/cli/src/index.ts", "build", root]);   // `snypd build`: the real path, no module cache
     // The one artefact cached is the stylesheet: a part edit changes the theme's hash and every route, not its CSS.
-    expect(cli.stdout.toString()).toContain("built 8 routes + 11 artefacts (18 rendered, 1 cached");
+    expect(cli.stdout.toString()).toContain("built 8 routes + 13 artefacts (20 rendered, 1 cached");
     expect(read("about")).toContain("T · edited");
     let r = await build(root);
     expect(r.rendered).toBe(0);
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T2, url: https://t.example }\ntheme: { use: base }\ntypes: { author: { layout: author } }\n");
     r = await build(root);
-    expect(r.rendered).toBe(18); expect(read("about")).toContain("<title>About - T2</title>");
+    expect(r.rendered).toBe(20);   // + _headers and 404.html (S36), both keyed on the config expect(read("about")).toContain("<title>About - T2</title>");
   });
   test("S7 schema-emit from blocks: FAQPage from faq, HowTo from steps and flow", async () => {
     writeFileSync(join(root, "content/posts/s.md"), `---\ntitle: Schema\ndate: 2026-01-02\nstatus: published\n---\n\nIntro.\n\n:::faq\n### Does it help?\nNo. Not yet.\n\nSecond paragraph.\n\n### What does?\nA twin.\n:::\n\n:::steps{title="Ship" time="5 min"}\n1. **Build** — run it.\n2. Serve.\n:::\n\n:::flow{caption="Publish"}\nsteps:\n  - Draft\n  - ask: Clean?\n    yes: Preview\n    no: { then: fix }\n  - id: fix\n    do: Fix it\n:::\n`);
@@ -291,11 +292,11 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(root, "themes/base/styles.css"), "a { color: var(--color-accent) }\n");
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T2, url: https://t.example, description: A test site }\ntheme: { use: base, tokens: { color.accent: \"#f00\" } }\ntypes: { author: { layout: author } }\n");
     const r = await build(root);
-    expect(r.artefacts).toBe(11);
+    expect(r.artefacts).toBe(13);
     // S14: minified on the way out. H0: the layer statement first, the tokens in `snypd.tokens`, the
     // chain's only sheet in `snypd.base` — `base` is the root of its own chain.
     expect(read("assets", "theme.css")).toBe("@layer snypd.tokens,snypd.base,snypd.theme,snypd.site;@layer snypd.tokens{:root{--color-accent: #f00;--content-width: 64ch}}@layer snypd.base{a{color: var(--color-accent)}}");
-    expect(read("about")).toContain('<link rel="stylesheet" href="/assets/theme.css">');
+    expect(read("about")).toMatch(/<link rel="stylesheet" href="\/assets\/theme\.css\?v=[0-9a-f]{10}">/);
     expect(read("", "llms.txt")).toContain("# T2\n\n> A test site\n");
     expect(JSON.parse(read("api", "site.json")).description).toBe("A test site");
     const w = await build(root);
@@ -471,13 +472,15 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     test("the face and its fallback are emitted above the layer statement, and the file lands in dist", async () => {
       const root = site("corpora/_test/font-ok", "f", `theme: f\nextends: base\n${decl()}`);
       const t = await loadTheme(loadConfig(root));
-      expect(t.font!.url).toBe("/assets/fonts/t.woff2");
+      // Versioned by its bytes (S36): the stylesheet and the preload name the same url, and `/assets/*` is immutable.
+      expect(t.font!.url).toMatch(/^\/assets\/fonts\/t\.woff2\?v=[0-9a-f]{10}$/);
+      const fontUrl = t.font!.url;
       expect(t.font!.declaredBy).toBe("f");
       const sheet = styleSheet({ "color.bg": "#fff" }, t.css, t.font!.css);
       // Two faces: the webfont, and the metric-matched stand-in that holds its place until it arrives.
       expect(sheet.indexOf("@font-face")).toBe(0);                       // before the layer statement
       expect(sheet.indexOf(CSS_LAYERS)).toBeGreaterThan(0);
-      expect(sheet).toContain('src: url("/assets/fonts/t.woff2") format("woff2")');
+      expect(sheet).toContain(`src: url("${fontUrl}") format("woff2")`);
       expect(sheet).toContain("font-display: swap");
       expect(sheet).toContain('font-family: "Test Serif fallback"');
       expect(sheet).toContain('src: local("Georgia")');
@@ -490,7 +493,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
       // The preload is `base`'s shell, unchanged by this fixture — crossorigin included, without which
       // the preload is a second download rather than the one the stylesheet then uses.
       expect(readFileSync(join(root, "dist/a/index.html"), "utf8"))
-        .toContain('<link rel="preload" href="/assets/fonts/t.woff2" as="font" type="font/woff2" crossorigin="anonymous">');
+        .toContain(`<link rel="preload" href="${fontUrl}" as="font" type="font/woff2" crossorigin="anonymous">`);
     });
 
     test("nearest declarer wins, so a chain never ships two faces", async () => {
@@ -713,7 +716,8 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const dist = join(root, "dist");
     const has = (route: string) => existsSync(join(dist, route, "index.html"));
     const read = (route: string) => readFileSync(join(dist, route, "index.html"), "utf8");
-    const scripts = (html: string) => [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)].map((m) => m[0]).filter((t) => !t.includes("application/ld+json"));
+    // Data blocks are not script: JSON-LD, and the shell's speculation rules (S36).
+    const scripts = (html: string) => [...html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/g)].map((m) => m[0]).filter((t) => !/type="(?:application\/ld\+json|speculationrules)"/.test(t));
     rmSync(root, { recursive: true, force: true });
     for (const d of ["content/posts", "content/pages", "content/nav", "plugins/local/slots", "plugins/local/filters", "plugins/second", "plugins/broken"]) mkdirSync(join(root, d), { recursive: true });
     const config = (plugins: string, extra = "", theme = "base") => writeFileSync(join(root, "snypd.yaml"), `snypd: 1\nsite: { name: N, url: https://n.example, description: A site }\ntheme: { use: ${theme} }\nplugins: ${plugins}\n${extra}`);
@@ -1984,7 +1988,7 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
   test("none of it is script: the pages pass the build's own gate at a budget of 0", () => {
     // `build` threw if any page weighed more than `bench.budgets.jsKb`, which this site leaves at 0 — so
     // reaching here is the assertion. Said again in one line, on the page with every new attribute on it:
-    expect(read("posts/notes")).not.toMatch(/<script(?![^>]*type="application\/ld\+json")/);
+    expect(read("posts/notes")).not.toMatch(/<script(?![^>]*type="(?:application\/ld\+json|speculationrules)")/);
   });
 });
 
@@ -2122,6 +2126,89 @@ describe("redirects (S16)", () => {
     await build(root);
     expect(existsSync(join(dist, "_redirects"))).toBe(false);
     expect(existsSync(join(dist, "posts/old/index.html"))).toBe(false);
+  });
+});
+
+/**
+ * S36 (docs/27): the basics a site is judged on before it is read — a not-found page that is never blank,
+ * `noindex` honoured, assets a browser may keep, prerendering on intent, and a share card per page.
+ */
+describe("site basics (S36): 404, noindex, cache headers, prerender, cards", () => {
+  const root = "corpora/_test/basics";
+  const dist = join(root, "dist");
+  const read = (f: string) => readFileSync(join(dist, f), "utf8");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/media/cards"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: T, url: https://t.example, icon: /media/icon.svg, image: /media/og.png, imageAlt: The site }\ntheme: { use: base }\n");
+    writeFileSync(join(root, "content/posts/a.md"), "---\ntitle: Post A\nslug: a\ndate: 2026-03-01\nstatus: published\n---\n\nWords.\n");
+    writeFileSync(join(root, "content/posts/hidden.md"), "---\ntitle: Hidden\nslug: hidden\ndate: 2026-03-02\nstatus: published\nnoindex: true\n---\n\nWords.\n");
+    writeFileSync(join(root, "content/media/icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32"/></svg>');
+    // A 1×1 PNG stands in for a drawn card: the shell only needs the file to exist and to have a size.
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+    writeFileSync(join(root, "content/media/cards/posts--a.png"), png);
+    writeFileSync(join(root, "content/media/og.png"), png);
+  });
+
+  test("with no page at /404, the build still writes /404.html — in the theme, noindex, unlisted", async () => {
+    await build(root);
+    const nf = read("404.html");
+    expect(nf).toContain("<title>Page not found - T</title>");
+    expect(nf).toContain('<meta name="robots" content="noindex">');
+    expect(nf).not.toContain('rel="canonical"');
+    expect(read("sitemap.xml")).not.toContain("/404");
+  });
+
+  test("a page at /404 replaces the default, and is written to both places", async () => {
+    writeFileSync(join(root, "content/pages/404.md"), "---\ntitle: Lost the thread\nslug: \"404\"\nstatus: published\n---\n\nTry the [front page](/).\n");
+    await build(root);
+    expect(read("404.html")).toContain("Lost the thread");
+    expect(read("404/index.html")).toBe(read("404.html"));
+    expect(read("sitemap.xml")).not.toContain("/404");
+    expect(read("llms.txt")).not.toContain("Lost the thread");
+    rmSync(join(root, "content/pages/404.md"));
+    await build(root);
+    expect(read("404.html")).toContain("Page not found");
+  });
+
+  test("`noindex: true` is honoured: robots meta, no canonical, out of the sitemap, feed and llms.txt", async () => {
+    await build(root);
+    const h = read("posts/hidden/index.html");
+    expect(h).toContain('<meta name="robots" content="noindex">');
+    expect(h).not.toContain('rel="canonical"');
+    expect(read("sitemap.xml")).not.toContain("/posts/hidden/");
+    expect(read("llms.txt")).not.toContain("Hidden");
+    expect(read("feed.xml")).not.toContain("Hidden");
+    expect(read("posts/a/index.html")).not.toContain('name="robots"');
+  });
+
+  test("assets are versioned by content and `_headers` makes them immutable", async () => {
+    await build(root);
+    const a = read("posts/a/index.html");
+    expect(a).toMatch(/<link rel="stylesheet" href="\/assets\/theme\.css\?v=[0-9a-f]{10}">/);
+    expect(read("_headers")).toContain("/assets/*\n  Cache-Control: public, max-age=31536000, immutable");
+  });
+
+  test("pages prerender on intent through a data block, which the JS gate does not count", async () => {
+    await build(root);
+    const a = read("posts/a/index.html");
+    const rules = a.match(/<script type="speculationrules">(.*?)<\/script>/)?.[1];
+    expect(rules).toBeDefined();
+    const where = JSON.parse(rules!).prerender[0];
+    expect(where.eagerness).toBe("moderate");
+    expect(JSON.stringify(where.where)).toContain("/_snypd/*");
+  });
+
+  test("the icon is linked as SVG; a drawn card is shared before site.image, except at /", async () => {
+    await build(root);
+    const a = read("posts/a/index.html");
+    expect(a).toContain('<link rel="icon" href="/media/icon.svg" type="image/svg+xml">');
+    expect(a).toContain('<meta property="og:image" content="https://t.example/media/cards/posts--a.png">');
+    expect(a).toContain('<meta property="og:image:alt" content="Post A">');
+    const hidden = read("posts/hidden/index.html");   // no card of its own → the site's image and its alt
+    expect(hidden).toContain('<meta property="og:image" content="https://t.example/media/og.png">');
+    expect(hidden).toContain('<meta property="og:image:alt" content="The site">');
   });
 });
 
@@ -2841,7 +2928,7 @@ describe("the client budget (H2): the build weighs the page it wrote, on the sit
     const m = (await refusal())!;
     expect(m).toContain("1 page carries more JavaScript than this site afforded — budget 0 KB (bench.budgets.jsKb)");
     expect(m).toMatch(/posts\/a\/index\.html — 0\.04 KB/);
-    expect(m).toContain(":5 <script>fetch('https://x.example/?c='+document.c…</script> (46 B)");   // line 5 of the page, the body truncated, the weight whole
+    expect(m).toContain(":6 <script>fetch('https://x.example/?c='+document.c…</script> (46 B)");   // line 6 of the page (the speculation rules sit on a line of their own since S36), the body truncated, the weight whole
     expect(m).toContain("Nothing was rewritten");
     // the transaction rolled back: no route row claims the bytes, so this is a cold build that refuses again, not a warm one that forgets
     expect(await refusal()).toBe(m);

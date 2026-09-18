@@ -981,9 +981,9 @@ describe("find_tools + the catalogue", () => {
 
     // prompts: namespaced, described as the plugin's, and rendered with the site in hand
     const pnames = prompts.result.prompts.map((x: any) => x.name);
-    // snypd's three first, then the plugins' in `plugins:` order, each namespaced by its plugin
-    expect(pnames).toEqual(["get-started", "write-post", "build-theme", "speaker.walk", "indexnow.get-indexed"]);
-    expect(prompts.result.prompts[3].description).toContain("(from the `speaker` plugin)");
+    // snypd's four first, then the plugins' in `plugins:` order, each namespaced by its plugin
+    expect(pnames).toEqual(["get-started", "write-post", "build-theme", "site-basics", "speaker.walk", "indexnow.get-indexed"]);
+    expect(prompts.result.prompts[4].description).toContain("(from the `speaker` plugin)");
     expect(got.result.messages[0].content.text).toBe("Walk speaking on P4.");
 
     // content.explain: what ran, not what was declared — and the real index is untouched by the scratch build
@@ -1077,7 +1077,7 @@ describe("find_tools + the catalogue", () => {
     expect(cov.summary.missing).toBe(0);
     expect(badTheme.error.code).toBe(-32002);
 
-    expect(prompts.result.prompts.map((p: any) => p.name)).toEqual(["get-started", "write-post", "build-theme"]);
+    expect(prompts.result.prompts.map((p: any) => p.name)).toEqual(["get-started", "write-post", "build-theme", "site-basics"]);
     // A prompt has to name the calls it wants made, or it is a paragraph rather than a workflow.
     expect(post.result.messages[0].content.text).toContain("benchmarks");
     expect(post.result.messages[0].content.text).toContain("content.suggest_blocks");

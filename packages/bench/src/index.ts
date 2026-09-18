@@ -850,3 +850,4 @@ export function compare(a: Report, b: Report, threshold = 0.10) {
 }
 
 export function load(path: string): Report { return JSON.parse(readFileSync(path, "utf8")); }
+export { drawCards, icoFromPng, type CardsOptions, type CardsResult } from "./cards";

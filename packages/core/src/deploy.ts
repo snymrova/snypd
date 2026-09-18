@@ -142,6 +142,8 @@ compatibility_date = "2026-08-31"
 
 [assets]
 directory = "./dist"
+# A miss serves dist/404.html with a 404 status — the site's own not-found page, which every build writes.
+not_found_handling = "404-page"
 `);
   } else {
     put("vercel.json", JSON.stringify({

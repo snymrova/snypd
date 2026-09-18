@@ -6,6 +6,7 @@
  * route re-renders.
  */
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
@@ -277,7 +278,7 @@ export interface Theme {
 export interface LoadedFont extends ThemeFont {
   /** The theme in the chain that declared it — the one whose dir `file` was relative to. */
   declaredBy: string;
-  /** Site-relative url, `assets/fonts/<basename>`; the build writes it there and the shell preloads it. */
+  /** Site-relative url, `assets/fonts/<basename>?v=<hash>`; the build writes the file without the query and the shell preloads the url. */
   url: string;
   bytes: Buffer;
   /** The licence text shipped beside it, when the theme ships one — copied into `dist/` with the font. */
@@ -535,7 +536,9 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
     const kb = +(bytes.length / 1024).toFixed(2);
     if (kb > f.kb) throw new Error(`theme ${tn}: ${f.file} is ${kb} KB but theme.yaml declares font.kb: ${f.kb} — re-subset it or raise the declaration (at most ${MAX_FONT_KB}, decision 118)`);
     const base = f.file.split("/").pop()!;
-    const url = `/assets/fonts/${base}`;
+    // Versioned by its bytes (S36): `_headers` serves `/assets/*` as immutable, so the url has to change
+    // when the face does. The file on disk keeps its plain name — the build strips the query.
+    const url = `/assets/fonts/${base}?v=${createHash("sha1").update(bytes).digest("hex").slice(0, 10)}`;
     // The licence travels with the font. The OFL requires it, and a site built from this theme
     // redistributes the font on every page it serves — so `dist/` carries the notice next to the bytes
     // it is the notice for, rather than leaving it behind in a themes directory nobody deployed.

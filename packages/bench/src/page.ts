@@ -135,9 +135,11 @@ export async function measure(page: Page, url: string, route: string, view: View
   })).result.value;
 
   // Inline script bytes: a `<script>` with no src never appears in the network log, and "0 KB JS" has to
-  // mean the page runs none — not that it downloaded none. `application/ld+json` is data and is excluded.
+  // mean the page runs none — not that it downloaded none. A data block is not script: only the types a
+  // browser executes count (the same rule as `scriptSites` in core), so `application/ld+json` and the
+  // shell's `speculationrules` (S36) are excluded by type, not by name.
   const inlineJsBytes = (await page.send<{ result: { value: number } }>("Runtime.evaluate", {
-    expression: `[...document.querySelectorAll('script')].filter(s => !s.src && !/json/i.test(s.type || '')).reduce((n, s) => n + s.textContent.length, 0)
+    expression: `[...document.querySelectorAll('script')].filter(s => !s.src && /^(|module|text\\/javascript|application\\/javascript)$/i.test((s.type || '').trim())).reduce((n, s) => n + s.textContent.length, 0)
       + [...document.querySelectorAll('*')].reduce((n, el) => n + [...el.attributes].filter(a => a.name.startsWith('on')).reduce((m, a) => m + a.value.length, 0), 0)`,
     returnByValue: true,
   })).result.value;

@@ -229,7 +229,10 @@ function lintMedia(root: string, cfg: LoadedConfig, docs: { file: string; refs: 
       if (!f.isFile()) continue;
       const rel = relative(root, file).split("\\").join("/");
       const size = statSync(file).size;
-      const by = [...(named.get(rel) ?? [])].sort();
+      // Share cards and icons (S36) are named by the build itself — the shell finds a page's card by its
+      // route, and the icons are served from `/` — so a file there is never an orphan for being unnamed.
+      const drawn = /^content\/media\/(?:cards|icons)\//.test(rel);
+      const by = [...(named.get(rel) ?? []), ...(drawn ? ["the build (`snypd cards`)"] : [])].sort();
       const big = size > MEDIA_SIZE_KB * 1024;
       if (!big && by.length) continue;
       const clip = /\.(?:mp4|webm)$/i.test(f.name);
