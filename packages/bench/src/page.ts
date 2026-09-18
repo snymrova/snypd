@@ -56,8 +56,10 @@ export type Viewport = (typeof VIEWPORTS)[number];
  * Routes to measure, one per URL shape: `/`, then the first route under each distinct first path segment
  * (`/posts/…`, `/category/…`, `/tag/…`, `/authors/…`). A shape is this suite's proxy for a layout — the
  * built site does not record which layout drew it, and the shapes are one-to-one with them in practice.
+ * A one-segment route is its own shape (S25): `/posts/` is the list and `/posts/<slug>/` a post, drawn by
+ * different layouts, and a site with a front page has both.
  */
-export function pickRoutes(dist: string, max = 6): string[] {
+export function pickRoutes(dist: string, max = 8): string[] {
   const sitemap = join(dist, "sitemap.xml");
   if (!existsSync(sitemap)) return ["/"];
   const all = [...readFileSync(sitemap, "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)]
@@ -65,7 +67,8 @@ export function pickRoutes(dist: string, max = 6): string[] {
   const out: string[] = [];
   const shapes = new Set<string>();
   for (const r of all) {
-    const shape = r === "/" ? "/" : r.split("/").filter(Boolean)[0]!;
+    const segs = r.split("/").filter(Boolean);
+    const shape = r === "/" ? "/" : segs.length === 1 ? segs[0]! : `${segs[0]}/*`;
     if (shapes.has(shape)) continue;
     shapes.add(shape); out.push(r);
     if (out.length >= max) break;

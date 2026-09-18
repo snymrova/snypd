@@ -18,9 +18,9 @@
 
 A CMS your agent can actually use — markdown in your repo, static HTML out, zero JS. Snypd's **only interface is MCP**: you write, edit, theme and publish a site from Claude Code, Cursor or Codex, and nothing here has a dashboard. Content is markdown + YAML in a git repo you own; the product is one Bun binary; the output is static HTML with no JavaScript by default, and every chart, diagram and flow on the page is SVG the build wrote.
 
-<!-- video: V1, the hero — one command, then Claude Code: a site, a post, a build. Real session, waits folded. Sunny drops v1.mp4 here; until then the poster below. -->
 <p align="center">
-  <a href=".github/readme/looks/editorial-paper-light.png"><img src=".github/readme/looks/editorial-paper-light.png" alt="A post in the editorial theme, built by an agent" width="820"></a>
+  <a href="https://snypd.rocks/media/hero.mp4"><img src=".github/readme/video/hero.webp" alt="Play the film: one sentence to an agent, a finished post, a new look, a gate, a publish" width="820"></a><br>
+  <sub><a href="https://snypd.rocks/media/hero.mp4">▶ Watch the 45-second film</a> (sound on) · or see it on <a href="https://snypd.rocks">snypd.rocks</a></sub>
 </p>
 
 ## Start here
@@ -129,7 +129,10 @@ The same post, photographed in every look the shelf carries. Each look is measur
 
 <p align="center"><img src=".github/readme/phones/strip.png" alt="The six looks at 390 px" width="100%"></p>
 
-<!-- video: V2, six looks — "switch this site to technical › phosphor and rebuild, then tell me what else is on the shelf"; then the same post in all six looks. 38 s. Sunny drops v2.mp4 here. -->
+<p align="center">
+  <a href="https://snypd.rocks/media/six-looks.mp4"><img src=".github/readme/video/six-looks.webp" alt="Play: an agent switches the site to technical › phosphor, then the same post in all six looks" width="820"></a><br>
+  <sub><a href="https://snypd.rocks/media/six-looks.mp4">▶ Six looks, one sentence</a> — "switch this site to technical › phosphor and rebuild" (38 s)</sub>
+</p>
 
 ### Write a theme
 
@@ -137,7 +140,10 @@ A theme is the one artefact that is not content, so it is the one thing a termin
 
 <p align="center"><img src=".github/readme/terminal/check-theme.png" alt="snypd check theme editorial — passes, 17 rules" width="820"></p>
 
-<!-- video: V4, a theme from nothing — "make me a theme called slate … scaffold it, run check theme until every rule passes, switch the site to it"; then the site in slate. Sunny drops v4.mp4 here. -->
+<p align="center">
+  <a href="https://snypd.rocks/media/theme-from-nothing.mp4"><img src=".github/readme/video/theme-from-nothing.webp" alt="Play: an agent scaffolds a theme called slate, runs check theme until every rule passes, and switches the site to it" width="820"></a><br>
+  <sub><a href="https://snypd.rocks/media/theme-from-nothing.mp4">▶ A theme from nothing</a> — scaffolded, checked until every rule passes, switched on (65 s)</sub>
+</p>
 
 ## The MCP surface
 

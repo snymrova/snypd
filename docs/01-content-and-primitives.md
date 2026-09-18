@@ -53,11 +53,11 @@ Each primitive is a YAML file in `@snypd/spec/primitives/` with `name, purpose, 
 
 **Evidence** — `stat` (value, label, **source required**, delta?) · `stat-row` (2–4 stats) · `comparison` (columns, rows) · `chart` (type, data|src, **source required**, caption) · `citation` (url, title, author?, date?, quote?) · `receipt` (kind: screenshot|log|diff|commit, src, caption)
 
-**Media** — `figure` (src, **alt required**, caption?, width: content|wide|full) · `gallery` (layout) · `video` (src|youtube|vimeo, poster?) · `embed` (url) · `code` (lang, title?, highlight?) · `file` (src, label) · `before-after` (before, after, alt)
+**Media** — `figure` (src — an image, or a `.mp4`/`.webm` clip since S25, **alt required**, caption?, width: content|wide|full, poster? for a clip) · `gallery` (layout) · ~~`video`~~ (folded into `figure`, decision 181) · `embed` (url) · `code` (lang, title?, highlight?) · `file` (src, label) · `before-after` (before, after, alt)
 
 **Interaction & conversion** — `faq` (→ FAQPage schema) · `steps` (→ HowTo schema) · `tabs` · `accordion` · `cta` (title, body?, button, href, variant) · `newsletter` (provider) · `author-card` · `related` (strategy: cluster|tags|manual) · `share` · `discussion` (slot for a comments plugin)
 
-**Meta (frontmatter, not rendered)** — `series`, `cluster`, `canonical`, `noindex`, `publishAt`, `status`, `updatedNote`.
+**Meta (frontmatter, not rendered)** — `series`, `cluster`, `canonical`, `noindex`, `publishAt`, `status`, `updatedNote`; on a `page`, `home: true` makes it the front page (S25, decision 180).
 
 Deliberately absent: `grid`, `columns`, `hero-with-three-cards`. Layout is the theme's job; the author never says "grid."
 

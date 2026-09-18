@@ -35,6 +35,8 @@ import { ensureDisposableDir, INDEX_DIR } from "./paths";
 import { pluginModule, type EventName, type LoadedPlugin } from "./plugins";
 import type { PushCommit } from "./push";
 import type { Config } from "./schema";
+import { hasHomeField, routeOf } from "./content";
+import { readFrontmatter } from "./store";
 
 /** One handler's answer, as recorded: who, to what, whether it worked, and what it said. */
 export interface EventRow { at: string; event: EventName; plugin: string; ok: boolean; message: string; ms: number }
@@ -201,8 +203,11 @@ export function changedContent(root: string, cfg: LoadedConfig, paths: string[])
     const relPath = path.slice(def.dir.replace(/\/+$/, "").length + 1, -3);
     if (relPath.split("/").some((seg) => seg.startsWith(".") || seg === "")) continue;
     const slug = relPath.slice(relPath.lastIndexOf("/") + 1);
-    const route = def.urlPattern.replace("{slug}", slug).replace("{path}", relPath).replace(/\/+$/, "") || "/";
-    out.push({ path, type, slug, route, url: urlOf(cfg.config.site.url, route), deleted: !existsSync(join(root, path)) });
+    const deleted = !existsSync(join(root, path));
+    // The front page (S25) is a fact of the file's frontmatter, so a deleted one maps to its pattern route.
+    const fm = !deleted && hasHomeField(def) ? readFrontmatter(readFileSync(join(root, path), "utf8")) : undefined;
+    const route = routeOf(def, slug, relPath, fm);
+    out.push({ path, type, slug, route, url: urlOf(cfg.config.site.url, route), deleted });
   }
   return out;
 }

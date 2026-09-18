@@ -372,7 +372,7 @@ switch (verb) {
       const committed = Repo.open(root)?.commit(r.files, `${kind}: scaffold ${r.name}${r.extends ? ` extends ${r.extends}` : ""}`);
       if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
       say.push("", kind === "theme"
-        ? `Write theme.css. Everything else already renders — all 13 primitives and all 5 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
+        ? `Write theme.css. Everything else already renders — all 13 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
         : `Write slots/note.tsx, then add \`${r.name}\` to \`plugins:\` in snypd.yaml. The manifest lists the other four tiers as one commented line each.`,
         `\`snypd check ${kind} ${r.name}\` says whether it is shelf-ready; \`snypd dev\` shows it.`);
       console.log(say.join("\n"));

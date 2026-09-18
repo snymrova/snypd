@@ -1,15 +1,16 @@
 name: figure
 kind: leaf
 group: media
-purpose: An image with mandatory alt text and an optional caption; the only way to place an image.
+purpose: An image (or a .mp4/.webm clip) with mandatory alt text and an optional caption; the only way to place one.
 props:
   src: { type: image, required: true }
   alt: { type: string, required: true, description: What the image shows, for readers who cannot see it. Lint fails when empty. }
   caption: { type: markdown }
   width: { type: enum, values: [content, wide, full], default: content }
-  lightbox: { type: boolean, default: true, description: Click opens it full-size. }
+  lightbox: { type: boolean, default: true, description: Click opens it full-size. Ignored for a video. }
+  poster: { type: image, description: A clip's first frame. }
 intent: Show a thing the text refers to; the caption says why it matters.
 anti-intent: Not decoration. Not screenshots of text (write the text). Not for charts (use chart).
 example: |
   ::figure{src="/media/twin.png" alt="Side-by-side HTML and markdown of the same post" caption="The `.md` twin is the source file." width="wide"}
-fallback: '"![alt](src)" plus caption line'
+fallback: '"![alt](src)" plus caption line; a clip is "[alt](src)"'

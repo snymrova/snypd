@@ -6,7 +6,8 @@ import { MdastCache } from "./cache";
 import { lint, type LintOptions, type LintResult } from "./lint";
 import type { Diagnostic } from "./tree";
 import { frontmatterKeyLine } from "./parse";
-import { taxonomyFields, type Move } from "../store";
+import { readFrontmatter, taxonomyFields, type Move } from "../store";
+import type { TypeDef } from "../schema";
 import { lintNav, routeLookup, termRoutes } from "../nav";
 
 export { parseMarkdown, frontmatterKeyLine, type ParsedDoc } from "./parse";
@@ -21,22 +22,43 @@ export function lintMarkdown(source: string, opts: LintOptions = {}, cache?: Mda
   return lint(doc, tree, source, opts);
 }
 
-export interface ContentFile { type: string; slug: string; file: string; route: string; /** `slug`, or `parent/slug` for a nested item — what a nav `ref` names after the type */ path: string }
+export interface ContentFile { type: string; slug: string; file: string; route: string; /** `slug`, or `parent/slug` for a nested item — what a nav `ref` names after the type */ path: string; /** `home: true` in the frontmatter (S25): this item asked to be the front page. */ home?: boolean }
+
+/**
+ * The front page is a page (S25, docs/16 §2): a type that declares a boolean `home` field — `page` does by
+ * default — can have one item carry `home: true`, and that item's route is `/` instead of the one its
+ * urlPattern gives it. The list that was at `/` moves to `/posts/` (build.ts). Nothing but the route
+ * changes here: the same file, the same slug, the same `type/slug` a nav `ref` names. Two items that
+ * both ask are a lint error (rule 14), and the first by path keeps `/` so a build never has two pages
+ * writing one file. Only a type with the field pays the read: a site's posts are never opened here.
+ */
+export const hasHomeField = (def: Pick<TypeDef, "fields">): boolean => (def.fields as Record<string, { type?: string } | undefined>).home?.type === "boolean";
+export const isHome = (def: Pick<TypeDef, "fields">, frontmatter: Record<string, unknown> | undefined): boolean => hasHomeField(def) && frontmatter?.home === true;
+/** One item's route: the type's urlPattern over its slug (or nested path), or `/` for the front page. */
+export function routeOf(def: Pick<TypeDef, "urlPattern" | "fields">, slug: string, path: string, frontmatter?: Record<string, unknown>): string {
+  if (isHome(def, frontmatter)) return "/";
+  return def.urlPattern.replace("{slug}", slug).replace("{path}", path).replace(/\/+$/, "") || "/";
+}
 
 /** Every content file the merged config's types declare, with its route from the type's urlPattern. */
 export function listContent(root: string, cfg: LoadedConfig = loadConfig(root)): ContentFile[] {
   const out: ContentFile[] = [];
+  let home = false;   // the first item that asks, by type order then path, is the one that gets `/`
   for (const [type, def] of Object.entries(cfg.config.types)) {
     const dir = join(root, def.dir);
     if (!existsSync(dir)) continue;
+    const readsHome = hasHomeField(def);
     const walk = (d: string, prefix: string) => {
       for (const f of readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
         if (f.isDirectory()) { if (!f.name.startsWith(".")) walk(join(d, f.name), `${prefix}${f.name}/`); continue; }
         if (!f.name.endsWith(".md")) continue;
         const slug = f.name.slice(0, -3);
         const path = `${prefix}${slug}`;
-        const route = def.urlPattern.replace("{slug}", slug).replace("{path}", path).replace(/\/+$/, "") || "/";
-        out.push({ type, slug, file: join(d, f.name), route, path });
+        const file = join(d, f.name);
+        const asks = readsHome && readFrontmatter(readFileSync(file, "utf8")).home === true;
+        const route = asks && !home ? "/" : routeOf(def, slug, path);
+        if (asks && !home) home = true;
+        out.push({ type, slug, file, route, path, ...(asks ? { home: true } : {}) });
       }
     };
     walk(dir, "");
@@ -90,7 +112,15 @@ export function lintSite(root: string, opts: { cache?: MdastCache; cfg?: LoadedC
     const mv = moves.get(rel.split("\\").join("/"));
     // S16: a redirect covering the old route is the fix, so a covered move is not a warning. Before S16
     // this rule named a remedy the product did not have — `site.set_redirect` is now that remedy.
-    if (mv && !redirected[mv.from]) r.diagnostics.push(D("slug-change", 10, `Route changed from ${mv.from} to ${mv.to}; nothing redirects the old URL`, `Run \`site\` › set_redirect ${mv.from} → ${mv.to} so links to the old URL keep working, or restore \`slug:\` (or the filename)`, frontmatterKeyLine(cached.doc, "slug")));
+    // A page that stops being the front page (S25) moved away from `/` — which is never a dead URL: the list is there.
+    if (mv && mv.from !== "/" && !redirected[mv.from]) r.diagnostics.push(D("slug-change", 10, `Route changed from ${mv.from} to ${mv.to}; nothing redirects the old URL`, `Run \`site\` › set_redirect ${mv.from} → ${mv.to} so links to the old URL keep working, or restore \`slug:\` (or the filename)`, frontmatterKeyLine(cached.doc, "slug")));
+    // ── 14 a second front page (S25) ───────────────────────────────────────
+    // `listContent` gave `/` to the first item that asked; this one asked too and kept its own route.
+    if (c.home && c.route !== "/") {
+      const first = content.find((x) => x.home && x.route === "/")!;
+      r.diagnostics.push({ ...D("second-home", 14, `\`home: true\` is already set on ${first.type}/${first.path}; this page stays at ${c.route}`, `One page is the front page. Set \`home: false\` here, or on ${first.type}/${first.path}`, frontmatterKeyLine(cached.doc, "home")), severity: "error" });
+      r.errors = r.diagnostics.filter((d) => d.severity === "error").length;
+    }
     // ── 11 tag used once ───────────────────────────────────────────────────
     for (const { taxonomy, field, terms: list } of terms) {
       for (const t of list) {

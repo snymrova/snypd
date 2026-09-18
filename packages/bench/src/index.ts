@@ -382,7 +382,7 @@ export function runTokensPerPage(n: number | string, opts: { dist?: string; labe
   return [
     // The twin is the source file byte for byte, so this number is the same under every theme; it is here
     // once, from whichever lane ran, and has been comparable since S2.
-    { name: "tokens.page.md", value: mMd, unit: "tokens", budget: ACTIVE.tokensPerPage },
+    { name: "tokens.page.md", value: mMd, unit: "tokens", budget: ACTIVE.tokensPerPage, exact: true },   // a count, decision 182
     { name: `tokens.page.html${opts.label ? `.${opts.label}` : ""}`, value: mHtml, unit: "tokens", note: opts.label ? `${opts.label} theme` : undefined },
     { name: `tokens.page.reduction${opts.label ? `.${opts.label}` : ""}`, value: +((1 - mMd / mHtml) * 100).toFixed(1), unit: "%", higherIsBetter: true,
       budget: opts.gate ? ACTIVE.mdReduction : undefined,
@@ -542,7 +542,7 @@ export function themeFixture(): string {
  * `snypd bench page` (S13, Phase-3 exit): the built site in a real browser — zero JavaScript, zero axe
  * violations, and the bytes and vitals beside them. Runs against the theme fixture, not `corpora/100`:
  * a11y and coverage are claims about the *vocabulary*, and the generated corpus uses eight of thirteen
- * primitives and three of five layouts.
+ * primitives and three of six layouts.
  */
 export async function page(opts: { root?: string; quick?: boolean } = {}): Promise<Report> {
   const root = opts.root ?? themeFixture();
@@ -758,7 +758,7 @@ export async function runTokensTools(): Promise<Metric[]> {
   const listed = countTokens(JSON.stringify({ tools: CORE_TOOLS }));
   const full = countTokens(JSON.stringify({ tools: [...CORE_TOOLS, ...CATALOG] }));
   return [
-    { name: "tokens.tools", value: listed, unit: "tokens", budget: ACTIVE.tokensTools,
+    { name: "tokens.tools", value: listed, unit: "tokens", budget: ACTIVE.tokensTools, exact: true,   // a count, decision 182
       note: `${CORE_TOOLS.length} always listed (content.* + find_tools); paid every turn, on top of tokens.learn, which docs/05 scopes to config + spec + theme` },
     { name: "tokens.tools.full", value: full, unit: "tokens",
       note: `the same ${CORE_TOOLS.length + CATALOG.length} tools with the catalogue listed rather than found — what deferring it saves a turn (docs/07 decision 38); report-only` },
@@ -768,7 +768,11 @@ export async function runTokensTools(): Promise<Metric[]> {
 export function runTokensToLearn(n: number | string, opts: { cfg?: ReturnType<typeof loadConfig>; label?: string } = {}): Metric {
   const surface = learnSurface(corpus(n), opts.cfg);
   const total = Object.values(surface).reduce((a, s) => a + countTokens(s), 0);
-  return { name: `tokens.learn${opts.label ? `.${opts.label}` : ""}`, value: total, unit: "tokens", budget: ACTIVE.tokensToLearn,
+  // `exact` (S25, decision 182): a token count is a count, not a clock — the same text is the same
+  // number on every runner — and docs/05 quotes the 6,000, so the line CI holds this to is the line the
+  // document states. Until S25 it was held to 80 % of it, a 4,800 nobody wrote down, and the spec was
+  // being edited to fit a number the design never claimed.
+  return { name: `tokens.learn${opts.label ? `.${opts.label}` : ""}`, value: total, unit: "tokens", budget: ACTIVE.tokensToLearn, exact: true,
     note: `${Object.keys(surface).length} resources${opts.label ? ` · ${opts.label} theme` : ""}` };
 }
 

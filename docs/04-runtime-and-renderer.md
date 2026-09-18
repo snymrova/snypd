@@ -105,7 +105,7 @@ tokens:
   color.accent:  { default: "#1a1a1a", customisable: true, description: "Links, buttons" }
   font.heading:  { default: Newsreader, customisable: true, kind: font }
   content.width: { default: 64ch, customisable: true }
-layouts: [post, page, index, term, author]
+layouts: [post, page, index, term, author, home]   # home (S25): the page with `home: true`, at /; the list moves to /posts/
 parts:                                   # U1 (docs/09 §4.1): the document around the layouts, one file each, resolved like primitives
   header:  ./parts/header.tsx            # override one and no layout; shell, footer and entries stay inherited
 locations: [header, footer]              # nav locations, one content/nav/<location>.yaml each (docs/09 §4.3, U2); arrays append up the chain
@@ -170,7 +170,7 @@ which is the whole reason the chain is carried rather than flattened into one ma
 - A cycle or an unknown parent truncates the chain and reports a diagnostic; it never throws.
 
 `editorial` (S13) is the proof: `theme.yaml` + one stylesheet, **zero `.tsx` of its own**, 13/13 primitives
-and all 5 layouts inherited from `base` — which is exactly what `base`'s promise of "one class per
+and all layouts (five then, six since S25) inherited from `base` — which is exactly what `base`'s promise of "one class per
 primitive, so a child theme styles it without touching markup" is worth if it is true.
 
 ## Package layout
