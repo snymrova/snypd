@@ -90,6 +90,13 @@
       "name": "@snypd/runtime",
       "version": "0.1.6",
     },
+    "packages/shelf": {
+      "name": "@snypd/shelf",
+      "version": "0.1.6",
+      "dependencies": {
+        "@snypd/core": "workspace:*",
+      },
+    },
     "packages/spec": {
       "name": "@snypd/spec",
       "version": "0.1.6",
@@ -176,6 +183,8 @@
     "@snypd/render": ["@snypd/render@workspace:packages/render"],
 
     "@snypd/runtime": ["@snypd/runtime@workspace:packages/runtime"],
+
+    "@snypd/shelf": ["@snypd/shelf@workspace:packages/shelf"],
 
     "@snypd/spec": ["@snypd/spec@workspace:packages/spec"],
 
