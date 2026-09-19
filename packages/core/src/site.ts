@@ -19,7 +19,7 @@ import { loadConfig, formatDiagnostics, isPlaceholderUrl, normalizeRoute, redire
 import { bundledDir, bundledNames, themeFile } from "./themefs";
 import { writeDeploy, LAUNCHER, type DeployTarget } from "./deploy";
 import { parsePath, parseYaml, pathKey } from "./yaml";
-import { settingValue, type SettingDecl, type SettingValue, type VariationDecl } from "./schema";
+import { settingValue, tokenKind, type SettingDecl, type SettingValue, type VariationDecl } from "./schema";
 import { WriteError } from "./write";
 import { git, initRepo, isRepoRoot } from "./git";
 
@@ -153,7 +153,7 @@ export function themeTokens(cfg: LoadedConfig): TokenInfo[] {
     const variation = src?.layer === "theme" && src.from?.includes(" \u203a ") ? src.from.split(" \u203a ")[1] : undefined;
     return {
       name, value, default: dec?.default ?? value,
-      kind: dec?.kind, description: dec?.description,
+      kind: dec?.kind === undefined ? undefined : (tokenKind(dec.kind) ?? dec.kind), description: dec?.description,
       customisable: dec?.customisable ?? false,
       declaredBy: decls.get(name)?.by, variation,
       // Overridden = snypd.yaml has moved it. A token the chain never declared counts too: that is a

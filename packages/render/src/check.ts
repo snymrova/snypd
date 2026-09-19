@@ -259,6 +259,11 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     undescribed.length
       ? `${undescribed.length} settable with no description: ${undescribed.slice(0, 6).map((t) => t.name).join(", ")}${undescribed.length > 6 ? "…" : ""} — \`theme\` › set_tokens has nothing to tell an agent they do`
       : `${all.length} declared, ${all.filter((t) => t.customisable).length} settable, every settable one described`);
+  // `length` still loads (it is read as `size`), so this is a warn: the row only appears on a theme that wrote it.
+  const ownTokens = yaml.tokens && typeof yaml.tokens === "object" ? Object.entries(yaml.tokens as Record<string, unknown>) : [];
+  const lengthKind = ownTokens.filter(([, d]) => d && typeof d === "object" && (d as { kind?: unknown }).kind === "length").map(([k]) => k);
+  if (lengthKind.length) add("tokens.kind", "warn",
+    `${lengthKind.length} with \`kind: length\`: ${lengthKind.slice(0, 6).join(", ")}${lengthKind.length > 6 ? "…" : ""} — read as \`size\`; write \`size\`, one of color, keyword, font, size, number`);
 
   // ── variations (decision 127): values, never declarations ──────────────────────────────────────
   const looks = themeVariations(cfg);

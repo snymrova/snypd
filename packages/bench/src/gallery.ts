@@ -41,6 +41,8 @@ export interface Shot extends PageResult {
   look: Look;
   /** Where the PNG was written. */
   file: string;
+  /** What the viewer was taken to prefer for this shot. */
+  scheme: "light" | "dark";
 }
 
 const clean = (s: string | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
@@ -79,7 +81,7 @@ export interface GalleryOptions {
   /** A selector scrolled to the top of the viewport before the shot — `.snypd-chart` photographs the theme at its first chart rather than at its masthead. Top of the page by default. */
   focus?: string;
   /** What the viewer is taken to prefer; `light` by default, so a look that follows the reader is photographed as written. A dark-only look is dark either way. */
-  scheme?: "light" | "dark";
+  scheme?: "light" | "dark" | "both";
   onLook?: (look: Look, i: number, n: number) => void;
   write?: boolean;
 }
@@ -96,6 +98,7 @@ export async function gallery(opts: GalleryOptions = {}): Promise<{ report: Repo
   const out = opts.out ?? join("bench", "gallery");
   const route = opts.route ?? GALLERY_ROUTE;
   const scheme = opts.scheme ?? "light";
+  const schemes: ("light" | "dark")[] = scheme === "both" ? ["light", "dark"] : [scheme];
   const all = looks(root);
   const chosen = opts.only?.length ? all.filter((l) => opts.only!.includes(l.slug)) : all;
   const metrics: Metric[] = [];
@@ -120,29 +123,31 @@ export async function gallery(opts: GalleryOptions = {}): Promise<{ report: Repo
       const s = serve(root, { dist });
       try {
         const mine: Shot[] = [];
-        for (const view of VIEWPORTS as readonly Viewport[]) {
+        for (const sc of schemes) for (const view of VIEWPORTS as readonly Viewport[]) {
           const page = await browser.page();
           try {
             // Headless Chrome inherits the machine's preference, and this box's is dark — so the first
             // run photographed `paper`, "warm cream", as near-black. A gallery says which scheme it is
             // of; the page suite does not need to, because nothing it measures is a colour.
-            await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
+            await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: sc }] });
             const r = await measure(page, `${s.url}${route}`, route, view);
             if (opts.focus) await page.send("Runtime.evaluate", { awaitPromise: true, expression: `new Promise(r => { document.querySelector(${JSON.stringify(opts.focus)})?.scrollIntoView({ block: "start" }); requestAnimationFrame(() => requestAnimationFrame(r)); })` });
             const { data } = await page.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-            const file = join(out, `${look.slug}-${view.width}.png`);
+            // One scheme keeps the names every earlier gallery wrote; both puts the scheme in the name.
+            const file = join(out, `${look.slug}-${view.width}${schemes.length > 1 ? `-${sc}` : ""}.png`);
             writeFileSync(file, Buffer.from(data, "base64"));
-            mine.push({ ...r, look, file });
+            mine.push({ ...r, look, file, scheme: sc });
           } finally { await page.close(); }
         }
         shots.push(...mine);
-        metrics.push(...lookMetrics(look, mine, fontKb));
+        // Weight, axe and shift do not change with the scheme; one set of rows per look, from the first.
+        metrics.push(...lookMetrics(look, mine.filter((m) => m.scheme === schemes[0]), fontKb));
       } finally { s.stop(); }
     }
   } finally { browser.close(); }
 
   metrics.unshift({ name: "gallery.looks", value: chosen.length, unit: "looks",
-    note: `${chosen.map((l) => l.slug).join(", ")} — ${route} at ${VIEWPORTS.map((v) => v.width).join("/")} px, viewer prefers ${scheme}; PNGs in ${out}/` });
+    note: `${chosen.map((l) => l.slug).join(", ")} — ${route} at ${VIEWPORTS.map((v) => v.width).join("/")} px, viewer prefers ${schemes.join(" and ")}; PNGs in ${out}/` });
   const r = report(VERSION, TOKENIZER, metrics);
   if (opts.write !== false) {
     mkdirSync("bench", { recursive: true });
@@ -184,6 +189,6 @@ export function lookMetrics(look: Look, shots: PageResult[], fontKb: number): Me
 
 /** One row per PNG, so the record says what each picture is of and what it weighed. */
 export function formatShots(shots: Shot[]): string {
-  const rows = shots.map((s) => `| ${s.look.variation ? `${s.look.theme} › ${s.look.variation}` : s.look.theme} | ${s.width} | ${s.file} | ${KB(s.bytes.total)} KB | ${s.violations.length} | ${s.look.description} |`);
+  const rows = shots.map((s) => `| ${s.look.variation ? `${s.look.theme} › ${s.look.variation}` : s.look.theme} | ${s.width}${shots.some((x) => x.scheme !== shots[0]!.scheme) ? ` ${s.scheme}` : ""} | ${s.file} | ${KB(s.bytes.total)} KB | ${s.violations.length} | ${s.look.description} |`);
   return ["| Look | Width | File | Page weight | axe | Reads as |", "|---|---|---|---|---|---|", ...rows].join("\n");
 }

@@ -84,9 +84,9 @@ const STARTER_TOKENS = `tokens:
   color.accent:    { default: "light-dark(#1f5fbf, #7fb0f2)", customisable: true, kind: color, description: "Links and the one emphatic colour." }
   color.on-accent: { default: "light-dark(#ffffff, #14161a)", customisable: true, kind: color, description: "Text on an accent fill." }
   color.border:    { default: "light-dark(#dfe2e7, #2a2e36)", customisable: true, kind: color, description: "Hairlines and block edges." }
-  measure:         { default: 34rem, customisable: true, kind: length, description: "How wide a line of prose is allowed to get." }
+  measure:         { default: 34rem, customisable: true, kind: size, description: "How wide a line of prose is allowed to get." }
   font.body:       { default: "ui-sans-serif, system-ui, sans-serif", customisable: true, kind: font, description: "The body stack. A webfont is a \`font:\` block, not a value here." }
-  size.body:       { default: "1.05rem", customisable: true, kind: length, description: "Body size." }
+  size.body:       { default: "1.05rem", customisable: true, kind: size, description: "Body size." }
   leading.body:    { default: 1.6, customisable: true, kind: number, description: "Body line height." }
 `;
 

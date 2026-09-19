@@ -126,7 +126,9 @@ switch (verb) {
     }
     if (args[0] === "gallery") {   // S22: every look every theme ships, measured and photographed (E9)
       const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
-      const { report, shots } = await bench.gallery({ root: args[1], out: opt("out"), route: opt("route"), focus: opt("focus"), only: opt("only")?.split(",").filter(Boolean),
+      const scheme = opt("scheme");
+      if (scheme !== undefined && !["light", "dark", "both"].includes(scheme)) { console.error(`--scheme=${scheme}: light, dark or both`); process.exit(2); }
+      const { report, shots } = await bench.gallery({ root: args[1], out: opt("out"), route: opt("route"), focus: opt("focus"), only: opt("only")?.split(",").filter(Boolean), scheme: scheme as "light" | "dark" | "both" | undefined,
         onLook: (l, i, n) => console.error(`${i}/${n} ${l.variation ? `${l.theme} › ${l.variation}` : l.theme}`) });
       console.log(bench.toMarkdown(report));
       console.log(`\n${bench.formatShots(shots)}`);
@@ -468,7 +470,7 @@ switch (verb) {
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
-      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",

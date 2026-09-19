@@ -30,21 +30,26 @@ const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055
 const toGamma = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);
 
 // ── OKLab ⇄ linear sRGB (Björn Ottosson's matrices) ──────────────────────────────────────────────
-function oklabToRgb(L: number, a: number, b: number): Rgb {
+/** Linear sRGB, unclamped: a channel outside 0–1 is a colour sRGB cannot show. */
+function oklabToLinear(L: number, a: number, b: number): Rgb {
   const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
   const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
   const s_ = L - 0.0894841775 * a - 1.291485548 * b;
   const l = l_ ** 3, m = m_ ** 3, s = s_ ** 3;
+  return {
+    r: 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    g: -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    b: -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  };
+}
+export function oklabToRgb(L: number, a: number, b: number): Rgb {
   // Clamped into gamut rather than gamut-mapped. A browser would compress toward the achromatic axis and
   // land a fraction away from this; for a 4.5:1 threshold the difference is noise, and the clamp is the
   // conservative direction — it never makes a colour read as further from its background than it is.
-  return {
-    r: toGamma(clamp(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s)),
-    g: toGamma(clamp(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s)),
-    b: toGamma(clamp(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)),
-  };
+  const c = oklabToLinear(L, a, b);
+  return { r: toGamma(clamp(c.r)), g: toGamma(clamp(c.g)), b: toGamma(clamp(c.b)) };
 }
-function rgbToOklab(c: Rgb): { L: number; a: number; b: number } {
+export function rgbToOklab(c: Rgb): { L: number; a: number; b: number } {
   const r = toLinear(c.r), g = toLinear(c.g), bl = toLinear(c.b);
   const l = cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * bl);
   const m = cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * bl);
@@ -54,6 +59,24 @@ function rgbToOklab(c: Rgb): { L: number; a: number; b: number } {
     a: 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
     b: 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
   };
+}
+
+// ── OKLCH (docs/29 TF1): what the seed solver (TF3) walks in, hue in degrees ─────────────────────
+export interface Oklch { l: number; c: number; h: number }
+export function oklchToRgb(l: number, c: number, h: number): Rgb {
+  const rad = (h * Math.PI) / 180;
+  return oklabToRgb(l, c * Math.cos(rad), c * Math.sin(rad));
+}
+export function rgbToOklch(rgb: Rgb): Oklch {
+  const { L, a, b } = rgbToOklab(rgb);
+  const c = Math.hypot(a, b);
+  return { l: L, c, h: c < 1e-6 ? 0 : ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360 };
+}
+/** Whether sRGB can show this OKLCH colour without clamping a channel. */
+export function inGamut(l: number, c: number, h: number, eps = 1e-4): boolean {
+  const rad = (h * Math.PI) / 180;
+  const lin = oklabToLinear(l, c * Math.cos(rad), c * Math.sin(rad));
+  return [lin.r, lin.g, lin.b].every((v) => v >= -eps && v <= 1 + eps);
 }
 
 // ── WCAG 2.2 ─────────────────────────────────────────────────────────────────────────────────────

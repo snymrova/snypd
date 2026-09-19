@@ -1093,6 +1093,14 @@ describe("find_tools + the catalogue", () => {
     expect(bt).toContain("snypd://theme/coverage");
     expect(bt).toContain("Never fork a layout");
     expect(bt).toContain('extends: "editorial"');
+    // TF1: the counts are the spec's and the renderer's, never typed — "Thirteen" outlived the fourteenth.
+    const { primitiveNames } = await import("@snypd/spec");
+    const { PART_NAMES } = await import("@snypd/render");
+    expect(bt).toContain(`the ${primitiveNames().length} primitives and ${PART_NAMES.length} parts`);
+    const listed = JSON.stringify(prompts.result.prompts);
+    expect(listed).toContain(`all ${primitiveNames().length} primitives`);
+    const src = readFileSync(resolve(import.meta.dir, "resources.ts"), "utf8");
+    expect(src).toContain(`Which of the ${primitiveNames().length} primitives and ${PART_NAMES.length} parts`);
   });
 });
 
@@ -1138,6 +1146,7 @@ describe("the first run, from the agent's side", () => {
   test("`get-started` branches on what the site already is, and never tells a scaffolded one to stop", async () => {
     const [, p] = await session([req(1, "initialize"), req(2, "prompts/get", { name: "get-started" })], site);
     const s = p.result.messages[0].content.text as string;
+    expect(s).toContain(`${(await import("@snypd/spec")).primitiveNames().length} primitives — a post`);
     // Branch B is the majority path — restarted harness, config that loads, nothing written — and the
     // version before this session ended it at step 1 with the word "stop".
     expect(s).toContain("content.query");

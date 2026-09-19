@@ -61,7 +61,7 @@ const arg = (args: Record<string, unknown>, k: string): string | undefined => {
  * of a conversation, not a tool result: resolving it would mean reading config and index on `prompts/get`,
  * which is a disk read on a path that has never had one, to save a call the agent makes anyway in step 1.
  */
-function getStarted(args: Record<string, unknown>): GetPromptResult {
+function getStarted(args: Record<string, unknown>, n: Counts): GetPromptResult {
   const name = arg(args, "name"), url = arg(args, "url");
   const told = [name && `name ${JSON.stringify(name)}`, url && `url ${JSON.stringify(url)}`].filter(Boolean).join(", ");
   return {
@@ -86,7 +86,7 @@ Then \`find_tools\` with "set up a new site" to unlock the \`site\` tool, and \`
 
 **B · scaffolded, nothing written yet. Do not run init.** The site exists; initialising over it would fail and asking me to confirm what I already did wastes the turn.
 
-1. **Learn the vocabulary first.** Read \`snypd://spec/primitives\`. Thirteen primitives — a post that is only prose is a post that wastes every one of them. Read \`snypd://theme\` for what is installed, and \`snypd://theme/tokens\` for what can be recoloured without writing CSS.
+1. **Learn the vocabulary first.** Read \`snypd://spec/primitives\`. ${n.primitives} primitives — a post that is only prose is a post that wastes every one of them. Read \`snypd://theme\` for what is installed, and \`snypd://theme/tokens\` for what can be recoloured without writing CSS.
 2. **Write one real post.** Not "Hello world" — something true about this site, using at least two primitives. \`content.create\`, then fix whatever the lint it hands back tells you to fix, and repeat until it is clean. The hints are there to be acted on, not relayed to me.
 3. **Show me, then publish it — or hand it to me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Then \`content.publish\`. It publishes unless this type's \`mcp.write\` is \`draft\` — then the refusal says so, and you give me the review URL and I approve that exact version there — or unless \`site.url\` is still a placeholder, which is step 4's to report. Say which of the three happened.
 4. **Report**, in one short paragraph: what exists now, what the theme is, and what I should decide next — theme, tokens, or more posts. If \`site.url\` is still a placeholder, say so here and tell me it is needed before anything publishes. Do not ask for it earlier.
@@ -171,13 +171,13 @@ function siteBasics(): GetPromptResult {
  * tokens validate, and the masthead still wraps into three lines on a phone with a slash stranded at the
  * start of one of them. `technical` shipped three fixes that came from nothing but a screenshot.
  */
-function buildTheme(args: Record<string, unknown>): GetPromptResult {
+function buildTheme(args: Record<string, unknown>, n: Counts): GetPromptResult {
   const look = arg(args, "look"), name = arg(args, "name"), parent = arg(args, "extends") ?? "base";
   return {
     description: `Build a theme${name ? ` called ${name}` : ""} for this site`,
     messages: user(`Build a theme for this snypd site${look ? `. How it should read: ${JSON.stringify(look)}` : ""}. Work through it yourself; stop to ask me only what you cannot know.
 
-**1. Read what a theme already is, before writing one.** \`snypd://theme\` — what is installed and what the active one reads like. \`snypd://theme/coverage\` — the 13 primitives and 5 parts, and which of them the active theme renders itself rather than inheriting. \`snypd://theme/tokens\` — the palette, with a \`kind\` and a description on every entry. \`snypd://theme/variations\` and \`snypd://theme/settings\` if the parent has them.
+**1. Read what a theme already is, before writing one.** \`snypd://theme\` — what is installed and what the active one reads like. \`snypd://theme/coverage\` — the ${n.primitives} primitives and ${n.parts} parts, and which of them the active theme renders itself rather than inheriting. \`snypd://theme/tokens\` — the palette, with a \`kind\` and a description on every entry. \`snypd://theme/variations\` and \`snypd://theme/settings\` if the parent has them.
 
 Two things in there decide most of the work. **A theme is \`theme.yaml\` plus one stylesheet**: every layout and every primitive resolves up \`extends:\`, so you inherit semantic markup with one \`snypd-<name>\` class per block and you style it — you do not rewrite it. And **every value in the stylesheet is a \`var()\`**: a colour typed into \`theme.css\` is a colour no site can ever change, which is the one mistake that cannot be fixed later without breaking somebody's site.
 
@@ -203,6 +203,15 @@ Two things in there decide most of the work. **A theme is \`theme.yaml\` plus on
  * path, so this costs a config read on a call a client makes once — and nothing at all on a site whose
  * plugins do not speak.
  */
+/**
+ * The vocabulary's size, read from the spec and the renderer rather than typed into the text (docs/29 TF1):
+ * "Thirteen" outlived the fourteenth primitive by a release. Imported on `prompts/get`, never on `initialize`.
+ */
+interface Counts { primitives: number; parts: number }
+let counted: Promise<Counts> | undefined;
+export const counts = (): Promise<Counts> => (counted ??= Promise.all([import("@snypd/spec"), import("@snypd/render")])
+  .then(([spec, render]) => ({ primitives: spec.primitiveNames().length, parts: render.PART_NAMES.length })));
+
 type PromptSets = Awaited<ReturnType<typeof import("@snypd/core").loadPluginPrompts>>["sets"];
 
 export function handlers(root: string): Pick<Handlers, "listPrompts" | "getPrompt"> {
@@ -224,9 +233,9 @@ export function handlers(root: string): Pick<Handlers, "listPrompts" | "getPromp
       return [...PROMPTS, ...added.map((p) => ({ name: p.name, description: `${p.description} (from the \`${p.plugin}\` plugin)`, arguments: p.arguments }))];
     },
     async getPrompt(name, args) {
-      if (name === "get-started") return getStarted(args);
+      if (name === "get-started") return getStarted(args, await counts());
       if (name === "write-post") return writePost(args);
-      if (name === "build-theme") return buildTheme(args);
+      if (name === "build-theme") return buildTheme(args, await counts());
       if (name === "site-basics") return siteBasics();
       const added = await pluginPrompts();
       const p = added.find((x) => x.name === name);
