@@ -34,7 +34,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "295c64b5c4e3d669716880c67b834ca98673e32b",
+    hash: "586c8d12ce451232582d76a04f526aa0ea4e0c16",
     files: {
       "theme.css": _base_theme_css,
       "theme.yaml": _base_theme_yaml,
@@ -71,7 +71,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "ac05ef84ae5fa54817def573bdb76e651c1f5689",
+    hash: "438b6ad04cfafa6fc2ede3e582c7fab127ab7839",
     files: {
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
@@ -85,7 +85,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "technical": {
-    hash: "ec87bca2d8f7a1390dab8fbd086ca6e37a232960",
+    hash: "40306e7e9893d73ee30006093bc8d03c1fba5a84",
     files: {
       "theme.css": _technical_theme_css,
       "theme.yaml": _technical_theme_yaml,
@@ -98,7 +98,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "studio": {
-    hash: "047ab07d3841eee09a55cb28f49c874eb324088b",
+    hash: "b2b7bd1474e16fd4b9b2e257ad04622d187f4452",
     files: {
       "fonts/OFL.txt": _studio_fonts_OFL_txt,
       "theme.css": _studio_theme_css,

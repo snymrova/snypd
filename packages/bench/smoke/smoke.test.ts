@@ -84,7 +84,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
     expect(html).toContain("snypd-callout");
     // Editorial declares `css:` and ships no `.tsx` at all, so its stylesheet is the one thing that is
     // purely its own — and it came out of the barrel, minified into an asset (decision 31, not inlined).
-    expect(html).toContain('href="/assets/theme.css"');
+    expect(html).toMatch(/href="\/assets\/theme\.css\?v=[0-9a-f]{10}"/);
     expect(readFileSync(join(dir, "dist", "assets", "theme.css"), "utf8").length).toBeGreaterThan(500);
     expect(readFileSync(join(dir, "dist", "posts", "hello", "index.md"), "utf8")).toContain("A first post.");
     expect(readFileSync(join(dir, "dist", "llms.txt"), "utf8")).toContain("Hello");
@@ -291,7 +291,8 @@ describe("the compiled binary, in a directory it has never seen", () => {
       // changed in S18k is the *response* envelope — `snypd dev` injects the live-reload listener, here
       // and in no file (decision 51 as amended), so the count is the assertion. A theme or an empty
       // state that started emitting a script of its own would put a second one in this list.
-      expect(home.match(/<script/g)).toEqual(["<script"]);
+      // The shell's speculation rules (S36) are a data block, not script, and are not counted.
+      expect(home.replace(/<script type="speculationrules">[^<]*<\/script>/, "").match(/<script/g)).toEqual(["<script"]);
       expect(home).toContain("data-snypd-live");
       expect(existsSync(join(empty, "content", "posts"))).toBe(true);
       // A `.gitkeep` and nothing else: no welcome post, so there is no file a new site has to delete

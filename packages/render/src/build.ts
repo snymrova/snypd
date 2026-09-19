@@ -20,7 +20,7 @@ import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
 import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic, type HookRun } from "./hooks";
 import { assertClientBudget } from "./budget";
-import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
+import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, headersFile, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
 
 export interface BuildOptions {
   out?: string; cfg?: LoadedConfig; index?: SiteIndex; cache?: MdastCache;
@@ -98,6 +98,11 @@ const OUTPUT_FORMAT = "s8";   // s8: H2 — every page is weighed against the cl
  * next build re-renders — rather than the previous key, which described bytes that were no longer on disk.
  */
 const OPEN = "open:";
+
+/** The not-found page's route: a page at `/404` is the site's, and it is also written as `/404.html`. */
+const NOT_FOUND = "/404";
+/** Icons served from the root as well as from `/media/icons/` — the paths browsers and iOS ask for unprompted. */
+const ROOT_ICONS = ["favicon.ico", "apple-touch-icon.png"];
 
 const routeDir = (route: string) => (route === "/" ? "" : route.replace(/^\//, ""));
 
@@ -194,7 +199,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // A `ref` to a rerouted item follows the filter, because the menu must point where the page is.
   const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
   if (rerouted.size) for (const links of Object.values(nav.nav)) for (const l of links) if (l.route && rerouted.has(l.route)) { const r = rerouted.get(l.route)!; l.href = r === "/" ? "/" : `${r}/`; l.route = r; }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings, preview };
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? `/assets/theme.css?v=${sha1(css).slice(0, 10)}` : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings, preview };
   // The plugin graph (P1, decision 95): every loaded plugin's bytes, hashed the way the theme chain is,
   // and the site's options beside them in the config hash — a transform that changes output must
   // invalidate the cache, and P3's transforms are plugin files. Both are absent from the key when no
@@ -336,6 +341,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
 
   const plan: Planned[] = [];
   const contentRoutes = new Set<string>();
+  /**
+   * Routes kept out of the sitemap, the feed and `llms.txt` (S36): an item whose frontmatter says `noindex: true` —
+   * a field the spec has declared on `post` and `page` since v0.1 and nothing read — and the not-found
+   * page, which the shell marks `noindex` too. A page a crawler is told not to index is not one to offer it.
+   */
+  const unlisted = new Set<string>([NOT_FOUND]);
   const surface: SurfaceEntry[] = [];
   const lastmod = new Map<string, string | undefined>();
   for (const f of published) {
@@ -365,8 +376,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
     const adjacent = at >= 0 ? { newer: siblings[at - 1], older: siblings[at + 1] } : undefined;
     const key = sha1(`${base}:${f.hash}:${JSON.stringify(terms)}:${author ? `${author.title}${author.page ? author.route : ""}` : ""}${layout === "author" || home ? `:${listKey(listing)}` : ""}${home ? lists.map((l) => `:${l.title}:${listKey(l.entries)}`).join("") : ""}${adjacent ? `:${listKey([adjacent.newer, adjacent.older].filter((e): e is Entry => !!e))}` : ""}`);
     contentRoutes.add(f.route);
+    if (f.frontmatter.noindex === true) unlisted.add(f.route);
     const dir = routeDir(f.route);
-    plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`], render: () => {
+    // The site's own not-found page (S36): a page at `/404` is also written as `/404.html`, the file every
+    // static host serves for a miss. `notFound()` below draws a plain one when the site has none.
+    const notFound = f.route === NOT_FOUND;
+    plan.push({ route: f.route, key, kind: "route", outputs: [join(dir, "index.html"), join(dir, "index.md"), `api/${f.type}/${f.slug}.json`, ...(notFound ? ["404.html"] : [])], render: () => {
       const source = readFileSync(join(root, f.path), "utf8");
       const entry = entryOf(f);
       const { body, cover, root: mdast, blocks, headings, sections } = renderBody(source, entry);
@@ -379,7 +394,22 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       const page = { ...entry, description, body, cover, terms, layout, markdownUrl: `${f.route === "/" ? "" : f.route}/index.md`, author, headings, sections };
       const entries = layout === "author" || home ? applyFilter(hooks, "entries", listing, fc) : [];
       const html = theme.layouts[layout]!({ ctx, kind: layout, route: f.route, title: page.title, description: page.description, page, entries, jsonLd: jsonLd(schemas), ...(home && homeArchive ? { archive: { type: homeArchive.type, route: homeArchive.route, title: homeArchive.title } } : {}), ...(home ? { lists: lists.map((l) => ({ ...l, entries: applyFilter(hooks, "entries", l.entries, fc) })) } : {}), ...(adjacent ? { adjacent } : {}) });
-      return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas) };
+      return { [join(dir, "index.html")]: html.html, [join(dir, "index.md")]: source, [`api/${f.type}/${f.slug}.json`]: apiItem(s, f.frontmatter, schemas), ...(notFound ? { "404.html": html.html } : {}) };
+    } });
+  }
+  /**
+   * The not-found page when the site has not written one (S36). Until now `dist/` had no `404.html`, and
+   * a mistyped link on Cloudflare was a blank white page with a 404 status — the host had nothing to
+   * serve. This one is the theme's `page` layout over three sentences, so it wears the site's look and
+   * its menus; the `site-basics` prompt has the agent replace it with a page in the site's own voice.
+   */
+  if (!contentRoutes.has(NOT_FOUND) && theme.layouts.page) {
+    const source = `---\ntitle: Page not found\n---\n\nNothing lives at this address. It may have moved, or the link that brought you here may have a typo in it.\n\n[Go to the front page](/)\n`;
+    const entry: Entry = { route: NOT_FOUND, type: "page", slug: "404", title: "Page not found", status: "published", description: "Nothing lives at this address.", frontmatter: { title: "Page not found", noindex: true } };
+    plan.push({ route: "/404.html", key: sha1(`${base}:not-found:${source}`), kind: "artefact", outputs: ["404.html"], render: () => {
+      const { body, cover, headings, sections } = renderBody(source, entry);
+      const page = { ...entry, body, cover, terms: [], layout: "page", markdownUrl: "", headings, sections };   // no twin: this page has no source file
+      return { "404.html": theme.layouts.page!({ ctx, kind: "page", route: NOT_FOUND, title: entry.title, description: entry.description, page, entries: [] }).html };
     } });
   }
   /**
@@ -421,21 +451,28 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const siteSurface: SurfaceSite = {
     name: site.name, url: site.url, description: site.description, locale: c.site.defaultLocale,
     // A type's label is its archive's title where it has one (R1): `llms.txt` says *Work*, as the menu and the page do.
-    types: Object.keys(c.types).filter((t) => c.types[t]!.layout).map((t) => ({ name: t, label: archives.find((a) => a.type === t)?.title ?? titleCase(plural(t)), entries: surface.filter((e) => e.type === t) })),
+    types: Object.keys(c.types).filter((t) => c.types[t]!.layout).map((t) => ({ name: t, label: archives.find((a) => a.type === t)?.title ?? titleCase(plural(t)), entries: surface.filter((e) => e.type === t && !unlisted.has(e.route)) })),
     taxonomies: Object.keys(c.taxonomies).map((t) => ({ name: t, label: titleCase(plural(t)), terms: [...byTerm.values()].filter((x) => x.link.taxonomy === t).map((x) => ({ term: x.link.term, title: x.link.title, route: x.link.route, url: url(x.link.route), count: x.files.length })).sort((a, b) => a.term.localeCompare(b.term)) })),
-    routes: plan.filter((p) => p.kind === "route").map((p) => ({ route: p.route, url: url(p.route), lastmod: lastmod.get(p.route) })),
+    routes: plan.filter((p) => p.kind === "route" && !unlisted.has(p.route)).map((p) => ({ route: p.route, url: url(p.route), lastmod: lastmod.get(p.route) })),
   };
   const surfaceKey = sha1(`${base}:${JSON.stringify(siteSurface)}`);
   const artefact = (file: string, render: () => string, key = surfaceKey) => plan.push({ route: `/${file}`, key: sha1(`${key}:${file}`), kind: "artefact", outputs: [file], render: () => ({ [file]: render() }) });
   artefact("llms.txt", () => llmsTxt(siteSurface));
   const listedRoutes = new Set(listed.map((f) => f.route));
-  artefact("feed.xml", () => rss(siteSurface, surface.filter((e) => listedRoutes.has(e.route))));
+  // Not a `noindex` item either (S36): the feed is keyed on `siteSurface`, which leaves them out, so an
+  // item it listed anyway could change without the key moving — E7's property found exactly that.
+  artefact("feed.xml", () => rss(siteSurface, surface.filter((e) => listedRoutes.has(e.route) && !unlisted.has(e.route))));
   artefact("sitemap.xml", () => sitemap(siteSurface));
   artefact("robots.txt", () => robotsTxt(siteSurface, preview), base);
   artefact("api/site.json", () => apiSite(siteSurface));
   for (const t of siteSurface.types) artefact(`api/${t.name}.json`, () => apiType(siteSurface, t));
   for (const t of siteSurface.taxonomies) artefact(`api/${t.name}.json`, () => apiTaxonomy(siteSurface, t));
   if (css) artefact("assets/theme.css", () => minifyCss(css), sha1(css));
+  // Caching (S36): every url under `/assets/` carries its content hash (`?v=`), so a browser may keep it
+  // for a year without asking; media is named by the author and can be replaced in place, so it is
+  // fresh for an hour and served stale while it revalidates. HTML is left to the host's default — it
+  // must always be asked for. Cloudflare and Netlify read `_headers`; other hosts ignore it.
+  artefact("_headers", () => headersFile(), base);
   /**
    * The theme's webfont (B1, decision 118), and the licence it is redistributed under. Keyed on the
    * theme hash, which already covers every byte in the theme dir — so replacing the .woff2 rewrites it
@@ -443,7 +480,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
    */
   if (theme.font) {
     const f = theme.font;
-    const into = `assets/fonts/${f.url.split("/").pop()}`;
+    const into = `assets/fonts/${f.url.split("/").pop()!.split("?")[0]}`;
     plan.push({ route: f.url, key: sha1(`${base}:font:${into}`), kind: "artefact", outputs: [into], render: () => ({ [into]: f.bytes }) });
     if (f.licence) artefact(`assets/fonts/${f.licence.name}`, () => f.licence!.text, base);
   }
@@ -466,6 +503,10 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   for (const m of mediaFiles) {
     const output = join("media", m.rel);
     plan.push({ route: m.url, key: m.key, kind: "media", outputs: [output], render: () => ({ [output]: { copyFrom: m.src } }) });
+    // The two icons a browser asks for at the root whether or not a page names them (S36): `snypd cards`
+    // draws them from `site.icon` into `content/media/icons/`, and they are served from `/` as well.
+    const icon = ROOT_ICONS.find((n) => m.url === `/media/icons/${n}`);
+    if (icon) plan.push({ route: `/${icon}`, key: m.key, kind: "media", outputs: [icon], render: () => ({ [icon]: { copyFrom: m.src } }) });
   }
   // Plugins' `emit` stages last (P3, decision 86), so `claimed` holds every file the site itself writes —
   // a page, an artefact, a media copy — and an emitted path that names one is refused, not written over.

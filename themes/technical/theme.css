@@ -377,7 +377,8 @@ html { scrollbar-gutter: stable; }
 
 /* The shared title on the list and on the post (docs/14 §4.4), timed as a group; the rest cross-fades. */
 ::view-transition-group(.snypd-title) { animation-duration: 240ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; }
+/* No crossfade between pages (S36): the page swaps at once, and only the title glides into place. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 
 /* ── The wall (S29, `logo-wall`): marks in a row under a hairline. This theme has no marquee — the
    duplicate row `base` renders for one is hidden, and a `marquee` wall is the grid. */

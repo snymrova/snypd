@@ -6,7 +6,8 @@
  *
  * They are also the honest answer to "there is no UI": onboarding is `get-started`, and the reason the
  * kill test can be eight tool calls is that `write-post` already knows what those eight are. `build-theme`
- * (U6b) is the third, and the one that replaces a directory of themes with a sentence.
+ * (U6b) is the third, and the one that replaces a directory of themes with a sentence. `site-basics` (S36)
+ * is the fourth: the icon, the not-found page, the share cards — what a WordPress site gets from plugins.
  *
  * **A prompt's text costs nothing until it is asked for.** `prompts/list` carries the names, descriptions
  * and arguments; the body below is returned by `prompts/get` and only to whoever asked. That is what lets
@@ -34,6 +35,9 @@ export const PROMPTS: Prompt[] = [
       { name: "name", description: "Theme name; lowercase letters, digits and hyphens. Asked for if absent", required: false },
       { name: "extends", description: "The theme it extends; default `base`, which brings every layout and all 14 primitives", required: false },
     ] },
+  { name: "site-basics",
+    description: "Give the site what every good site has and a CMS usually leaves to a plugin: an icon drawn as SVG, a not-found page in the site's own voice, a share card per page in the theme's look, and a description on every page. Run it once a site has content, and again after a theme change.",
+    arguments: [] },
 ];
 
 const user = (text: string): GetPromptResult["messages"] => [{ role: "user", content: { type: "text", text } }];
@@ -91,7 +95,7 @@ Then \`find_tools\` with "set up a new site" to unlock the \`site\` tool, and \`
 
 **C · this is already a site.** Do not initialise and do not write anything yet.
 
-Run \`site\` › doctor and tell me what it found, in plain sentences rather than a dump. Then say what is here — how many items, of which types, on what theme — and ask what I want written. If I have already told you a topic, use the \`write-post\` prompt instead of this one; it is the shorter path for exactly that.`),
+Run \`site\` › doctor and tell me what it found, in plain sentences rather than a dump. Then say what is here — how many items, of which types, on what theme — and ask what I want written. If I have already told you a topic, use the \`write-post\` prompt instead of this one; it is the shorter path for exactly that. If doctor's basics rows are unfinished — no icon, no not-found page, no share cards — offer the \`site-basics\` prompt.`),
   };
 }
 
@@ -113,7 +117,42 @@ function writePost(args: Record<string, unknown>): GetPromptResult {
 
 **If you were given prose to work from** rather than writing it fresh, call \`content.suggest_blocks\` on it first: it finds the table that is already a chart and the numbered list that is already a flow, and applies the ones you accept.
 
-**Show me the result, then publish it — or hand it to me.** \`content.render_preview\`: the page, the markdown twin, the review URL. Then \`content.publish\`, unless this type's \`mcp.write\` is \`draft\` — the refusal says so — in which case give me the review URL and I approve that exact version there. Tell me in two sentences what the post argues and which primitives it uses, and which of the two happened.`),
+**Show me the result, then publish it — or hand it to me.** \`content.render_preview\`: the page, the markdown twin, the review URL. Then \`content.publish\`, unless this type's \`mcp.write\` is \`draft\` — the refusal says so — in which case give me the review URL and I approve that exact version there. Tell me in two sentences what the post argues and which primitives it uses, and which of the two happened. If this site has share cards (\`content/media/cards/\` exists), say that \`snypd cards\` will draw this post's — or run it, if you have a shell — and that the PNG needs committing.`),
+  };
+}
+
+/**
+ * The fourth workflow (S36): the things a site is judged on before anyone reads it — the tab's icon, the
+ * page a broken link lands on, the picture a shared link shows, the line under the title in a search
+ * result. The build emits every tag for them already; what it cannot do is *make* them, because each is
+ * a small act of design in the site's own voice. So this is an agent's job, described precisely enough
+ * that the icon is legible at 16 px and the not-found page is not three words and a sad face.
+ *
+ * Each step checks before it acts, so the prompt is safe to run on a site that has half of these.
+ */
+function siteBasics(): GetPromptResult {
+  return {
+    description: "An icon, a not-found page, share cards and descriptions",
+    messages: user(`Give this snypd site its basics. Work through each step yourself; stop to ask me only when a step needs a choice only I can make, and say which.
+
+**0. Look at what is there.** Read \`snypd://config\` (\`site.icon\`, \`site.image\`, \`theme.use\`), \`snypd://theme/tokens\` for the colours in use, and call \`content.query\` with no arguments. Note: whether \`site.icon\` is set; whether a \`page\` with slug \`404\` exists; which items have no \`description\`. Skip any step below that is already done well.
+
+**1. The icon — an SVG you draw.** Write \`content/media/icon.svg\`. The rules, because a favicon is read at 16 px:
+- \`viewBox="0 0 32 32"\`, square, and nothing outside it. No \`width\`/\`height\` attributes.
+- One mark: the site's initial or a glyph drawn from its name or logo — not the whole name. At 16 px a letter is about ten pixels tall.
+- Paths, rects and circles only. **No \`<text>\`** (it renders in whatever font the browser has), no \`<image>\`, no external references, no script.
+- Strokes and gaps at least 2 units wide at this viewBox; anything thinner disappears on a tab.
+- Colours from the theme's tokens, written as hex values (an icon cannot read CSS variables): the text colour for the mark, the accent for one detail if the site's logo has one.
+- Readable on both a light and a dark tab: add \`<style>@media (prefers-color-scheme: dark) { … }</style>\` inside the SVG to flip a dark mark light.
+- Under 1 KB. Then \`site\` › set_config \`site.icon\` = \`/media/icon.svg\`. The shell links it as \`image/svg+xml\` on every page.
+
+**2. The not-found page.** Every build writes \`/404.html\` — a plain one when the site has none. Replace it with the site's own: \`content.create\` type \`page\`, slug \`404\`, a title in the site's voice (not "404"), and a \`description\`. The body, in three or four short lines: say plainly that nothing lives at this address; offer the two or three places a reader most likely wanted — the front page and the archives the header menu links (\`snypd://nav\` has them); and, if the site has a feed or a start page, that too. No apology paragraph, no joke that needs explaining. It is written to \`/404.html\` as well as \`/404/\`, marked \`noindex\`, and kept out of the sitemap and \`llms.txt\` automatically. Publish it like any page.
+
+**3. Descriptions.** Every item with no \`description\` gets one, through \`content.update\`: 120 to 160 characters, one or two sentences that say what the page gives a reader, in the page's own terms — it is the line under the title in a search result, the text on a share card, and the summary in \`llms.txt\` and the feed. Not a restatement of the title, not "In this post…".
+
+**4. Share cards.** Tell me to run \`snypd cards\` in the site's directory — or run it yourself if you have a shell. It draws a 1200 × 630 card for every page that has no \`cover.image\`, in the active theme (its face, its colours, the theme's \`logo\` setting or the icon), plus \`/favicon.ico\` and \`/apple-touch-icon.png\` from the icon. It needs Chrome on this machine and never on the host: the PNGs are written to \`content/media/cards/\` and \`content/media/icons/\`, and **they have to be committed** for the host to serve them. It redraws only what changed, so run it again after new posts or a theme change. A theme that wants its own card styles \`.snypd-card\`, \`.snypd-card-site\`, \`-eyebrow\`, \`-title\`, \`-description\` and \`-url\` in its stylesheet.
+
+**5. Check.** \`site\` › doctor — the basics rows should all be ✅ — then \`content.render_preview\` on one post and on \`/404\`, and tell me in a few lines what you drew for the icon and what the not-found page says.`),
   };
 }
 
@@ -188,6 +227,7 @@ export function handlers(root: string): Pick<Handlers, "listPrompts" | "getPromp
       if (name === "get-started") return getStarted(args);
       if (name === "write-post") return writePost(args);
       if (name === "build-theme") return buildTheme(args);
+      if (name === "site-basics") return siteBasics();
       const added = await pluginPrompts();
       const p = added.find((x) => x.name === name);
       if (p) return { description: p.description, messages: user(p.render(args)) };

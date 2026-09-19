@@ -102,6 +102,21 @@ export function sitemap(s: SurfaceSite): string {
 /** A preview build (S19d): crawlers are told to keep out, and the sitemap is not offered. */
 export const robotsTxt = (s: SurfaceSite, preview = false) => (preview ? `# a preview with drafts in it — not the site\nUser-agent: *\nDisallow: /\n` : `User-agent: *\nAllow: /\n\nSitemap: ${s.url}/sitemap.xml\n`);
 
+// ── _headers ─────────────────────────────────────────────────────────────────
+/**
+ * Cache policy for hosts that read `_headers` (Cloudflare, Netlify) — S36. `/assets/*` is versioned by
+ * content (`theme.css?v=`, the font's `?v=`), so it is immutable; `/media/*` keeps the author's filenames
+ * and may be replaced in place, so it is fresh for an hour and stale-while-revalidate for a week. HTML
+ * is not named: it must be revalidated on every visit, which is the host's default already.
+ */
+export const headersFile = () => [
+  "/assets/*",
+  "  Cache-Control: public, max-age=31536000, immutable",
+  "/media/*",
+  "  Cache-Control: public, max-age=3600, stale-while-revalidate=604800",
+  "",
+].join("\n");
+
 // ── JSON API ─────────────────────────────────────────────────────────────────
 const json = (v: unknown) => JSON.stringify(v, null, 1) + "\n";
 const listItem = (e: SurfaceEntry) => ({ slug: e.slug, route: e.route, url: e.url, title: e.title, date: e.date, updated: e.updated, description: e.description, terms: e.terms.map((t) => ({ taxonomy: t.taxonomy, term: t.term })), markdown: e.markdown, json: e.json });

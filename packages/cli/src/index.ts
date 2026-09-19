@@ -435,6 +435,22 @@ switch (verb) {
     if (bad) { console.error(`${bad} of ${names.length} did not pass`); process.exit(1); }
     break;
   }
+  /**
+   * `snypd cards [root] [--force]` (S36): a share card per page in the site's theme, and the icons from
+   * `site.icon` — PNGs under `content/media/cards/` and `content/media/icons/`, to commit. Needs Chrome
+   * on this machine and never on the host; says so and exits 1 when there is none.
+   */
+  case "cards": {
+    const { drawCards } = await import("@snypd/bench");
+    const root = args[0] ?? ".";
+    const r = await drawCards(root, { force: flags.has("--force"), onCard: (route, state) => { if (state === "drawn") console.log(`  drew ${route}`); } });
+    if (r.skipped) { console.error(`snypd cards: ${r.skipped}`); process.exit(1); }
+    console.log(`cards: ${r.drawn.length} drawn, ${r.kept.length} unchanged${r.removed.length ? `, ${r.removed.length} removed` : ""} → content/media/cards/`);
+    if (r.icons.length) console.log(`icons: ${r.icons.join(", ")}`);
+    else console.log("icons: none — set `site.icon` to an SVG under /media/ (the `site-basics` prompt draws one)");
+    console.log("commit content/media/cards and content/media/icons: the host serves them and never needs a browser");
+    break;
+  }
   // S18d′: a distributed binary is asked "which one is this?" by bug reports, package managers and
   // agents alike, and until now nothing answered. The import is lazy for the same reason every other one
   // here is (decision 49): `--version` must not put a module on the path `initialize` pays for.
@@ -445,12 +461,13 @@ switch (verb) {
   }
   default:
     console.log([
-      "usage: snypd <init|dev|serve|build|bench|new|check> [--version]",
+      "usage: snypd <init|dev|serve|build|cards|bench|new|check> [--version]",
       "",
       "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
+      "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",

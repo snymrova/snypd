@@ -349,6 +349,8 @@ export const ConfigSchema = z.object({
     /** Site-relative url of the default social image (`og:image`) for routes with no `cover.image` of
      *  their own (docs/10 §5.1). Without one the tags carry no image and a share card is text only. */
     image: z.string().optional(),
+    /** What `site.image` shows, for `og:image:alt` (S36). A page's `cover.alt` and a share card's title win on their own pages. */
+    imageAlt: z.string().optional(),
     locales: z.array(z.string()).min(1).default(["en"]),
     defaultLocale: z.string().default("en"),
   }).passthrough(),
