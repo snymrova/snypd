@@ -17,7 +17,23 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isMap, parseDocument } from "yaml";
 import { contrastRatio, inGamut, oklchToRgb, resolveColor, rgbToOklch, tokenVars, type Mode, type Rgb } from "./color";
-import type { TokenDecl } from "./schema";
+import type { ThemeFont, TokenDecl } from "./schema";
+
+/**
+ * A shelf face already copied into the theme (`@snypd/shelf` › installFace). Core cannot import the
+ * shelf — the shelf depends on core — so the caller installs it and hands over what theme.yaml needs.
+ */
+export interface SeedFace {
+  id: string;
+  /** The `font:` block. */
+  font: ThemeFont;
+  /** `'Family', 'Family fallback', <system stack>` — what the face's token is set to. */
+  stack: string;
+  /** A text face sets prose; a display face sets headings only. */
+  role: "text" | "display";
+  /** The system stack for the role the face does not take. */
+  pairsWith: string;
+}
 
 /**
  * The colour pairs a reader actually reads, and the ratio each owes (WCAG 2.2 §1.4.3). Lives here, not in
@@ -269,20 +285,32 @@ export function expandSeed(raw: SeedInput): SeedResult {
 
 /** The line under `## Seed` in DESIGN.md that makes a re-seed reproducible. */
 export function seedLine(i: Required<SeedInput>, face?: string): string {
+  // The x-height comes from the face, so a line that names one does not repeat it.
   return `snypd seed <name> --seed="${i.seed}" --strategy=${i.strategy} --scheme=${i.scheme} --ratio=${i.ratio.join(":")} --base=${i.base.join(":")}${face ? ` --face=${face}` : ""}`;
 }
 
 /**
  * Put a seed's tokens into `<dir>/theme.yaml` through the yaml Document API, so every comment in the file
  * survives: a token already declared keeps its description and has its `default` replaced; a new one is
- * appended whole. Then record the inputs under `## Seed` in `<dir>/DESIGN.md`. Returns the files written.
+ * appended whole. With a face, `font:` is set to it and the face's role token (`font.body` for a text
+ * face, `font.heading` for a display one) names it, the other role getting the shelf's system pairing.
+ * Then record the inputs under `## Seed` in `<dir>/DESIGN.md`. Returns the files written.
  */
-export function writeSeed(dir: string, name: string, r: SeedResult, face?: string): string[] {
+export function writeSeed(dir: string, name: string, r: SeedResult, face?: SeedFace): string[] {
   const file = join(dir, "theme.yaml");
   if (!existsSync(file)) throw new SeedError(`no theme at ${dir}`, `\`snypd new theme ${name}\` first; seeding fills a theme, it does not make one.`);
   const doc = parseDocument(readFileSync(file, "utf8"));
   if (!isMap(doc.get("tokens", true))) doc.set("tokens", doc.createNode({}));
-  for (const [k, d] of Object.entries(r.tokens)) {
+  const tokens: Record<string, TokenDecl> = { ...r.tokens };
+  if (face) {
+    doc.set("font", doc.createNode(face.font));
+    const [own, other] = face.role === "text" ? ["font.body", "font.ui"] : ["font.heading", "font.body"];
+    tokens[own] = { default: face.stack, customisable: true, kind: "font", description: face.role === "text" ? "Prose." : "Headings." };
+    tokens[other] = { default: face.pairsWith, customisable: true, kind: "font", description: face.role === "text" ? "Eyebrows, meta, nav, captions." : "Prose." };
+    if (face.role === "text" && !isMap(doc.getIn(["tokens", "font.heading"], true)))
+      tokens["font.heading"] = { default: "var(--font-body)", customisable: true, kind: "font", description: "Headings; the prose face unless set." };
+  }
+  for (const [k, d] of Object.entries(tokens)) {
     const at = ["tokens", k];
     if (isMap(doc.getIn(at, true))) doc.setIn([...at, "default"], d.default);
     else { const n = doc.createNode(d); (n as { flow?: boolean }).flow = true; doc.setIn(at, n); }
@@ -290,11 +318,11 @@ export function writeSeed(dir: string, name: string, r: SeedResult, face?: strin
   writeFileSync(file, `${doc.toString({ lineWidth: 0 }).replace(/\n+$/, "")}\n`);
 
   const design = join(dir, "DESIGN.md");
-  const block = `## Seed\n\n\`\`\`\n${seedLine(r.input, face).replace("<name>", name)}\n\`\`\`\n`;
+  const block = `## Seed\n\n\`\`\`\n${seedLine(r.input, face?.id).replace("<name>", name)}\n\`\`\`\n`;
   const before = existsSync(design) ? readFileSync(design, "utf8") : `# ${name}\n\n`;
   const after = /^## Seed\b/m.test(before)
     ? before.replace(/^## Seed\b[\s\S]*?(?=^## |(?![\s\S]))/m, `${block}\n`)
     : `${before.replace(/\n*$/, "\n\n")}${block}`;
   writeFileSync(design, after.replace(/\n+$/, "\n"));
-  return [file, design];
+  return face ? [file, design, join(dir, face.font.file), join(dir, "fonts", "OFL.txt")] : [file, design];
 }

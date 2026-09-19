@@ -409,18 +409,28 @@ switch (verb) {
   case "seed": {
     const { expandSeed, writeSeed, Repo } = await import("@snypd/core");
     const { join, relative } = await import("node:path");
+    const { existsSync } = await import("node:fs");
     const [name] = args;
     const opt = (n: string) => rest.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
     const pair = (n: string) => { const v = opt(n); if (!v) return undefined; const [a, b = a] = v.split(":").map(Number); return [a!, b!] as [number, number]; };
     const root = opt("root") ?? ".";
-    if (!name || !opt("seed")) { console.error('usage: snypd seed <theme> --seed="oklch(0.55 0.13 252)" [--strategy=restrained|balanced|expressive] [--scheme=both|light|dark] [--ratio=1.2:1.25] [--base=17:19] [--root=.]'); process.exit(1); }
+    if (!name || !opt("seed")) { console.error('usage: snypd seed <theme> --seed="oklch(0.55 0.13 252)" [--strategy=restrained|balanced|expressive] [--scheme=both|light|dark] [--ratio=1.2:1.25] [--base=17:19] [--face=<shelf id>] [--root=.]'); process.exit(1); }
     try {
       // Only a theme in this site's own themes/ — never one in node_modules or inside the binary.
-      const r = expandSeed({ seed: opt("seed")!, strategy: opt("strategy") as never, scheme: opt("scheme") as never, ratio: pair("ratio"), base: pair("base") });
-      const files = writeSeed(join(root, "themes", name), name, r).map((f) => relative(root, f));
+      const dir = join(root, "themes", name);
+      // The shelf is imported only when a face is asked for: it carries sixteen fonts.
+      const shelf = opt("face") ? await import("@snypd/shelf") : undefined;
+      const want = opt("face") ? shelf!.shelfFace(opt("face")!) : undefined;
+      if (opt("face") && !want) throw Object.assign(new Error(`no face "${opt("face")}" on the shelf`), { hint: `One of: ${shelf!.loadShelf().faces.map((f) => f.id).join(", ")}.` });
+      const r = expandSeed({ seed: opt("seed")!, strategy: opt("strategy") as never, scheme: opt("scheme") as never, ratio: pair("ratio"), base: pair("base"), xHeight: want?.xHeight });
+      if (!existsSync(join(dir, "theme.yaml"))) throw Object.assign(new Error(`no theme at ${dir}`), { hint: `\`snypd new theme ${name}\` first; seeding fills a theme, it does not make one.` });
+      const got = want ? shelf!.installFace(want.id, dir) : undefined;
+      const face = got && { id: got.face.id, font: got.font, stack: got.stack, role: got.face.role, pairsWith: got.face.pairsWith };
+      const files = writeSeed(dir, name, r, face).map((f) => relative(root, f));
       const low = (rule: string) => Math.min(...r.report.pairs.filter((p) => p.rule === rule).map((p) => p.ratio)).toFixed(2);
       const say = [`${Object.keys(r.tokens).length} tokens → ${files.join(", ")}`,
         `  text ${low("contrast.text")}:1 · muted ${low("contrast.muted")}:1 · accent ${low("contrast.accent")}:1 · on-accent ${low("contrast.on-accent")}:1 (worst side; the gate asks 4.5)`,
+        ...(face ? [`  face ${face.id} (${got!.face.kb} KB, ${face.role}) → ${face.role === "text" ? "font.body" : "font.heading"}; leading.body ${r.tokens["leading.body"]!.default} from its x-height`] : []),
         ...r.report.notes.map((n) => `  ${n}`)];
       const committed = Repo.open(root)?.commit(files, `theme: seed ${name} from ${r.input.seed} (${r.input.strategy})`);
       if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
@@ -520,7 +530,7 @@ switch (verb) {
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
-      "  snypd seed <theme> --seed=<colour> [--strategy=…] [--scheme=…] [--ratio=1.2:1.25] [--base=17:19]   a readable palette + fluid type into a theme's tokens",
+      "  snypd seed <theme> --seed=<colour> [--strategy=…] [--scheme=…] [--ratio=1.2:1.25] [--base=17:19] [--face=<shelf id>]   a readable palette + fluid type into a theme's tokens",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",
       "",

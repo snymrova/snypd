@@ -90,7 +90,9 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 function directionLine(dir: string | undefined, fallback: string): string {
   const f = dir && join(dir, "DESIGN.md");
   if (f && existsSync(f)) {
-    const para = readFileSync(f, "utf8").split(/\n\s*\n/).map((p) => p.trim()).find((p) => p && !p.startsWith("#"));
+    // Code fences out first: a freshly seeded theme's DESIGN.md is a heading and the `## Seed` command.
+    const prose = readFileSync(f, "utf8").replace(/^```[\s\S]*?^```\s*$/gm, "");
+    const para = prose.split(/\n\s*\n/).map((p) => p.trim()).find((p) => p && !p.startsWith("#"));
     if (para) return para.replace(/\s+/g, " ");
   }
   return fallback;

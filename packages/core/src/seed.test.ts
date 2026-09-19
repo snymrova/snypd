@@ -95,13 +95,18 @@ describe("seed expansion (TF3)", () => {
       writeFileSync(join(dir, "theme.yaml"), `# a comment a person wrote\ntheme: t\ntokens:\n  # about the page\n  color.bg: { default: "#fff", customisable: true, kind: color, description: "Mine." }\n`);
       writeFileSync(join(dir, "DESIGN.md"), "# t\n\n## Use scene\n\nThe bus.\n\n## Seed\n\nold\n\n## Decisions\n\n- one\n");
       const r = expandSeed({ seed: "oklch(0.55 0.13 252)" });
-      writeSeed(dir, "t", r, "ibm-plex-serif");
+      const font = { family: "IBM Plex Serif", file: "./fonts/ibm-plex-serif.woff2", weight: "400", kb: 12, fallback: { local: "Georgia", "size-adjust": "100%", "ascent-override": "90%", "descent-override": "25%", "line-gap-override": "0%" } };
+      writeSeed(dir, "t", r, { id: "ibm-plex-serif", font, stack: "'IBM Plex Serif', 'IBM Plex Serif fallback', Georgia, serif", role: "text", pairsWith: "system-ui, sans-serif" });
       const y = readFileSync(join(dir, "theme.yaml"), "utf8");
       expect(y).toContain("# a comment a person wrote");
       expect(y).toContain("# about the page");
       expect(y).toContain('description: "Mine."');
       expect(y).toContain(`default: "${r.tokens["color.bg"]!.default}"`);
       expect(y).toContain("color.viz.6:");
+      // A text face takes prose; the other role gets the shelf's system pairing; `font:` names the file.
+      expect(y).toContain("file: ./fonts/ibm-plex-serif.woff2");
+      expect(y).toMatch(/font\.body: \{ default: "'IBM Plex Serif', 'IBM Plex Serif fallback'/);
+      expect(y).toContain('font.ui: { default: "system-ui, sans-serif"');
       const d = readFileSync(join(dir, "DESIGN.md"), "utf8");
       expect(d).toContain("## Use scene\n\nThe bus.");
       expect(d).toContain('snypd seed t --seed="oklch(0.55 0.13 252)" --strategy=balanced --scheme=both --ratio=1.2:1.25 --base=17:19 --face=ibm-plex-serif');

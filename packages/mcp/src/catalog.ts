@@ -56,6 +56,7 @@ export const CATALOG: Tool[] = [
       scheme: str("`seed`: which modes to design. Default `both`, as light-dark() pairs", { enum: ["both", "light", "dark"] }),
       ratio: str("`seed`: type-scale ratio at phone:desktop width, e.g. `1.2:1.25`"),
       base: str("`seed`: body size in px at phone:desktop width, e.g. `17:19`"),
+      face: str("`seed`: one web font from the shelf, copied into the theme with its licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
@@ -342,8 +343,15 @@ export async function call(root: string, name: string, args: Record<string, unkn
           const pair = (k: string) => { const v = args[k]; if (typeof v !== "string") return undefined; const [a, b = a] = v.split(":").map(Number); return [a!, b!] as [number, number]; };
           let r, files: string[];
           try {
-            r = c.expandSeed({ seed: need(args, "seed"), strategy: args.strategy as never, scheme: args.scheme as never, ratio: pair("ratio"), base: pair("base") });
-            files = c.writeSeed(join(root, "themes", name), name, r).map((f) => relative(root, f));
+            const dir = join(root, "themes", name);
+            // Loaded here and only here: the shelf is sixteen fonts, and the initialize path stays small.
+            const shelf = typeof args.face === "string" ? await import("@snypd/shelf") : undefined;
+            const want = shelf?.shelfFace(args.face as string);
+            if (shelf && !want) return fail(`no face "${args.face}" on the shelf`, `One of: ${shelf.loadShelf().faces.map((f) => f.id).join(", ")}.`);
+            r = c.expandSeed({ seed: need(args, "seed"), strategy: args.strategy as never, scheme: args.scheme as never, ratio: pair("ratio"), base: pair("base"), xHeight: want?.xHeight });
+            if (!existsSync(join(dir, "theme.yaml"))) return fail(`no theme "${name}" in themes/`, `\`theme\` › scaffold ${name} first; seeding fills a theme, it does not make one.`);
+            const got = want && shelf!.installFace(want.id, dir);
+            files = c.writeSeed(dir, name, r, got ? { id: got.face.id, font: got.font, stack: got.stack, role: got.face.role, pairsWith: got.face.pairsWith } : undefined).map((f) => relative(root, f));
           } catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
           const git = await commit(files, `theme: seed ${name} from ${r.input.seed} (${r.input.strategy})`);
           const low = (rule: string) => Math.min(...r.report.pairs.filter((p) => p.rule === rule).map((p) => p.ratio)).toFixed(2);
