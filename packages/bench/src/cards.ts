@@ -96,6 +96,9 @@ async function paint(page: Page, origin: string, html: string, size: { width: nu
   await loaded;
   const { frameTree } = await page.send<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree");
   await page.send("Page.setDocumentContent", { frameId: frameTree.frame.id, html });
+  // The stylesheet first: until `theme.css` has loaded no web font has been asked for, so `fonts.ready`
+  // resolves at once and the card is photographed in the browser's default face with no tokens (S38).
+  await page.send("Runtime.evaluate", { awaitPromise: true, expression: `Promise.all([...document.querySelectorAll('link[rel="stylesheet"]')].map(l => l.sheet ? 0 : new Promise(r => { l.onload = l.onerror = r; })))` });
   await page.send("Runtime.evaluate", { awaitPromise: true, expression: `Promise.all([document.fonts.ready, ...[...document.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))]).then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))` });
   const { data } = await page.send<{ data: string }>("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: size.width, height: size.height, scale: 1 } });
   return Buffer.from(data, "base64");
