@@ -3,7 +3,7 @@ import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, r
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
-import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, LIVE_ROUTE, SiteIndex } from "@snypd/core";
+import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, expandSeed, writeSeed, LIVE_ROUTE, SiteIndex } from "@snypd/core";
 import { preview } from "./preview";
 import { checkTheme, checkPlugin, formatCheck, unguardedCss } from "./check";
 import { deskPage, type DeskOnboarding } from "./desk";
@@ -2867,6 +2867,24 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     const y = join(root, "themes/fresh/theme.yaml");
     writeFileSync(y, readFileSync(y, "utf8").replace(/personality: >-[\s\S]*?\n\ntokens:/, "personality: Quiet, narrow, and grey.\n\ntokens:"));
     expect((await checkTheme(root, "fresh")).ok).toBe(true);
+  });
+
+  test("TF3: three seeded scaffolds pass every contrast rule of the real gate, on every side and look", async () => {
+    const cases = [
+      { name: "seed-a", extends: "base", seed: "oklch(0.52 0.12 250)", strategy: "restrained" as const },
+      { name: "seed-b", extends: "editorial", seed: "oklch(0.62 0.16 145)", strategy: "expressive" as const },
+      { name: "seed-c", extends: "studio", seed: "oklch(0.74 0.12 75)", strategy: "balanced" as const },
+    ];
+    for (const k of cases) {
+      scaffoldTheme(root, { name: k.name, extends: k.extends });
+      const dir = join(root, "themes", k.name);
+      writeSeed(dir, k.name, expandSeed({ seed: k.seed, strategy: k.strategy }));
+      const y = join(dir, "theme.yaml");
+      writeFileSync(y, readFileSync(y, "utf8").replace(/personality: >-[\s\S]*?\n\n/, "personality: A seeded fixture.\n\n"));
+      const r = await checkTheme(root, k.name);
+      for (const c of ["contrast.text", "contrast.muted", "contrast.accent", "contrast.on-accent"]) expect({ theme: k.name, rule: c, status: rule(r, c).status }).toEqual({ theme: k.name, rule: c, status: "pass" });
+      expect({ theme: k.name, failed: r.rules.filter((x) => x.status === "fail").map((x) => `${x.rule}: ${x.detail}`) }).toEqual({ theme: k.name, failed: [] });
+    }
   });
 
   test("`check plugin` passes a first-party plugin and fails a scaffolded one on its description", async () => {

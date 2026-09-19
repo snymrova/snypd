@@ -32,7 +32,7 @@ import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { load as parseYaml } from "js-yaml";
 import {
-  contrastRatio, cssValue, loadConfig, loadPlugin, MAX_FONT_KB, PLUGIN_API, resolveColor, resolvePlugin,
+  CONTRAST_PAIRS, contrastRatio, cssValue, loadConfig, loadPlugin, MAX_FONT_KB, PLUGIN_API, resolveColor, resolvePlugin,
   themeTokens, themeVariations, themeFile, isPlaceholder, pluginShortName, tiersOf, tokenVars,
   type LoadedConfig, type Mode, type Rgb,
 } from "@snypd/core";
@@ -57,24 +57,8 @@ const finish = (kind: CheckResult["kind"], name: string, where: string, rules: R
 
 // ── themes ───────────────────────────────────────────────────────────────────────────────────────
 
-/**
- * The colour pairs a reader actually reads, and the ratio each owes (WCAG 2.2 §1.4.3).
- *
- * Body text, the muted text a date and a caption are set in, and a link, each against both surfaces a
- * theme paints them on — plus the one inversion, a theme's accent used as a fill. 4.5:1 throughout:
- * these are all body-sized, and the 3:1 large-text exception is for 24px, which is a heading. Borders
- * and gridlines are not here on purpose — 1.4.11 asks 3:1 of a control's boundary, and a hairline
- * between two paragraphs is not one, so a rule about it would fail every well-made theme on the shelf.
- */
-const PAIRS: { rule: string; fg: string; bg: string; min: number; what: string }[] = [
-  { rule: "contrast.text", fg: "color.text", bg: "color.bg", min: 4.5, what: "body text on the page" },
-  { rule: "contrast.text", fg: "color.text", bg: "color.surface", min: 4.5, what: "body text on a raised block" },
-  { rule: "contrast.muted", fg: "color.muted", bg: "color.bg", min: 4.5, what: "dates and captions on the page" },
-  { rule: "contrast.muted", fg: "color.muted", bg: "color.surface", min: 4.5, what: "dates and captions on a raised block" },
-  { rule: "contrast.accent", fg: "color.accent", bg: "color.bg", min: 4.5, what: "links on the page" },
-  { rule: "contrast.accent", fg: "color.accent", bg: "color.surface", min: 4.5, what: "links on a raised block" },
-  { rule: "contrast.on-accent", fg: "color.on-accent", bg: "color.accent", min: 4.5, what: "text on an accent fill" },
-];
+// The colour pairs and the ratio each owes are `CONTRAST_PAIRS` in @snypd/core (seed.ts), so the seed
+// solver's property test and this gate read one list.
 
 /**
  * The tier rule (U7, docs/14 §3 and §7 call 1), as data. A CSS feature is Baseline and may be used
@@ -329,7 +313,7 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     const vars = tokenVars(tokens);
     const label = look ?? "its own tokens";
     for (const mode of modesOf(tokens)) {
-      for (const p of PAIRS) {
+      for (const p of CONTRAST_PAIRS) {
         if (!(p.fg in tokens) || !(p.bg in tokens)) { record(p.rule, "skip", `${label}: this theme declares no \`${p.fg in tokens ? p.bg : p.fg}\``); continue; }
         const fg = resolveColor(tokens[p.fg]!, mode, vars), bg = resolveColor(tokens[p.bg]!, mode, vars);
         if (!fg || !bg) { record(p.rule, "skip", `${label} ${mode}: ${!fg ? tokens[p.fg] : tokens[p.bg]} is not a colour this build can resolve — not checked`); continue; }

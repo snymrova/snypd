@@ -95,11 +95,11 @@ snypd shoot [root] --theme=a,b,c [--route=/x/ …] [--width=390,768,1280,1440] [
 ### 4.1 Interface
 
 ```
-snypd theme seed <name> --seed="oklch(0.55 0.13 252)" --strategy=restrained|balanced|expressive
+snypd seed <name> --seed="oklch(0.55 0.13 252)" --strategy=restrained|balanced|expressive
                         --scheme=both|light|dark --ratio=1.2:1.25 --base=17:19 [--face=<shelf id>]
 ```
 
-- **CLI:** a new `case "theme":` with `args[0] === "seed"` (`cli/src/index.ts`).
+- **CLI:** a new `case "seed":` (`cli/src/index.ts`). *As built (TF3): the plan said `snypd theme seed`, but the CLI refuses noun verbs on purpose — `theme set`/`theme list` belong to MCP (decision 51, the comment above `case "new"`) — so seeding is a bare verb beside `new`, `check` and `shoot`. It seeds only a theme in the site's own `themes/`.*
 - **MCP:** `theme` tool, new `action: "seed"` (`catalog.ts:48` enum, branch in `case "theme"` at `:184`, beside `scaffold` at `:315`).
 - **Where the work happens:** `packages/core/src/seed.ts`, a pure `expandSeed(input) → { tokens, css, report }`. The CLI and MCP only write the result.
 - **Writing:** `theme.yaml`'s `tokens:` map is written through the `yaml` Document API, the way `core/src/site.ts:40` edits `snypd.yaml`, so comments survive. The seed inputs go under a `## Seed` heading in `DESIGN.md` (theme.yaml is `.strict()` and gains no key), which makes a re-seed reproducible.
@@ -210,7 +210,7 @@ These need layout, so they run in the browser `shoot` already drives (a `Runtime
 ## Boldness goes here — exactly one place
 ## Safe / Risk      — ≥ 2 of each, each risk with its cost
 ## Chosen           — taste rules this brief overrides, and why
-## Seed             — written by `snypd theme seed`
+## Seed             — written by `snypd seed`
 ## Decisions        — dated, one line each
 ```
 
@@ -293,9 +293,9 @@ Anti-sibling check: swap A's and C's headlines, and the difference is obvious (a
 
 ```
 snypd new theme marginalia-a --extends=editorial
-snypd theme seed marginalia-a --seed="oklch(0.52 0.12 250)" --strategy=restrained --ratio=1.2:1.25 --base=17:19 --face=ibm-plex-serif
-snypd theme seed marginalia-b --seed="oklch(0.62 0.16 145)" --strategy=expressive --ratio=1.25:1.333 --base=17:20 --face=young-serif
-snypd theme seed marginalia-c --seed="oklch(0.74 0.12 75)"  --strategy=balanced  --scheme=both --ratio=1.2:1.3 --base=18:20 --face=crimson-pro
+snypd seed marginalia-a --seed="oklch(0.52 0.12 250)" --strategy=restrained --ratio=1.2:1.25 --base=17:19 --face=ibm-plex-serif
+snypd seed marginalia-b --seed="oklch(0.62 0.16 145)" --strategy=expressive --ratio=1.25:1.333 --base=17:20 --face=young-serif
+snypd seed marginalia-c --seed="oklch(0.74 0.12 75)"  --strategy=balanced  --scheme=both --ratio=1.2:1.3 --base=18:20 --face=crimson-pro
 ```
 
 What the seed step reports (illustrative):

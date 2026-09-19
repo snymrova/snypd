@@ -401,6 +401,39 @@ switch (verb) {
     break;
   }
   /**
+   * `snypd seed <theme> --seed=<colour> …` (TF3, docs/29 §4) — a verb over the one artefact that is not
+   * content, like `new` and `check`: one colour and two numbers become a palette that passes the contrast
+   * gate by construction and a fluid type scale, written into the theme's `tokens:` with its comments
+   * kept, and the inputs recorded under `## Seed` in its DESIGN.md so a re-seed is one copied line.
+   */
+  case "seed": {
+    const { expandSeed, writeSeed, Repo } = await import("@snypd/core");
+    const { join, relative } = await import("node:path");
+    const [name] = args;
+    const opt = (n: string) => rest.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
+    const pair = (n: string) => { const v = opt(n); if (!v) return undefined; const [a, b = a] = v.split(":").map(Number); return [a!, b!] as [number, number]; };
+    const root = opt("root") ?? ".";
+    if (!name || !opt("seed")) { console.error('usage: snypd seed <theme> --seed="oklch(0.55 0.13 252)" [--strategy=restrained|balanced|expressive] [--scheme=both|light|dark] [--ratio=1.2:1.25] [--base=17:19] [--root=.]'); process.exit(1); }
+    try {
+      // Only a theme in this site's own themes/ — never one in node_modules or inside the binary.
+      const r = expandSeed({ seed: opt("seed")!, strategy: opt("strategy") as never, scheme: opt("scheme") as never, ratio: pair("ratio"), base: pair("base") });
+      const files = writeSeed(join(root, "themes", name), name, r).map((f) => relative(root, f));
+      const low = (rule: string) => Math.min(...r.report.pairs.filter((p) => p.rule === rule).map((p) => p.ratio)).toFixed(2);
+      const say = [`${Object.keys(r.tokens).length} tokens → ${files.join(", ")}`,
+        `  text ${low("contrast.text")}:1 · muted ${low("contrast.muted")}:1 · accent ${low("contrast.accent")}:1 · on-accent ${low("contrast.on-accent")}:1 (worst side; the gate asks 4.5)`,
+        ...r.report.notes.map((n) => `  ${n}`)];
+      const committed = Repo.open(root)?.commit(files, `theme: seed ${name} from ${r.input.seed} (${r.input.strategy})`);
+      if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
+      say.push("", `\`snypd check theme ${name}\` judges it; \`snypd shoot --theme=${name}\` photographs it.`);
+      console.log(say.join("\n"));
+    } catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
+      process.exit(1);
+    }
+    break;
+  }
+  /**
    * `snypd check theme|plugin [name|dir] [--all]` (X1, E8) — every rule by name, and exit 1 on a failure
    * so a submission pipeline can be three lines of YAML rather than a reader.
    */
@@ -477,7 +510,7 @@ switch (verb) {
   }
   default:
     console.log([
-      "usage: snypd <init|dev|serve|build|cards|shoot|bench|new|check> [--version]",
+      "usage: snypd <init|dev|serve|build|cards|shoot|bench|new|seed|check> [--version]",
       "",
       "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
@@ -487,6 +520,7 @@ switch (verb) {
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
+      "  snypd seed <theme> --seed=<colour> [--strategy=…] [--scheme=…] [--ratio=1.2:1.25] [--base=17:19]   a readable palette + fluid type into a theme's tokens",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",
       "",

@@ -106,7 +106,7 @@ The agent writes three direction cards from the brief, each naming a different w
 
 ### 4.3 Seed expansion: deterministic code, new in `@snypd/core`
 
-`snypd theme seed` (and the same thing as an MCP call) takes the taste inputs:
+`snypd seed` (and the same thing as an MCP call) takes the taste inputs:
 - **seed:** one OKLCH colour, from impeccable's 129 or the brief's brand colour
 - **strategy:** restrained, balanced or expressive
 - **scheme:** light, dark or both

@@ -43,14 +43,19 @@ export const KEYWORDS: Record<string, string[]> = {
 
 export const CATALOG: Tool[] = [
   { name: "theme",
-    description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, or scaffold a new one. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
+    description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, scaffold a new one, or seed a scaffold's palette and type scale from one colour. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
     inputSchema: S({
-      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one", { enum: ["set", "set_tokens", "set_settings", "scaffold"] }),
+      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale", { enum: ["set", "set_tokens", "set_settings", "scaffold", "seed"] }),
       name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`: the name of the new theme (also its directory under themes/)"),
       variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call"),
       tokens: { type: "object", description: "`set_tokens`: token name → value, e.g. {\"color.accent\": \"#8a3324\"}. A token set to null goes back to the theme's default. Only tokens declared `customisable` can be set — snypd://theme/tokens lists them" },
       settings: { type: "object", description: "`set_settings`: setting id → value, e.g. {\"showDates\": false, \"tagline\": \"Notes on building\"}. A setting set to null goes back to the theme's default. Each is checked against the type the theme declared — snypd://theme/settings lists them with their types and what they mean" },
       extends: str("`scaffold`: the theme the new one inherits every layout, primitive and token from. Default `base`"),
+      seed: str("`seed`: the colour whose hue and chroma become the accent, e.g. `oklch(0.55 0.13 252)` or `#1f5fbf`"),
+      strategy: str("`seed`: how far colour reaches beyond the accent. Default `balanced`", { enum: ["restrained", "balanced", "expressive"] }),
+      scheme: str("`seed`: which modes to design. Default `both`, as light-dark() pairs", { enum: ["both", "light", "dark"] }),
+      ratio: str("`seed`: type-scale ratio at phone:desktop width, e.g. `1.2:1.25`"),
+      base: str("`seed`: body size in px at phone:desktop width, e.g. `17:19`"),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
@@ -331,7 +336,26 @@ export async function call(root: string, name: string, args: Record<string, unkn
             `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,
           ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens });
         }
-        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold.");
+        if (action === "seed") {
+          // TF3 (docs/29 §4): the same `expandSeed` + `writeSeed` as `snypd seed`; this door adds the commit.
+          const name = need(args, "name");
+          const pair = (k: string) => { const v = args[k]; if (typeof v !== "string") return undefined; const [a, b = a] = v.split(":").map(Number); return [a!, b!] as [number, number]; };
+          let r, files: string[];
+          try {
+            r = c.expandSeed({ seed: need(args, "seed"), strategy: args.strategy as never, scheme: args.scheme as never, ratio: pair("ratio"), base: pair("base") });
+            files = c.writeSeed(join(root, "themes", name), name, r).map((f) => relative(root, f));
+          } catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
+          const git = await commit(files, `theme: seed ${name} from ${r.input.seed} (${r.input.strategy})`);
+          const low = (rule: string) => Math.min(...r.report.pairs.filter((p) => p.rule === rule).map((p) => p.ratio)).toFixed(2);
+          return text([
+            `seeded themes/${name}: ${Object.keys(r.tokens).length} tokens, inputs under ## Seed in DESIGN.md`,
+            `  worst side: text ${low("contrast.text")}:1 · muted ${low("contrast.muted")}:1 · accent ${low("contrast.accent")}:1 · on-accent ${low("contrast.on-accent")}:1`,
+            ...r.report.notes.map((n) => `  ${n}`),
+            git,
+            "theme.css reads these as var(--color-accent) etc.; `bench` › shoot photographs the result.",
+          ].join("\n"), { ok: true, theme: name, files, tokens: Object.fromEntries(Object.entries(r.tokens).map(([k, v]) => [k, v.default])), notes: r.report.notes, steps: r.report.steps });
+        }
+        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold, seed.");
       }
 
       case "site": {
