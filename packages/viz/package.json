@@ -1,1 +1,1 @@
-{ "name": "@snypd/viz", "version": "0.1.5", "type": "module", "main": "src/index.ts", "license": "MIT" }
+{ "name": "@snypd/viz", "version": "0.1.6", "type": "module", "main": "src/index.ts", "license": "MIT" }
