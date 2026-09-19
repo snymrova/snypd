@@ -42,7 +42,7 @@ export function llmsTxt(s: SurfaceSite): string {
   const lines = [`# ${s.name}`, ""];
   if (s.description) lines.push(`> ${s.description}`, "");
   lines.push(
-    `Every page has a markdown twin at \`<page>/index.md\` (also served on \`Accept: text/markdown\`). ` +
+    `Every page has a markdown twin at \`<page>/index.md\`. ` +
     `JSON API: ${s.url}/api/site.json. Feed: ${s.url}/feed.xml. Sitemap: ${s.url}/sitemap.xml.`, "");
   for (const t of s.types) {
     if (!t.entries.length) continue;

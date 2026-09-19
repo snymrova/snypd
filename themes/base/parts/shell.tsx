@@ -13,12 +13,16 @@
 import { raw, part, Slot, cardUrl, TOUCH_ICON, type Html, type ShellProps } from "@snypd/render";
 
 /**
- * Prerender the page a reader is about to open (S36): Chrome and Edge render a same-origin link on
- * hover or pointerdown, so the click shows a page that is already drawn. A data block, not script — the
+ * Pages open at once (S36, then S38): two rules over the same set of links. **Prefetch, immediately** —
+ * the HTML of every same-origin page this one links to is fetched as soon as it is idle, a few KB each,
+ * so a click that beats the prerender still has its document in memory and only CSS and a font that are
+ * already immutable in the cache. **Prerender, on intent** — Chrome and Edge draw the page on hover or
+ * pointerdown, so the click shows a page that is already painted. A data block, not script — the
  * browser runs nothing, and the build's JS gate and `page.js.kb` both skip it by type. Files that are not
  * pages, and the Desk, are left alone: prerendering an approval page is not a thing to do speculatively.
  */
-const SPECULATION = JSON.stringify({ prerender: [{ where: { and: [{ href_matches: "/*" }, ...["/_snypd/*", "/api/*", "/media/*", "/*.md", "/*.xml", "/*.txt"].map((p) => ({ not: { href_matches: p } }))] }, eagerness: "moderate" }] });
+const PAGES = { and: [{ href_matches: "/*" }, ...["/_snypd/*", "/api/*", "/media/*", "/*.md", "/*.xml", "/*.txt"].map((p) => ({ not: { href_matches: p } }))] };
+const SPECULATION = JSON.stringify({ prefetch: [{ where: PAGES, eagerness: "immediate" }], prerender: [{ where: PAGES, eagerness: "moderate" }] });
 
 export default function Shell({ ctx, title, description, markdownUrl, route, jsonLd, page, children }: ShellProps): Html {
   // At `/` the site comes first: the index layout passes the site's name as the title, so the tab is the

@@ -2195,9 +2195,10 @@ describe("site basics (S36): 404, noindex, cache headers, prerender, cards", () 
     const a = read("posts/a/index.html");
     const rules = a.match(/<script type="speculationrules">(.*?)<\/script>/)?.[1];
     expect(rules).toBeDefined();
-    const where = JSON.parse(rules!).prerender[0];
-    expect(where.eagerness).toBe("moderate");
-    expect(JSON.stringify(where.where)).toContain("/_snypd/*");
+    const { prefetch, prerender } = JSON.parse(rules!);
+    expect(prerender[0].eagerness).toBe("moderate");
+    expect(prefetch[0].eagerness).toBe("immediate");
+    for (const r of [prefetch[0], prerender[0]]) expect(JSON.stringify(r.where)).toContain("/_snypd/*");
   });
 
   test("the icon is linked as SVG; a drawn card is shared before site.image, except at /", async () => {
