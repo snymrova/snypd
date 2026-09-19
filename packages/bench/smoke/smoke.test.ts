@@ -90,6 +90,52 @@ describe("the compiled binary, in a directory it has never seen", () => {
     expect(readFileSync(join(dir, "dist", "llms.txt"), "utf8")).toContain("Hello");
   });
 
+  /**
+   * A theme the site wrote itself (S37). Its `.tsx` is imported from the site's directory, where there is
+   * no tsconfig to name the JSX runtime and no `node_modules/@snypd/render` to find — inside the monorepo
+   * the root tsconfig and the workspace answer both, which is why 0.1.5 shipped unable to build
+   * snypd.rocks. The binary answers them with the copy it runs (`hostModules`), so the part below renders
+   * through the same `Html` the shell checks against. `build` imports the file as written; `dev` bundles
+   * it first — two routes to the same two imports, and both are asserted.
+   */
+  test("a site-local theme's .tsx renders: `@snypd/render` and its JSX come from the binary", async () => {
+    const site = mkdtempSync(join(tmpdir(), "snypd-local-theme-"));
+    const spawnDev = () => Bun.spawn([BIN, "dev", "."], { cwd: site, stdout: "pipe", stderr: "pipe", env: { ...process.env, NO_COLOR: "1" } });
+    let dev: ReturnType<typeof spawnDev> | undefined;
+    try {
+      expect(run(["init", "."], site).code).toBe(0);
+      mkdirSync(join(site, "themes/local/parts"), { recursive: true });
+      writeFileSync(join(site, "themes/local/theme.yaml"), "theme: local\nversion: 0.1.0\nspec: ^1\nextends: editorial\nparts:\n  footer: ./parts/footer.tsx\n");
+      writeFileSync(join(site, "themes/local/parts/footer.tsx"), [
+        'import { inline, type Html, type PartProps } from "@snypd/render";',
+        "export default function Footer({ ctx }: PartProps): Html {",
+        '  return <footer class="local-footer">{inline(`Made by *${ctx.site.name}*`)}</footer>;',
+        "}", "",
+      ].join("\n"));
+      const yaml = join(site, "snypd.yaml");
+      writeFileSync(yaml, readFileSync(yaml, "utf8").replace(/^(\s*use:\s*)editorial\b/m, "$1local"));
+      writeFileSync(join(site, "content/posts/hi.md"), "---\ntitle: Hi\nstatus: published\ndate: 2026-09-19\n---\n\nA post.\n");
+
+      const r = run(["build", "."], site);
+      expect(r.code, r.err).toBe(0);
+      expect(r.out).toContain("theme local");
+      const html = readFileSync(join(site, "dist", "posts", "hi", "index.html"), "utf8");
+      expect(html).toContain('<footer class="local-footer">Made by <em>');
+
+      dev = spawnDev();
+      const rec = join(site, ".snypd", "dev.json");
+      const deadline = Date.now() + 30_000;
+      while (!existsSync(rec) && Date.now() < deadline) await Bun.sleep(50);
+      const { url } = JSON.parse(readFileSync(rec, "utf8")) as { url: string };
+      const page = await fetch(`${url}/posts/hi/`);
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain('<footer class="local-footer">Made by <em>');
+    } finally {
+      if (dev) { dev.kill("SIGTERM"); await dev.exited.catch(() => {}) }
+      rmSync(site, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   test("`lint` reads the spec that ships in the binary — the read that used to ENOENT", () => {
     writeFileSync(join(dir, "content/posts/bad.md"), [
       "---", "title: Bad", "status: draft", "date: 2026-08-28", "---", "",
