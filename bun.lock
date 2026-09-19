@@ -12,7 +12,7 @@
     },
     "packages/bench": {
       "name": "@snypd/bench",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@snypd/core": "workspace:*",
         "@snypd/mcp": "workspace:*",
@@ -29,7 +29,7 @@
     },
     "packages/cli": {
       "name": "@snypd/cli",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@snypd/bench": "workspace:*",
         "@snypd/core": "workspace:*",
@@ -40,7 +40,7 @@
     },
     "packages/core": {
       "name": "@snypd/core",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@snypd/runtime": "workspace:*",
         "@snypd/spec": "workspace:*",
@@ -62,7 +62,7 @@
     },
     "packages/mcp": {
       "name": "@snypd/mcp",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@snypd/bench": "workspace:*",
         "@snypd/core": "workspace:*",
@@ -75,7 +75,7 @@
     },
     "packages/render": {
       "name": "@snypd/render",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@snypd/core": "workspace:*",
         "@snypd/spec": "workspace:*",
@@ -88,18 +88,18 @@
     },
     "packages/runtime": {
       "name": "@snypd/runtime",
-      "version": "0.1.5",
+      "version": "0.1.6",
     },
     "packages/spec": {
       "name": "@snypd/spec",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "yaml": "^2.9.0",
       },
     },
     "packages/viz": {
       "name": "@snypd/viz",
-      "version": "0.1.5",
+      "version": "0.1.6",
     },
     "plugins/analytics": {
       "name": "@snypd/plugin-analytics",
