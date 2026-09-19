@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# The theme factory's sandbox (docker/compose.yaml): `docker/box up|down|logs|run <cmd…>|build`.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export SNYPD_REPO="$(git -C "$here/.." rev-parse --path-format=absolute --git-common-dir | sed 's#/\.git$##')"
+export SNYPD_WORKDIR="$PWD" UID GID="$(id -g)"
+case "$SNYPD_WORKDIR/" in "$SNYPD_REPO"/*) ;; *) SNYPD_WORKDIR="$SNYPD_REPO" ;; esac
+dc() { docker compose -f "$SNYPD_REPO/docker/compose.yaml" "$@"; }
+cmd="${1:-up}"; shift || true
+case "$cmd" in
+  up)    dc up -d --build "$@"; echo "site   http://127.0.0.1:4400  (THEME=${THEME:-editorial})"; echo "sheets http://127.0.0.1:4401  (THEMES=${THEMES:-editorial,technical,studio})" ;;
+  down)  dc down "$@" ;;
+  logs)  dc logs -f "$@" ;;
+  build) dc build "$@" ;;
+  run)   dc run --rm sandbox "$@" ;;
+  *)     echo "usage: docker/box up|down|logs|build|run <cmd…>" >&2; exit 2 ;;
+esac

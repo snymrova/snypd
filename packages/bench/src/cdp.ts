@@ -69,7 +69,10 @@ async function launchOnce(opts: { timeoutMs?: number } = {}): Promise<Browser> {
     "--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
     "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--disable-dev-shm-usage",
     "--disable-extensions", "--disable-background-networking", "--mute-audio", "--hide-scrollbars",
-    "--window-size=1280,900", "about:blank",
+    "--window-size=1280,900",
+    // A container has no user namespaces for Chrome's sandbox; `docker/` sets `--no-sandbox` here, the host never does.
+    ...(process.env.SNYPD_CHROME_FLAGS?.split(/\s+/).filter(Boolean) ?? []),
+    "about:blank",
   ], { stdout: "ignore", stderr: "pipe" });
 
   // Chrome prints `DevTools listening on ws://…` to stderr once the debugging socket is up.

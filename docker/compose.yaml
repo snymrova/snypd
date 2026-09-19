@@ -1,0 +1,46 @@
+# The theme factory's sandbox and its two always-on previews (docs/29).
+#
+#   docker/box up                 site  http://127.0.0.1:4400   the specimen in $THEME; reloads on every edit
+#                                 sheets http://127.0.0.1:4401  the contact sheet, re-shot on every theme edit
+#   docker/box run bun test       anything else, in the box (from a worktree too: it runs where you are)
+#   docker/box down
+#
+# The repo is mounted, not copied, and at its own path: an edit on the host is an edit in the box, and a
+# worktree's `.git` file still points somewhere that exists. Everything runs as the
+# host's user, so nothing the box writes (dist-*, shots/, .snypd/) comes back owned by root. Ports bind to
+# 127.0.0.1 only.
+name: snypd-factory
+x-box: &box
+  build: { context: ., dockerfile: Dockerfile }
+  image: snypd-factory:bun-1.4
+  user: "${UID:-1000}:${GID:-1000}"
+  volumes: ["${SNYPD_REPO:?run through docker/box}:${SNYPD_REPO}"]
+  working_dir: ${SNYPD_REPO}
+  shm_size: 1gb
+  environment:
+    THEME: ${THEME:-editorial}
+    THEMES: ${THEMES:-editorial,technical,studio}
+
+services:
+  sandbox:
+    <<: *box
+    profiles: ["run"]
+    working_dir: ${SNYPD_WORKDIR:-${SNYPD_REPO}}
+    command: ["bash"]
+
+  site:
+    <<: *box
+    # `snypd.preview.yaml` is the product's own env layering (docs/02): the specimen stays on editorial in
+    # git, and THEME picks what this preview draws it in. The file is ignored.
+    command: ["sh", "-c", "cd corpora/specimen && printf 'theme:\\n  use: %s\\n' \"$$THEME\" > snypd.preview.yaml && rm -f .snypd/dev.json && exec bun ../../packages/cli/src/index.ts dev . --host=0.0.0.0 --port=4400 --no-open"]
+    ports: ["127.0.0.1:4400:4400"]
+    environment:
+      THEME: ${THEME:-editorial}
+      SNYPD_ENV: preview
+    restart: unless-stopped
+
+  sheets:
+    <<: *box
+    command: ["bun", "docker/sheets.ts"]
+    ports: ["127.0.0.1:4401:4401"]
+    restart: unless-stopped

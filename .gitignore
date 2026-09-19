@@ -28,3 +28,4 @@ shots/
 examples/*/dist/
 examples/*/.cache/
 .playwright-mcp/
+corpora/specimen/snypd.preview.yaml
