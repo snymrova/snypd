@@ -13,6 +13,7 @@ import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
 import { resolveThemeChain, sha1, INDEX_DIR, MAX_FONT_KB, isBundledDir, themeBytes, themeBinary, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeFont, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
+import { hostModules } from "./hostmodules";
 import type { Sectioned } from "./html";
 import { atImport, fontFaceCss, layerIdent } from "./tokens";
 import type { Hooks } from "./hooks";
@@ -359,7 +360,7 @@ export async function bundleTheme(files: string[], outRoot: string): Promise<Map
     // One build per entry into its own directory: two themes in a chain can both declare `cover.tsx`, and
     // a shared outdir would have them overwrite each other under the same `[name]`.
     const dir = join(outRoot, sha1(f).slice(0, 12));
-    const r = await Bun.build({ entrypoints: [f], outdir: dir, target: "bun", external: THEME_EXTERNAL, naming: "[name].[ext]", throw: false });
+    const r = await Bun.build({ entrypoints: [f], outdir: dir, target: "bun", external: THEME_EXTERNAL, naming: "[name].[ext]", throw: false, jsx: { runtime: "automatic", importSource: "@snypd/render" } });
     if (!r.success) throw new Error(`theme bundle failed for ${f}:\n${r.logs.map(String).join("\n")}`);
     const path = r.outputs[0]!.path;
     writeFileSync(path, pinExternals(await r.outputs[0]!.text()));
@@ -404,6 +405,7 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   // no directory it is the barrel's lazy thunk (decision 46).
   const mod = async (link: ThemeLink, rel: string) => {
     if (isBundledDir(link.dir)) return themeModule(link.dir, rel);
+    hostModules();
     const abs = resolve(join(link.dir, rel));
     return (await import((bundled?.get(abs) ?? abs) + bust)).default as unknown;   // absolute: import() is relative to this module, not cwd
   };

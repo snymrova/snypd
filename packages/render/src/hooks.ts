@@ -40,6 +40,7 @@ import { resolve, join } from "node:path";
 import type { Root } from "mdast";
 import { INDEX_DIR, isBundledDir, themeModule, hooksOf, scriptSites, scriptSignature, FILTER_NAMES, SLOT_NAMES, type LoadedConfig, type LoadedPlugin, type SlotName, type FilterName, type Config, type Block } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
+import { hostModules } from "./hostmodules";
 import { bundleTheme, themeHash, themeStamp, type SiteCtx, type Entry, type Page, type TermLink } from "./theme";
 
 export type { SlotName, FilterName };
@@ -155,6 +156,7 @@ export async function loadHooks(cfg: LoadedConfig, opts: LoadHooksOptions = {}):
   }
   const mod = async (p: LoadedPlugin, rel: string): Promise<unknown> => {
     if (isBundledDir(p.dir!)) return themeModule(p.dir!, rel);
+    hostModules();
     const abs = resolve(join(p.dir!, rel));
     return (await import((bundled?.get(abs) ?? abs) + bust)).default as unknown;
   };
