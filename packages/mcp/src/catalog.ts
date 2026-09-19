@@ -37,7 +37,7 @@ const TYPE_ = str("Content type: `post`, `page`, `author` (snypd://types lists t
 export const KEYWORDS: Record<string, string[]> = {
   theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance", "setting", "logo", "tagline", "show dates", "date format", "social links", "footer"],
   site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "ship", "name", "domain", "host", "cloudflare", "vercel"],
-  bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y"],
+  bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y", "screenshot", "screenshots", "shoot", "photograph", "contact"],
   "content.explain": ["explain", "why", "what ran", "pipeline", "stages", "transform", "filter", "slot", "hook", "plugin", "debug", "trace", "inspect", "autolink", "changed my post", "unexpected", "link appeared", "route key", "cache"],
 };
 
@@ -76,10 +76,13 @@ export const CATALOG: Tool[] = [
   { name: "bench",
     description: "Run snypd's own benchmark suite and read the result. Every speed claim in this project is a number from here with a budget next to it, so this is how you check that a change — a theme, a token, a hundred new posts — did not cost something. `run` takes minutes at full size; `quick` is the same metrics at fewer repetitions. snypd://bench/latest is the last full report and costs nothing to read.",
     inputSchema: S({
-      action: str("`run` the suite · `compare` two saved reports", { enum: ["run", "compare"] }),
+      action: str("`run` the suite · `compare` two saved reports · `shoot` themes on every route, width and scheme, into a contact sheet whose per-route PNGs you then read", { enum: ["run", "compare", "shoot"] }),
       suite: str("`run`: `full` (default) · `quick` · `page` (a real browser: 0 KB JS, axe, CLS) · `visual` (per-primitive render cost) · `suggest` (suggest_blocks precision)", { enum: ["full", "quick", "page", "visual", "suggest"] }),
       a: str("`compare`: path to the baseline report JSON"),
       b: str("`compare`: path to the new report JSON"),
+      themes: { type: "array", items: { type: "string" }, description: "`shoot`: themes to photograph side by side, `theme` or `theme/variation`; the active theme by default" },
+      routes: { type: "array", items: { type: "string" }, description: "`shoot`: routes to photograph; the specimen's nine by default, or those of them this site has" },
+      scheme: str("`shoot`: `both` (default) · `light` · `dark`", { enum: ["both", "light", "dark"] }),
     }, ["action"]),
     annotations: { readOnlyHint: true, idempotentHint: false } },
 
@@ -547,7 +550,14 @@ export async function call(root: string, name: string, args: Record<string, unkn
           return text(`${bench.toMarkdown(report)}\n${over.length ? `❌ ${over.length} budget breach: ${over.join(", ")}` : "✅ every budget met"}`,
             { ok: true, suite, breaches: over, metrics: report.metrics });
         }
-        return fail(`unknown action "${action}"`, "bench takes: run, compare.");
+        if (action === "shoot") {
+          const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+          const r = await bench.shoot({ root, themes: strs(args.themes), routes: strs(args.routes), scheme: args.scheme as "light" | "dark" | "both" | undefined, out: join(root, "shots") });
+          if (r.skipped) return fail(r.skipped);
+          return text(`${bench.formatShoot(r)}\n\nRead the sheets — one per route and scheme, every candidate side by side — before saying anything about how a theme looks.`,
+            { ok: true, out: r.out, contact: join(r.out, r.contact), sheets: r.sheets, shots: r.shots.length, ms: r.ms });
+        }
+        return fail(`unknown action "${action}"`, "bench takes: run, compare, shoot.");
       }
       case "content.explain": return await explain(root, need(args, "type"), need(args, "slug"));
     }

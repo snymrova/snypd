@@ -165,3 +165,42 @@ test("S22: the gallery lists every look every installed theme ships — seven si
   expect(ls.find((l) => l.slug === "editorial-ink")!.description).toMatch(/^Dark only/);
   for (const l of ls) expect(l.personality.length).toBeGreaterThan(20);
 });
+
+// ── docs/29 TF2: the specimen and the camera's sheets ───────────────────────────────────────────────
+import { SPECIMEN_ROUTES, routeSlug, contactHtml, sheetHtml, type Candidate, type ShootShot } from "./shoot";
+
+test("TF2: the specimen builds every route the camera shoots, and is hard where it says it is", async () => {
+  const out = join("corpora/specimen", "dist-test-specimen");
+  try {
+    await build("corpora/specimen", { out });
+    for (const r of SPECIMEN_ROUTES) expect(existsSync(join(out, r === "/404" ? "404.html" : join(r, "index.html")))).toBe(true);
+    const words = readFileSync("corpora/specimen/content/posts/long-read.md", "utf8").split(/\s+/).length;
+    expect(words).toBeGreaterThanOrEqual(2500);
+    const posts = readdirSync("corpora/specimen/content/posts").filter((f) => f.endsWith(".md"));
+    expect(posts.length).toBeGreaterThanOrEqual(30);
+    const d = lintSite("corpora/specimen").files.flatMap((f) => f.diagnostics);
+    expect(d.filter((x) => x.severity === "error").map((x) => `${x.rule}: ${x.message}`)).toEqual([]);
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
+test("TF2: the contact sheet is zero-JS, shows 390 and 1280, and keeps 768 and 1440 behind a details", () => {
+  expect(routeSlug("/")).toBe("home");
+  expect(routeSlug("/404")).toBe("404");
+  expect(routeSlug("/posts/long-read/")).toBe("posts-long-read");
+  const cands: Candidate[] = [{ theme: "a", slug: "a", line: "A <quiet> one", fontKb: 0 }, { theme: "b", slug: "b", line: "B", fontKb: 0 }];
+  const shots: ShootShot[] = cands.flatMap((c) => [390, 768, 1280, 1440].map((width) =>
+    ({ candidate: c.slug, route: "/", width, scheme: "light" as const, file: `${c.slug}/home-${width}-light.png`, height: 900, truncated: width === 390, cls: 0, status: 200 })));
+  const html = contactHtml(cands, shots, ["/"], ["light"], [390, 768, 1280, 1440]);
+  expect(html).not.toContain("<script");
+  expect(html).toContain("A &lt;quiet&gt; one");
+  const [open, hidden] = html.split("<details>");
+  expect(open).toContain("a/home-390-light.png");
+  expect(open).toContain("a/home-1280-light.png");
+  expect(open).not.toContain("a/home-768-light.png");
+  expect(hidden).toContain("a/home-1440-light.png");
+  expect(html).toContain("truncated");
+  const sheet = sheetHtml(cands, shots, "/", "light", [390, 768, 1280, 1440]);
+  expect(sheet).not.toContain("<script");
+  expect(sheet).toContain("b/home-1280-light.png");
+  expect(sheet).not.toContain("home-768-light.png");
+});

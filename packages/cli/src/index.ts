@@ -442,6 +442,20 @@ switch (verb) {
    * `site.icon` — PNGs under `content/media/cards/` and `content/media/icons/`, to commit. Needs Chrome
    * on this machine and never on the host; says so and exits 1 when there is none.
    */
+  case "shoot": {   // docs/29 TF2: every candidate × route × width × scheme, and one contact sheet
+    const { shoot, formatShoot } = await import("@snypd/bench");
+    const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
+    const list = (n: string) => opt(n)?.split(",").map((x) => x.trim()).filter(Boolean);
+    const scheme = opt("scheme");
+    if (scheme !== undefined && !["light", "dark", "both"].includes(scheme)) { console.error(`--scheme=${scheme}: light, dark or both`); process.exit(2); }
+    const widths = list("width")?.map(Number);
+    if (widths?.some((w) => !Number.isInteger(w) || w < 200 || w > 3000)) { console.error(`--width=${opt("width")}: whole pixels, 200–3000`); process.exit(2); }
+    const r = await shoot({ root: args[0], themes: list("theme"), routes: list("route"), widths, scheme: scheme as "light" | "dark" | "both" | undefined, out: opt("out"),
+      onCandidate: (c, i, n) => console.error(`${i}/${n} ${c.slug}`) });
+    console.log(formatShoot(r));
+    if (r.skipped) process.exit(1);
+    break;
+  }
   case "cards": {
     const { drawCards } = await import("@snypd/bench");
     const root = args[0] ?? ".";
@@ -463,12 +477,13 @@ switch (verb) {
   }
   default:
     console.log([
-      "usage: snypd <init|dev|serve|build|cards|bench|new|check> [--version]",
+      "usage: snypd <init|dev|serve|build|cards|shoot|bench|new|check> [--version]",
       "",
       "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
+      "  snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots]   photograph themes on every route; contact sheet (needs Chrome)",
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",

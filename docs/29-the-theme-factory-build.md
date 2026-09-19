@@ -79,6 +79,8 @@ snypd shoot [root] --theme=a,b,c [--route=/x/ …] [--width=390,768,1280,1440] [
 
 **Proof:** one contact sheet of editorial, technical and studio from the monorepo, plus folio shot from `sites/snypd.rocks` with `--root`, at all widths and both schemes. The sheet goes to Sunny as the first artefact of the factory.
 
+**Built (19 Sep 2026), and where it differs from the above.** The specimen is `corpora/specimen/`, beside the other corpora, not under `packages/bench/`. The term route is `/tag/field-notes/`, because that's what the build writes. `shoot` defaults to the specimen and to both schemes. On a site that has fewer of the nine routes, the page suite's `pickRoutes` fills up to nine, one per URL shape. Each shot waits for `img.decode()`, not `complete`: at six pages at once, a loaded cover was photographed before it painted. Measured on this box at load average 10–16, so read the numbers as soft: editorial, technical and studio, 216 shots in **129 s** at six pages at once (252 s at four under heavier load); folio on snypd.rocks, 72 shots in 76 s. That is over the two-minute guess. Three long reads go past the 8,000 px cap and are marked `truncated`.
+
 ---
 
 ## 4. TF3: seed expansion (one session)

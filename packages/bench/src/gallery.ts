@@ -86,6 +86,21 @@ export interface GalleryOptions {
   write?: boolean;
 }
 
+/**
+ * One look, built into its own `dist-<purpose>-<slug>` with its own index and served on a free port — the
+ * loop `gallery` and `shoot` (docs/29 TF2) share, so the out-of-band theme switch lives in one place.
+ */
+export async function buildAndServe(root: string, look: Pick<Look, "theme" | "variation" | "slug">, purpose: string):
+  Promise<{ url: string; dist: string; fontKb: number; stop: () => void }> {
+  const cfg = loadConfig(root, { theme: look.theme, variation: look.variation });
+  const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
+  const dist = join(root, `dist-${purpose}-${look.slug}`);
+  const index = await SiteIndex.open(root, join(root, INDEX_DIR, `index.${purpose}-${look.slug}.sqlite`));
+  try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
+  const s = serve(root, { dist });
+  return { url: s.url, dist, fontKb, stop: () => s.stop() };
+}
+
 export const GALLERY_ROUTE = "/posts/every-primitive-once/";
 
 /**
@@ -114,13 +129,9 @@ export async function gallery(opts: GalleryOptions = {}): Promise<{ report: Repo
     let i = 0;
     for (const look of chosen) {
       opts.onLook?.(look, ++i, chosen.length);
-      const cfg = loadConfig(root, { theme: look.theme, variation: look.variation });
-      const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
-      const dist = join(root, `dist-gallery-${look.slug}`);
-      const index = await SiteIndex.open(root, join(root, INDEX_DIR, `index.gallery-${look.slug}.sqlite`));
-      try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
-      if (!existsSync(join(dist, route, "index.html"))) throw new Error(`gallery: ${look.slug} built no ${route} — pass \`route\` for a fixture that has no every-primitive post`);
-      const s = serve(root, { dist });
+      const s = await buildAndServe(root, look, "gallery");
+      const { fontKb, dist } = s;
+      if (!existsSync(join(dist, route, "index.html"))) { s.stop(); throw new Error(`gallery: ${look.slug} built no ${route} — pass \`route\` for a fixture that has no every-primitive post`); }
       try {
         const mine: Shot[] = [];
         for (const sc of schemes) for (const view of VIEWPORTS as readonly Viewport[]) {
