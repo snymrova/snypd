@@ -65,18 +65,23 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 
 function index(): string {
   const json = join(LIVE, "shoot.json");
-  const meta = existsSync(json) ? JSON.parse(readFileSync(json, "utf8")) as { sheets: string[]; candidates: { slug: string }[] } : undefined;
+  const meta = existsSync(json) ? JSON.parse(readFileSync(json, "utf8")) as { sheets: string[]; candidates: { slug: string; taste?: { rule: string; status: string; detail: string }[] }[] } : undefined;
   const v = state.run;
   const status = state.phase === "shooting" ? `shooting (${esc(state.why)})${state.queued ? " · one more queued" : ""}…`
     : state.error ? `<b>last run failed:</b> ${esc(state.error)}` : "watching for edits";
   const last = state.last ? `run ${v} · ${state.last.shots} shots in ${(state.last.ms / 1000).toFixed(1)} s · ${new Date(state.last.at).toLocaleTimeString()} · after ${esc(state.last.why)}` : "no run finished yet";
   const sheets = (meta?.sheets ?? []).map((s) => `<figure><figcaption>${esc(s.replace(/^contact-|\.png$/g, ""))}</figcaption><a href="/live/${esc(s)}?v=${v}"><img src="/live/${esc(s)}?v=${v}" alt="${esc(s)}" loading="lazy"></a></figure>`).join("\n");
+  // The rendered taste rules (TF5) that warned, per candidate, as text: the sheets carry the badge, this the reason.
+  const taste = (meta?.candidates ?? []).map((c) => {
+    const warns = (c.taste ?? []).filter((t) => t.status === "warn");
+    return `<li><b>${esc(c.slug)}</b>: ${warns.length ? warns.map((t) => `<code>${esc(t.rule)}</code> ${esc(t.detail)}`).join("<br>") : "no rendered taste rule warns"}</li>`;
+  }).join("");
   // A preview for the person watching, not a snypd page: a meta refresh is the whole mechanism, still no script.
   return `<!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="refresh" content="${state.phase === "shooting" ? 3 : 6}"><title>${state.phase === "shooting" ? "● " : ""}Contact sheet</title>
 <style>body{margin:0;padding:20px;font:14px/1.4 ui-sans-serif,system-ui,sans-serif;background:#f4f5f7;color:#16181d}header{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}h1{font-size:18px;margin:0}p{margin:4px 0;color:#5b6068}
-main{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:16px;margin-top:16px}figure{margin:0;background:#fff;border:1px solid #dfe2e7;padding:8px}figcaption{font-weight:600;margin-bottom:6px}img{width:100%;height:auto;display:block}a{color:inherit}</style>
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:16px;margin-top:16px}figure{margin:0;background:#fff;border:1px solid #dfe2e7;padding:8px}figcaption{font-weight:600;margin-bottom:6px}img{width:100%;height:auto;display:block}a{color:inherit}ul.taste{margin:8px 0 0;padding-left:18px;color:#5b3a00;font-size:13px}</style>
 <body><header><h1>Contact sheet — ${esc((meta?.candidates ?? []).map((c) => c.slug).join(", ") || themes.join(", "))}</h1><a href="/live/contact.html?v=${v}">every width, full size →</a><a href="http://127.0.0.1:4400/" target="_blank">live site →</a></header>
-<p>${status}</p><p>${last}</p><main>${sheets || "<p>The first run is shooting…</p>"}</main></body></html>`;
+<p>${status}</p><p>${last}</p>${taste ? `<ul class="taste">${taste}</ul>` : ""}<main>${sheets || "<p>The first run is shooting…</p>"}</main></body></html>`;
 }
 
 const port = Number(process.env.PORT ?? 4401);

@@ -37,6 +37,7 @@ import {
   type LoadedConfig, type Mode, type Rgb,
 } from "@snypd/core";
 import { loadTheme, type Theme, LAYOUT_NAMES } from "./theme";
+import { applyChosen, chosenRules, designVerdict, plainCss, staticTaste } from "./taste";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
 /** One rule, one verdict. `detail` is what a passing run prints — evidence, not "ok". */
@@ -90,14 +91,7 @@ export const GUARDED_CSS: { pattern: RegExp; what: string; tier: "two engines" |
  * so what is left is exactly the CSS a browser without the feature would try to apply.
  */
 export function unguardedCss(css: string): { line: number; what: string; tier: string; test: string }[] {
-  // Blank comments and strings in place so offsets, and therefore line numbers, survive.
-  let plain = "";
-  for (let i = 0; i < css.length; i++) {
-    const c = css[i]!;
-    if (c === '"' || c === "'") { const q = c; let j = i + 1; while (j < css.length && css[j] !== q) { if (css[j] === "\\") j++; j++; } plain += css.slice(i, j + 1).replace(/[^\n]/g, " "); i = j; continue; }
-    if (c === "/" && css[i + 1] === "*") { const end = css.indexOf("*/", i + 2); const j = end < 0 ? css.length : end + 2; plain += css.slice(i, j).replace(/[^\n]/g, " "); i = j - 1; continue; }
-    plain += c;
-  }
+  let plain = plainCss(css);
   // Blank every `@supports … { … }` block, nested ones included, by matching its braces.
   const SUPPORTS = /@supports\b/gi;
   for (let m = SUPPORTS.exec(plain); m; m = SUPPORTS.exec(plain)) {
@@ -235,6 +229,12 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
       : isPlaceholder("personality", personality, name) ? "still the scaffold's sentence — say what this theme reads like, in your words"
       : `${personality.split(/\s+/).length} words — what a listing prints and an agent chooses on`);
 
+  // The brief (docs/29 §6.3, TF5): a warning, like everything about taste — a theme with no DESIGN.md
+  // still renders, and a shelf that refused one would be refusing every theme written before today.
+  const design = themeFile(self.dir, "DESIGN.md");
+  const brief = designVerdict(design);
+  add(brief.rule, brief.status, brief.detail, "DESIGN.md");
+
   // ── tokens ─────────────────────────────────────────────────────────────────────────────────────
   const all = themeTokens(cfg);
   const declared = new Set(all.filter((t) => t.declaredBy).map((t) => t.name));
@@ -291,6 +291,12 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
         : `every two-engine and one-engine feature this build knows is under \`@supports\`, or absent (${GUARDED_CSS.length} checked)`,
       String(yaml.css));
   }
+
+  // ── taste (docs/29 TF5, decision 225): the static half, all warnings ─────────────────────────────
+  // The theme's own sheet for the CSS rules (a parent's was judged when the parent was), the resolved
+  // tokens for the face and the neutrals. A rule the brief names under `## Chosen` still reports.
+  const taste = staticTaste({ css: ownCss, cssFile: typeof yaml.css === "string" ? basename(yaml.css) : undefined, tokens: themeView(cfg), fontFamily: theme?.font?.family });
+  for (const t of applyChosen(taste, chosenRules(design))) add(t.rule, t.status, t.detail);
 
   // ── contrast (docs/11 §5 item 4) ───────────────────────────────────────────────────────────────
   // One row per rule across every look and both modes, and the worst verdict wins: a theme with a

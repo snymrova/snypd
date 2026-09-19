@@ -218,6 +218,22 @@ These need layout, so they run in the browser `shoot` already drives (a `Runtime
 
 **Proof:** each rule has a failing and a passing fixture in `render.test.ts` beside the X1 suite (`:2742`). The bundled themes' warnings are listed in the report and each is fixed or written into that theme's `## Chosen`.
 
+### 6.4 As built (19 Sep 2026)
+
+TF5 landed in `render/src/taste.ts`, with the rules tightened where a first run on the bundled themes showed them firing wider than their intent:
+
+- **`taste.side-stripe`** needs a *fill* (`background`), not padding. A padded blockquote with a rule down its side is typography older than any kit; the admonition is the stripe on a tinted box.
+- **`taste.radius-soup`** counts corners, not declarations: `0 r r 0` is the radius `r`, and full rounding (`50%`, ≥ 99 px) is one shape however it is written.
+- **`taste.overused-font`** reads the face that renders, meaning the webfont and each font token's *first* family. Roboto as a fallback in a system stack is not a choice.
+- **`taste.untinted-neutral`** fires below OKLCH chroma 0.0025 on bg, surface or text, and only in a mode whose accent has chroma ≥ 0.04.
+- **`taste.tiny-text`** skips footnotes, nav, header, footer, captions and asides.
+- **`taste.measure`** is characters per full line, the median over paragraphs of ≥ 180 characters that wrap at least three times, and needs two of them.
+- **`taste.monotonous-spacing`** only counts gaps between *unlike* blocks, so paragraph-to-paragraph gaps are excluded (they are equal on every good page). It needs six gaps.
+- **Rendered rules** are judged once per route and width, in the first scheme, never on `/404`: `tiny-text` at ≤ 480 px and the rest at ≥ 1024 px. They land on each candidate in `shoot.json` as `taste`, are printed by the CLI and are badged in each column's header on the sheets.
+- **`meta.design`** needs five sections filled: Use scene, Visitor mode, The rut, Boldness goes here, and Safe / Risk. The scaffold writes its questions as HTML comments, which don't count as content.
+- **Bundled themes.** Each of the four now has a DESIGN.md (`.md` is bundled text now). Every warning that fired is written into its `## Chosen`: eyebrows (the author's `cover.eyebrow`) and technical's 44rem measure are genuine choices. The tldr/callout stripes on editorial, technical and studio, and the untinted neutrals on studio and technical, are marked *held as shipped; revisit on sight*. Those looks are Sunny's to change (decision 209), not the lint's.
+- **`shoot` safety.** It refuses unknown flags (`--help` prints usage) and refuses to clear an `--out` that holds anything but a previous shoot. A `--help` read as "no options" once replaced `shots/` wholesale. It also builds into `dist-<purpose>-<slug>-<pid>` with its own index, and `stop` removes both: two shoots of the same look (the sandbox preview and anyone else) used to share one directory, and the first to finish deleted the second's pages, which showed up as 160 HTTP 404s.
+
 ---
 
 ## 7. TF6: the script, the judge, the memory (one session plus the proof sitting)

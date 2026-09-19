@@ -14,7 +14,7 @@
  * The record is `bench/gallery.md`; the PNGs go to `bench/gallery/` (ignored) or wherever `out` says —
  * a site's `content/media/` when the shelf is being written.
  */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { build, loadTheme } from "@snypd/render";
 import { serve } from "@snypd/runtime";
@@ -87,18 +87,23 @@ export interface GalleryOptions {
 }
 
 /**
- * One look, built into its own `dist-<purpose>-<slug>` with its own index and served on a free port — the
+ * One look, built into its own `dist-<purpose>-<slug>-<pid>` with its own index and served on a free port — the
  * loop `gallery` and `shoot` (docs/29 TF2) share, so the out-of-band theme switch lives in one place.
  */
 export async function buildAndServe(root: string, look: Pick<Look, "theme" | "variation" | "slug">, purpose: string):
   Promise<{ url: string; dist: string; fontKb: number; stop: () => void }> {
   const cfg = loadConfig(root, { theme: look.theme, variation: look.variation });
   const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
-  const dist = join(root, `dist-${purpose}-${look.slug}`);
-  const index = await SiteIndex.open(root, join(root, INDEX_DIR, `index.${purpose}-${look.slug}.sqlite`));
+  // Per process: the sandbox's preview shoots the specimen continuously, and a second shoot of the same
+  // look into the same directory had its pages deleted under it when the first one finished (TF5 found
+  // it as 160 HTTP 404s). The index goes with the build, and `stop` removes both.
+  const tag = `${purpose}-${look.slug}-${process.pid}`;
+  const dist = join(root, `dist-${tag}`);
+  const indexFile = join(root, INDEX_DIR, `index.${tag}.sqlite`);
+  const index = await SiteIndex.open(root, indexFile);
   try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
   const s = serve(root, { dist });
-  return { url: s.url, dist, fontKb, stop: () => s.stop() };
+  return { url: s.url, dist, fontKb, stop: () => { s.stop(); for (const f of [dist, indexFile, `${indexFile}-wal`, `${indexFile}-shm`]) rmSync(f, { recursive: true, force: true }); } };
 }
 
 export const GALLERY_ROUTE = "/posts/every-primitive-once/";

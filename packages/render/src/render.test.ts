@@ -6,6 +6,7 @@ import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loa
 import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, expandSeed, writeSeed, LIVE_ROUTE, SiteIndex } from "@snypd/core";
 import { preview } from "./preview";
 import { checkTheme, checkPlugin, formatCheck, unguardedCss } from "./check";
+import { staticTaste, tasteVerdicts, foldRendered, chosenRules, designVerdict, judgedAt, leadFamily, type TasteMeasure } from "./taste";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
@@ -2863,6 +2864,9 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     const c = await checkTheme(root, "fresh");
     expect(c.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["meta.personality"]);
     expect(rule(c, "contrast.muted").status).toBe("pass");
+    // TF5: the brief comes with it, its questions as comments — so it is written and not yet filled.
+    expect(r.files).toContain("themes/fresh/DESIGN.md");
+    expect(rule(c, "meta.design")).toMatchObject({ status: "warn", detail: expect.stringContaining("`## Use scene`, `## Visitor mode`, `## The rut`, `## Boldness goes here`, `## Safe / Risk`") });
     // Write the one sentence and it is shelf-ready — which is the loop the two verbs exist to close.
     const y = join(root, "themes/fresh/theme.yaml");
     writeFileSync(y, readFileSync(y, "utf8").replace(/personality: >-[\s\S]*?\n\ntokens:/, "personality: Quiet, narrow, and grey.\n\ntokens:"));
@@ -2915,6 +2919,79 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     expect(unguardedCss(`.a::before { content: "}"; }\n@supports (x: y) { .b { corner-shape: squircle } }`)).toEqual([]);
     // And the four themes that ship pass it: `base` guards `interpolate-size`, the styled themes guard the rest.
     for (const name of ["base", "editorial", "technical", "studio"]) expect({ name, status: rule(await checkTheme(root, name), "css.enhancement-guarded").status }).toEqual({ name, status: "pass" });
+  });
+
+  test("TF5 static taste: each rule warns on the move it names, passes a theme without it, and never fails a theme", async () => {
+    // Tinted neutrals under a blue accent: the palette a fixture about something else should not trip.
+    const TINTED = PALETTE.replace('"light-dark(#ffffff, #14161a)"', '"light-dark(#fbfcff, #14161a)"').replace('"light-dark(#16181d, #e6e8ec)"', '"light-dark(#16181d, #e6e8f0)"');
+    theme("tasteful", {
+      "theme.yaml": `${head("tasteful")}tokens:\n${TINTED}  font.body: { default: "'Lora', Georgia, serif", kind: font, description: "Prose." }\n`,
+      "theme.css": `body { color: var(--color-text); }\nblockquote { border-left: 3px solid var(--color-accent); padding-left: 1rem; }\n.card { border-radius: 0 var(--r) var(--r) 0; transition: color .2s; }\n.pill { border-radius: 999px; } .dot { border-radius: 50%; }\n.in { border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0; }\n`,
+    });
+    theme("tasteless", {
+      "theme.yaml": `${head("tasteless")}tokens:\n${PALETTE.replace('"light-dark(#16181d, #e6e8ec)"', '"light-dark(#111111, #eeeeee)"')}  font.body: { default: "Inter, system-ui, sans-serif", kind: font, description: "Prose." }\n`,
+      "theme.css": `body { color: var(--color-text); }\nh1 {\n  background: linear-gradient(90deg, red, blue);\n  -webkit-background-clip: text; background-clip: text; color: transparent;\n}\n.note { border-left: 4px solid var(--color-accent); background: var(--color-surface); }\na { transition: all .2s; }\n.a { border-radius: 2px; } .b { border-radius: 6px; } .c { border-radius: 10px; } .d { border-radius: 1rem; }\n`,
+    });
+    const good = await checkTheme(root, "tasteful"), bad = await checkTheme(root, "tasteless");
+    const TASTE = ["taste.gradient-text", "taste.side-stripe", "taste.overused-font", "taste.untinted-neutral", "taste.transition-all", "taste.radius-soup"];
+    for (const t of TASTE) {
+      expect({ t, status: rule(good, t).status }).toEqual({ t, status: "pass" });
+      expect({ t, status: rule(bad, t).status }).toEqual({ t, status: "warn" });
+    }
+    expect(bad.ok).toBe(true);                                            // taste is argued, not enforced
+    expect(rule(bad, "taste.gradient-text").detail).toContain("theme.css:2 `h1`");
+    expect(rule(bad, "taste.side-stripe").detail).toContain("theme.css:6 `.note`");
+    expect(rule(bad, "taste.overused-font").detail).toContain("`Inter`");
+    expect(rule(bad, "taste.untinted-neutral").detail).toContain("color.text light #111111");
+    expect(rule(bad, "taste.radius-soup").detail).toContain("4 distinct radii");
+    // A blockquote's rule with padding and no fill is typography, not a kit; `0 r r 0` is one radius; a
+    // pill and a circle are one shape.
+    expect(rule(good, "taste.radius-soup").detail).toBe("3 distinct radii: `var(--r)`, full rounding, `calc(var(--r) - 1px)`");
+    // Only the face that renders counts: Roboto as a fallback in a system stack is not a choice.
+    expect(leadFamily("ui-sans-serif, system-ui, Roboto, sans-serif")).toBeUndefined();
+    expect(leadFamily("'Space Grotesk', sans-serif")).toBe("Space Grotesk");
+    expect(staticTaste({ tokens: {} }).map((r) => r.status)).toEqual(TASTE.map(() => "pass"));
+  });
+
+  test("TF5 the brief wins: a rule named under `## Chosen` still warns, and says whose choice it was", async () => {
+    const brief = (chosen: string) => `# chooser\n\nA fixture.\n\n## Use scene\nA desk.\n\n## Visitor mode\nRead.\n\n## The rut\nThe usual.\n\n## Boldness goes here\nThe links.\n\n## Safe / Risk\n- Safe: a. Risk: b.\n\n## Chosen\n${chosen}\n`;
+    theme("chooser", {
+      "theme.yaml": `${head("chooser")}tokens:\n${PALETTE}`,
+      "theme.css": "body { color: var(--color-text); }\na { transition: all .2s; }\n",
+      "DESIGN.md": brief("<!-- a hint -->\n- `taste.transition-all`: the links should all move together"),
+    });
+    const r = await checkTheme(root, "chooser");
+    expect(rule(r, "taste.transition-all")).toMatchObject({ status: "warn", detail: expect.stringMatching(/^chosen \(DESIGN\.md: the links should all move together\) — theme\.css:2/) });
+    expect(rule(r, "meta.design")).toMatchObject({ status: "pass", detail: "DESIGN.md: 5 brief sections filled, 1 taste rule chosen" });
+    expect([...chosenRules(brief("taste.eyebrow: kickers\ntaste.measure — reference is scanned")).entries()]).toEqual([["taste.eyebrow", "kickers"], ["taste.measure", "reference is scanned"]]);
+    // Comments are the scaffold's questions: a section of nothing else is empty.
+    expect(designVerdict("## Use scene\n<!-- who? -->\n").status).toBe("warn");
+    expect(designVerdict(undefined).detail).toContain("no DESIGN.md");
+  });
+
+  test("TF5 rendered taste: the verdicts on what `shoot` measured, each rule at the width it reads", () => {
+    const m = (over: Partial<TasteMeasure> = {}): TasteMeasure => ({ eyebrows: [], body: [{ px: 17, text: "x" }], measures: [66, 68, 70], heads: { h1: 48, h2: 32, h3: 24 }, gaps: [40, 24, 24, 32, 56, 24, 40], ...over });
+    const fired = (x: TasteMeasure, w: number) => tasteVerdicts(x, w).filter((h) => h.fired).map((h) => h.rule);
+    expect(fired(m(), 1280)).toEqual([]);
+    expect(fired(m(), 390)).toEqual([]);
+    expect(fired(m({ eyebrows: [{ text: "NEWS", heading: "A title" }] }), 1280)).toEqual(["taste.eyebrow"]);
+    expect(fired(m({ body: [{ px: 13, text: "small" }] }), 390)).toEqual(["taste.tiny-text"]);
+    expect(fired(m({ body: [{ px: 13, text: "small" }] }), 1280)).toEqual([]);             // tiny text is a phone rule
+    expect(fired(m({ measures: [91, 95, 88] }), 1280)).toEqual(["taste.measure"]);
+    expect(fired(m({ measures: [38, 40] }), 1280)).toEqual(["taste.measure"]);
+    expect(fired(m({ measures: [120] }), 1280)).toEqual([]);                               // one paragraph is not a measure
+    expect(fired(m({ heads: { h1: 32, h2: 30 } }), 1280)).toEqual(["taste.flat-hierarchy"]);
+    expect(fired(m({ gaps: [24, 24, 24, 24, 24, 24, 48] }), 1280)).toEqual(["taste.monotonous-spacing"]);
+    expect(judgedAt("taste.measure", 390)).toBe(false);
+    const rows = foldRendered([
+      { route: "/a/", width: 1280, hits: tasteVerdicts(m({ eyebrows: [{ text: "K", heading: "H" }] }), 1280) },
+      { route: "/b/", width: 1280, hits: tasteVerdicts(m(), 1280) },
+      { route: "/a/", width: 390, hits: tasteVerdicts(m(), 390) },
+    ]);
+    // Before the matchers: bun's toMatchObject writes its matchers into the object it matched.
+    for (const r of rows) expect(r.detail.length).toBeGreaterThan(0);
+    expect(rows.find((r) => r.rule === "taste.eyebrow")).toMatchObject({ status: "warn", detail: expect.stringMatching(/^\/a\/ — 1 tracked-caps kicker/) });
+    expect(rows.find((r) => r.rule === "taste.tiny-text")).toMatchObject({ status: "pass", detail: expect.stringContaining("1 route at 390 px") });
   });
 
   test("formatCheck prints one line per rule, the rule's name first", async () => {

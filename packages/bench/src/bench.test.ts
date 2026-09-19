@@ -203,4 +203,9 @@ test("TF2: the contact sheet is zero-JS, shows 390 and 1280, and keeps 768 and 1
   expect(sheet).not.toContain("<script");
   expect(sheet).toContain("b/home-1280-light.png");
   expect(sheet).not.toContain("home-768-light.png");
+  // TF5: a column is badged with the rendered taste rules that warned, a chosen one marked as chosen.
+  expect(sheet).not.toContain('class="taste"');
+  cands[0]!.taste = [{ rule: "taste.eyebrow", status: "warn", detail: "chosen (DESIGN.md: kickers) — /" }, { rule: "taste.measure", status: "warn", detail: "/ — 91" }, { rule: "taste.tiny-text", status: "pass", detail: "ok" }];
+  expect(sheetHtml(cands, shots, "/", "light", [390, 1280])).toContain('<p class="taste">taste: eyebrow (chosen), measure</p>');
+  expect(contactHtml(cands, shots, ["/"], ["light"], [390, 1280])).toContain('<p class="taste">taste: eyebrow (chosen), measure</p>');
 });

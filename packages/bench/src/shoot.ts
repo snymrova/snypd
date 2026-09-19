@@ -13,13 +13,14 @@
  *
  * Zero JavaScript in the sheet, like everything else snypd emits: `contact.html` is a table of links.
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadConfig, installedThemes } from "@snypd/core";
 import { launch, findChrome, type Browser, type Page } from "./cdp";
 import { buildAndServe } from "./gallery";
 import { pickRoutes } from "./page";
+import { applyChosen, chosenRules, foldRendered, judgedAt, RENDERED_RULES, TASTE_PROBE, tasteVerdicts, type TasteHit, type TasteMeasure, type TasteRow } from "@snypd/render/taste";
 
 /** The specimen's nine routes; on another site, the ones it has (docs/29 §3.1). */
 export const SPECIMEN_ROUTES = [
@@ -54,6 +55,8 @@ export interface Candidate {
   /** The direction line: DESIGN.md's first paragraph, or the theme's personality. */
   line: string;
   fontKb: number;
+  /** The rendered taste rules (docs/29 §6.2), one row each, folded over every route; DESIGN.md's `## Chosen` applied. */
+  taste?: TasteRow[];
 }
 
 export interface ShootShot {
@@ -91,25 +94,26 @@ function directionLine(dir: string | undefined, fallback: string): string {
   const f = dir && join(dir, "DESIGN.md");
   if (f && existsSync(f)) {
     // Code fences out first: a freshly seeded theme's DESIGN.md is a heading and the `## Seed` command.
-    const prose = readFileSync(f, "utf8").replace(/^```[\s\S]*?^```\s*$/gm, "");
+    // Comments too: a scaffolded DESIGN.md's questions are comments, and a question is not a direction.
+    const prose = readFileSync(f, "utf8").replace(/^```[\s\S]*?^```\s*$/gm, "").replace(/<!--[\s\S]*?-->/g, "");
     const para = prose.split(/\n\s*\n/).map((p) => p.trim()).find((p) => p && !p.startsWith("#"));
     if (para) return para.replace(/\s+/g, " ");
   }
   return fallback;
 }
 
-function candidates(root: string, names: string[]): Omit<Candidate, "fontKb">[] {
+function candidates(root: string, names: string[]): (Omit<Candidate, "fontKb"> & { dir?: string })[] {
   const shelf = installedThemes(root);
   return names.map((n) => {
     const [theme, variation] = n.split("/") as [string, string | undefined];
     const t = shelf.find((x) => x.name === theme);
     if (!t) throw Object.assign(new Error(`shoot: no theme "${theme}" on this site`), { hint: `installed: ${shelf.map((x) => x.name).join(", ")}` });
-    return { theme, variation, slug: variation ? `${theme}-${variation}` : theme, line: directionLine(t.dir, t.description ?? "") };
+    return { theme, variation, slug: variation ? `${theme}-${variation}` : theme, line: directionLine(t.dir, t.description ?? ""), dir: t.dir };
   });
 }
 
 /** Settle, then photograph the whole page: styles, fonts, every image (lazy ones made eager), two frames. */
-async function photograph(page: Page, url: string, width: number, scheme: Scheme): Promise<{ png: Buffer; height: number; truncated: boolean; cls: number; status: number }> {
+async function photograph(page: Page, url: string, width: number, scheme: Scheme, measure = false): Promise<{ png: Buffer; height: number; truncated: boolean; cls: number; status: number; taste?: TasteMeasure }> {
   const height = width < 600 ? 844 : 900;
   await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 });
   await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] });
@@ -130,10 +134,14 @@ async function photograph(page: Page, url: string, width: number, scheme: Scheme
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     return { h: Math.ceil(document.documentElement.scrollHeight), cls: +cls.toFixed(4) };
   })()` });
+  // The taste probe reads the settled page before the screenshot moves anything (docs/29 §6.2).
+  const taste = measure
+    ? (await page.send<{ result: { value?: TasteMeasure } }>("Runtime.evaluate", { returnByValue: true, expression: TASTE_PROBE })).result.value
+    : undefined;
   const full = Math.max(height, result.value.h);
   const h = Math.min(full, MAX_SHOT_HEIGHT);
   const { data } = await page.send<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: h, scale: 1 } });
-  return { png: Buffer.from(data, "base64"), height: h, truncated: full > MAX_SHOT_HEIGHT, cls: result.value.cls, status };
+  return { png: Buffer.from(data, "base64"), height: h, truncated: full > MAX_SHOT_HEIGHT, cls: result.value.cls, status, taste };
 }
 
 /** A small pool: `n` pages at once over one browser, each job on a fresh page. */
@@ -159,6 +167,9 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
   const empty: ShootResult = { out, candidates: [], shots: [], contact: "", sheets: [], ms: 0 };
   if (!findChrome()) return { ...empty, skipped: "no Chrome on this machine — install Chrome or Chromium, or set SNYPD_CHROME to one; `snypd shoot` photographs the theme in a real browser" };
 
+  // `out` is cleared, so it must be empty or a previous shoot's: a directory of anything else is refused.
+  if (existsSync(out) && readdirSync(out).length && !existsSync(join(out, "shoot.json")))
+    throw Object.assign(new Error(`shoot: ${relative(process.cwd(), out) || out}/ holds files that are not a previous shoot's, and shoot clears its --out`), { hint: "pass --out=<a new or empty directory>" });
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   const browser = await launch();
@@ -170,8 +181,9 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
     for (const c of chosen) {
       opts.onCandidate?.({ ...c, fontKb: 0 }, ++i, chosen.length);
       const s = await buildAndServe(root, c, "shoot");
+      const { dir, ...cand } = c;
+      const judged: { route: string; width: number; hits: TasteHit[] }[] = [];
       try {
-        cands.push({ ...c, fontKb: s.fontKb });
         // The routes are fixed by the first candidate's build, so every column has the same rows.
         if (!routes.length) {
           const want = opts.routes?.length ? opts.routes : [...SPECIMEN_ROUTES];
@@ -184,14 +196,19 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
         mkdirSync(join(out, c.slug), { recursive: true });
         const jobs = routes.flatMap((route) => widths.flatMap((width) => schemes.map((scheme) => ({ route, width, scheme }))));
         await pool(browser, jobs, opts.concurrency ?? 6, async (page, j) => {
-          const shot = await photograph(page, `${s.url}${j.route}`, j.width, j.scheme);
+          // Layout does not change with the scheme, so the rules are judged once per route and width.
+          const measure = j.scheme === schemes[0] && RENDERED_RULES.some((r) => judgedAt(r, j.width));
+          const shot = await photograph(page, `${s.url}${j.route}`, j.width, j.scheme, measure);
+          if (shot.taste && j.route !== "/404") judged.push({ route: j.route, width: j.width, hits: tasteVerdicts(shot.taste, j.width) });
           const file = join(c.slug, `${routeSlug(j.route)}-${j.width}-${j.scheme}.png`);
           writeFileSync(join(out, file), shot.png);
           shots.push({ candidate: c.slug, route: j.route, width: j.width, scheme: j.scheme, file, height: shot.height, truncated: shot.truncated, cls: shot.cls, status: shot.status });
         });
+        judged.sort((a, b) => routes.indexOf(a.route) - routes.indexOf(b.route) || a.width - b.width);
+        const design = dir && existsSync(join(dir, "DESIGN.md")) ? readFileSync(join(dir, "DESIGN.md"), "utf8") : undefined;
+        cands.push({ ...cand, fontKb: s.fontKb, taste: applyChosen(foldRendered(judged), chosenRules(design)) });
       } finally {
         s.stop();
-        rmSync(s.dist, { recursive: true, force: true });
       }
     }
     const order = (a: ShootShot, b: ShootShot) => a.candidate.localeCompare(b.candidate) || routes.indexOf(a.route) - routes.indexOf(b.route) || a.width - b.width || a.scheme.localeCompare(b.scheme);
@@ -221,6 +238,7 @@ const SHEET_CSS = `
 body { margin: 0; padding: 24px; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; color: var(--ink); background: var(--paper); }
 h1 { font-size: 18px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 32px 0 8px; }
 p.meta { color: var(--muted); margin: 0 0 16px; }
+.col header p.taste, th p.taste { margin: 4px 0 0; font-size: 12px; font-weight: 400; color: #8a4b00; }
 .cols { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 16px; align-items: start; }
 .col header { margin-bottom: 8px; } .col header b { font-size: 15px; } .col header p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 .pair { display: grid; grid-template-columns: 1fr 3fr; gap: 8px; align-items: start; }
@@ -238,11 +256,16 @@ const pick = (shots: ShootShot[], c: string, route: string, scheme: Scheme, widt
 const fig = (s: ShootShot | undefined, label: string) =>
   s ? `<figure><a href="${esc(s.file)}"><img src="${esc(s.file)}" alt="${esc(`${s.candidate} ${s.route} at ${s.width} px, ${s.scheme}`)}" loading="lazy"></a><figcaption>${label}${s.truncated ? " · truncated" : ""}${s.cls > 0.05 ? ` · CLS ${s.cls}` : ""}${s.status >= 400 && s.route !== "/404" ? ` · HTTP ${s.status}` : ""}</figcaption></figure>` : "";
 const [NARROW, WIDE] = [390, 1280];
+/** A column's taste badge: the rules that warned, chosen ones marked, so the sheet says what the eye should check. */
+const badge = (c: Candidate) => {
+  const warns = (c.taste ?? []).filter((t) => t.status === "warn");
+  return warns.length ? `<p class="taste">taste: ${warns.map((t) => esc(t.rule.replace(/^taste\./, "")) + (t.detail.startsWith("chosen") ? " (chosen)" : "")).join(", ")}</p>` : "";
+};
 
 /** One route, one scheme, every candidate: the page the camera photographs for an agent to read. */
 export function sheetHtml(cands: Candidate[], shots: ShootShot[], route: string, scheme: Scheme, widths: number[]): string {
   const narrow = widths.includes(NARROW) ? NARROW : Math.min(...widths), wide = widths.includes(WIDE) ? WIDE : Math.max(...widths);
-  const cols = cands.map((c) => `<section class="col"><header><b>${esc(c.slug)}</b><p>${esc(c.line)}</p></header>
+  const cols = cands.map((c) => `<section class="col"><header><b>${esc(c.slug)}</b><p>${esc(c.line)}</p>${badge(c)}</header>
 <div class="pair crop"><div style="--k: ${(1800 / narrow).toFixed(3)}">${fig(pick(shots, c.slug, route, scheme, narrow), `${narrow}`)}</div><div style="--k: ${(1800 / wide).toFixed(3)}">${fig(pick(shots, c.slug, route, scheme, wide), `${wide}`)}</div></div></section>`).join("\n");
   return `<!doctype html><html lang="en"><meta charset="utf-8"><title>${esc(route)} · ${scheme}</title><style>${SHEET_CSS}</style>
 <body><h1>${esc(route)} · ${scheme}</h1><p class="meta">${cands.length} candidate${cands.length === 1 ? "" : "s"}, top of the page at ${narrow} and ${wide} px</p>
@@ -252,7 +275,7 @@ export function sheetHtml(cands: Candidate[], shots: ShootShot[], route: string,
 /** Every route, both schemes, every candidate: the page a person opens. 390 and 1280 shown; the rest behind `<details>`. */
 export function contactHtml(cands: Candidate[], shots: ShootShot[], routes: string[], schemes: Scheme[], widths: number[]): string {
   const shown = widths.filter((w) => w === NARROW || w === WIDE), hidden = widths.filter((w) => !shown.includes(w));
-  const head = `<tr><th></th>${cands.map((c) => `<th><b>${esc(c.slug)}</b><br><small>${esc(c.line)}</small></th>`).join("")}</tr>`;
+  const head = `<tr><th></th>${cands.map((c) => `<th><b>${esc(c.slug)}</b><br><small>${esc(c.line)}</small>${badge(c)}</th>`).join("")}</tr>`;
   const sections = schemes.map((scheme) => `<h2>${scheme}</h2><table>${head}${routes.map((route) => `<tr><th scope="row">${esc(route)}<br><small><a href="contact-${routeSlug(route)}-${scheme}.png">sheet</a></small></th>${cands.map((c) => `<td><div class="pair">${shown.map((w) => fig(pick(shots, c.slug, route, scheme, w), `${w}`)).join("")}</div>${hidden.length ? `<details><summary>${hidden.join(" · ")}</summary><div class="pair">${hidden.map((w) => fig(pick(shots, c.slug, route, scheme, w), `${w}`)).join("")}</div></details>` : ""}</td>`).join("")}</tr>`).join("\n")}</table>`).join("\n");
   return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Contact sheet</title><style>${SHEET_CSS}</style>
 <body><h1>Contact sheet</h1><p class="meta">${cands.map((c) => c.slug).join(", ")} · ${routes.length} routes × ${widths.join("/")} px × ${schemes.join(" and ")} · ${shots.length} shots</p>
@@ -268,6 +291,10 @@ export function formatShoot(r: ShootResult): string {
     `contact sheet: ${relative(process.cwd(), join(r.out, r.contact))}`,
     `sheets to read (${r.sheets.length}):`,
     ...r.sheets.map((s) => `  ${relative(process.cwd(), s)}`),
+    ...r.candidates.flatMap((c) => {
+      const warns = (c.taste ?? []).filter((t) => t.status === "warn");
+      return warns.length ? [`taste, ${c.slug} (${warns.length}):`, ...warns.map((t) => `  ⚠️  ${t.rule}  ${t.detail}`)] : c.taste ? [`taste, ${c.slug}: ${c.taste.length} rendered rules pass`] : [];
+    }),
     ...(flagged.length ? [`to look at (${flagged.length}):`, ...flagged.map((s) => `  ${s.file}${s.truncated ? " truncated" : ""}${s.cls > 0.05 ? ` CLS ${s.cls}` : ""}${s.status >= 400 && s.route !== "/404" ? ` HTTP ${s.status}` : ""}`)] : []),
   ].join("\n");
 }

@@ -4,5 +4,6 @@
  */
 declare module "*.yaml" { const contents: string; export default contents; }
 declare module "*.css" { const contents: string; export default contents; }
+declare module "*.md" { const contents: string; export default contents; }
 /** File imports (`with { type: "file" }`) — the font shelf's barrel: a path Bun can read, embedded by `--compile`. */
 declare module "*.woff2" { const path: string; export default path; }

@@ -389,7 +389,7 @@ switch (verb) {
       const committed = Repo.open(root)?.commit(r.files, `${kind}: scaffold ${r.name}${r.extends ? ` extends ${r.extends}` : ""}`);
       if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
       say.push("", kind === "theme"
-        ? `Write theme.css. Everything else already renders — all 14 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
+        ? `Fill DESIGN.md, then write theme.css. Everything else already renders — all 14 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
         : `Write slots/note.tsx, then add \`${r.name}\` to \`plugins:\` in snypd.yaml. The manifest lists the other four tiers as one commented line each.`,
         `\`snypd check ${kind} ${r.name}\` says whether it is shelf-ready; \`snypd dev\` shows it.`);
       console.log(say.join("\n"));
@@ -487,14 +487,26 @@ switch (verb) {
    */
   case "shoot": {   // docs/29 TF2: every candidate × route × width × scheme, and one contact sheet
     const { shoot, formatShoot } = await import("@snypd/bench");
+    // A flag it does not know is refused before anything runs: `shoot` clears its `--out`, and a
+    // `--help` read as "no options" once photographed a whole site into the default directory.
+    const SHOOT_USAGE = "usage: snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots]";
+    const unknown = [...flags].filter((f) => !/^--(theme|route|width|scheme|out)=/.test(f));
+    if (unknown.length) { console.error(unknown.some((f) => f === "--help" || f === "-h") ? SHOOT_USAGE : `${unknown.join(" ")}: not a shoot option\n${SHOOT_USAGE}`); process.exit(unknown.every((f) => f === "--help") ? 0 : 2); }
     const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
     const list = (n: string) => opt(n)?.split(",").map((x) => x.trim()).filter(Boolean);
     const scheme = opt("scheme");
     if (scheme !== undefined && !["light", "dark", "both"].includes(scheme)) { console.error(`--scheme=${scheme}: light, dark or both`); process.exit(2); }
     const widths = list("width")?.map(Number);
     if (widths?.some((w) => !Number.isInteger(w) || w < 200 || w > 3000)) { console.error(`--width=${opt("width")}: whole pixels, 200–3000`); process.exit(2); }
-    const r = await shoot({ root: args[0], themes: list("theme"), routes: list("route"), widths, scheme: scheme as "light" | "dark" | "both" | undefined, out: opt("out"),
-      onCandidate: (c, i, n) => console.error(`${i}/${n} ${c.slug}`) });
+    let r;
+    try {
+      r = await shoot({ root: args[0], themes: list("theme"), routes: list("route"), widths, scheme: scheme as "light" | "dark" | "both" | undefined, out: opt("out"),
+        onCandidate: (c, i, n) => console.error(`${i}/${n} ${c.slug}`) });
+    } catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
+      process.exit(1);
+    }
     console.log(formatShoot(r));
     if (r.skipped) process.exit(1);
     break;

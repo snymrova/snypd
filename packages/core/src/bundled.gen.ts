@@ -18,7 +18,7 @@ export const BUNDLED_NAMES = ["base", "editorial", "technical", "studio"] as con
  */
 export const BUNDLED_PLUGIN_NAMES = ["analytics", "autolink", "changelog", "indexnow"] as const;
 /** Text we can inline as a string. */
-const TEXT = [".yaml", ".css", ".json", ".txt"];
+const TEXT = [".yaml", ".css", ".json", ".txt", ".md"];
 /**
  * Files that are neither text nor code — a theme's webfont (B1) and the licence it must travel with.
  * Base64 in the generated source, because there is no directory inside a binary to read the bytes from

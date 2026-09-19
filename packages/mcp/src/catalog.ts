@@ -332,6 +332,7 @@ export async function call(root: string, name: string, args: Record<string, unkn
           return text([
             `scaffolded ${r.dir}/ extending ${r.extends}`,
             `  theme.yaml   tokens and metadata; ${r.inheritedTokens} tokens inherited, none redeclared yet`,
+            `  DESIGN.md    the brief \u2014 use scene, visitor mode, the rut, where the boldness goes; fill it before the stylesheet`,
             `  theme.css    one stylesheet \u2014 the only file you have to write`,
             git,
             `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,

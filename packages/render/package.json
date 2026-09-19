@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./preview": "./src/preview.ts",
     "./check": "./src/check.ts",
+    "./taste": "./src/taste.ts",
     "./jsx-runtime": "./src/jsx-runtime.ts",
     "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts",
     "./media": "./src/media.ts"
