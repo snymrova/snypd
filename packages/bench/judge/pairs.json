@@ -1,0 +1,92 @@
+{
+  "$comment": "The judge's few-shot pairs (docs/29 §7.2). Read by an agent at step 8 of `build-theme`, never by the product: nothing in packages/ imports this file, so it costs the binary nothing. README.md says how each pair was made.",
+  "rubric": "../../mcp/src/rubric.md",
+  "pairs": [
+    {
+      "id": "technical-u6b",
+      "theme": "technical",
+      "session": "U6b, 13 Sep 2026",
+      "shot": { "route": "/posts/every-primitive-once/", "width": 390, "scheme": "light" },
+      "before": "technical-u6b/before.png",
+      "after": "technical-u6b/after.png",
+      "provenance": "reconstructed",
+      "how": "The three fixes are recorded in docs/11 §7b but never existed as a commit — they were made before `technical` was first committed, on sight, from a screenshot. `before.png` is today's theme with exactly those three reverted; `after.png` is today's theme. Same camera, same specimen, same minute.",
+      "findings": [
+        {
+          "axis": "Phone as designed",
+          "region": "the masthead, 390",
+          "finding": "The tagline wraps to its own line and that line opens with a stray `/`, which reads as a glyph somebody forgot to delete. The slash is a separator between two things and it is sitting on the second one.",
+          "fix": "Move it to the name: `.snypd-brand > a::after { content: \" /\" }` rather than `.snypd-tagline::before`. At 1280 nothing changes; at 390 the line break falls after the slash instead of before it."
+        },
+        {
+          "axis": "Hierarchy",
+          "region": "`h3`, mid-page",
+          "finding": "Sub-headings are set in the muted colour, so a heading is quieter than the paragraph underneath it. The level reads as less important than its own content.",
+          "fix": "`h3` takes `--color-text` like every other heading. Muted is for metadata, never for a level of the outline."
+        },
+        {
+          "axis": "Rhythm",
+          "region": "the term pills, foot of the post",
+          "finding": "The pills sit on the flex line's stretch, so a one-line pill and a two-line pill are different heights and their labels do not share a baseline.",
+          "fix": "`align-items: center` on `.snypd-terms`."
+        }
+      ],
+      "note": "None of the three is visible to a test. The build was green, the lint clean and the tokens valid in the `before` shot."
+    },
+    {
+      "id": "studio-u10",
+      "theme": "studio",
+      "session": "U8 (c0fd84c) → U9 + U10 (48580b0), 17 Sep 2026",
+      "shot": { "route": "/", "width": 1280, "scheme": "light" },
+      "before": "studio-u10/before.png",
+      "after": "studio-u10/after.png",
+      "provenance": "git history",
+      "how": "`git archive c0fd84c themes/studio` shot beside today's `studio`, one camera, one specimen. The renderer is today's in both columns, so this pair shows what the *stylesheet* changed and nothing else.",
+      "findings": [
+        {
+          "axis": "The rut",
+          "region": "the hero band, full width",
+          "finding": "The hero is a dark maroon gradient wash. A gradient behind the biggest type on the page is the first thing every template does and it is doing no work here — the band is already full-bleed and already dark.",
+          "fix": "One flat near-black. The band's edge does the separating; the wash was standing in for a decision."
+        },
+        {
+          "axis": "Hierarchy",
+          "region": "the stat row under \"How it starts\"",
+          "finding": "Three numbers and their labels float in the band with nothing tying a number to its label or separating one column from the next.",
+          "fix": "A hairline over each column and the label directly under its number: the rule is the grouping, and it costs one border."
+        },
+        {
+          "axis": "The one bold place",
+          "region": "the section eyebrow",
+          "finding": "The section opens with an unnumbered heading in the same register as the hero, so the front page has two places claiming to be the top of it.",
+          "fix": "A small numbered eyebrow (`01`) over the heading: the numbers make the bands a sequence, and the hero keeps the display size to itself."
+        }
+      ]
+    },
+    {
+      "id": "folio-s34",
+      "theme": "folio",
+      "session": "S34 mockup → S35 as built, 18 Sep 2026",
+      "shot": { "route": "/", "width": 1440, "scheme": "light", "crop": "the first screen, 1440 × 900" },
+      "before": "folio-s34/before.png",
+      "after": "folio-s34/after.png",
+      "provenance": "docs/mock",
+      "how": "`before` is `docs/mock/25-home-b-1440.png`, the standalone mockup Sunny picked by eye (decision 209). `after` is `docs/mock/25-s35-1440.png`, the page as built, cropped to the same first screen. This pair is the only one whose verdict is the owner's rather than the judge's — it is here because the judge's job is to predict that verdict.",
+      "findings": [
+        {
+          "axis": "Hierarchy",
+          "region": "the first screen, the right half",
+          "finding": "The sentence is left-set across two thirds and the right half of the first screen is empty. Sunny, on sight: *\"the half beside the sentence was empty — the most important part.\"* An approved mockup can still be wrong on the day it is built: the mockup's empty half read as air and the built page's read as a missing element.",
+          "fix": "One centred column — the sentence, the film, the button, the lede, the window (decision 210). The page's one big picture moves into the space the emptiness was in."
+        },
+        {
+          "axis": "Rhythm",
+          "region": "the hero, below the button",
+          "finding": "Two paragraphs of body copy sit under a display sentence at 96 px with nothing between them in size. The pacing goes from very loud to very quiet in one step.",
+          "fix": "The lede cut to its first paragraph and typeset a size up, and the four-line window under it. What was cut: the sentence naming themes, plugins and content types, and the launch date."
+        }
+      ],
+      "note": "The mockup was approved in prose *and* on a picture, and the built page was still refused. That is what step 9 exists for."
+    }
+  ]
+}

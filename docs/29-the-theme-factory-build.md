@@ -3,7 +3,7 @@
 **Owner:** PM · **Engineer:** Claude Code · **Decider:** Sunny · **Written:** 19 Sep 2026
 **Asked for:** *"check the 28 plan about theme factory and work on creating an implementation plan, with the workflow example which one can have to generate themes for snypd that is beautiful and visually appealing and up to the standards."*
 **Reads with:** docs/28 (the why and the research). This doc is the how. File references are to `main` at `245f293`.
-**Status:** a plan, approved 19 Sep 2026. All five docs/28 §8 calls went as recommended (decisions 221–227, docs/11 §8), so §9 does not apply. S28 needs Sunny's machines, so TF1 starts alongside it.
+**Status:** a plan, approved 19 Sep 2026. All five docs/28 §8 calls went as recommended (decisions 221–227, docs/11 §8), so §9 does not apply. S28 needs Sunny's machines, so TF1 starts alongside it. **TF1–TF6 built (19–20 Sep 2026); each section's "As built" says where it landed and what changed on the day. What is left is the sitting (§7.3), which needs Sunny.**
 
 ---
 
@@ -269,6 +269,21 @@ This is not code; it is a step in the script with fixed inputs. The agent reads 
 A site-root `DESIGN.md` has a `## Taste` log. Step 10 appends the owner's reasons, dated, in their words. The monorepo's copy is seeded from docs/24 and docs/25, with entries like "boxes inside boxes", "too much text in mono" and "centred hero, one column". Step 1 reads it before any card is written.
 
 **Proof: the sitting.** One brief, three themes, one contact sheet, Sunny picks, in one sitting. The pick ships as the fifth bundled theme (call 4): it is added to `BUNDLED_NAMES` (`core/src/bundled.gen.ts:14`), gets a gallery row, and gets a README still.
+
+### 7.4 As built (20 Sep 2026)
+
+The script, the rubric and the memory landed as specified. Four things about *where* they landed were decided on the day:
+
+- **The rubric travels inside the prompt.** `mcp/src/rubric.md` is a document — it is edited by eye and read by a person as often as by a model — and it is imported as text (`with { type: "text" }`, the convention `bundled.ts` already uses) and spliced into step 8, its headings demoted a level on the way in. A *dynamic* import, so it is its own chunk under `--compile --splitting` and never on the `initialize` path: `prompts/get` pays for it and nothing else does. Checked through the compiled binary, the S18a rule — `serve` over stdio answers `build-theme` at 14,676 characters with the six axes, the three candidate names and the stop at step 9 in it.
+- **The few-shot pairs do not travel.** `packages/bench/judge/` is read by an agent working *on this repository* — tuning the rubric, or judging whether the judge is any good — and nothing in `packages/` imports it, so the binary carries none of its 1.6 MB. A user's site gets the rubric and the one worked example inside it, which is what the prompt can honestly carry. Three pairs: `technical-u6b` (the three fixes docs/11 §7b records, **reconstructed** — they were made on sight before the theme was first committed, so no "before" commit exists), `studio-u10` (`git archive c0fd84c` against today, one camera), and `folio-s34` (the mockup Sunny picked against the page as built). `pairs.json` carries each finding in the rubric's shape with the fix beside it, and `provenance` on every pair says whether the "before" is history or a reconstruction — a fixture that quietly pretends to be history teaches the model that provenance does not matter.
+- **The taste log is a file and a habit, not a surface.** The site-root `DESIGN.md` is read in step 1 and appended in step 10 by the agent, with the filesystem access it needs for `theme.css` anyway. No resource, no tool, no schema: a `## Taste` log that an agent has to call a tool to read is one more thing to forget. The monorepo's own copy is seeded from docs/24 and docs/25 — the nine hero rounds, *"the home page has too much text"*, *"no boxes inside boxes"*, and decision 209's reason, that the two looks before it were approved in prose and refused on sight.
+- **Step 9 says "wait" twice.** The first draft ended step 9 with "hand it over"; the failure mode that wording invites is an agent that polishes its favourite while it waits, which makes the choice before the owner sees the sheet. The text now refuses both the pick and the polish, and the test asserts the sentence.
+
+`build-theme`'s old eight steps are all still in here — the contract lessons U6b paid for (a theme is `theme.yaml` plus one stylesheet; every value is a `var()`; zero JavaScript and what the markup does instead; never fork a layout) are now steps 1 and 5, because they are what *styling a candidate* means. What is new is everything around them: the brief, three directions with the anti-sibling test, seed-then-face, the camera, the two gates plus the lint, one critique round, and a human at step 9.
+
+Tests: 557 pass, 1 todo, 0 fail; typecheck clean. The prompt's assertions are in `mcp.test.ts` beside U6b's.
+
+**Not done: the sitting.** It needs Sunny for its middle step, and it is the proof — one brief, three candidates, one contact sheet, a pick, and the fifth bundled theme.
 
 ---
 

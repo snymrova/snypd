@@ -29,7 +29,7 @@ export const PROMPTS: Prompt[] = [
       { name: "type", description: "Content type; default `post`", required: false },
     ] },
   { name: "build-theme",
-    description: "Build a theme for this site: scaffold from an existing one, retune the tokens, override a part if the markup needs it, and look at the result at a phone width and a desktop one before calling it done.",
+    description: "Build a theme for this site the way a studio would: a brief, three different directions, each one seeded to a palette that passes the contrast gate and photographed at four widths in light and dark, then one contact sheet for you to pick from. Ends with the pick live and your reasons written down.",
     arguments: [
       { name: "look", description: "How it should read — \"a dense reference theme, mono headings\", \"warm, serif, long-form\". The more specific, the fewer rounds", required: false },
       { name: "name", description: "Theme name; lowercase letters, digits and hyphens. Asked for if absent", required: false },
@@ -157,43 +157,118 @@ function siteBasics(): GetPromptResult {
 }
 
 /**
- * The third workflow (docs/10 §5.3, U6b) — *"ask your agent for a theme"*, which is the sentence that
- * replaces a theme directory.
+ * The third workflow (docs/10 §5.3, U6b), rewritten as the factory's script (TF6, docs/29 §7.1).
  *
- * It is written after `technical` rather than before it, and that is deliberate: U6b was the session that
- * found out whether the contract is enough to build a second theme from, and this prompt is that finding
- * written for an agent. Every step below is a step that session actually took, in the order it took them,
- * including the two it got wrong — the contents list that has to come from `page.headings` rather than
- * from a second pass over the markdown, and the responsive table trick that costs the table its role.
+ * It was written after `technical` rather than before it — U6b was the session that found out whether
+ * the contract is enough to build a second theme from, and this prompt was that finding written for an
+ * agent. What TF1–TF5 added is everything between the brief and the look: a palette solved to its
+ * contrast targets rather than guessed (`theme` › seed), a camera that photographs a whole theme in one
+ * call (`bench` › shoot), sixteen faces with their licences (the shelf), and a lint that names the six
+ * looks every AI-built theme ships (`check theme`). So the prompt is no longer *"write a theme and look
+ * at it"*; it is ten steps that end with three rendered candidates on one contact sheet and a human
+ * choosing between them (decision 221).
  *
- * The one instruction with teeth is the last one: **look at it**. A theme is the only thing in this
- * product whose defects are invisible to every other gate — the build is green, the lint is clean, the
- * tokens validate, and the masthead still wraps into three lines on a phone with a slash stranded at the
- * start of one of them. `technical` shipped three fixes that came from nothing but a screenshot.
+ * Three things in here are load-bearing and none of them is code:
+ *
+ * - **Three candidates, not one.** A single theme is judged against the agent's own intention, which it
+ *   always meets. Three are judged against each other, which is the only comparison that finds the rut.
+ * - **The judge never gates** (decision 224, §7.2). It reads the shots against `rubric.md` — inlined
+ *   below so a harness with no design skills still gets it — and proposes at most five changes, twice.
+ * - **Step 9 stops.** The pick is the owner's, on a picture, and their reasons are written back into the
+ *   site's taste log (§7.3) so the next run starts where this one ended.
+ *
+ * The taste rules are inline rather than behind a skill on purpose: `impeccable` and `frontend-design`
+ * are a boost, not a requirement, and most harnesses have neither.
  */
-function buildTheme(args: Record<string, unknown>, n: Counts): GetPromptResult {
+async function buildTheme(args: Record<string, unknown>, n: Counts): Promise<GetPromptResult> {
+  const rubric = await judgeRubric();
   const look = arg(args, "look"), name = arg(args, "name"), parent = arg(args, "extends") ?? "base";
+  const stem = name ?? "<name>";
   return {
-    description: `Build a theme${name ? ` called ${name}` : ""} for this site`,
-    messages: user(`Build a theme for this snypd site${look ? `. How it should read: ${JSON.stringify(look)}` : ""}. Work through it yourself; stop to ask me only what you cannot know.
+    description: `Build a theme${name ? ` called ${name}` : ""} for this site — three candidates, one contact sheet, your pick`,
+    messages: user(`Build a theme for this snypd site${look ? `. How it should read: ${JSON.stringify(look)}` : ""}. You will build **three candidates** and photograph them; I pick one. Work through it yourself and stop to ask me only what you cannot know — and stop at step 9, which is mine.
 
-**1. Read what a theme already is, before writing one.** \`snypd://theme\` — what is installed and what the active one reads like. \`snypd://theme/coverage\` — the ${n.primitives} primitives and ${n.parts} parts, and which of them the active theme renders itself rather than inheriting. \`snypd://theme/tokens\` — the palette, with a \`kind\` and a description on every entry. \`snypd://theme/variations\` and \`snypd://theme/settings\` if the parent has them.
+---
 
-Two things in there decide most of the work. **A theme is \`theme.yaml\` plus one stylesheet**: every layout and every primitive resolves up \`extends:\`, so you inherit semantic markup with one \`snypd-<name>\` class per block and you style it — you do not rewrite it. And **every value in the stylesheet is a \`var()\`**: a colour typed into \`theme.css\` is a colour no site can ever change, which is the one mistake that cannot be fixed later without breaking somebody's site.
+**1. Read, before writing anything.**
 
-**2. Scaffold it.** \`find_tools\` with "make a new theme" to unlock the \`theme\` tool, then \`theme\` › scaffold with ${name ? `\`name: ${JSON.stringify(name)}\`` : "the name"} and \`extends: ${JSON.stringify(parent)}\`.${name ? "" : " Ask me for the name first if I have not given you one — it is the directory name and renaming it later is a move, not an edit."} It writes \`themes/<name>/\` with a \`theme.yaml\`, a starter \`theme.css\` and a \`package.json\`, and it does **not** switch the site over — do that when there is something to see.
+- \`snypd://theme\` — what is installed and what the active one reads like. \`snypd://theme/coverage\` — the ${n.primitives} primitives and ${n.parts} parts, and which of them the active theme renders itself rather than inheriting. \`snypd://theme/tokens\` — the palette, with a \`kind\` and a description on every entry. \`snypd://theme/variations\` and \`snypd://theme/settings\` if the parent has them.
+- **The taste log.** \`DESIGN.md\` at the site root, \`## Taste\`: what this site's owner has already refused or picked *on sight*, in their words, dated. Read it before you have any ideas. A candidate that repeats something in that log is a round wasted, and the log is the only place that knowledge exists — it is not in the CSS.
+- **Your own design skills, if your harness has any.** If \`impeccable\` or \`frontend-design\` is installed, load it now. It is a boost, not a requirement; everything this script needs is written below.
 
-**3. Declare the tokens before writing any CSS.** Redeclare in \`tokens:\` every value the look depends on — colour, type, the measure, the space scale — each with \`customisable: true\`, a \`kind\`, and a one-line \`description\` written for whoever will change it. Colour in \`light-dark()\` pairs, so dark mode costs nothing and is not a second palette to keep in sync; where a value is genuinely derived from another, derive it — \`oklch(from var(--color-bg) calc(l + 0.045) c h)\` is "the background, lifted" and stays true as the background moves, where a second hex is a number somebody has to remember to change.
+Two things from those reads decide most of the work. **A theme is \`theme.yaml\` plus one stylesheet**: every layout and every primitive resolves up \`extends:\`, so you inherit semantic markup with one \`snypd-<name>\` class per block and you style it — you do not rewrite it. And **every value in the stylesheet is a \`var()\`**: a colour typed into \`theme.css\` is a colour no site can ever change, which is the one mistake that cannot be fixed later without breaking somebody's site.
 
-**4. Write the stylesheet.** One file. Values are \`var(--token-name)\` — a token \`color.bg\` is \`--color-bg\`. Style the block classes the parent emits, not markup you wish it emitted. Zero JavaScript: if a thing you want needs a script, it is not a theme feature — and most of what a script used to do, the markup already does: the header menu is a \`popover\` behind \`.snypd-menu-button\` on a phone, every \`figure\` opens in a \`<dialog>\` (\`.snypd-lightbox\`, its \`::backdrop\` is yours to paint), an \`faq\` is one \`<details>\` per question (\`.snypd-faq-item\`, animate \`::details-content\`), a footnote's text sits beside its mark in \`.snypd-fn-card\` (a hover card by default; a sidenote in the margin if your column leaves one), and a title carries the same \`view-transition-name\` on the list and on the post, so \`@view-transition { navigation: auto }\` morphs one into the other. \`base\`'s own sheet makes all of that *work*; yours says what it looks like. The rule for anything newer than Baseline: two engines → under \`@supports\` and never for something the reader needs; one engine → only where the fallback is nothing happening. \`snypd check theme\` names every use outside a guard.
+---
 
-**5. Override a part only when the markup, not the styling, is wrong.** \`parts: { header: ./parts/header.tsx }\` in \`theme.yaml\` replaces one file and keeps the other four. **Never fork a layout.** A layout is the markup contract; a copy of it drifts from the original the first time the original changes, and \`snypd://theme/coverage\` is where somebody will see that you did.
+**2. The brief.** Write \`themes/${stem}/DESIGN.md\` — the file \`theme\` › scaffold puts there, with its sections already asked as questions. Fill it from what I have told you${look ? " (the look above)" : ""} and from the taste log. **Ask me at most three questions, and only if the use scene, the visitor mode or the references are missing** — those three cannot be inferred and everything else can.
 
-**6. Let the site choose the things that are not colour.** \`settings:\` declares what a site may set without writing CSS — a logo, a date format, a link list — and a part reads it with \`settingText\` / \`settingFlag\` / \`settingLinks\`. \`variations:\` ships named complete looks over your own tokens, which is the cheapest breadth there is: two variations is two screenshots and about thirty lines.
+The sections that do work later: **Use scene** (who reads this, where, in what light — this is what picks light or dark; the category never does), **Visitor mode** (Read · Persuade · Operate · Experience), **The rut** (the page this category always ships, named explicitly so you can avoid it), **Boldness goes here** (exactly one place), **Safe / Risk** (at least two of each, every risk with its cost).
 
-**7. Look at it. This is the step that finds the bugs.** Switch the site over with \`theme\` › set, then \`content.render_preview\` on a post that uses several primitives **and** on one that is only prose, and open both at a phone width and a desktop one, in light and in dark. Check specifically: does anything scroll sideways; does the masthead still read when it wraps; is any text at all below 4.5:1 against what is behind it; does a heading in a wide face still fit. Then, if you have a shell: **\`snypd check theme <name>\`** answers most of that list by rule and prints the number for every colour pair on every look you shipped — including the ones you did not open — and \`snypd bench page\` is the other half, where zero JavaScript, zero axe violations and no layout shift are gates rather than aspirations. Neither replaces looking: the three defects that made \`technical\` worth shipping were all invisible to both.
+---
 
-**8. Report** in one short paragraph: what it reads like, which parts you overrode and why, what a site can now change without CSS, and anything you wanted and did not build. Say which of those you looked at yourself, and paste the one line \`snypd check theme\` ends on — a theme is not finished while any rule is still red, and the \`personality:\` sentence is one of them.`),
+**3. Three direction cards.** Before any CSS, write three of them, and show me the three lines. Each card has: a world, a face, a palette strategy, a layout approach, where the boldness goes, and its SAFE and RISK.
+
+- **The anti-sibling test.** Swap the headlines between two cards. If you cannot tell which is which, they are one direction in three coats of paint — throw one away and go further. Three near-identical candidates waste the sitting they exist for.
+- **Keep off the five clusters.** These are what a model builds when it is not thinking: cream + terracotta; near-black + acid accent; hairline broadsheet; the SaaS-card kit (three feature cards with icons, a gradient blob); tracked-caps eyebrow + middot meta + "→" links. If a card lands on one, that is the rut from step 2's brief and you have found it by accident.
+- **Spend the boldness once.** One bold face, or one bold colour, or one bold move of the layout — not two. A card with boldness in two places has none.
+
+---
+
+**4. Scaffold and seed each.** \`find_tools\` with "make a new theme" unlocks the \`theme\` tool.
+
+- \`theme\` › scaffold three times: \`name: ${stem}-a\`, \`${stem}-b\`, \`${stem}-c\`, each \`extends: ${JSON.stringify(parent)}\`. It writes \`theme.yaml\`, \`DESIGN.md\`, a starter \`theme.css\` and a \`package.json\`, and it does **not** switch the site over.
+- \`theme\` › seed once per candidate: \`seed\` is the accent as a colour (\`oklch(0.55 0.13 252)\` or \`#1f5fbf\`), plus \`strategy\` (\`restrained\` · \`balanced\` · \`expressive\` — how far colour reaches past the accent), \`scheme\` (\`both\` by default, written as \`light-dark()\` pairs), and optionally \`ratio\` (type scale at phone:desktop, \`1.2:1.25\`) and \`base\` (body px, \`17:19\`). It solves the palette **to the contrast targets rather than guessing at them**, so every pair passes the gate by construction, and it writes the inputs under \`## Seed\` in that theme's DESIGN.md — a re-seed is one copied line.
+- **A face, if a card wants one:** \`face: <shelf id>\` on the same call copies one web font and its licence into the theme and writes the \`@font-face\` block with the metric-matched fallback, so the swap costs no layout shift. Sixteen are on the shelf — serif, slab, sans, display, mono — and an id it does not have is answered with the list. One face per theme is the contract's budget (40 KB); it pairs with a system stack, and that is usually where the boldness goes. Inter, Roboto, Geist, Fraunces, Space Grotesk and Plus Jakarta are off the shelf by decision — a brief that genuinely wants one takes \`--face-file\`, and the lint notes the choice.
+- Then redeclare in \`tokens:\` anything the look depends on that the seed did not set, each with \`customisable: true\`, a \`kind\`, and a one-line \`description\` written for whoever will change it. Where a value is genuinely derived, derive it: \`oklch(from var(--color-bg) calc(l + 0.045) c h)\` is "the background, lifted" and stays true as the background moves, where a second hex is a number somebody has to remember to change.
+
+---
+
+**5. Style each.** One stylesheet per candidate.
+
+- Values are \`var(--token-name)\` — a token \`color.bg\` is \`--color-bg\`. Style the block classes the parent emits, not markup you wish it emitted.
+- **Spend the boldness in the one place the card named**, and let everything else take the chain's defaults. The difference between the three candidates should be visible in a thumbnail.
+- **Zero JavaScript.** If a thing you want needs a script, it is not a theme feature — and most of what a script used to do, the markup already does: the header menu is a \`popover\` behind \`.snypd-menu-button\` on a phone, every \`figure\` opens in a \`<dialog>\` (\`.snypd-lightbox\`, its \`::backdrop\` is yours to paint), an \`faq\` is one \`<details>\` per question (\`.snypd-faq-item\`, animate \`::details-content\`), a footnote's text sits beside its mark in \`.snypd-fn-card\` (a hover card by default; a sidenote in the margin if your column leaves one), and a title carries the same \`view-transition-name\` on the list and on the post, so \`@view-transition { navigation: auto }\` morphs one into the other. \`${parent}\`'s own sheet makes all of that *work*; yours says what it looks like.
+- Anything newer than Baseline: two engines → under \`@supports\`, and never for something the reader needs; one engine → only where the fallback is nothing happening.
+- **Override a part only when the markup, not the styling, is wrong**: \`parts: { header: ./parts/header.tsx }\` replaces one file and keeps the other four. **Never fork a layout** — a layout is the markup contract, and a copy of it drifts from the original the first time the original changes.
+- \`settings:\` declares what a site may set without writing CSS (a logo, a date format, a link list; a part reads it with \`settingText\` / \`settingFlag\` / \`settingLinks\`). \`variations:\` ships named complete looks over your own tokens — the cheapest breadth there is.
+
+---
+
+**6. Shoot all three.** \`bench\` › shoot with \`themes: ["${stem}-a", "${stem}-b", "${stem}-c"]\` (or \`snypd shoot --theme=${stem}-a,${stem}-b,${stem}-c\` in a shell). It photographs every candidate on nine routes × four widths × light and dark, and writes one sheet per route and scheme plus \`shots/contact.html\`. It needs Chrome on this machine.
+
+**Then read the PNGs.** Not the HTML, not the token values — the pictures, the candidates side by side. This is the step that finds what every gate misses: the build is green, the lint is clean, the tokens validate, and the masthead still wraps into three lines on a phone with a slash stranded at the start of one of them. \`technical\` shipped three fixes that came from nothing but a screenshot.
+
+---
+
+**7. The gates.** Per candidate:
+
+- \`snypd check theme <name>\` — **a fail blocks.** It prints the number for every colour pair on every look you shipped, including the ones you did not open.
+- \`snypd bench page\` — **a fail blocks.** Zero JavaScript, zero axe violations, no layout shift, the font budget.
+- **Taste lint warns.** \`check theme\` and the shoot together run twelve rules over the CSS and the rendered page: \`gradient-text\`, \`side-stripe\`, \`overused-font\`, \`untinted-neutral\`, \`transition-all\`, \`radius-soup\`, \`eyebrow\`, \`tiny-text\`, \`measure\`, \`flat-hierarchy\`, \`monotonous-spacing\`. Each one either gets **fixed**, or goes in that theme's \`## Chosen\` with the reason the brief overrides it (\`taste.eyebrow: the magazine wants kickers\`). A named rule still reports, as \`warn (chosen)\` — the warning is the record of the choice, and "the brief wins" is a sentence somebody wrote down, not a rule switched off.
+
+Do **one** fix round, re-shoot, and at most one more. Then stop fixing.
+
+---
+
+**8. One critique round — advisory, and it never gates.** Read the contact PNGs again, this time against the rubric below, as somebody who did not write them.
+
+${rubric}
+
+---
+
+**9. Hand it to me, and stop.** Send me \`shots/contact.html\` (and the per-route sheets worth opening), with **one line per candidate**: what it is, where its boldness went, and the one thing you are unsure about. Then say what the gates said, in one line each.
+
+**Wait.** Do not pick. Do not polish a favourite while you wait. The whole point of three candidates is that the choice is mine, on a picture — that is decision 221 and it exists because two looks before it were approved in prose and refused on sight.
+
+---
+
+**10. Polish the pick, then report.** Once I have picked and said why:
+
+- Delete the two losers' directories, and rename the pick to \`${stem}\` (directory, \`theme.yaml\` \`name:\`, \`package.json\`).
+- Apply what I asked for, and nothing I did not. If I liked one thing about a loser, bring **that** thing — demoted so the pick still has one bold place, not two.
+- Write my reasons, in my words and dated, into two files: that theme's \`DESIGN.md\` \`## Decisions\`, and the site's root \`DESIGN.md\` \`## Taste\`. The second one is what the next run reads in step 1, so write what was *refused* as well as what was picked.
+- Re-shoot, re-run both gates, and \`theme\` › set it live.
+- Report in one short paragraph: what it reads like, which parts you overrode and why, what a site can now change without CSS, what you wanted and did not build — and paste the one line \`snypd check theme\` ends on, with the shot paths.`),
   };
 }
 
@@ -207,6 +282,15 @@ Two things in there decide most of the work. **A theme is \`theme.yaml\` plus on
  * The vocabulary's size, read from the spec and the renderer rather than typed into the text (docs/29 TF1):
  * "Thirteen" outlived the fourteenth primitive by a release. Imported on `prompts/get`, never on `initialize`.
  */
+/**
+ * The judge's rubric (TF6, docs/29 §7.2) — a document rather than a string literal, because it is edited
+ * by eye and read by a human as often as by a model. Inlined into `build-theme`'s step 8 at `prompts/get`
+ * and never on `initialize`, the same rule the counts follow.
+ */
+let rubricText: Promise<string> | undefined;
+// Demoted a level on the way in: the file is a document with an h1, and the prompt it lands in is a
+// numbered script whose steps are bold lines, not headings.
+const judgeRubric = (): Promise<string> => (rubricText ??= import("./rubric.md", { with: { type: "text" } }).then((m) => m.default.replace(/^#/gm, "###").trim()));
 interface Counts { primitives: number; parts: number }
 let counted: Promise<Counts> | undefined;
 export const counts = (): Promise<Counts> => (counted ??= Promise.all([import("@snypd/spec"), import("@snypd/render")])
@@ -235,7 +319,7 @@ export function handlers(root: string): Pick<Handlers, "listPrompts" | "getPromp
     async getPrompt(name, args) {
       if (name === "get-started") return getStarted(args, await counts());
       if (name === "write-post") return writePost(args);
-      if (name === "build-theme") return buildTheme(args, await counts());
+      if (name === "build-theme") return await buildTheme(args, await counts());
       if (name === "site-basics") return siteBasics();
       const added = await pluginPrompts();
       const p = added.find((x) => x.name === name);

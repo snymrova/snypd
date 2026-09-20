@@ -1097,6 +1097,26 @@ describe("find_tools + the catalogue", () => {
     const { primitiveNames } = await import("@snypd/spec");
     const { PART_NAMES } = await import("@snypd/render");
     expect(bt).toContain(`the ${primitiveNames().length} primitives and ${PART_NAMES.length} parts`);
+    // TF6 (docs/29 §7): the workflow is the factory's, not "write one theme and look at it". Three
+    // candidates that a human picks between, each seeded and photographed; the two steps that are not
+    // the agent's — the pick (9) and the gates (7) — say so in the text, because an agent that polishes
+    // a favourite while it waits has already made the choice.
+    expect(bt).toContain("theme` › seed");
+    expect(bt).toContain("bench` › shoot");
+    expect(bt).toContain("anti-sibling test");
+    for (const cand of ["-a", "-b", "-c"]) expect(bt).toContain(`<name>${cand}`);
+    expect(bt).toContain("**Wait.** Do not pick.");
+    expect(bt).toContain("**a fail blocks.**");
+    // §7.3: step 1 reads the site's taste log and step 10 writes to it. A run that skips it repeats
+    // something the owner has already refused, and the refusal exists nowhere in the CSS.
+    expect(bt).toContain("`DESIGN.md` at the site root, `## Taste`");
+    expect(bt).toContain("the site's root `DESIGN.md` `## Taste`");
+    // §7.2: the rubric travels inside the prompt — a harness with no design skills still gets it — and
+    // it never gates. Demoted a heading level on the way in, so the script's steps stay the top level.
+    expect(bt).toContain("advisory, and it never gates");
+    expect(bt).toContain("### The six axes");
+    expect(bt).not.toContain("\n# The judge's rubric");
+    for (const axis of ["Hierarchy", "Rhythm", "The one bold place", "The rut", "Dark as designed", "Phone as designed"]) expect(bt).toContain(`**${axis}**`);
     const listed = JSON.stringify(prompts.result.prompts);
     expect(listed).toContain(`all ${primitiveNames().length} primitives`);
     const src = readFileSync(resolve(import.meta.dir, "resources.ts"), "utf8");
