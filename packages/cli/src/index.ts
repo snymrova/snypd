@@ -137,9 +137,9 @@ switch (verb) {
       break;
     }
     if (args[0] === "onboard") {   // S18g: first run, walked against the compiled binary (docs/08 F1)
-      const { report, walk } = await bench.onboard({ keep: flags.has("--keep") });
+      const { report, walk, relay } = await bench.onboard({ keep: flags.has("--keep") });
       console.log(bench.toMarkdown(report));
-      console.log(`\n${bench.formatWalk(walk)}`);
+      console.log(`\n${bench.formatWalk(walk, relay)}`);
       const over = bench.breaches(report);
       if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
       break;

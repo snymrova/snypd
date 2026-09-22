@@ -73,7 +73,7 @@ First run is done when all seven are true, on Linux + macOS, from the compiled b
 
 | # | Gate | Evidence |
 |---|---|---|
-| **F1** | **Handoff cost.** The flow in §2 completes in **five human actions or fewer**, none of them typing a command, none of them opening an editor. | `onboard.handoff`, counted as actions rather than seconds (decision 65) — ❌ **measured at 6 in S18g**, the sixth being the origin at publish · ✅ **5 in S19c**: `07` decision 80 made an agent able to publish, so `approve-post` left the walk. Nothing in the instrument was told about it — `onboard.ts` breaks out of its publish loop on the first call that does not refuse, and the count fell out of running it. See §5b |
+| **F1** | **Handoff cost.** The flow in §2 completes in **five human actions or fewer** — one of them typing a command, since decision 178, and none of them opening an editor. | `onboard.handoff`, counted as actions rather than seconds (decision 65) — ❌ **6 in S18g**, the sixth the origin at publish · ✅ **5 in S19c** (decision 80: the agent publishes) · ✅ **3 in L4**, because L4 is the first session that measured the door §2 actually shows: type the line, say the sentence, click *allow*. The five is not gone — it is `onboard.handoff.relay`, the sentence pasted into an open harness. See §5b, and §5d for why there were two numbers |
 | **F2** | **Time to first post.** From the paste to a lint-clean draft with a review URL. | `onboard.ttfp`, driven by the S17 MCP client, model named beside the number — ✅ **S18g**, seconds rather than the tens the budget allows, with the reference driver named beside it |
 | **F3** | **No dead ends.** Every state in §6 names its own next action, *on the surface its actor is looking at* — stdout for an agent, the page for a person. A state that can be reached and cannot be left is a release blocker. | state-transition test, one case per row of §6 — ✅ **S18g**, `smoke/onboard.test.ts`; state 6 is a `todo` naming S19a rather than a silent gap |
 | **F4** | **Survives the restart.** Onboarding state is derived from disk on every request and on every session start; killing and restarting any process loses nothing that is not re-derivable. | `rm -rf .snypd/` mid-flow changes no answer except the heartbeat — ✅ **S18g**, 12 of doctor's structured facts diffed, 0 lost |
@@ -92,7 +92,8 @@ noise would buy a flake and no signal. A loose gate is still a gate: it catches 
 into forty, which is the failure that loses somebody, and it does not fire on a runner that happened to be busy.
 
 **F1 came in at 6, and is left red.** The sixth action is real, the budget is not being moved to meet it, and §5b is
-the whole argument.
+the whole argument. *(Five in S19c; three in L4, on the front door — §5d. The budget stays five in all three cases,
+because the one thing this row may never do is move to meet what was measured.)*
 
 **F8 is an addition, made on 13 Sep and marked as one.** The original seven all measure the flow in §2 from step 4
 onward. Step 4 itself — `bunx @snypd/cli init`, the line that has to finish before any of the rest begins — had no
@@ -172,6 +173,12 @@ That one was §12.11's open question and is now answered. The product half alrea
 so an agent runs them with one approval instead of handing a person homework. It is reported as `onboard.handoff.fresh`
 and deliberately carries no budget — it is a property of the machine, not of the flow.
 
+> **And the third one left in L2, by moving rather than by being argued away.** The origin is not asked at publish any
+> more: a publish is a commit, nothing is served by it, and the host supplies the URL at the first deploy (docs/31 §4).
+> Option 3 above is what happened, without the work in `render` — because the absolutes are resolved before anything
+> is *served* rather than before anything is committed. What replaced it in the count is the host's *allow* click,
+> which is irreducible where the URL answer was not. §5d is the walk as it stands.
+
 ---
 
 ## 5c. What step 4 costs, measured (I0, 13 Sep 2026)
@@ -222,6 +229,49 @@ which costs 0.1 ms on one filesystem and 1.0 s across two — would take session
 *and* remove the case where a collected cache puts a 37 MB download in front of `initialize` with no error
 anywhere. It would also break the clone, which is the failure §10 calls undiagnosable. That trade is not one
 to take quietly in a session that was asked to measure; it is docs/11 §10 question 6.
+
+---
+
+## 5d. Two doors, and only one of them was ever counted (L4, 22 Sep 2026)
+
+F1 says *the flow in §2*. For six sessions the number under it was measured against a flow §2 had stopped
+describing, and nobody noticed, because both were true.
+
+Decision 178 moved the front door on 16 Sep: a person types `bunx @snypd/cli init my-site && cd my-site &&
+claude` and says a sentence. L1 made `init` create the directory, L2 put the URL in the host's hands and L3
+rewrote §2 to the three-row table above. The instrument was not rewritten with it — `onboard.ts` had walked
+the *old* door since S18g: the sentence pasted into a harness that is already open, the agent running `init`,
+and therefore a shell approval and a restart. Every session since kept that walk honest, and kept it
+pointed at a flow the README had stopped showing.
+
+So neither number was wrong. **They were about different walks**, and the document quoted one under a gate
+that named the other. L4 walks both:
+
+| | Front door — §2, the README, snypd.rocks | Second door — the Desk's sentence (§9) |
+|---|---|---|
+| | `onboard.handoff` · **3** · budget 5 | `onboard.handoff.relay` · **5** · no budget |
+| 1 | **type** the one line | **paste** the sentence into an open harness |
+| 2 | **say** the sentence `init` printed | **answer** what the site is called |
+| 3 | **click** *allow* on the host's page | **approve** the shell command the agent wants to run |
+| 4 | | **restart** the harness so the tools load |
+| 5 | | **click** *allow* on the host's page |
+
+**The two the front door does not pay, and why neither was optimised away.** The name question went when
+`init` stopped asking (decision 63: the name falls back to the directory). The restart went when the person
+became the one who runs `init` — the harness then opens *after* `.mcp.json` exists rather than before. That
+is the same observation in both walks and the instrument makes it in both: the file is on disk when the
+harness starts, or it is not. Decision 65 exists so that an irreducible action cannot be quietly deleted to
+make a funnel look better; what happened here is that one *moved*, by a decision with an argument attached,
+and the walk that still pays it is still measured.
+
+**Three is what the line costs; five is still the budget.** The budget is not being moved down to fit the
+measurement — a gate that follows its own number is not a gate. Headroom of two is where the next honest
+action goes if one is ever owed: a second host, a domain, a consent this document has not thought of.
+
+**What is left, and named rather than claimed.** `allow-host` is counted when the deploy says `wrangler
+login` ran, against a stub `wrangler` — the stub proves the product's actions, not Cloudflare's page. One
+real account has never walked this, and that is L7 (docs/31 §5), on the released launcher. Until then the
+third action is measured in shape and assumed in kind, which is exactly what the stub can and cannot buy.
 
 ---
 
@@ -471,7 +521,9 @@ whether it does is a question for S18g's measured walk rather than for this para
 On a machine with no identity the walk pays one more action than on one with, reported as `onboard.handoff.fresh` and
 carrying no budget, because it is a property of the machine rather than of the flow. It is a *seventh* rather than a
 sixth, since §5b found an unrelated sixth in the origin at publish. The lane asserts that `init` **says** so — an
-unsaid one would be a dead end, and F3 calls those release blockers.
+unsaid one would be a dead end, and F3 calls those release blockers. *(L4: it is a **fourth** now — the count it is
+added to is the front door's three, and the row is still `onboard.handoff.fresh` with no budget. What it is one more
+than moved; that it is one more has not.)*
 
 9. ~~**The Desk's heartbeat is blind whenever the preview is its own process — which is always.**~~ **Fixed,
 S18f** (`07` decision 70). The walk drove a full MCP session and the Desk still read *"nothing has called this
@@ -492,6 +544,31 @@ publish"* — failed the same way during S18d, and that is what settled the shap
 for the whole file rather than an argument on whichever test happened to trip. The cause is what these tests
 *are*, and the timeout is a hang detector here rather than an assertion about speed — speed is `snypd bench`'s
 job, where it is measured against a budget instead of a stopwatch that only fires when the box is busy.
+
+13. **A binary spawned through the npm launcher survives the launcher's death.** — *Found by the first run of
+the clean-machine check (L4, 22 Sep 2026), which is the first time the onboarding walk was driven through the
+released artefact rather than a binary compiled beside it. Open; the fix is a decision, not a patch.* The
+launcher `spawnSync`s the binary with `stdio: "inherit"` — deliberately, and its header argues the case:
+`snypd serve` speaks MCP on stdin/stdout, so the wrapper may not buffer, decode or interleave a byte of it,
+and inherited fds are the child's own. The cost, invisible until something killed it: node is blocked inside
+`spawnSync` and cannot run a signal handler, so a SIGTERM aimed at `snypd` kills the wrapper and **reparents
+the binary**, which carries on holding the pipes the wrapper was given. The check saw `snypd dev` still
+running, still holding the stdout pipe, in a working directory that had been deleted — and its own process
+could not exit, because that pipe never reached EOF.
+
+    **`snypd serve` escapes it by accident and that is the important half.** Its stdin *is* the inherited
+    pipe, so the wrapper's death closes it and the MCP server reads EOF and stops; a harness that spawns
+    `bunx @snypd/cli serve` and kills it at shutdown therefore leaves nothing behind today. `dev` has no
+    stdin to lose. So the defect is real and currently costs one process per killed `dev` through the
+    launcher, which no documented flow does — `dev` is typed by a person, in their own terminal, where
+    Ctrl-C reaches the process group and everything exits correctly.
+
+    **Why it is not fixed here.** `spawnSync` → `spawn` plus signal forwarding is the fix, and it re-opens
+    the one thing the launcher was careful about: the protocol must not pass through this process. It also
+    adds a Node event loop to the harness's spawn path, which §5c measures at +94 ms already. That is a
+    decision about the distribution shape, taken with the numbers in front of it, not a change to make in
+    the session that found it. `docker/box clean` reports the survivors by name and kills them, so the
+    check is usable and the defect is not hidden.
 
 ---
 
