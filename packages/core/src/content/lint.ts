@@ -75,9 +75,20 @@ function slopRegex(extra: string[] = []): RegExp {
   return re;
 }
 
-const walk = (n: Node, fn: (n: Node, parent?: Parent) => void, parent?: Parent) => {
-  fn(n, parent);
-  if ("children" in n) for (const c of (n as Parent).children) walk(c, fn, n as Parent);
+/**
+ * The mdast walk, carrying the nearest line a node can honestly be blamed on: its own `position`
+ * whenever it has one, and otherwise the closest ancestor that had one.
+ *
+ * A node without a position is not a malformed document — remark's own transforms drop them. An
+ * unclosed `[` followed by a bare URL in the same paragraph (`Text [agent(https://example.com/x)`)
+ * sends `mdast-util-gfm-autolink-literal` back through the text node, and every node it splits out
+ * comes back with none. That paragraph still knows where it starts, and a diagnostic is a place
+ * (property 4d) — so `0`, a line no file has, is not an available answer.
+ */
+const walk = (n: Node, fn: (n: Node, parent: Parent | undefined, at: number) => void, parent?: Parent, at = 1) => {
+  const line = n.position?.start.line ?? at;
+  fn(n, parent, line);
+  if ("children" in n) for (const c of (n as Parent).children) walk(c, fn, n as Parent, line);
 };
 const hasImage = (n: Node): boolean => n.type === "image" || ("children" in n && (n as Parent).children.some(hasImage));
 
@@ -245,21 +256,21 @@ export function lint(doc: ParsedDoc, tree: PrimitiveTree, source: string, opts: 
   const urls: { url: string; line: number; what: "Link" | "Image" }[] = [];
   /** Rule 13's own list: the raw HTML this document wrote, which every other rule here skips. */
   const raw: { html: string; line: number }[] = [];
-  walk(doc.tree, (n, parent) => {
-    if (n.type === "html") { raw.push({ html: (n as Literal).value, line: n.position?.start.line ?? 0 }); return; }
+  walk(doc.tree, (n, parent, at) => {
+    if (n.type === "html") { raw.push({ html: (n as Literal).value, line: at }); return; }
     if (n.type === "yaml" || n.type === "code" || n.type === "inlineCode") return;
     if (n.type === "heading") {
-      const h = n as Heading, line = h.position?.start.line ?? 0;
+      const h = n as Heading, line = at;
       if (h.depth === 1) out.push(D("heading-skip", 6, "warning", "`#` heading in the body", "The title is the page's h1 — start body headings at `##`", line));
       else if (h.depth > lastLevel + 1) out.push(D("heading-skip", 6, "warning", `Heading level jumps from h${lastLevel} to h${h.depth}`, `Use h${lastLevel + 1}, or promote this heading`, line));
       lastLevel = h.depth;
     }
-    if (n.type === "link") { links.push({ url: (n as Link).url, line: n.position?.start.line ?? 0 }); urls.push({ url: (n as Link).url, line: n.position?.start.line ?? 0, what: "Link" }); }
-    if (n.type === "image") urls.push({ url: (n as Image).url, line: n.position?.start.line ?? 0, what: "Image" });
-    if (n.type === "image" && !((n as Image).alt ?? "").trim()) out.push(D("image-alt", 4, "error", "Image has no alt text", "Write `![what the image shows](src)`", n.position?.start.line ?? 0));
+    if (n.type === "link") { links.push({ url: (n as Link).url, line: at }); urls.push({ url: (n as Link).url, line: at, what: "Link" }); }
+    if (n.type === "image") urls.push({ url: (n as Image).url, line: at, what: "Image" });
+    if (n.type === "image" && !((n as Image).alt ?? "").trim()) out.push(D("image-alt", 4, "error", "Image has no alt text", "Write `![what the image shows](src)`", at));
     if (n.type === "text" && parent?.type !== "yaml") {
       const t = (n as Text).value;
-      words += t.split(/\s+/).filter(Boolean).length; prose.push({ text: t, line: n.position?.start.line ?? 0 });
+      words += t.split(/\s+/).filter(Boolean).length; prose.push({ text: t, line: at });
     }
   });
   // subtract the words inside yaml-bodied containers (chart/diagram/flow data is not prose)

@@ -26,12 +26,12 @@ A CMS your agent can actually use — markdown in your repo, static HTML out, ze
 ## Start here
 
 ```sh
-mkdir field-notes && cd field-notes
-bunx @snypd/cli init      # scaffolds the site, git-inits it, commits, writes .mcp.json
-claude                    # or Cursor, or Codex — anything that reads .mcp.json
+bunx @snypd/cli init my-site && cd my-site && claude
 ```
 
-Then say **“Write me a first post.”** That is the whole front door. `init` needs no flags — the name is the directory's until you change it, the URL is a placeholder until the first publish asks for it. The harness reads `.mcp.json` as it opens, the agent picks up from `initialize`, reads the site and its vocabulary, and writes the post ([docs/08](docs/08-first-run.md)). Already inside a harness? Ask it to run `bunx @snypd/cli init` for you, then restart it. `npm i -g @snypd/cli` puts `snypd` on your `PATH` on macOS (Apple silicon and Intel), Linux (x64 and arm64) and Windows (x64) — one ~85 MB binary, [published from CI with provenance](packaging/).
+Then say **“Write me a first post and put it online.”**
+
+That is the front door, and it ends on a live URL. **Three human actions** — type the line, say the sentence, click *allow* once in the tab your host opens — measured at [3 against a budget of 5](bench/onboard.md) and not claimed. `init` makes the directory, scaffolds the site, commits it, writes `.mcp.json` and the host's half (Cloudflare by default; `--host=vercel|none` for the others), and the last line it prints is the next thing you type. The harness reads `.mcp.json` as it opens, the agent picks up from `initialize`, writes the post, and calls `site` › `deploy` — which builds, uploads, and reads the real origin back from the host, so the URL is never typed ([docs/08](docs/08-first-run.md)). Already inside a harness? Ask it to run the line for you, then restart it. `npm i -g @snypd/cli` puts `snypd` on your `PATH` on macOS (Apple silicon and Intel), Linux (x64 and arm64) and Windows (x64) — one ~85 MB binary, [published from CI with provenance](packaging/).
 
 ## What you get
 
@@ -198,7 +198,9 @@ Every row has a budget, CI passes at 80 % of it, and [snypd.rocks/bench](https:/
 
 ## Deploy
 
-`snypd init --deploy=cloudflare` (or `vercel`) writes the host's half — a build command that is `snypd build` and a `dist/` — and a GitHub workflow that installs one pinned version and runs it. The host watches the repo; snypd never talks to it. A custom domain is never behind a paywall, because there is no paywall in the binary.
+The contract is two lines long — run `snypd build`, serve `dist/` — and `init` writes the host's half of it by default, Cloudflare unless you say `--host=vercel|none`. Who runs those two lines is `deploy.mode`. In **direct** mode, the default, `site` › `deploy` runs the host's own CLI from your site root the way snypd already runs `git push`: it builds, uploads, reads the URL back from the output and sets `site.url`, then builds and uploads again now that the origin is real. It never reads the credential that CLI keeps in its own store, and there is no repository in the loop. In **git** mode the committed workflow takes over — one pinned `npx -y @snypd/cli@<version> build`, provenance attested, no shell script in the middle — and the host watches the branch instead.
+
+GitHub comes after, not before: *"back this up"* is one call that creates the repository, connects the remote and sends the published branch. A custom domain is never behind a paywall, because there is no paywall in the binary.
 
 ## Who it is for
 
@@ -210,7 +212,7 @@ Solo founders and small technical teams who already write in a harness and resen
 <summary><strong>Every verb</strong></summary>
 
 ```
-snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness
+snypd init [dir] [--name=…] [--url=…] [--host=cloudflare|vercel|none]  scaffold a site (making dir if needed) and register it with your harness
 snypd dev [root]                                                      the Desk and the site with drafts in it, for a person
 snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type
 snypd build [root] [--drafts]                                         content → dist/; --drafts is a noindex preview

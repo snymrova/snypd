@@ -39,6 +39,12 @@ export const DOCUMENTS: Array<[string]> = [
   // so property 4e ("script on the page ⇔ rule 13 in the file") reads all of them on every seed and
   // weighs them at 0. Not a defect found; the case the rule's comment names, pinned.
   ['---\ntitle: "twin"\ndate: "2026-03-02"\nstatus: "published"\ntags: []\n---\n\nA note[^1] and a picture.\n\n[^1]: The note.\n\n::figure{src="/media/one.png" alt="One"}\n\n:::faq\n### Why?\nBecause.\n:::\n'],
+  // Decision 234, 22 Sep 2026 (CI seed 35766304191, shrunk 9×): an unclosed `[` and a bare URL in the
+  // same paragraph send `mdast-util-gfm-autolink-literal` back through the text node, and every node it
+  // splits out comes back with no `position`. Lint's walk read `?? 0`, so every diagnostic in that
+  // paragraph named line 0 of a six-line file — slop here, and image-alt, the dead link and rules 12–13
+  // by the same route. The walk now carries the nearest positioned ancestor's line instead.
+  ['::cover{eyebrow="evidence" image="/media/one.png" alt="A block of colour"}\n\n:::callout{kind="warning" title="日本語 markdown"}\n[agent](/posts/nowhere) Spec spec agent agent agent null delve. [agent(https://snypd.rocks/bench)\n:::\n'],
 ];
 
 /** Property 6a — a session, as the messages an agent's harness sent. */

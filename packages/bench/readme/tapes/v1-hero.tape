@@ -1,8 +1,12 @@
-# V1, the hero (docs/15 §3.3, docs/08 decision 178): one command in a terminal, then Claude Code — a
+# V1, the hero (docs/15 §3.3, docs/08 decision 178): one line in a terminal, then Claude Code — a
 # site, a post, a build. A real session: every wait is for text the run prints, and the model's own
 # words are whatever they were that take.
 #   cd ~/Projects && rm -rf field-notes && env -i HOME=$HOME PATH=$PATH TERM=xterm-256color LANG=C.UTF-8 \
 #     DISABLE_AUTOUPDATER=1 vhs snypd/packages/bench/readme/tapes/v1-hero.tape
+# Since L6 the typed line is the README's: `init field-notes` makes the directory, so the `mkdir && cd`
+# that opened every earlier take is gone and the three commands are one. The committed clip is still a
+# September take of the older door — the re-record belongs with L7's walk on the released launcher, and
+# this tape is what it will be shot from.
 # `bunx @snypd/cli init` is typed as the README has it and routed, off camera, to the binary compiled
 # from this tree (`~/.local/bin/snypd`) by `tapes/shell.zsh`: the README pictures 0.1.5's tree,
 # and npm carries 0.1.3 until the release is pressed. That shim, and the `.claude/settings.json` it
@@ -24,11 +28,8 @@ Type "source snypd/packages/bench/readme/tapes/shell.zsh && clear" Enter
 Show
 
 Sleep 1200ms
-Type "mkdir field-notes && cd field-notes" Sleep 300ms Enter
-Sleep 900ms
-Type "bunx @snypd/cli init" Sleep 400ms Enter
+Type "bunx @snypd/cli init field-notes && cd field-notes && claude" Sleep 400ms Enter
 Sleep 7s
-Type "claude" Sleep 300ms Enter
 Wait+Screen@30s /Claude Code/
 Sleep 1500ms
 
