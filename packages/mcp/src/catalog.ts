@@ -570,23 +570,34 @@ export async function call(root: string, name: string, args: Record<string, unkn
            * that said `human` said it about this too.
            */
           let backup: Awaited<ReturnType<typeof c.createRemote>> | undefined;
-          if (!c.Repo.open(root)?.defaultRemote() && (cfgPush.config as { deploy?: { push?: string } }).deploy?.push !== "human") {
+          // Read the rest of the state *first*. A site with no published branch, or still on the
+          // placeholder URL, cannot push whatever is done about the remote — and creating a repository
+          // on somebody's account and then refusing the push is the worst of both. Only the missing
+          // remote is this step's to fix, so every other blocker is answered before `gh` is touched.
+          const before = c.pushState(root, cfgPush, { drafts });
+          const others = before.blockers.filter((b) => !/\bremotes?\b/.test(b.reason));
+          if (!before.remote && !others.length && !c.Repo.open(root)?.remotes().length && (cfgPush.config as { deploy?: { push?: string } }).deploy?.push !== "human") {
             backup = await c.createRemote(root, cfgPush, { name: typeof args.name === "string" ? args.name : undefined, public: args.public === true, description: cfgPush.config.site.description });
             // A refusal here is not a failure of `push` — it is the state `push` was already in, said
             // with the extra line `gh` made available. The blockers fall through to `pushState` below.
             if (backup.paths.length) await commit(backup.paths, "site: deploy.mode direct — a backup remote is not a deploy path");
             if (backup.ok) cfgPush = cfgOf();
           }
-          const st = c.pushState(root, cfgPush, { drafts });
+          // Four to five `git` spawns, so it is read again only when a remote appeared under it.
+          const st = backup?.ok ? c.pushState(root, cfgPush, { drafts }) : before;
           const dev = await c.liveDev(root);
           const desk = dev ? `${dev.url}${c.PUSH_ROUTE.replace(/\/push$/, "")}` : undefined;
           const where = desk
             ? `The button is on the Desk: ${desk}`
             : `The Desk is where that button lives, and no preview is running — start one with \`snypd dev\` (a person types that), then it is at http://localhost:4321/_snypd`;
           if (!st.ok) {
-            // When a backup was attempted and could not happen, *its* refusal is the one to show: it is
-            // the same missing remote, said by the half of the system that knows why it is still missing.
-            const b = backup && !backup.ok ? { reason: backup.reason!, hint: backup.hint } : st.blockers[0]!;
+            // Which refusal a person is owed, in the order that makes the next action the right one:
+            // the backup's own words when it was tried and could not happen; otherwise the blocker that
+            // is not about the remote, because *that* is what a backup would not have fixed and
+            // `pushState` lists the missing remote first; otherwise the missing remote itself.
+            const b = backup && !backup.ok ? { reason: backup.reason!, hint: backup.hint }
+              : !st.remote && others.length ? { reason: others[0]!.reason, hint: `${others[0]!.hint}\nThis is what a backup would not have fixed, so nothing was created — \`site\` › push creates the repository through \`gh\` once there is something it could send.` }
+              : st.blockers[0]!;
             return fail(`nothing to push yet — ${b.reason}`, b.hint);
           }
           if (st.policy === "agent") {

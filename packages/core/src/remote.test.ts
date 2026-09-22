@@ -130,6 +130,20 @@ describe("what stops a backup, before anything is created (F3)", () => {
     expect(calls()).toEqual([]);                                            // not even an auth check
   });
 
+  test("two remotes and no `origin`: not a reason to create a third", async () => {
+    const cfg = setup({ remote: true });
+    git(ROOT, "remote", "rename", "origin", "upstream");
+    git(ROOT, "remote", "add", "fork", "git@github.com:t/fork.git");
+    loggedIn();
+    const st = await remoteState(ROOT, cfg);
+    expect(st.ok).toBe(false);
+    // `defaultRemote` answers nothing here — `origin`, or the only one, or nothing — so a check written
+    // on it would have created a third repository for somebody who already had two.
+    expect(st.blockers[0]!.reason).toContain("2 remotes");
+    expect(st.blockers[0]!.hint).toContain("will not add a third");
+    expect(calls()).toEqual([]);
+  });
+
   test("a tree with no commits: gh would refuse it, and this refuses it first", async () => {
     rmSync(ROOT, { recursive: true, force: true });
     mkdirSync(ROOT, { recursive: true });

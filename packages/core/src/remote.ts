@@ -128,7 +128,12 @@ export interface RemoteState {
 export async function remoteState(root: string, cfg: LoadedConfig, opts: { name?: string; public?: boolean; env?: NodeJS.ProcessEnv; timeoutMs?: number } = {}): Promise<RemoteState> {
   const blockers: PushBlocker[] = [];
   const repo = Repo.open(root);
-  const remote = repo?.defaultRemote();
+  // **Every** remote, not the default one. `defaultRemote` is `origin`, or the only one, or nothing —
+  // so a repo with two remotes and no `origin` answers `undefined`, and a check written on that would
+  // have created a third repository for somebody who already had two. What matters here is whether
+  // this repo is connected to anything at all.
+  const all = repo?.remotes() ?? [];
+  const remote = repo?.defaultRemote() ?? all[0];
   const st: RemoteState = {
     remote, origin: remote ? originName(remote.url) : undefined,
     name: opts.name ?? repoNameFor(root, cfg),
@@ -138,8 +143,10 @@ export async function remoteState(root: string, cfg: LoadedConfig, opts: { name?
 
   if (!repo) { blockers.push({ reason: "not a git repo", hint: "`git init` here. A repository on GitHub is a copy of one on this machine, and there is none." }); return st; }
   if (!repo.hasCommits()) { blockers.push({ reason: "nothing has been committed yet", hint: "`gh` refuses to create a repository from a tree with no commits, and it is right to. `site` › init commits the scaffold, and every content write commits itself." }); return st; }
-  if (remote) {
-    blockers.push({ reason: `this site already has a remote — \`${remote.name}\` → ${st.origin ?? remote.url}`, hint: "`site` › push sends the base branch there. Nothing needs creating." });
+  if (all.length) {
+    blockers.push(all.length > 1 && !repo!.defaultRemote()
+      ? { reason: `this site has ${all.length} remotes and none of them is \`origin\` — ${all.map((r) => `\`${r.name}\``).join(", ")}`, hint: "Name one `origin` and `site` › push sends the base branch there. Snypd will not add a third and will not guess between the two." }
+      : { reason: `this site already has a remote — \`${remote!.name}\` → ${st.origin ?? remote!.url}`, hint: "`site` › push sends the base branch there. Nothing needs creating." });
     return st;
   }
 

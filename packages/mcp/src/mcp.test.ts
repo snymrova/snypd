@@ -1432,6 +1432,45 @@ describe("the first run, from the agent's side", () => {
   });
 
   /**
+   * The other half of L5's guard: a repository is created for a site that can only then be pushed.
+   * A fresh site is on the placeholder URL, which `pushState` refuses over — and answering that with a
+   * new repository on somebody's GitHub account, followed by the same refusal, is the worst of both.
+   */
+  test("site › push on a site that could not push anyway: nothing is created", async () => {
+    const fresh = "corpora/_test/mcp-backup-early";
+    const state = resolve("corpora/_test/mcp-backup-early-stub");
+    rmSync(fresh, { recursive: true, force: true });
+    rmSync(state, { recursive: true, force: true });
+    mkdirSync(state, { recursive: true });
+    writeFileSync(`${state}/loggedin`, "");
+    const env = { SNYPD_GH: resolve("packages/core/src/gh.stub.sh"), STUB_STATE: state };
+    Object.assign(process.env, env);
+    try {
+      mkdirSync(fresh, { recursive: true });
+      const { initRepo, git } = await import("@snypd/core");
+      initRepo(fresh, { name: "T", email: "t@example.com" });   // the enclosing repo is a checkout: never `git init` into it
+      writeFileSync(`${fresh}/.gitkeep`, "");
+      git(fresh, "add", "-A"); git(fresh, "commit", "-q", "-m", "init");
+      const [, , pushed] = await session([
+        req(1, "initialize"),
+        call(2, "site", { action: "init", name: "Early" }),
+        call(3, "site", { action: "push" }),
+      ], fresh);
+      expect(pushed.result.isError).toBe(true);
+      const t = pushed.result.content[0].text as string;
+      // The placeholder, not the missing remote: `pushState` lists the remote first, and it is the one
+      // thing here that a backup *would* have fixed — so the sentence leads with what it would not.
+      expect(t).toContain("placeholder");
+      expect(t).toContain("nothing was created");
+      expect(existsSync(`${state}/calls`)).toBe(false);                      // `gh` was never started
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
+      rmSync(fresh, { recursive: true, force: true });
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
+
+  /**
    * **Back it up** (docs/31 §5 · L5), through the tool, against the stub `gh`: a site that is already
    * live from here and has no repository anywhere. One `site` › push creates it, connects it and sends
    * the published branch — and the assertion that matters is what the bare repo standing in for GitHub
