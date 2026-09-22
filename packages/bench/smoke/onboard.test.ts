@@ -221,8 +221,11 @@ describe("F3 — the seven states, each naming its own next action", () => {
     // published release, and until then it is a checkout. Whichever it currently is, it must be *a
     // runnable command in the README*, not a promise — this asserts the row is not empty, not that it
     // is npm. The launcher is scoped since S18h and the binary is not, so both spellings are live: what
-    // you `bunx` is the package, what a checkout runs is the verb.
-    expect(readme).toMatch(/`(bunx @snypd\/cli|bun run snypd) init/);
+    // you `bunx` is the package, what a checkout runs is the verb. Since L6 the front door is one line
+    // long enough to want its own fenced block — `init <dir> && cd && claude`, where three commands
+    // used to be — so the command counts whether it opens a fenced line or sits in an inline span.
+    // Both are code a reader can run, which is the whole of this row's claim.
+    expect(readme).toMatch(/(^|`)(bunx @snypd\/cli|bun run snypd) init/m);
   });
 
   /** State 1: a binary, no site. The surface is the usage line, and it must not exit 0. */
