@@ -28,7 +28,7 @@ body:
     attributes:
       label: snypd version
       description: "`snypd --version`, or the `@snypd/cli` version your host builds with."
-      placeholder: "0.1.6"
+      placeholder: "0.1.7"
     validations: { required: true }
   - type: input
     id: env
