@@ -1255,7 +1255,8 @@ describe("the first run, from the agent's side", () => {
   test("`site` › set_deploy gives an already-initialised site a host, and never overwrites one", async () => {
     const dir = mkdtempSync(join(tmpdir(), "snypd-deploy-"));
     const c = await import("@snypd/core");
-    c.initSite(dir, { name: "No Host Yet", url: "https://nohost.example" });      // exactly the no-flags first run
+    // The no-flags first run wrote no host config until L1 (docs/31 decision 229); `none` is that site now.
+    c.initSite(dir, { name: "No Host Yet", url: "https://nohost.example", deploy: "none" });
     c.initRepo(dir, { name: "T", email: "t@example.com" });
     c.git(dir, "add", "-A"); c.git(dir, "commit", "-q", "-m", "init");
     expect(existsSync(join(dir, "wrangler.toml"))).toBe(false);

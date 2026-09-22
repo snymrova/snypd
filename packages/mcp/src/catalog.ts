@@ -75,7 +75,7 @@ export const CATALOG: Tool[] = [
       description: str("`init`: one sentence about the site"),
       theme: str("`init`: the theme to start on. Default `editorial`"),
       preview: { type: "boolean", description: "`push`: send `snypd/drafts` instead of the site, so a host that builds branches serves a preview *with the drafts in it* (noindex, at its preview URL). This sends every unapproved word on the site to the remote — readable by anyone who can read the repository, and by anyone with the preview URL. Nothing is published by it. Read the result's first lines before relaying it as done" },
-      deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. Optional on `init`, required on `set_deploy`. snypd never talks to a host, so anything that can run a binary and serve a folder needs none of this", { enum: ["cloudflare", "vercel"] }),
+      deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. On `init` the default is `cloudflare` (docs/31 decision 229); `none` is for a site served by something that needs no config of ours. Required on `set_deploy`. snypd holds no credential either way", { enum: ["cloudflare", "vercel", "none"] }),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
@@ -374,7 +374,7 @@ export async function call(root: string, name: string, args: Record<string, unkn
           // here until this session, which meant the *clone* path demanded a production origin from an
           // agent that had no way to know one — the same defect as the CLI's exit-2, and fixing one and
           // not the other would leave decision 52's placeholder fact reachable from one caller only.
-          const r = c.initSite(root, { name: typeof args.name === "string" ? args.name : undefined, url: typeof args.url === "string" ? args.url : undefined, description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined, deploy: args.deploy as "cloudflare" | "vercel" | undefined });
+          const r = c.initSite(root, { name: typeof args.name === "string" ? args.name : undefined, url: typeof args.url === "string" ? args.url : undefined, description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined, deploy: args.deploy as "cloudflare" | "vercel" | "none" | undefined });
           // An empty directory gets its repo from `initSite` itself (S18d): the scaffold has to be
           // committed, or the agent's very next `content.create` refuses on a tree carrying it.
           const git = r.git
@@ -384,7 +384,7 @@ export async function call(root: string, name: string, args: Record<string, unkn
           // `snypd init`'s stdout: the tools are already loaded here, so there is no restart to relay —
           // what has to be said instead is what is still unknown, and when it stops being optional.
           return text([`initialised \`${r.name}\` — ${r.created.join(", ")}`, git,
-            ...(r.deploy ? [`${r.deploy}: the host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/. Nothing here holds a credential or calls a deploy API — a push is what triggers it.`] : []),
+            ...(r.deploy ? [`${r.deploy}: host config and a PR workflow are in the repo (the default). Nothing here holds a credential; a connected host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/.`] : []),
             ...(r.placeholderUrl ? [`site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — content.publish refuses until then, and says so. Do not ask for it yet.`] : []),
             "Next: read snypd://spec/primitives, then content.create a post and content.render_preview to look at it."].join("\n"), { ok: true, ...r });
         }

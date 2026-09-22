@@ -306,14 +306,16 @@ switch (verb) {
     try {
       // No required flags (S18d, docs/08 decision 63): name falls back to the directory, url to a
       // placeholder that comes due at publish. The person running this has not seen a pixel yet.
-      const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme"), deploy: flag("deploy") as "cloudflare" | "vercel" | undefined });
-      const say: string[] = [`initialised ${r.created.join(", ")}`];
+      // `--host` is the L1 name (docs/31); `--deploy` is the S18d′ spelling and still means the same.
+      const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme"), deploy: (flag("host") ?? flag("deploy")) as "cloudflare" | "vercel" | "none" | undefined });
+      const say: string[] = [`${r.dirCreated ? `made ${root}/ and ` : ""}initialised ${r.created.join(", ")}`];
       // An empty directory gets its repo here rather than as homework (S18d): without one the scaffold
       // cannot be committed, and the first `content.create` refuses on a tree it was never told about.
       if (r.gitInit) say.push(`git init — new repository on ${DEFAULT_BASE}`);
-      // The one line a host runs is now an installed command rather than a shell script piped from a
-      // URL (S18d′) — worth printing, because it is the whole of what the host has to be told.
-      if (r.deploy) say.push(`${r.deploy}: build with \`${buildCommand(VERSION)}\`, serve dist/ — snypd never talks to a host`);
+      // The host's half is in the repo by default now (L1, decision 229). What the line says is what a
+      // person could otherwise only learn from the file: nothing was typed into a dashboard, and the
+      // one command a connected host would run is an installed one, not a shell script piped from a URL.
+      if (r.deploy) say.push(`${r.deploy}: host config and a PR workflow are in the repo — snypd holds no credential; a connected host builds with \`${buildCommand(VERSION)}\` and serves dist/`);
       // Commit the scaffold on the branch the site deploys from. Leaving it uncommitted would make the
       // agent's first write refuse — `useDrafts` will not carry work it did not do onto the drafts branch
       // — and would leave `main` without a `snypd.yaml` for the host to build after the first publish.
@@ -350,12 +352,17 @@ switch (verb) {
       if (r.placeholderUrl)
         out.push(`Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — and not before.`);
       const registered = r.created.includes(MCP_FILE);
+      // The last thing printed is the next thing typed (L1, docs/31 §5): `init my-site` is run from the
+      // parent, so the person is not in the site yet, and the harness has to open *there*. `.` prints
+      // the bare `claude`. The sentence stays above it, because it is said after the harness opens.
+      const there = root === "." ? "claude" : `cd ${root} && claude`;
       out.push("",
         registered
           ? `Next: open Claude Code, Cursor or Codex in this directory — a harness reads ${MCP_FILE} when it starts — and say:`
           : `${MCP_FILE} already existed and was left alone. If it does not name a \`snypd\` server the tools will not load — check it, then open Claude Code, Cursor or Codex in this directory and say:`,
         "", "    Write me a first post.", "",
-        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary and write the post.`);
+        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary and write the post.`,
+        "", `    ${there}`);
       console.log(wrap(out.join("\n")));
     } catch (e) {
       const err = e as Error & { hint?: string };
@@ -534,7 +541,7 @@ switch (verb) {
     console.log([
       "usage: snypd <init|dev|serve|build|cards|shoot|bench|new|seed|check> [--version]",
       "",
-      "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
+      "  snypd init [dir] [--name=…] [--url=…] [--host=cloudflare|vercel|none]   scaffold a site (making dir if needed), Cloudflare config by default",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",

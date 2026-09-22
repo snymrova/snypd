@@ -3,7 +3,7 @@
 **Owner:** PM · **Engineer:** Claude Code · **Decider:** Sunny · **Written:** 22 Sep 2026 · **Launch:** Tue 6 Oct 2026 (14 days)
 **Asked for:** *"before we have our own cloud, what path will have least friction in launching a site using snypd"* — then *"so lets focus on one path least friction for a stranger.. and then create a roadmap."*
 **Scope:** one path, chosen; the walk a stranger takes on it, action by action; what exists in the tree for each step and what does not; the sessions that close the gap before launch, dated; what is deliberately left off the path until after. This narrows the 22 Sep go-live funnel (seven documents, now in `docs/research/go-live/`) to its critical line. The funnel's "proposed decision 221" collided with the theme factory's 221–227; the decisions here are numbered from **228**.
-**Status:** proposal. Three decisions (§6) gate the sessions in §5. Nothing here needs the cloud (docs on the 22 Sep architecture) and nothing here waits for it.
+**Status:** decided — 228–230 taken as recommended (22 Sep 2026, Sunny: *"go ahead"*; docs/11 §8). L0 = PR #45; L1 built the same day (docs/11 §7b). Nothing here needs the cloud (docs on the 22 Sep architecture) and nothing here waits for it.
 
 ---
 

@@ -93,7 +93,9 @@ describe("initSite", () => {
     const r = initSite(fresh, { name: "New", url: "https://new.example/", description: "One line." });
     // The dirs the config names, not a guess: `post` lives in `content/posts`, so scaffolding
     // `content/post/` left every new site with a decoy folder beside the real one (S17b).
-    expect(r.created).toEqual(["snypd.yaml", "content/posts/", "content/pages/", "content/authors/", "content/media/", ".gitignore", ".mcp.json"]);
+    // …and the host's half by default since L1 (docs/31 decision 229): the stranger's walk has no flag.
+    expect(r.created).toEqual(["snypd.yaml", "content/posts/", "content/pages/", "content/authors/", "content/media/", ".gitignore", ".mcp.json", "wrangler.toml", ".github/workflows/snypd.yml"]);
+    expect(r.deploy).toBe("cloudflare");
     for (const t of Object.values(loadConfig(fresh).config.types)) expect(existsSync(`${fresh}/${t.dir}`)).toBe(true);
     const cfg = loadConfig(fresh);
     expect(cfg.ok).toBe(true);
@@ -225,6 +227,40 @@ describe("initSite", () => {
       // not is worse than one that is visibly unfinished.
       expect(readFileSync(`${outside}/snypd.yaml`, "utf8")).toContain("# placeholder");
     } finally { rmSync(outside, { recursive: true, force: true }); }
+  });
+
+  /**
+   * L1 (docs/31 §3 step 1): `bunx @snypd/cli init my-site` is typed from the parent directory, so `init`
+   * makes the directory — the `mkdir && cd` in front of the old front door was a fourth action and is
+   * gone. Made before the repository question is asked, so a directory born empty a moment ago is
+   * treated like one that was empty all along: it gets its repo.
+   */
+  test("`init <dir>` makes the directory, then treats it as the empty one it is", () => {
+    const parent = mkdtempSync(join(tmpdir(), "snypd-parent-"));
+    const dir = join(parent, "my-site");
+    try {
+      expect(existsSync(dir)).toBe(false);
+      const r = initSite(dir, {});
+      expect(r.dirCreated).toBe(true);
+      expect(r.gitInit).toBe(true);
+      expect(r.name).toBe("my-site");
+      expect(isRepoRoot(dir)).toBe(true);
+      expect(loadConfig(dir).ok).toBe(true);
+      // A directory that exists is reported as not made, so the CLI's first line does not lie.
+      expect(initSite(join(parent, "other"), { deploy: "none" }).dirCreated).toBe(true);
+      mkdirSync(join(parent, "third"));
+      expect(initSite(join(parent, "third"), { deploy: "none" }).dirCreated).toBe(false);
+    } finally { rmSync(parent, { recursive: true, force: true }); }
+  });
+
+  test("`none` writes no host config; an unknown host fails before a byte is written", () => {
+    const r = initSite(fresh, { name: "Elsewhere", deploy: "none" });
+    expect(r.deploy).toBeUndefined();
+    expect(r.created).not.toContain("wrangler.toml");
+    expect(existsSync(`${fresh}/.github`)).toBe(false);
+    rmSync(fresh, { recursive: true, force: true }); mkdirSync(fresh, { recursive: true });
+    expect(() => initSite(fresh, { name: "x", deploy: "netlify" as "none" })).toThrow(/unknown host "netlify"/);
+    expect(existsSync(`${fresh}/snypd.yaml`)).toBe(false);
   });
 
   test("a url that was given and is real is not a placeholder", () => {

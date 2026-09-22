@@ -57,6 +57,28 @@ describe("the compiled binary, in a directory it has never seen", () => {
     expect(r.out).toContain("If a harness is already open here, restart it so the snypd tools load.");
     // …and it names where the far side picks up, because the restart destroys the context this printed into.
     expect(r.out).toContain("get-started");
+    // L1 (docs/31 §5): the last line printed is the next thing typed. `init .` → the bare `claude`.
+    expect(r.out.trimEnd().split("\n").at(-1)).toBe("    claude");
+    // The host's half is in the repo by default (decision 229), and the summary says so.
+    expect(existsSync(join(dir, "wrangler.toml"))).toBe(true);
+    expect(r.out).toContain("cloudflare: host config and a PR workflow are in the repo");
+  });
+
+  /**
+   * L1: `bunx @snypd/cli init my-site` from the parent, the first of the three human actions in docs/31
+   * §3. The directory is made, and the last line is `cd my-site && claude` — typed as given, so a
+   * relative name stays relative.
+   */
+  test("`init <dir>` makes the directory and ends with `cd <dir> && claude`", () => {
+    const parent = mkdtempSync(join(tmpdir(), "snypd-smoke-parent-"));
+    try {
+      const r = run(["init", "my-site"], parent);
+      expect(r.code, r.err).toBe(0);
+      expect(existsSync(join(parent, "my-site", "snypd.yaml"))).toBe(true);
+      expect(existsSync(join(parent, "my-site", ".git"))).toBe(true);
+      expect(r.out).toContain("made my-site/ and initialised");
+      expect(r.out.trimEnd().split("\n").at(-1)).toBe("    cd my-site && claude");
+    } finally { rmSync(parent, { recursive: true, force: true }); }
   });
 
   test("`build` renders the site from themes that exist only inside the binary", () => {

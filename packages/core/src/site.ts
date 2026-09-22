@@ -17,7 +17,7 @@ import { basename, join, resolve } from "node:path";
 import { parseDocument } from "yaml";
 import { loadConfig, formatDiagnostics, isPlaceholderUrl, normalizeRoute, redirects, PLACEHOLDER_URL, type LoadedConfig } from "./config";
 import { bundledDir, bundledNames, themeFile } from "./themefs";
-import { writeDeploy, LAUNCHER, type DeployTarget } from "./deploy";
+import { writeDeploy, LAUNCHER, DEFAULT_HOST, HOST_CHOICES, type DeployTarget, type HostChoice } from "./deploy";
 import { parsePath, parseYaml, pathKey } from "./yaml";
 import { settingValue, tokenKind, type SettingDecl, type SettingValue, type VariationDecl } from "./schema";
 import { WriteError } from "./write";
@@ -420,8 +420,18 @@ function ephemeralRunner(exec: string): "bunx" | "npx" | null {
  *
  * A URL that is *passed* and is not a URL still throws: a typo is a different thing from an omission.
  */
-export interface InitInput { name?: string; url?: string; description?: string; theme?: string; deploy?: DeployTarget }
-export interface InitResult { file: string; paths: string[]; created: string[]; git: boolean; gitInit: boolean; name: string; url: string; placeholderUrl: boolean; deploy?: DeployTarget }
+export interface InitInput {
+  name?: string; url?: string; description?: string; theme?: string;
+  /** The host whose config to write. Absent is `DEFAULT_HOST` (docs/31 decision 229); `none` writes no host config. */
+  deploy?: HostChoice;
+}
+export interface InitResult {
+  file: string; paths: string[]; created: string[]; git: boolean; gitInit: boolean; name: string; url: string; placeholderUrl: boolean;
+  /** The host config written, or absent for `none`. */
+  deploy?: DeployTarget;
+  /** True when `root` did not exist and `init` made it (L1): `snypd init my-site` from the parent directory. */
+  dirCreated: boolean;
+}
 
 /**
  * Whether `init` should create the repository itself (S18d, docs/08 §7 · 1 → 2).
@@ -452,6 +462,15 @@ function shouldInitRepo(root: string): boolean {
  * starter file full of restated defaults is a file nobody dares delete a line from.
  */
 export function initSite(root: string, input: InitInput): InitResult {
+  // Validated before a byte is written, so an unknown host fails on nothing rather than on half a site.
+  const host: HostChoice = input.deploy ?? DEFAULT_HOST;
+  if (!HOST_CHOICES.includes(host))
+    throw new WriteError(`unknown host "${host}"`, `Known: ${HOST_CHOICES.join(", ")}. \`none\` is for a site served by something that needs no config of ours — the contract is \`snypd build\`, then serve \`dist/\`.`);
+  // `snypd init my-site`, typed from the parent (docs/31 §3 step 1): the directory is made here, so the
+  // one line a stranger types has no `mkdir` in front of it. Made *before* `shouldInitRepo` looks, so an
+  // empty directory that did not exist a moment ago gets its repository the same as one that did.
+  const dirCreated = !existsSync(root);
+  if (dirCreated) mkdirSync(root, { recursive: true });
   const file = join(root, CONFIG_FILE);
   if (existsSync(file)) throw new WriteError(`${CONFIG_FILE} already exists`, "This site is already initialised — `site` › set_config changes one key, `site` › doctor says whether it is sound.");
   // Named after the directory when nobody said otherwise — which is what the person called it, and is
@@ -495,12 +514,14 @@ theme:
   if (!existsSync(ignore)) { writeFileSync(ignore, "dist/\n.snypd/\nnode_modules/\n"); created.push(".gitignore"); }
   if (registerMcp(root)) created.push(MCP_FILE);
   // The host's half of the contract (S18d′, `07` §3b): a build command and an output directory, written
-  // into the repo rather than typed into a dashboard. Validated before anything else is, so an unknown
-  // target fails on an empty directory instead of half a site.
-  if (input.deploy) created.push(...writeDeploy(root, input.deploy, { name }));
+  // into the repo rather than typed into a dashboard. By default since L1 (decision 229): the walk in
+  // docs/31 §3 has no flag in it, and a site with no host config is a site `site` › deploy cannot put
+  // anywhere. `none` is the opt-out for a site served by something that needs nothing of ours.
+  const deploy = host === "none" ? undefined : host;
+  if (deploy) created.push(...writeDeploy(root, deploy, { name }));
   const cfg = loadConfig(root);
   if (!cfg.ok) throw new WriteError(`the config just written does not load`, formatDiagnostics(cfg.diagnostics));
-  return { deploy: input.deploy, file: CONFIG_FILE, paths: created.filter((p) => !p.endsWith("/")).concat(created.filter((p) => p.endsWith("/")).map((p) => `${p}.gitkeep`)), created, git: isRepoRoot(root), gitInit, name, url, placeholderUrl };
+  return { deploy, dirCreated, file: CONFIG_FILE, paths: created.filter((p) => !p.endsWith("/")).concat(created.filter((p) => p.endsWith("/")).map((p) => `${p}.gitkeep`)), created, git: isRepoRoot(root), gitInit, name, url, placeholderUrl };
 }
 
 /**

@@ -19,7 +19,7 @@ export { onboardingFacts, onboarded, registration, ONE_SENTENCE, type Onboarding
 export { readDev, writeDev, clearDev, liveDev, devPath, devProcessAlive, ALIVE_ROUTE, LIVE_ROUTE, type DevRecord } from "./dev";
 export { SiteIndex, readFrontmatter, taxonomyFields, defaultStatus, hasIndex, sha1, INDEX_DIR, RACY_MS, type IndexedFile, type TermRef, type Move, type SyncResult, type RouteRow } from "./store";
 export { Repo, git, initRepo, isRepoRoot, principal, commitHint, builtBranch, DRAFTS_BRANCH, DEFAULT_BASE, type GitResult, type CommitResult } from "./git";
-export { writeDeploy, buildCommand, DEPLOY_TARGETS, LAUNCHER, VERSION, type DeployTarget } from "./deploy";
+export { writeDeploy, buildCommand, DEPLOY_TARGETS, HOST_CHOICES, DEFAULT_HOST, LAUNCHER, VERSION, type DeployTarget, type HostChoice } from "./deploy";
 // S19a: the push — the only outward-facing act in the product, and the one a person performs (decision 44).
 export { pushState, pushSite, pushHint, deployTarget, originName, PUSH_ROUTE, DRAFTS_PUSH_EXPOSES, type PushState, type PushResult, type PushCommit, type PushBlocker } from "./push";
 // P4: tier 4 — speak (docs/10 §4.2). A plugin's MCP tools and prompts: the contract, the loaders, and the call.
