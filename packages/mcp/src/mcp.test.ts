@@ -1,7 +1,8 @@
 import { describe, expect, test, beforeAll, setDefaultTimeout } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { createServer } from "./server";
 import { PROTOCOL_VERSIONS, activitySnapshot } from "./protocol";
 
@@ -1424,6 +1425,50 @@ describe("the first run, from the agent's side", () => {
       // The site the host holds was built against the host's URL, not localhost.
       expect(readFileSync(`${site}/dist/index.html`, "utf8")).toContain("https://mcp-first-run.stub.workers.dev");
       expect(readFileSync(`${site}/dist/index.html`, "utf8")).not.toContain("localhost:4321");
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * **Back it up** (docs/31 §5 · L5), through the tool, against the stub `gh`: a site that is already
+   * live from here and has no repository anywhere. One `site` › push creates it, connects it and sends
+   * the published branch — and the assertion that matters is what the bare repo standing in for GitHub
+   * holds afterwards. `gh repo create --push` would have put `snypd/drafts` there, every unapproved
+   * word on the site, on a remote created one second earlier (`core/src/remote.ts` header).
+   */
+  test("site › push on a site with no remote: gh creates it, main goes, snypd/drafts stays home", async () => {
+    const state = resolve("corpora/_test/mcp-backup-stub");
+    rmSync(state, { recursive: true, force: true });
+    mkdirSync(state, { recursive: true });
+    writeFileSync(`${state}/loggedin`, "");
+    const env = { SNYPD_GH: resolve("packages/core/src/gh.stub.sh"), STUB_STATE: state };
+    Object.assign(process.env, env);
+    try {
+      const [, pushed, cfg] = await session([
+        req(1, "initialize"),
+        call(2, "site", { action: "push" }),
+        req(3, "resources/read", { uri: "snypd://config" }),
+      ], site);
+      expect(pushed.result.isError).toBeUndefined();
+      const text = pushed.result.content[0].text as string;
+      expect(text).toContain("Created https://github.com/stubby/");
+      expect(text).toContain("private");
+      expect(text).toContain("no longer the only copy");
+      expect(structured(pushed)).toMatchObject({ ok: true, pushed: true, created: { visibility: "private", modePinned: true } });
+
+      // What the remote actually holds. `main` and nothing else: the drafts branch is every unapproved
+      // word on the site, and it is the branch that was checked out when this ran.
+      const bare = execFileSync("git", ["--git-dir", `${state}/${readdirSync(state).find((f) => f.endsWith(".git"))}`, "branch", "--format=%(refname:short)"], { encoding: "utf8" }).trim().split("\n");
+      expect(bare).toEqual(["main"]);
+      expect(readFileSync(`${state}/calls`, "utf8")).not.toContain("--push");
+
+      // And the site still deploys the way it did: a backup remote would otherwise read as "the host
+      // builds on push" and the next `site` › deploy would refuse (decision 228).
+      expect(cfg.result.contents[0].text).toContain("direct");
+      const [, doc] = await session([req(1, "initialize"), call(2, "site", { action: "doctor" })], site);
+      expect(doc.result.content[0].text as string).not.toContain("only copy");
     } finally {
       for (const k of Object.keys(env)) delete process.env[k];
       rmSync(state, { recursive: true, force: true });

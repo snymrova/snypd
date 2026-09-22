@@ -88,15 +88,18 @@ export function findRunner(env: NodeJS.ProcessEnv = process.env): Runner | undef
 const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
 
 /**
- * One wrangler invocation in the site root, stdin closed, output captured whole.
+ * One foreign CLI invocation in the site root, stdin closed, output captured whole.
  *
  * In its own process group, and the timeout kills the group: `npx` starts `node`, which starts the
  * login's callback server on `localhost:8976`, and a `spawnSync` timeout would kill `npx` alone and
  * leave that server listening for a click that will now never be answered — found by the stub, whose
  * `sleep` outlived the test the same way.
+ *
+ * Exported because `remote.ts` runs `gh` under exactly these rules (L5) and that lesson is worth
+ * inheriting rather than re-learning: `gh auth login` starts a callback server of its own.
  */
-export function wrangler(root: string, runner: Runner, args: string[], opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {}): Promise<HostRun> {
-  const [cmd, ...pre] = runner.argv;
+export function runTool(root: string, argv: string[], args: string[], opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {}): Promise<HostRun> {
+  const [cmd, ...pre] = argv;
   return new Promise((resolve) => {
     let stdout = "", stderr = "", timedOut = false, done = false;
     const finish = (r: HostRun) => { if (!done) { done = true; clearTimeout(timer); resolve(r); } };
@@ -110,6 +113,11 @@ export function wrangler(root: string, runner: Runner, args: string[], opts: { t
     child.on("error", (err: NodeJS.ErrnoException) => finish({ ok: false, code: -1, stdout: stripAnsi(stdout), stderr: stripAnsi(stderr), timedOut, spawnError: `${err.code ?? ""} ${err.message}`.trim() }));
     child.on("close", (code) => finish({ ok: code === 0, code: code ?? -1, stdout: stripAnsi(stdout), stderr: stripAnsi(stderr), timedOut }));
   });
+}
+
+/** One wrangler invocation — `runTool` with the runner's prefix in front (`npx -y wrangler@<pin>`). */
+export function wrangler(root: string, runner: Runner, args: string[], opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {}): Promise<HostRun> {
+  return runTool(root, runner.argv, args, opts);
 }
 
 export interface HostAccount { email?: string; authType?: string; accounts: { name: string; id: string }[] }
