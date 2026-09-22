@@ -49,7 +49,7 @@ export class Session {
    * full argv. S18g needs the second form: `onboard.*` measures the **compiled binary** (decision 55),
    * and `[BIN, "serve"]` is not `[process.execPath, <entry>]` with a different string in it.
    */
-  constructor(readonly root: string, readonly server: string | string[] = "packages/mcp/src/server.ts") {}
+  constructor(readonly root: string, readonly server: string | string[] = "packages/mcp/src/server.ts", readonly env: Record<string, string> = {}) {}
 
   /** `tools/call` count — the number D1 is written about. */
   get calls() { return this.turns.filter((t) => t.kind === "call").length; }
@@ -61,7 +61,7 @@ export class Session {
     const argv = typeof this.server === "string" ? [process.execPath, this.server] : this.server;
     this.proc = Bun.spawn(argv, {
       stdin: "pipe", stdout: "pipe", stderr: "ignore",
-      env: { ...process.env, SNYPD_ROOT: this.root },
+      env: { ...process.env, ...this.env, SNYPD_ROOT: this.root },
     });
     this.reader = this.proc.stdout.getReader() as ReadableStreamDefaultReader<Uint8Array>;
     return (await this.rpc("meta", "initialize", {

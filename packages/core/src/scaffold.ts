@@ -84,9 +84,9 @@ const STARTER_TOKENS = `tokens:
   color.accent:    { default: "light-dark(#1f5fbf, #7fb0f2)", customisable: true, kind: color, description: "Links and the one emphatic colour." }
   color.on-accent: { default: "light-dark(#ffffff, #14161a)", customisable: true, kind: color, description: "Text on an accent fill." }
   color.border:    { default: "light-dark(#dfe2e7, #2a2e36)", customisable: true, kind: color, description: "Hairlines and block edges." }
-  measure:         { default: 34rem, customisable: true, kind: length, description: "How wide a line of prose is allowed to get." }
+  measure:         { default: 34rem, customisable: true, kind: size, description: "How wide a line of prose is allowed to get." }
   font.body:       { default: "ui-sans-serif, system-ui, sans-serif", customisable: true, kind: font, description: "The body stack. A webfont is a \`font:\` block, not a value here." }
-  size.body:       { default: "1.05rem", customisable: true, kind: length, description: "Body size." }
+  size.body:       { default: "1.05rem", customisable: true, kind: size, description: "Body size." }
   leading.body:    { default: 1.6, customisable: true, kind: number, description: "Body line height." }
 `;
 
@@ -156,7 +156,49 @@ ${inheritedTokens ? `# ${inheritedTokens} tokens come from \`${parent}\`; redecl
 }
 
 /**
- * Write `themes/<name>/` — `theme.yaml`, `theme.css`, `package.json`. Throws `WriteError` with a hint on
+ * The DESIGN.md `snypd new theme` writes beside theme.yaml (docs/29 §6.3, TF5): the brief's headings, each
+ * with its question as an HTML comment. Comments, because `meta.design` reads a section as empty until it
+ * holds something that is not one — the hints are the to-do, and deleting them is not filling them.
+ */
+export function starterDesign(name: string): string {
+  return `# ${name}
+
+<!-- The brief this theme is built to. Fill it before the stylesheet: an agent reads it first, \`snypd shoot\`
+     heads this theme's column with its first paragraph, and \`snypd check theme ${name}\` calls it
+     \`meta.design\`. Every comment is a question; delete it once it is answered. -->
+
+## Use scene
+<!-- Who reads this, where, in what light. This picks light or dark; the category never does. -->
+
+## Visitor mode
+<!-- One of: Read | Persuade | Operate | Experience. -->
+
+## References
+<!-- URLs or screenshots of pages this should feel like. Not other themes. -->
+
+## The rut
+<!-- The page this category always ships, said plainly, so the theme can be held against it. -->
+
+## Boldness goes here
+<!-- Exactly one place. Everything else steps back. -->
+
+## Safe / Risk
+<!-- At least two of each; each risk with what it costs. -->
+
+## Chosen
+<!-- Taste rules this brief overrides, one per line with the reason: \`taste.eyebrow: the magazine wants kickers\`.
+     The rule still reports, and the row says it was chosen. -->
+
+## Seed
+<!-- Written by \`snypd seed ${name}\`. -->
+
+## Decisions
+<!-- Dated, one line each. -->
+`;
+}
+
+/**
+ * Write `themes/<name>/` — `theme.yaml`, `theme.css`, `DESIGN.md`, `package.json`. Throws `WriteError` with a hint on
  * a bad name, a name already taken, or a parent that is not installed; writes nothing when it throws.
  */
 export function scaffoldTheme(root: string, input: { name: string; extends?: string }): ScaffoldResult {
@@ -176,10 +218,11 @@ export function scaffoldTheme(root: string, input: { name: string; extends?: str
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "theme.yaml"), starterThemeYaml(name, parent, tokens.length));
   writeFileSync(join(dir, "theme.css"), starterCss(name, parent, tokens));
+  writeFileSync(join(dir, "DESIGN.md"), starterDesign(name));
   writeFileSync(join(dir, "package.json"), `{ "name": "@snypd/theme-${name}", "version": "0.1.0", "type": "module", "license": "MIT" }\n`);
   return {
     name, extends: parent, inheritedTokens: tokens.length, dir: `themes/${name}`,
-    files: ["theme.yaml", "theme.css", "package.json"].map((f) => `themes/${name}/${f}`),
+    files: ["theme.yaml", "theme.css", "DESIGN.md", "package.json"].map((f) => `themes/${name}/${f}`),
   };
 }
 

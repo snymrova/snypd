@@ -1,7 +1,8 @@
 import { describe, expect, test, beforeAll, setDefaultTimeout } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { createServer } from "./server";
 import { PROTOCOL_VERSIONS, activitySnapshot } from "./protocol";
 
@@ -1093,6 +1094,34 @@ describe("find_tools + the catalogue", () => {
     expect(bt).toContain("snypd://theme/coverage");
     expect(bt).toContain("Never fork a layout");
     expect(bt).toContain('extends: "editorial"');
+    // TF1: the counts are the spec's and the renderer's, never typed — "Thirteen" outlived the fourteenth.
+    const { primitiveNames } = await import("@snypd/spec");
+    const { PART_NAMES } = await import("@snypd/render");
+    expect(bt).toContain(`the ${primitiveNames().length} primitives and ${PART_NAMES.length} parts`);
+    // TF6 (docs/29 §7): the workflow is the factory's, not "write one theme and look at it". Three
+    // candidates that a human picks between, each seeded and photographed; the two steps that are not
+    // the agent's — the pick (9) and the gates (7) — say so in the text, because an agent that polishes
+    // a favourite while it waits has already made the choice.
+    expect(bt).toContain("theme` › seed");
+    expect(bt).toContain("bench` › shoot");
+    expect(bt).toContain("anti-sibling test");
+    for (const cand of ["-a", "-b", "-c"]) expect(bt).toContain(`<name>${cand}`);
+    expect(bt).toContain("**Wait.** Do not pick.");
+    expect(bt).toContain("**a fail blocks.**");
+    // §7.3: step 1 reads the site's taste log and step 10 writes to it. A run that skips it repeats
+    // something the owner has already refused, and the refusal exists nowhere in the CSS.
+    expect(bt).toContain("`DESIGN.md` at the site root, `## Taste`");
+    expect(bt).toContain("the site's root `DESIGN.md` `## Taste`");
+    // §7.2: the rubric travels inside the prompt — a harness with no design skills still gets it — and
+    // it never gates. Demoted a heading level on the way in, so the script's steps stay the top level.
+    expect(bt).toContain("advisory, and it never gates");
+    expect(bt).toContain("### The six axes");
+    expect(bt).not.toContain("\n# The judge's rubric");
+    for (const axis of ["Hierarchy", "Rhythm", "The one bold place", "The rut", "Dark as designed", "Phone as designed"]) expect(bt).toContain(`**${axis}**`);
+    const listed = JSON.stringify(prompts.result.prompts);
+    expect(listed).toContain(`all ${primitiveNames().length} primitives`);
+    const src = readFileSync(resolve(import.meta.dir, "resources.ts"), "utf8");
+    expect(src).toContain(`Which of the ${primitiveNames().length} primitives and ${PART_NAMES.length} parts`);
   });
 });
 
@@ -1138,6 +1167,7 @@ describe("the first run, from the agent's side", () => {
   test("`get-started` branches on what the site already is, and never tells a scaffolded one to stop", async () => {
     const [, p] = await session([req(1, "initialize"), req(2, "prompts/get", { name: "get-started" })], site);
     const s = p.result.messages[0].content.text as string;
+    expect(s).toContain(`${(await import("@snypd/spec")).primitiveNames().length} primitives — a post`);
     // Branch B is the majority path — restarted harness, config that loads, nothing written — and the
     // version before this session ended it at step 1 with the word "stop".
     expect(s).toContain("content.query");
@@ -1147,6 +1177,20 @@ describe("the first run, from the agent's side", () => {
     // …and it does not ask for a URL up front on the branch that creates a site, because init no longer
     // needs one (decision 63) and asking for a production domain before the first pixel is the defect.
     expect(s).toContain("Do **not** ask for the URL");
+    // L3 (docs/31 §4): the prompt ends online, not at a review URL — `site` › deploy is a numbered step
+    // on the majority branch, the pause for the *allow* click is explained before it happens, and the
+    // agent is told there is nothing to ask for that the call does not get for itself.
+    expect(s).toContain("4. **Put it online.**");
+    expect(s).toContain("`site` › deploy, one call");
+    expect(s).toContain("click *allow*");
+    expect(s).toContain("Do not ask me for a URL, a repository or an account");
+    expect(s).not.toContain("step 4's to report");
+  });
+
+  test("find_tools hands over `site` for the ways a person says \"put it online\" (L3)", async () => {
+    const { search } = await import("./catalog");
+    for (const q of ["put it online", "go live", "deploy the site", "make it live on the internet", "ship it", "publish the site to cloudflare"])
+      expect(search(q)[0]?.name, q).toBe("site");
   });
 
   /**
@@ -1181,7 +1225,7 @@ describe("the first run, from the agent's side", () => {
     expect(structured(init)).toMatchObject({ ok: true, git: true, placeholderUrl: true, name: "mcp-first-run" });
     const s = init.result.content[0].text as string;
     expect(s).toContain("placeholder");
-    expect(s).toContain("Do not ask for it yet.");           // the URL is due at publish, and only there
+    expect(s).toContain("Do not ask for it yet.");           // the first deploy sets it from the host (L2)
     expect(s).toContain("snypd://spec/primitives");          // what to do next, not what was done
   });
 
@@ -1207,11 +1251,17 @@ describe("the first run, from the agent's side", () => {
     // S18e adds the fifth derived fact — is a preview already serving this site (decision 64's rule:
     // nothing on the Desk that doctor cannot answer). Nothing is running in a test, so it is a ⚠.
     expect(s).toContain("no preview server");
-    // S19a adds the sixth: where does this site go when it goes live. A repo with no remote is the
-    // ordinary state of a site somebody is still writing, so it is a ⚠ and never a problem — and it is
-    // the fourth unfinished thing on a two-minute-old scaffold.
-    expect(s).toContain("no remote");
+    // S19a added the sixth: where does this site go when it goes live. Since L3 a site `init` made — no
+    // remote, wrangler.toml in the repo — deploys directly, and "no remote" was the wrong sentence for it:
+    // it said nothing could go live on the one path where going live is a single call. The host rows say
+    // where it deploys and that it never has, from the tree and `.snypd/deploy.json`, without starting
+    // wrangler — a ⚠ that names the call, and still the fourth unfinished thing on a two-minute-old scaffold.
+    expect(s).not.toContain("no remote");
+    expect(s).toContain("host: cloudflare, deployed from here through wrangler");
+    expect(s).toContain("no deploy on record here — `site` › deploy puts it online");
     expect(structured(doc).facts.push).toMatchObject({ branch: "main", ahead: 0, known: false, ready: false });
+    expect(structured(doc).facts.deploy).toMatchObject({ target: "cloudflare", mode: "direct", policy: "agent", ready: true });
+    expect(structured(doc).facts.lastDeploy).toBeUndefined();
     // U2 adds the seventh: the theme renders two menus and the site has written neither yet — the header
     // a visitor sees first is a bare site name until `site` › set_nav. A ⚠ that names the remedy.
     expect(s).toContain("no menus yet");
@@ -1226,7 +1276,8 @@ describe("the first run, from the agent's side", () => {
   test("`site` › set_deploy gives an already-initialised site a host, and never overwrites one", async () => {
     const dir = mkdtempSync(join(tmpdir(), "snypd-deploy-"));
     const c = await import("@snypd/core");
-    c.initSite(dir, { name: "No Host Yet", url: "https://nohost.example" });      // exactly the no-flags first run
+    // The no-flags first run wrote no host config until L1 (docs/31 decision 229); `none` is that site now.
+    c.initSite(dir, { name: "No Host Yet", url: "https://nohost.example", deploy: "none" });
     c.initRepo(dir, { name: "T", email: "t@example.com" });
     c.git(dir, "add", "-A"); c.git(dir, "commit", "-q", "-m", "init");
     expect(existsSync(join(dir, "wrangler.toml"))).toBe(false);
@@ -1320,33 +1371,146 @@ describe("the first run, from the agent's side", () => {
     expect(c.git(remote, "ls-tree", "-r", "--name-only", c.DRAFTS_BRANCH).stdout).toContain("content/posts/going-to-preview.md");
   });
 
-  test("the placeholder comes due exactly once, at publish, and the refusal changes when it is fixed", async () => {
-    const [, , created, refused] = await session([
+  test("the placeholder does not stop a publish (L2, docs/31 §4): the debt is paid at deploy", async () => {
+    const [, , created, published] = await session([
       req(1, "initialize"),
       call(2, "content.create", { type: "post", frontmatter: { title: "First" }, body: "Words enough to be a post.\n" }),
       call(3, "content.query", { type: "post" }),
       call(4, "content.publish", { type: "post", slug: "first" }),
     ], site);
-    // Drafting is not blocked by the placeholder — that is the half of the bargain that makes deferring
-    // the question tolerable at all.
     expect(created.result.isError).toBeUndefined();
-    expect(refused.result.isError).toBe(true);
-    expect(refused.result.content[0].text).toContain("placeholder");
-    expect(refused.result.content[0].text).toContain("site.url");
-
-    const [, set, stillRefused] = await session([
-      req(1, "initialize"),
-      call(2, "site", { action: "set_config", path: "site.url", value: "https://first-run.example" }),
-      call(3, "content.publish", { type: "post", slug: "first" }),
-    ], site);
-    expect(set.result.isError).toBeUndefined();
-    // Setting it was the whole debt. Until S19c a second refusal waited behind this one — the approval a
-    // human owed — and the test's point was that the message changed from one to the other. Under
-    // decision 80 the default type publishes, so the URL is the only thing that was ever owed, and the
-    // same call that refused now goes all the way. The renamed variable is the assertion.
-    const published = stillRefused;
+    // From S18d to L1 this call refused with "placeholder" and the fix was `site.url`. A publish is a
+    // commit; nothing is served by it. `push` still refuses under the placeholder (push.test.ts), and
+    // `site` › deploy answers the question from the host instead of asking it (below).
     expect(published.result.isError).toBeUndefined();
     expect(published.result.content[0].text).not.toContain("placeholder");
     expect(structured(published)).toMatchObject({ ok: true, status: "published" });
+  });
+
+  /**
+   * The walk's step 9 through the tool (docs/31 §3), against the stub wrangler: nobody is logged in,
+   * the site has the placeholder, one call — and the answer is a URL, with `site.url` set and committed.
+   */
+  test("site › deploy: login, build, upload, URL back, site.url set and committed, second upload against it", async () => {
+    const state = resolve("corpora/_test/mcp-first-run-stub");
+    rmSync(state, { recursive: true, force: true });
+    const env = { SNYPD_WRANGLER: resolve("packages/core/src/wrangler.stub.sh"), STUB_STATE: state };
+    Object.assign(process.env, env);
+    try {
+      const [, deployed, cfg] = await session([
+        req(1, "initialize"),
+        call(2, "site", { action: "deploy" }),
+        req(3, "resources/read", { uri: "snypd://config" }),
+      ], site);
+      expect(deployed.result.isError).toBeUndefined();
+      const s = structured(deployed) as { ok: boolean; url: string; deploys: number; urlSet: string; loggedIn: boolean; files: number };
+      expect(s).toMatchObject({ ok: true, url: "https://mcp-first-run.stub.workers.dev", deploys: 2, urlSet: "https://mcp-first-run.stub.workers.dev", loggedIn: true });
+      expect(s.files).toBeGreaterThan(0);
+      const text = deployed.result.content[0].text as string;
+      expect(text.startsWith("https://mcp-first-run.stub.workers.dev is live")).toBe(true);
+      expect(text).toContain("committed");                                   // the URL change landed
+      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toEqual(["whoami --json", "login", "deploy", "deploy"]);
+      expect(cfg.result.contents[0].text).toContain("https://mcp-first-run.stub.workers.dev");
+      // L3: doctor now answers the four host questions from the record the deploy left, and nothing it
+      // says here started wrangler — the stub's call log above is the whole of what ran.
+      const [, doc] = await session([req(1, "initialize"), call(2, "site", { action: "doctor" })], site);
+      const d = doc.result.content[0].text as string;
+      expect(d).toContain("last deploy ");
+      expect(d).toContain("https://mcp-first-run.stub.workers.dev — ");
+      expect(d).toContain("2 uploads");
+      expect(d).toContain("site.url is the host's — https://mcp-first-run.stub.workers.dev");
+      expect(d).not.toContain("placeholder");
+      expect(structured(doc).facts.lastDeploy).toMatchObject({ urlIsHosts: true, url: "https://mcp-first-run.stub.workers.dev", deploys: 2 });
+      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toHaveLength(4);
+      // The site the host holds was built against the host's URL, not localhost.
+      expect(readFileSync(`${site}/dist/index.html`, "utf8")).toContain("https://mcp-first-run.stub.workers.dev");
+      expect(readFileSync(`${site}/dist/index.html`, "utf8")).not.toContain("localhost:4321");
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * The other half of L5's guard: a repository is created for a site that can only then be pushed.
+   * A fresh site is on the placeholder URL, which `pushState` refuses over — and answering that with a
+   * new repository on somebody's GitHub account, followed by the same refusal, is the worst of both.
+   */
+  test("site › push on a site that could not push anyway: nothing is created", async () => {
+    const fresh = "corpora/_test/mcp-backup-early";
+    const state = resolve("corpora/_test/mcp-backup-early-stub");
+    rmSync(fresh, { recursive: true, force: true });
+    rmSync(state, { recursive: true, force: true });
+    mkdirSync(state, { recursive: true });
+    writeFileSync(`${state}/loggedin`, "");
+    const env = { SNYPD_GH: resolve("packages/core/src/gh.stub.sh"), STUB_STATE: state };
+    Object.assign(process.env, env);
+    try {
+      mkdirSync(fresh, { recursive: true });
+      const { initRepo, git } = await import("@snypd/core");
+      initRepo(fresh, { name: "T", email: "t@example.com" });   // the enclosing repo is a checkout: never `git init` into it
+      writeFileSync(`${fresh}/.gitkeep`, "");
+      git(fresh, "add", "-A"); git(fresh, "commit", "-q", "-m", "init");
+      const [, , pushed] = await session([
+        req(1, "initialize"),
+        call(2, "site", { action: "init", name: "Early" }),
+        call(3, "site", { action: "push" }),
+      ], fresh);
+      expect(pushed.result.isError).toBe(true);
+      const t = pushed.result.content[0].text as string;
+      // The placeholder, not the missing remote: `pushState` lists the remote first, and it is the one
+      // thing here that a backup *would* have fixed — so the sentence leads with what it would not.
+      expect(t).toContain("placeholder");
+      expect(t).toContain("nothing was created");
+      expect(existsSync(`${state}/calls`)).toBe(false);                      // `gh` was never started
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
+      rmSync(fresh, { recursive: true, force: true });
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * **Back it up** (docs/31 §5 · L5), through the tool, against the stub `gh`: a site that is already
+   * live from here and has no repository anywhere. One `site` › push creates it, connects it and sends
+   * the published branch — and the assertion that matters is what the bare repo standing in for GitHub
+   * holds afterwards. `gh repo create --push` would have put `snypd/drafts` there, every unapproved
+   * word on the site, on a remote created one second earlier (`core/src/remote.ts` header).
+   */
+  test("site › push on a site with no remote: gh creates it, main goes, snypd/drafts stays home", async () => {
+    const state = resolve("corpora/_test/mcp-backup-stub");
+    rmSync(state, { recursive: true, force: true });
+    mkdirSync(state, { recursive: true });
+    writeFileSync(`${state}/loggedin`, "");
+    const env = { SNYPD_GH: resolve("packages/core/src/gh.stub.sh"), STUB_STATE: state };
+    Object.assign(process.env, env);
+    try {
+      const [, pushed, cfg] = await session([
+        req(1, "initialize"),
+        call(2, "site", { action: "push" }),
+        req(3, "resources/read", { uri: "snypd://config" }),
+      ], site);
+      expect(pushed.result.isError).toBeUndefined();
+      const text = pushed.result.content[0].text as string;
+      expect(text).toContain("Created https://github.com/stubby/");
+      expect(text).toContain("private");
+      expect(text).toContain("no longer the only copy");
+      expect(structured(pushed)).toMatchObject({ ok: true, pushed: true, created: { visibility: "private", modePinned: true } });
+
+      // What the remote actually holds. `main` and nothing else: the drafts branch is every unapproved
+      // word on the site, and it is the branch that was checked out when this ran.
+      const bare = execFileSync("git", ["--git-dir", `${state}/${readdirSync(state).find((f) => f.endsWith(".git"))}`, "branch", "--format=%(refname:short)"], { encoding: "utf8" }).trim().split("\n");
+      expect(bare).toEqual(["main"]);
+      expect(readFileSync(`${state}/calls`, "utf8")).not.toContain("--push");
+
+      // And the site still deploys the way it did: a backup remote would otherwise read as "the host
+      // builds on push" and the next `site` › deploy would refuse (decision 228).
+      expect(cfg.result.contents[0].text).toContain("direct");
+      const [, doc] = await session([req(1, "initialize"), call(2, "site", { action: "doctor" })], site);
+      expect(doc.result.content[0].text as string).not.toContain("only copy");
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
+      rmSync(state, { recursive: true, force: true });
+    }
   });
 });

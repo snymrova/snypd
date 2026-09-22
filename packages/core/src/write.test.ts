@@ -127,20 +127,18 @@ describe("write (S11)", () => {
     expect(check.reason).toContain("changed after it was approved");
   });
 
-  // S18d, docs/08 decision 63. `init` no longer demands an origin from somebody who has not seen a
-  // pixel — which is only safe because the debt comes due here, before the first absolute link is
-  // written into a feed, a sitemap or a JSON-LD block. Checked ahead of the approval on purpose: asking
-  // a human to approve a version that cannot publish either way wastes the one action the product
-  // genuinely needs from them.
-  test("a placeholder origin refuses the publish, whatever the policy and whoever approved", async () => {
+  // S18d, docs/08 decision 63, moved by L2 (docs/31 §4). From S18d to L1 the placeholder refused the
+  // publish, on the argument that a publish was the last moment before an absolute link was written. It
+  // was the last moment only while the host built what was pushed: a publish is a commit and serves
+  // nothing, `push` still refuses over the placeholder in git mode, and `site` › deploy — the one call
+  // that can *answer* the question, because the host names the URL — resolves it (host.test.ts).
+  test("a placeholder origin no longer refuses the publish — the debt is paid at deploy, not asked at publish", async () => {
     writeFileSync(`${root}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: http://localhost:4321 }\ntypes: { post: { mcp: { write: publish } } }\n");
     const cfg = loadConfig(root);
     createContent(root, { type: "post", slug: "p", frontmatter: { title: "P" }, cfg });
     const check = publishCheck(root, cfg, approvals(root), "post", "p");
-    expect(check.ok).toBe(false);
-    expect(check.reason).toContain("placeholder");
-    expect(check.hint).toContain("site.url");            // the one line that fixes it, in the refusal
-    // …and nothing about drafting is blocked, which is the half of the bargain that makes it tolerable.
+    expect(check.ok).toBe(true);
+    // …and nothing about drafting is blocked either, which was always the other half of the bargain.
     expect(() => updateContent(root, { type: "post", slug: "p", body: "Still writable.", cfg })).not.toThrow();
   });
 

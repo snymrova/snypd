@@ -626,7 +626,9 @@ export function formatDiagnostics(d: Diagnostic[]): string {
  * it is required *at publish*, not at `init`. Asking a person for a production domain before they have
  * seen one pixel is the single most reliable way to lose them, and an agent that hits a required flag it
  * cannot infer has nowhere to go but back to the human. So `init` writes this, `site` › doctor says it is
- * still unfinished, and `publishCheck` refuses over it with the one line that fixes it.
+ * still unfinished, `site` › push refuses over it with the one line that fixes it — and since L2
+ * (docs/31 §4) `site` › deploy *answers* it: the host names the URL on the first upload, and the site
+ * is rebuilt against it and uploaded again. `publishCheck` asked from S18d to L1 and no longer does.
  *
  * It is the preview's own origin rather than a fake domain, so it is also *true* for as long as it is
  * there: everything a placeholder site renders locally points at the server that rendered it.

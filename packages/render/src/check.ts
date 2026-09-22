@@ -32,11 +32,12 @@ import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
 import { load as parseYaml } from "js-yaml";
 import {
-  contrastRatio, cssValue, loadConfig, loadPlugin, MAX_FONT_KB, PLUGIN_API, resolveColor, resolvePlugin,
+  CONTRAST_PAIRS, contrastRatio, cssValue, loadConfig, loadPlugin, MAX_FONT_KB, PLUGIN_API, resolveColor, resolvePlugin,
   themeTokens, themeVariations, themeFile, isPlaceholder, pluginShortName, tiersOf, tokenVars,
   type LoadedConfig, type Mode, type Rgb,
 } from "@snypd/core";
 import { loadTheme, type Theme, LAYOUT_NAMES } from "./theme";
+import { applyChosen, chosenRules, designVerdict, plainCss, staticTaste } from "./taste";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
 /** One rule, one verdict. `detail` is what a passing run prints — evidence, not "ok". */
@@ -57,24 +58,8 @@ const finish = (kind: CheckResult["kind"], name: string, where: string, rules: R
 
 // ── themes ───────────────────────────────────────────────────────────────────────────────────────
 
-/**
- * The colour pairs a reader actually reads, and the ratio each owes (WCAG 2.2 §1.4.3).
- *
- * Body text, the muted text a date and a caption are set in, and a link, each against both surfaces a
- * theme paints them on — plus the one inversion, a theme's accent used as a fill. 4.5:1 throughout:
- * these are all body-sized, and the 3:1 large-text exception is for 24px, which is a heading. Borders
- * and gridlines are not here on purpose — 1.4.11 asks 3:1 of a control's boundary, and a hairline
- * between two paragraphs is not one, so a rule about it would fail every well-made theme on the shelf.
- */
-const PAIRS: { rule: string; fg: string; bg: string; min: number; what: string }[] = [
-  { rule: "contrast.text", fg: "color.text", bg: "color.bg", min: 4.5, what: "body text on the page" },
-  { rule: "contrast.text", fg: "color.text", bg: "color.surface", min: 4.5, what: "body text on a raised block" },
-  { rule: "contrast.muted", fg: "color.muted", bg: "color.bg", min: 4.5, what: "dates and captions on the page" },
-  { rule: "contrast.muted", fg: "color.muted", bg: "color.surface", min: 4.5, what: "dates and captions on a raised block" },
-  { rule: "contrast.accent", fg: "color.accent", bg: "color.bg", min: 4.5, what: "links on the page" },
-  { rule: "contrast.accent", fg: "color.accent", bg: "color.surface", min: 4.5, what: "links on a raised block" },
-  { rule: "contrast.on-accent", fg: "color.on-accent", bg: "color.accent", min: 4.5, what: "text on an accent fill" },
-];
+// The colour pairs and the ratio each owes are `CONTRAST_PAIRS` in @snypd/core (seed.ts), so the seed
+// solver's property test and this gate read one list.
 
 /**
  * The tier rule (U7, docs/14 §3 and §7 call 1), as data. A CSS feature is Baseline and may be used
@@ -106,14 +91,7 @@ export const GUARDED_CSS: { pattern: RegExp; what: string; tier: "two engines" |
  * so what is left is exactly the CSS a browser without the feature would try to apply.
  */
 export function unguardedCss(css: string): { line: number; what: string; tier: string; test: string }[] {
-  // Blank comments and strings in place so offsets, and therefore line numbers, survive.
-  let plain = "";
-  for (let i = 0; i < css.length; i++) {
-    const c = css[i]!;
-    if (c === '"' || c === "'") { const q = c; let j = i + 1; while (j < css.length && css[j] !== q) { if (css[j] === "\\") j++; j++; } plain += css.slice(i, j + 1).replace(/[^\n]/g, " "); i = j; continue; }
-    if (c === "/" && css[i + 1] === "*") { const end = css.indexOf("*/", i + 2); const j = end < 0 ? css.length : end + 2; plain += css.slice(i, j).replace(/[^\n]/g, " "); i = j - 1; continue; }
-    plain += c;
-  }
+  let plain = plainCss(css);
   // Blank every `@supports … { … }` block, nested ones included, by matching its braces.
   const SUPPORTS = /@supports\b/gi;
   for (let m = SUPPORTS.exec(plain); m; m = SUPPORTS.exec(plain)) {
@@ -251,6 +229,12 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
       : isPlaceholder("personality", personality, name) ? "still the scaffold's sentence — say what this theme reads like, in your words"
       : `${personality.split(/\s+/).length} words — what a listing prints and an agent chooses on`);
 
+  // The brief (docs/29 §6.3, TF5): a warning, like everything about taste — a theme with no DESIGN.md
+  // still renders, and a shelf that refused one would be refusing every theme written before today.
+  const design = themeFile(self.dir, "DESIGN.md");
+  const brief = designVerdict(design);
+  add(brief.rule, brief.status, brief.detail, "DESIGN.md");
+
   // ── tokens ─────────────────────────────────────────────────────────────────────────────────────
   const all = themeTokens(cfg);
   const declared = new Set(all.filter((t) => t.declaredBy).map((t) => t.name));
@@ -259,6 +243,11 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     undescribed.length
       ? `${undescribed.length} settable with no description: ${undescribed.slice(0, 6).map((t) => t.name).join(", ")}${undescribed.length > 6 ? "…" : ""} — \`theme\` › set_tokens has nothing to tell an agent they do`
       : `${all.length} declared, ${all.filter((t) => t.customisable).length} settable, every settable one described`);
+  // `length` still loads (it is read as `size`), so this is a warn: the row only appears on a theme that wrote it.
+  const ownTokens = yaml.tokens && typeof yaml.tokens === "object" ? Object.entries(yaml.tokens as Record<string, unknown>) : [];
+  const lengthKind = ownTokens.filter(([, d]) => d && typeof d === "object" && (d as { kind?: unknown }).kind === "length").map(([k]) => k);
+  if (lengthKind.length) add("tokens.kind", "warn",
+    `${lengthKind.length} with \`kind: length\`: ${lengthKind.slice(0, 6).join(", ")}${lengthKind.length > 6 ? "…" : ""} — read as \`size\`; write \`size\`, one of color, keyword, font, size, number`);
 
   // ── variations (decision 127): values, never declarations ──────────────────────────────────────
   const looks = themeVariations(cfg);
@@ -303,6 +292,12 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
       String(yaml.css));
   }
 
+  // ── taste (docs/29 TF5, decision 225): the static half, all warnings ─────────────────────────────
+  // The theme's own sheet for the CSS rules (a parent's was judged when the parent was), the resolved
+  // tokens for the face and the neutrals. A rule the brief names under `## Chosen` still reports.
+  const taste = staticTaste({ css: ownCss, cssFile: typeof yaml.css === "string" ? basename(yaml.css) : undefined, tokens: themeView(cfg), fontFamily: theme?.font?.family });
+  for (const t of applyChosen(taste, chosenRules(design))) add(t.rule, t.status, t.detail);
+
   // ── contrast (docs/11 §5 item 4) ───────────────────────────────────────────────────────────────
   // One row per rule across every look and both modes, and the worst verdict wins: a theme with a
   // readable light mode and an unreadable `phosphor` has an unreadable look on the shelf, and the row
@@ -324,7 +319,7 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     const vars = tokenVars(tokens);
     const label = look ?? "its own tokens";
     for (const mode of modesOf(tokens)) {
-      for (const p of PAIRS) {
+      for (const p of CONTRAST_PAIRS) {
         if (!(p.fg in tokens) || !(p.bg in tokens)) { record(p.rule, "skip", `${label}: this theme declares no \`${p.fg in tokens ? p.bg : p.fg}\``); continue; }
         const fg = resolveColor(tokens[p.fg]!, mode, vars), bg = resolveColor(tokens[p.bg]!, mode, vars);
         if (!fg || !bg) { record(p.rule, "skip", `${label} ${mode}: ${!fg ? tokens[p.fg] : tokens[p.bg]} is not a colour this build can resolve — not checked`); continue; }

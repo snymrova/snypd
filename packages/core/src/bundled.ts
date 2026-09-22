@@ -7,13 +7,17 @@
  * sha1 of the theme's bytes at generation time — it stands in for `themeHash` where there is no file
  * to stat, and it cannot go stale there, because a theme inside a binary cannot change.
  */
+import _base_DESIGN_md from "../../../themes/base/DESIGN.md" with { type: "text" };
 import _base_theme_css from "../../../themes/base/theme.css" with { type: "text" };
 import _base_theme_yaml from "../../../themes/base/theme.yaml" with { type: "text" };
+import _editorial_DESIGN_md from "../../../themes/editorial/DESIGN.md" with { type: "text" };
 import _editorial_fonts_OFL_txt from "../../../themes/editorial/fonts/OFL.txt" with { type: "text" };
 import _editorial_theme_css from "../../../themes/editorial/theme.css" with { type: "text" };
 import _editorial_theme_yaml from "../../../themes/editorial/theme.yaml" with { type: "text" };
+import _technical_DESIGN_md from "../../../themes/technical/DESIGN.md" with { type: "text" };
 import _technical_theme_css from "../../../themes/technical/theme.css" with { type: "text" };
 import _technical_theme_yaml from "../../../themes/technical/theme.yaml" with { type: "text" };
+import _studio_DESIGN_md from "../../../themes/studio/DESIGN.md" with { type: "text" };
 import _studio_fonts_OFL_txt from "../../../themes/studio/fonts/OFL.txt" with { type: "text" };
 import _studio_theme_css from "../../../themes/studio/theme.css" with { type: "text" };
 import _studio_theme_yaml from "../../../themes/studio/theme.yaml" with { type: "text" };
@@ -34,8 +38,9 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "4fd1e4ad9a7314312a7b8deea84d5b6d5abdf9e8",
+    hash: "2fc50351fe85670d6dce4752afff058d0db0b370",
     files: {
+      "DESIGN.md": _base_DESIGN_md,
       "theme.css": _base_theme_css,
       "theme.yaml": _base_theme_yaml,
     },
@@ -71,8 +76,9 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "438b6ad04cfafa6fc2ede3e582c7fab127ab7839",
+    hash: "1577ab99c157570336b95c924f94bde65d8705d2",
     files: {
+      "DESIGN.md": _editorial_DESIGN_md,
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
       "theme.css": _editorial_theme_css,
       "theme.yaml": _editorial_theme_yaml,
@@ -85,8 +91,9 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "technical": {
-    hash: "40306e7e9893d73ee30006093bc8d03c1fba5a84",
+    hash: "475778a2ef3b143b82a3691c986a4bbbe138ff21",
     files: {
+      "DESIGN.md": _technical_DESIGN_md,
       "theme.css": _technical_theme_css,
       "theme.yaml": _technical_theme_yaml,
     },
@@ -98,8 +105,9 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "studio": {
-    hash: "b2b7bd1474e16fd4b9b2e257ad04622d187f4452",
+    hash: "303d0500c06ff6d0872c12c092536f282e91faae",
     files: {
+      "DESIGN.md": _studio_DESIGN_md,
       "fonts/OFL.txt": _studio_fonts_OFL_txt,
       "theme.css": _studio_theme_css,
       "theme.yaml": _studio_theme_yaml,

@@ -36,50 +36,60 @@ const TYPE_ = str("Content type: `post`, `page`, `author` (snypd://types lists t
 /** Words `find_tools` matches on beyond the name and description — what an agent would actually type. */
 export const KEYWORDS: Record<string, string[]> = {
   theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance", "setting", "logo", "tagline", "show dates", "date format", "social links", "footer"],
-  site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "ship", "name", "domain", "host", "cloudflare", "vercel"],
-  bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y"],
+  site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "put it online", "online", "upload", "ship", "launch", "name", "domain", "host", "cloudflare", "vercel", "wrangler", "login", "back it up", "backup", "back up", "github", "repository", "repo", "gh"],
+  bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y", "screenshot", "screenshots", "shoot", "photograph", "contact"],
   "content.explain": ["explain", "why", "what ran", "pipeline", "stages", "transform", "filter", "slot", "hook", "plugin", "debug", "trace", "inspect", "autolink", "changed my post", "unexpected", "link appeared", "route key", "cache"],
 };
 
 export const CATALOG: Tool[] = [
   { name: "theme",
-    description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, or scaffold a new one. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
+    description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, scaffold a new one, or seed a scaffold's palette and type scale from one colour. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
     inputSchema: S({
-      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one", { enum: ["set", "set_tokens", "set_settings", "scaffold"] }),
+      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale", { enum: ["set", "set_tokens", "set_settings", "scaffold", "seed"] }),
       name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`: the name of the new theme (also its directory under themes/)"),
       variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call"),
       tokens: { type: "object", description: "`set_tokens`: token name → value, e.g. {\"color.accent\": \"#8a3324\"}. A token set to null goes back to the theme's default. Only tokens declared `customisable` can be set — snypd://theme/tokens lists them" },
       settings: { type: "object", description: "`set_settings`: setting id → value, e.g. {\"showDates\": false, \"tagline\": \"Notes on building\"}. A setting set to null goes back to the theme's default. Each is checked against the type the theme declared — snypd://theme/settings lists them with their types and what they mean" },
       extends: str("`scaffold`: the theme the new one inherits every layout, primitive and token from. Default `base`"),
+      seed: str("`seed`: the colour whose hue and chroma become the accent, e.g. `oklch(0.55 0.13 252)` or `#1f5fbf`"),
+      strategy: str("`seed`: how far colour reaches beyond the accent. Default `balanced`", { enum: ["restrained", "balanced", "expressive"] }),
+      scheme: str("`seed`: which modes to design. Default `both`, as light-dark() pairs", { enum: ["both", "light", "dark"] }),
+      ratio: str("`seed`: type-scale ratio at phone:desktop width, e.g. `1.2:1.25`"),
+      base: str("`seed`: body size in px at phone:desktop width, e.g. `17:19`"),
+      face: str("`seed`: one web font from the shelf, copied into the theme with its licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
   { name: "site",
-    description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or a request to put the site live. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
+    description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or putting the site online — `deploy` uploads it through the host's own CLI and answers with the URL. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `push` to put it live (or, with `preview`, to push the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "push"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `deploy` to put it online — builds, uploads through the host's CLI (Cloudflare, `wrangler`), and answers with the URL; on a machine the host has never seen it runs `wrangler login` first and a person clicks allow once · `push` to back the site up on GitHub and send the published branch — on a site with no remote it creates the repository first, private, through `gh` (or, with `preview`, it pushes the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "deploy", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       location: str("`set_nav`: which menu — a location the theme declares (`header`, `footer`; snypd://nav lists them)"),
       items: { type: "array", description: "`set_nav`: the whole menu, in order — [{ label, ref | url, rel? }]. `ref` is a route (`/about`) or type/slug (`page/about`) and follows the item when its slug changes; `url` is verbatim, for links off this site. A `ref` that resolves to nothing is refused. `null` removes the menu", items: { type: "object", properties: { label: { type: "string" }, ref: { type: "string" }, url: { type: "string" }, rel: { type: "string" } }, required: ["label"] } },
       from: str("`set_redirect`: the old route, e.g. `/posts/old-slug`"),
       to: str("`set_redirect`: the route it moved to. `null` removes the redirect instead"),
-      name: str("`init`: the site's name, as a reader sees it. Optional — defaults to the directory's name"),
+      name: str("`init`: the site's name, as a reader sees it. Optional — defaults to the directory's name. `push`: the repository to create when this site has no remote yet — optional, and defaults to the site's name; `owner/name` puts it under an organisation"),
       url: str("`init`: the absolute origin it will be served from, e.g. https://example.com. Optional — defaults to a localhost placeholder, because the feed, sitemap and JSON-LD need a real one at publish and not before"),
       description: str("`init`: one sentence about the site"),
       theme: str("`init`: the theme to start on. Default `editorial`"),
+      public: { type: "boolean", description: "`push`: when this site has no remote and one is created, make the repository public. The default is private — a site's repository holds its drafts branch, which is every word nobody has approved" },
       preview: { type: "boolean", description: "`push`: send `snypd/drafts` instead of the site, so a host that builds branches serves a preview *with the drafts in it* (noindex, at its preview URL). This sends every unapproved word on the site to the remote — readable by anyone who can read the repository, and by anyone with the preview URL. Nothing is published by it. Read the result's first lines before relaying it as done" },
-      deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. Optional on `init`, required on `set_deploy`. snypd never talks to a host, so anything that can run a binary and serve a folder needs none of this", { enum: ["cloudflare", "vercel"] }),
+      deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. On `init` the default is `cloudflare` (docs/31 decision 229); `none` is for a site served by something that needs no config of ours. Required on `set_deploy`. snypd holds no credential either way", { enum: ["cloudflare", "vercel", "none"] }),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
   { name: "bench",
     description: "Run snypd's own benchmark suite and read the result. Every speed claim in this project is a number from here with a budget next to it, so this is how you check that a change — a theme, a token, a hundred new posts — did not cost something. `run` takes minutes at full size; `quick` is the same metrics at fewer repetitions. snypd://bench/latest is the last full report and costs nothing to read.",
     inputSchema: S({
-      action: str("`run` the suite · `compare` two saved reports", { enum: ["run", "compare"] }),
+      action: str("`run` the suite · `compare` two saved reports · `shoot` themes on every route, width and scheme, into a contact sheet whose per-route PNGs you then read", { enum: ["run", "compare", "shoot"] }),
       suite: str("`run`: `full` (default) · `quick` · `page` (a real browser: 0 KB JS, axe, CLS) · `visual` (per-primitive render cost) · `suggest` (suggest_blocks precision)", { enum: ["full", "quick", "page", "visual", "suggest"] }),
       a: str("`compare`: path to the baseline report JSON"),
       b: str("`compare`: path to the new report JSON"),
+      themes: { type: "array", items: { type: "string" }, description: "`shoot`: themes to photograph side by side, `theme` or `theme/variation`; the active theme by default" },
+      routes: { type: "array", items: { type: "string" }, description: "`shoot`: routes to photograph; the specimen's nine by default, or those of them this site has" },
+      scheme: str("`shoot`: `both` (default) · `light` · `dark`", { enum: ["both", "light", "dark"] }),
     }, ["action"]),
     annotations: { readOnlyHint: true, idempotentHint: false } },
 
@@ -323,12 +333,39 @@ export async function call(root: string, name: string, args: Record<string, unkn
           return text([
             `scaffolded ${r.dir}/ extending ${r.extends}`,
             `  theme.yaml   tokens and metadata; ${r.inheritedTokens} tokens inherited, none redeclared yet`,
+            `  DESIGN.md    the brief \u2014 use scene, visitor mode, the rut, where the boldness goes; fill it before the stylesheet`,
             `  theme.css    one stylesheet \u2014 the only file you have to write`,
             git,
             `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,
           ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens });
         }
-        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold.");
+        if (action === "seed") {
+          // TF3 (docs/29 §4): the same `expandSeed` + `writeSeed` as `snypd seed`; this door adds the commit.
+          const name = need(args, "name");
+          const pair = (k: string) => { const v = args[k]; if (typeof v !== "string") return undefined; const [a, b = a] = v.split(":").map(Number); return [a!, b!] as [number, number]; };
+          let r, files: string[];
+          try {
+            const dir = join(root, "themes", name);
+            // Loaded here and only here: the shelf is sixteen fonts, and the initialize path stays small.
+            const shelf = typeof args.face === "string" ? await import("@snypd/shelf") : undefined;
+            const want = shelf?.shelfFace(args.face as string);
+            if (shelf && !want) return fail(`no face "${args.face}" on the shelf`, `One of: ${shelf.loadShelf().faces.map((f) => f.id).join(", ")}.`);
+            r = c.expandSeed({ seed: need(args, "seed"), strategy: args.strategy as never, scheme: args.scheme as never, ratio: pair("ratio"), base: pair("base"), xHeight: want?.xHeight });
+            if (!existsSync(join(dir, "theme.yaml"))) return fail(`no theme "${name}" in themes/`, `\`theme\` › scaffold ${name} first; seeding fills a theme, it does not make one.`);
+            const got = want && shelf!.installFace(want.id, dir);
+            files = c.writeSeed(dir, name, r, got ? { id: got.face.id, font: got.font, stack: got.stack, role: got.face.role, pairsWith: got.face.pairsWith } : undefined).map((f) => relative(root, f));
+          } catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
+          const git = await commit(files, `theme: seed ${name} from ${r.input.seed} (${r.input.strategy})`);
+          const low = (rule: string) => Math.min(...r.report.pairs.filter((p) => p.rule === rule).map((p) => p.ratio)).toFixed(2);
+          return text([
+            `seeded themes/${name}: ${Object.keys(r.tokens).length} tokens, inputs under ## Seed in DESIGN.md`,
+            `  worst side: text ${low("contrast.text")}:1 · muted ${low("contrast.muted")}:1 · accent ${low("contrast.accent")}:1 · on-accent ${low("contrast.on-accent")}:1`,
+            ...r.report.notes.map((n) => `  ${n}`),
+            git,
+            "theme.css reads these as var(--color-accent) etc.; `bench` › shoot photographs the result.",
+          ].join("\n"), { ok: true, theme: name, files, tokens: Object.fromEntries(Object.entries(r.tokens).map(([k, v]) => [k, v.default])), notes: r.report.notes, steps: r.report.steps });
+        }
+        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold, seed.");
       }
 
       case "site": {
@@ -338,7 +375,7 @@ export async function call(root: string, name: string, args: Record<string, unkn
           // here until this session, which meant the *clone* path demanded a production origin from an
           // agent that had no way to know one — the same defect as the CLI's exit-2, and fixing one and
           // not the other would leave decision 52's placeholder fact reachable from one caller only.
-          const r = c.initSite(root, { name: typeof args.name === "string" ? args.name : undefined, url: typeof args.url === "string" ? args.url : undefined, description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined, deploy: args.deploy as "cloudflare" | "vercel" | undefined });
+          const r = c.initSite(root, { name: typeof args.name === "string" ? args.name : undefined, url: typeof args.url === "string" ? args.url : undefined, description: typeof args.description === "string" ? args.description : undefined, theme: typeof args.theme === "string" ? args.theme : undefined, deploy: args.deploy as "cloudflare" | "vercel" | "none" | undefined });
           // An empty directory gets its repo from `initSite` itself (S18d): the scaffold has to be
           // committed, or the agent's very next `content.create` refuses on a tree carrying it.
           const git = r.git
@@ -348,8 +385,10 @@ export async function call(root: string, name: string, args: Record<string, unkn
           // `snypd init`'s stdout: the tools are already loaded here, so there is no restart to relay —
           // what has to be said instead is what is still unknown, and when it stops being optional.
           return text([`initialised \`${r.name}\` — ${r.created.join(", ")}`, git,
-            ...(r.deploy ? [`${r.deploy}: the host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/. Nothing here holds a credential or calls a deploy API — a push is what triggers it.`] : []),
-            ...(r.placeholderUrl ? [`site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — content.publish refuses until then, and says so. Do not ask for it yet.`] : []),
+            ...(r.deploy ? [`${r.deploy}: host config and a PR workflow are in the repo (the default). Nothing here holds a credential; a connected host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/.`] : []),
+            ...(r.placeholderUrl ? [r.deploy === "cloudflare"
+              ? `site.url is ${r.url}, a placeholder. The first \`site\` › deploy reads the real one back from the host and sets it. Do not ask for it yet. Unless a person has a domain in mind, never.`
+              : `site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before the site is pushed to a host — \`site\` › push refuses until then, and says so. Do not ask for it yet.`] : []),
             "Next: read snypd://spec/primitives, then content.create a post and content.render_preview to look at it."].join("\n"), { ok: true, ...r });
         }
         // The sentence is in both halves (R4, decision 199): Claude Code hands a model `structuredContent` when
@@ -437,6 +476,34 @@ export async function call(root: string, name: string, args: Record<string, unkn
           ].join("\n"), { ok: true, deploy: targetName, created, changed: true });
         }
         /**
+         * **`deploy` uploads** (docs/31 §4, decisions 228–230): the walk's step 9. Build, `wrangler deploy`
+         * from the site root through the host's own CLI, read the URL back — and on a first deploy set
+         * `site.url` from what the host said, build again and upload again, so nothing the host serves
+         * points at `localhost`. On a machine Cloudflare has never seen it runs `wrangler login` first,
+         * which opens a tab; the person clicks *allow* and this call continues. That wait is the one
+         * human action inside the tool, and the result's first line says whether it happened.
+         *
+         * `deploy.push: human` refuses here exactly as it refuses `push` (229). A site with a remote and
+         * no `deploy.mode` is a git-connected site and is sent to `push` instead — snypd.rocks and every
+         * site that deployed before L2 keeps deploying the way it did.
+         */
+        if (action === "deploy") {
+          const cfgDeploy = cfgOf();
+          const { build } = await import("@snypd/render");
+          const r = await c.deploySite(root, cfgDeploy, { as: "agent", build: async (rt) => { await build(rt); } });
+          const kb = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${(n / 1024).toFixed(0)} KB`;
+          const structured = { ok: r.ok, deployed: r.ok, target: r.target, url: r.url, urls: r.urls, uploaded: r.uploaded, skipped: r.skipped, files: r.files, bytes: r.bytes, versionId: r.versionId, loggedIn: r.loggedIn, urlSet: r.urlSet, deploys: r.deploys, mode: r.state.mode, policy: r.state.policy, blockers: r.state.blockers, by: r.by, at: r.at };
+          if (!r.ok) return { ...fail(`not deployed: ${r.reason}`, r.hint), structuredContent: { ...structured, error: r.reason, hint: r.hint } };
+          const git = r.paths.length ? await commit(r.paths, `site: url ${r.urlSet} — from ${r.target}`) : "";
+          return text([
+            `${r.url} is live — ${r.files} file${r.files === 1 ? "" : "s"}, ${kb(r.bytes ?? 0)}, on ${r.target}${r.uploaded !== undefined ? ` (${r.uploaded} uploaded${r.skipped ? `, ${r.skipped} the host already had` : ""})` : ""}.`,
+            ...(r.loggedIn ? [`Cloudflare had not seen this machine: \`wrangler login\` ran and a person allowed it. It will not ask again here.`] : []),
+            ...(r.urlSet ? [`site.url was the placeholder; it is now ${r.urlSet}, read back from the host — the site was built and uploaded a second time against it, so its feed, sitemap and JSON-LD say the right origin. ${git}`] : []),
+            ...(r.urls && r.urls.length > 1 ? [`Also answers at ${r.urls.filter((u) => u !== r.url).join(", ")}.`] : []),
+            `Every deploy from now on is one call and no clicks. This machine is the only copy of the words — \`site\` › push backs it up: it creates a private repository through \`gh\` and sends the published branch, drafts stay here.`,
+          ].join("\n"), structured);
+        }
+        /**
          * **`push` pushes** (S19c, decision 80), unless `deploy.push` is `human` — in which case it does
          * what it did for the whole of S19a: reports the state and hands back the URL of the Desk's
          * button.
@@ -451,7 +518,7 @@ export async function call(root: string, name: string, args: Record<string, unkn
          * put your site live" when it has not is worse than either behaviour on its own.
          */
         if (action === "push") {
-          const cfgPush = cfgOf();
+          let cfgPush = cfgOf();
           // **Counted, not defaulted** (found by running this against snypd.rocks, which had three drafts
           // and was told it had none). `pushState`'s `drafts` is an input because the Desk already has the
           // index open and the number is free there; here it is not, so this opens one. A push tool that
@@ -483,30 +550,81 @@ export async function call(root: string, name: string, args: Record<string, unkn
               ...c.DRAFTS_PUSH_EXPOSES,
             ].join("\n"), { ...st, ok: true, pushed: true, preview: true, sent: r.sent, exposes: c.DRAFTS_PUSH_EXPOSES });
           }
-          const st = c.pushState(root, cfgPush, { drafts });
+          /**
+           * **Back it up** (docs/31 §5 · L5): a site with no remote, and `gh` on the machine.
+           *
+           * Until L2 every site had a remote by construction, because a remote was how a site went
+           * live at all — so "no remote" was a dead end with a `git remote add` line under it, and
+           * that was the whole truth. Since L1 the default site has *no* remote and is live anyway:
+           * `deploy` uploads `dist/` and the only copy of the words is this disk. So the refusal
+           * became the wrong answer to the right question, and this is the right one — `gh` creates
+           * the repository, private, `git` fills it, and the workflow `init` already committed starts
+           * linting and building every push from the next one on.
+           *
+           * Deliberately *not* `gh repo create --push`: that pushes `HEAD`, which in a snypd site is
+           * always `snypd/drafts` (`remote.ts` header, from gh 2.97.0's source). The create adds the
+           * remote; the push below is `pushSite`'s, `main:main`, with every guarantee it carries.
+           *
+           * Gated by `deploy.push` exactly as the push is (decision 80): creating a repository on
+           * somebody's GitHub account is the same kind of act as sending a branch to it, and a site
+           * that said `human` said it about this too.
+           */
+          let backup: Awaited<ReturnType<typeof c.createRemote>> | undefined;
+          // Read the rest of the state *first*. A site with no published branch, or still on the
+          // placeholder URL, cannot push whatever is done about the remote — and creating a repository
+          // on somebody's account and then refusing the push is the worst of both. Only the missing
+          // remote is this step's to fix, so every other blocker is answered before `gh` is touched.
+          const before = c.pushState(root, cfgPush, { drafts });
+          const others = before.blockers.filter((b) => !/\bremotes?\b/.test(b.reason));
+          if (!before.remote && !others.length && !c.Repo.open(root)?.remotes().length && (cfgPush.config as { deploy?: { push?: string } }).deploy?.push !== "human") {
+            backup = await c.createRemote(root, cfgPush, { name: typeof args.name === "string" ? args.name : undefined, public: args.public === true, description: cfgPush.config.site.description });
+            // A refusal here is not a failure of `push` — it is the state `push` was already in, said
+            // with the extra line `gh` made available. The blockers fall through to `pushState` below.
+            if (backup.paths.length) await commit(backup.paths, "site: deploy.mode direct — a backup remote is not a deploy path");
+            if (backup.ok) cfgPush = cfgOf();
+          }
+          // Four to five `git` spawns, so it is read again only when a remote appeared under it.
+          const st = backup?.ok ? c.pushState(root, cfgPush, { drafts }) : before;
           const dev = await c.liveDev(root);
           const desk = dev ? `${dev.url}${c.PUSH_ROUTE.replace(/\/push$/, "")}` : undefined;
           const where = desk
             ? `The button is on the Desk: ${desk}`
             : `The Desk is where that button lives, and no preview is running — start one with \`snypd dev\` (a person types that), then it is at http://localhost:4321/_snypd`;
           if (!st.ok) {
-            const b = st.blockers[0]!;
+            // Which refusal a person is owed, in the order that makes the next action the right one:
+            // the backup's own words when it was tried and could not happen; otherwise the blocker that
+            // is not about the remote, because *that* is what a backup would not have fixed and
+            // `pushState` lists the missing remote first; otherwise the missing remote itself.
+            const b = backup && !backup.ok ? { reason: backup.reason!, hint: backup.hint }
+              : !st.remote && others.length ? { reason: others[0]!.reason, hint: `${others[0]!.hint}\nThis is what a backup would not have fixed, so nothing was created — \`site\` › push creates the repository through \`gh\` once there is something it could send.` }
+              : st.blockers[0]!;
             return fail(`nothing to push yet — ${b.reason}`, b.hint);
           }
           if (st.policy === "agent") {
             const r = c.pushSite(root, cfgPush, { as: "agent" });
-            if (!r.ok) return fail(`push failed: ${r.reason}`, r.hint);
+            if (!r.ok) return fail(`push failed: ${r.reason}`, backup?.ok
+              // A repository that was created seconds ago and a push that cannot authenticate to it is
+              // one thing and not two: `gh` holds a token that `git` has not been told about.
+              ? `${r.hint ?? ""}\n${r.hint ? "" : `The repository is at ${backup.url} and is not going anywhere. `}\`gh auth setup-git\` makes git use the credential \`gh\` already holds, then ask again — nothing needs creating a second time.`.trim()
+              : r.hint);
             // The `push` event (P3, docs/10 §4.5): the branch is on the remote; now every listening plugin
             // hears which pages went. A handler's failure is a line below and never a failed push.
             const changed = c.changedContent(root, cfgPush, r.paths ?? []);
             const events = await c.fireEvent(root, cfgPush, "push", { branch: r.branch, remote: r.remote, sent: r.sent, commits: st.commits, changed, urls: [...new Set(changed.map((x) => x.url))] });
             return text([
+              ...(backup?.ok ? [
+                `Created ${backup.url} — ${backup.visibility}, on the GitHub account \`gh\` is logged in to. This machine is no longer the only copy.`,
+                ...(backup.modePinned ? [`\`deploy.mode\` is now \`direct\` in snypd.yaml, written on purpose: a site with a remote and no such key is read as one the host builds on push, and this site deploys from here. \`site\` › deploy goes on working exactly as it did.`] : []),
+              ] : []),
               r.sent ? `pushed ${st.branch} → ${st.remote!.name}: ${r.sent} commit${r.sent === 1 ? "" : "s"}` : `${st.branch} → ${st.remote!.name}: the remote already had it`,
-              st.deploy ? `${st.deploy} builds from the branch; give it a minute, then read ${cfgPush.config.site.url}.` : `Whatever watches that branch builds next; there is no deploy API here to poll.`,
+              ...(backup?.ok ? [`\`${c.DRAFTS_BRANCH}\` stayed here: a first push sends the published branch and nothing else. The workflow in \`.github/workflows/\` lints and builds every push from now on — it needs no secret, because it only reads the repo.`] : []),
+              // A backed-up site is already live from here, so "give it a minute and read the URL" would
+              // be the wrong sentence: nothing about this push changes what the host is serving.
+              ...(backup?.ok ? [] : [st.deploy ? `${st.deploy} builds from the branch; give it a minute, then read ${cfgPush.config.site.url}.` : `Whatever watches that branch builds next; there is no deploy API here to poll.`]),
               `${st.drafts} draft${st.drafts === 1 ? "" : "s"} in flight stay${st.drafts === 1 ? "s" : ""} local — a push sends ${st.branch}, and drafts are not on it.`,
               ...c.eventLines(events),
               ...(desk ? [`The Desk shows what went and when: ${desk}`] : []),
-            ].join("\n"), { ...st, ok: true, ready: true, pushed: true, sent: r.sent, deskUrl: desk, changed, events });
+            ].join("\n"), { ...st, ok: true, ready: true, pushed: true, sent: r.sent, deskUrl: desk, changed, events, ...(backup?.ok ? { created: { url: backup.url, visibility: backup.visibility, origin: backup.origin, modePinned: backup.modePinned } } : {}) });
           }
           const going = st.ahead === 0
             ? st.known ? `\`${st.branch}\` is already on \`${st.remote!.name}\` as of the last fetch — there is nothing to send.` : `\`${st.branch}\` has never been pushed to \`${st.remote!.name}\`.`
@@ -547,7 +665,14 @@ export async function call(root: string, name: string, args: Record<string, unkn
           return text(`${bench.toMarkdown(report)}\n${over.length ? `❌ ${over.length} budget breach: ${over.join(", ")}` : "✅ every budget met"}`,
             { ok: true, suite, breaches: over, metrics: report.metrics });
         }
-        return fail(`unknown action "${action}"`, "bench takes: run, compare.");
+        if (action === "shoot") {
+          const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+          const r = await bench.shoot({ root, themes: strs(args.themes), routes: strs(args.routes), scheme: args.scheme as "light" | "dark" | "both" | undefined, out: join(root, "shots") });
+          if (r.skipped) return fail(r.skipped);
+          return text(`${bench.formatShoot(r)}\n\nRead the sheets — one per route and scheme, every candidate side by side — before saying anything about how a theme looks.`,
+            { ok: true, out: r.out, contact: join(r.out, r.contact), sheets: r.sheets, shots: r.shots.length, ms: r.ms });
+        }
+        return fail(`unknown action "${action}"`, "bench takes: run, compare, shoot.");
       }
       case "content.explain": return await explain(root, need(args, "type"), need(args, "slug"));
     }
@@ -778,14 +903,51 @@ async function doctor(root: string): Promise<ToolResult> {
   // problem: a site with no remote is a site somebody is still writing, which is most of them for most of
   // their life — and the fix is a person's, not an agent's, in both directions.
   const push = repo ? c.pushState(root, cfg) : undefined;
-  if (push) {
-    if (push.remote) ok(`remote \`${push.remote.name}\` → ${push.origin ?? push.remote.url}${push.deploy ? ` · ${push.deploy}` : ""}`);
-    else if (push.blockers.some((b) => /remote/.test(b.reason))) warn("no remote — this repo is not connected to a host, so nothing can go live yet");
-    if (push.remote && push.ok) {
+  // How this site goes live decides which rows say so (L3, docs/31 §4 "what the agent sees"). A site with
+  // a remote and no `deploy.mode` deploys on push, and the push rows below are its story. Every site
+  // `init` has made since L1 deploys directly, and for those "no remote" was the wrong sentence — it said
+  // nothing could go live, on the one path where going live is a single call. The four host rows are read
+  // from the tree and from `.snypd/deploy.json`, never from wrangler: `preflight: false` costs nothing,
+  // and the preflight form is a package-runner start and a request to Cloudflare for a fact that only
+  // changes when a deploy changes it. So "logged in" is answered as of the last deploy, and said as such.
+  const dep = await c.deployState(root, cfg, { preflight: false });
+  const last = c.readDeploy(root);
+  const when = (iso: string) => iso.replace("T", " ").slice(0, 16);
+  const sameUrl = (a: string, b: string) => a.replace(/\/+$/, "").toLowerCase() === b.replace(/\/+$/, "").toLowerCase();
+  if (dep.mode === "direct") {
+    if (dep.target === "cloudflare") {
+      const runner = c.findRunner();
+      if (runner) ok(`host: ${dep.target}, deployed from here through wrangler ${dep.wrangler} via \`${runner.kind}\`${dep.policy === "human" ? " — `deploy.push` is `human`, so `site` › deploy reports and a person uploads" : ""}`);
+      else warn(`host: ${dep.target}, but neither \`npx\` nor \`bunx\` is on this machine, so wrangler cannot run — install Node (https://nodejs.org) or Bun (https://bun.sh); snypd does not bundle the host's CLI`);
+      if (last) ok(`last deploy ${when(last.at)} by ${last.by}: ${last.url} — ${last.files} file${last.files === 1 ? "" : "s"}${last.deploys > 1 ? `, ${last.deploys} uploads` : ""}${last.account?.email ? `; logged in as ${last.account.email} then` : ""}`);
+      else warn("no deploy on record here — `site` › deploy puts it online: one call, and on a machine the host has never seen a person clicks allow once");
+      // The backup row (L5). A direct-deployed site is live with no repository anywhere but this disk,
+      // and that is a fact worth saying once a deploy has happened — not before, when "no remote" is
+      // simply what a site being written looks like.
+      if (!push?.remote) {
+        const gh = c.findGh();
+        if (last) warn(`this machine is the only copy — the site is live and nothing is backed up${gh ? ". `site` › push creates a private repository through `gh` and sends the published branch" : "; GitHub's CLI (`gh`) is not here, so `site` › push says the two lines that connect one by hand"}`);
+        else if (gh) ok("`gh` is here, so `site` › push can create the repository this site has not needed yet");
+      }
+      if (dep.placeholderUrl) warn(`site.url is ${dep.url}, a placeholder — the first \`site\` › deploy reads the real one back from the host and sets it`);
+      else if (last && last.urls.some((u) => sameUrl(u, dep.url))) ok(`site.url is the host's — ${dep.url}`);
+      else if (last) warn(`site.url is ${dep.url}, and the host did not answer at it on the last deploy (${last.urls.join(", ")}) — a domain not attached yet, or a URL set by hand; the feed and sitemap say ${dep.url} either way`);
+    } else if (dep.blockers[0]) {
+      // No host config, or a host whose CLI this does not run: the blocker deploy would refuse with, said
+      // now — an unfinished thing rather than a problem, because a site with no host is a site somebody
+      // is still writing, and the remedy is one call.
+      warn(`${dep.blockers[0].reason} — ${dep.blockers[0].hint}`);
+      if (dep.placeholderUrl) warn(`site.url is ${dep.url}, a placeholder — the feed, sitemap and JSON-LD are absolute; a direct deploy sets it from the host, and a push needs \`site\` › set_config \`site.url\` first`);
+    }
+  } else {
+    if (push?.remote) ok(`remote \`${push.remote.name}\` → ${push.origin ?? push.remote.url}${push.deploy ? ` · ${push.deploy}` : ""}`);
+    else if (push?.blockers.some((b) => /remote/.test(b.reason))) warn("no remote — `deploy.mode` is `git`, so the host builds what is pushed, and there is nowhere to push");
+    if (push?.remote && push.ok) {
       if (!push.known) warn(`\`${push.branch}\` has never been pushed — a person does that from the Desk, and \`site\` › push says where`);
       else if (push.ahead) warn(`${push.ahead} commit${push.ahead === 1 ? "" : "s"} on \`${push.branch}\` are not on \`${push.remote.name}\` — published items nobody has put live yet`);
       else ok(`\`${push.branch}\` is up to date with \`${push.remote.name}\` as of the last fetch`);
     }
+    if (dep.placeholderUrl) warn(`site.url is ${dep.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before the site is pushed to a host (\`site\` › push refuses until then)`);
   }
 
   // ── The facts docs/08 decision 64 adds ───────────────────────────────────────────────────────────
@@ -853,9 +1015,6 @@ async function doctor(root: string): Promise<ToolResult> {
     if (bare.length) warn(`${bare.length} published item${bare.length === 1 ? " has" : "s have"} no description — search results and share cards fall back to the first paragraph (${bare.slice(0, 3).map((f) => `${f.type}/${f.slug}`).join(", ")}${bare.length > 3 ? "…" : ""})`);
   }
 
-  if (facts.placeholderUrl)
-    warn(`site.url is ${cfg.config.site.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before anything publishes (content.publish refuses until then)`);
-
   // Broken and unfinished are different things, and a first run is full of the second kind (S18d): a
   // scaffold with no content and a placeholder URL is a site working exactly as intended two minutes in.
   // Saying "nothing to fix" under two ⚠ rows reads as though the rows did not count.
@@ -865,6 +1024,12 @@ async function doctor(root: string): Promise<ToolResult> {
   return text([...lines, tail].join("\n"),
     { ok: !problems.length, problems, lint: { errors: lint.errors, warnings: lint.warnings },
       facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: harness === "connected", harnessState: harness, startedAt, client, dev: !!dev, deskUrl: dev ? `${dev.url}/_snypd` : undefined, items, placeholderUrl: facts.placeholderUrl,
-        push: push ? { remote: push.remote?.name, origin: push.origin, deploy: push.deploy, branch: push.branch, ahead: push.ahead, known: push.known, ready: push.ok } : undefined } });
+        push: push ? { remote: push.remote?.name, origin: push.origin, deploy: push.deploy, branch: push.branch, ahead: push.ahead, known: push.known, ready: push.ok } : undefined,
+        // Two keys, not one, because F4's instrument diffs doctor's facts key by key after `rm -rf .snypd/`
+        // (bench/smoke/onboard.ts): `deploy` is derived from the tree on every call and must survive;
+        // `lastDeploy` is the record a deploy left of an event on the host, which nothing here can
+        // re-derive without the network, and is exempt by name the way `dev` is.
+        deploy: { target: dep.target, mode: dep.mode, policy: dep.policy, wrangler: dep.wrangler, url: dep.url, ready: dep.ok },
+        lastDeploy: last ? { at: last.at, by: last.by, url: last.url, urls: last.urls, files: last.files, bytes: last.bytes, deploys: last.deploys, email: last.account?.email, urlIsHosts: !dep.placeholderUrl && last.urls.some((u) => sameUrl(u, dep.url)) } : undefined } });
 }
 

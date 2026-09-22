@@ -40,7 +40,13 @@ export const StatusSchema = z.object({ public: z.boolean(), transitions: z.array
 
 export const ROLES = ["subscriber", "contributor", "author", "editor", "admin"] as const;
 
-export const TokenDeclSchema = z.object({ default: z.union([z.string(), z.number()]), customisable: z.boolean().optional(), kind: z.string().optional(), description: z.string().optional() }).strict();
+/** What a token holds (docs/29 TF1). The seed solver and the taste lint read it, so it is a closed list. */
+export const TOKEN_KINDS = ["color", "keyword", "font", "size", "number"] as const;
+export type TokenKind = (typeof TOKEN_KINDS)[number];
+/** `length` is what the scaffold wrote before TF1; it is read as `size` so no theme already written breaks. */
+export const tokenKind = (k: unknown): TokenKind | undefined => (k === "length" ? "size" : (TOKEN_KINDS as readonly unknown[]).includes(k) ? (k as TokenKind) : undefined);
+export const TokenDeclSchema = z.object({ default: z.union([z.string(), z.number()]), customisable: z.boolean().optional(),
+  kind: z.union([z.enum(TOKEN_KINDS), z.literal("length").transform((): TokenKind => "size")]).optional(), description: z.string().optional() }).strict();
 export type TokenDecl = z.infer<typeof TokenDeclSchema>;
 
 // ── Style variations (docs/10 §5.2, U6a) ─────────────────────────────────────────────────────────
@@ -388,7 +394,16 @@ export const ConfigSchema = z.object({
    * and then `site` › push hands back the Desk's URL instead of pushing, which is what every site did
    * between S19a and S19c.
    */
-  deploy: z.object({ push: z.enum(["agent", "human"]).default("agent") }).passthrough().default({ push: "agent" }),
+  deploy: z.object({
+    push: z.enum(["agent", "human"]).default("agent"),
+    /**
+     * Who uploads (docs/31 decision 228). `direct`: `site` › deploy runs the host's CLI from here and reads
+     * the URL back. `git`: the host is connected to the repo and builds on push, the S18d′ shape. Absent
+     * means *whichever this site already is* — a remote says `git`, none says `direct` — so no site that
+     * deploys today changes how it does.
+     */
+    mode: z.enum(["direct", "git"]).optional(),
+  }).passthrough().default({ push: "agent" }),
   bench: z.object({ budgets: z.record(z.string(), z.union([z.number(), z.record(z.string(), z.number())])).default({}) }).passthrough().default({ budgets: {} }),
   fieldTypes: z.record(z.string(), z.object({ json: z.string() }).passthrough()).default({}),
 }).strict();

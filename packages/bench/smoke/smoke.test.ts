@@ -53,10 +53,33 @@ describe("the compiled binary, in a directory it has never seen", () => {
     // is told what to open and what to say; the agent gets the one sentence it relays — so the
     // assertions are the sentences, not keywords.
     expect(r.out).toContain("open Claude Code, Cursor or Codex in this directory");
-    expect(r.out).toContain("Write me a first post.");
+    expect(r.out).toContain("Write me a first post and put it online.");   // L3: the sentence in docs/31 §3, because the host's half is in the repo
     expect(r.out).toContain("If a harness is already open here, restart it so the snypd tools load.");
     // …and it names where the far side picks up, because the restart destroys the context this printed into.
     expect(r.out).toContain("get-started");
+    // L1 (docs/31 §5): the last line printed is the next thing typed. `init .` → the bare `claude`.
+    expect(r.out.trimEnd().split("\n").at(-1)).toBe("    claude");
+    // The host's half is in the repo by default (decision 229), and the summary says so.
+    expect(existsSync(join(dir, "wrangler.toml"))).toBe(true);
+    expect(r.out).toContain("cloudflare: wrangler.toml and a PR workflow are in the repo");
+    expect(r.out).toContain("reads the URL back");                   // L2: the host answers the URL question
+  });
+
+  /**
+   * L1: `bunx @snypd/cli init my-site` from the parent, the first of the three human actions in docs/31
+   * §3. The directory is made, and the last line is `cd my-site && claude` — typed as given, so a
+   * relative name stays relative.
+   */
+  test("`init <dir>` makes the directory and ends with `cd <dir> && claude`", () => {
+    const parent = mkdtempSync(join(tmpdir(), "snypd-smoke-parent-"));
+    try {
+      const r = run(["init", "my-site"], parent);
+      expect(r.code, r.err).toBe(0);
+      expect(existsSync(join(parent, "my-site", "snypd.yaml"))).toBe(true);
+      expect(existsSync(join(parent, "my-site", ".git"))).toBe(true);
+      expect(r.out).toContain("made my-site/ and initialised");
+      expect(r.out.trimEnd().split("\n").at(-1)).toBe("    cd my-site && claude");
+    } finally { rmSync(parent, { recursive: true, force: true }); }
   });
 
   test("`build` renders the site from themes that exist only inside the binary", () => {
@@ -178,7 +201,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
       expect(yaml).toContain(`name: "${basename(empty)}"`);
       expect(yaml).toContain("# placeholder");
       expect(r.out).toContain("git init — new repository on main");
-      expect(r.out).toContain("needed before anything publishes — and not before");   // the URL is due at publish, and only there
+      expect(r.out).toContain("The first deploy reads the real one back");   // the URL is the host's to answer (L2), not the person's
     } finally { rmSync(empty, { recursive: true, force: true }); }
   }, 30_000);
 

@@ -19,11 +19,15 @@ import { compile } from "./build";
 import { runOnboard, HANDOFF_BUDGET, TTFV_BUDGET, TTFP_BUDGET, type OnboardWalk } from "./onboard";
 
 let walk: OnboardWalk;
+let relay: OnboardWalk;
 let bin = "";
 
 beforeAll(async () => {
   bin = await compile(join(mkdtempSync(join(tmpdir(), "snypd-onboard-bin-")), "snypd"));
-  walk = await runOnboard({ bin });
+  // Two walks, one binary (L4): `walk` is the front door docs/08 §2 describes and F1 is about, `relay`
+  // is the sentence pasted into an open harness, which is what every measurement before this one counted.
+  walk = await runOnboard({ bin, door: "front" });
+  relay = await runOnboard({ bin, door: "relay" });
 }, 300_000);
 
 describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
@@ -55,12 +59,68 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * The sixth is not gone from the product. A site that declares `mcp.write: draft` still pays it, and
    * the branch that records it is still in `onboard.ts` for exactly that walk.
    */
-  test("five human actions, and the fifth is the URL", () => {
-    expect(walk.actions).toHaveLength(5);
-    expect(walk.actions.map((a) => a.kind)).toEqual([
-      "paste", "answer", "approve-shell", "restart", "answer-url",
-    ]);
-    expect(walk.actions).toHaveLength(HANDOFF_BUDGET);   // the design and the measurement, at last agreeing
+  /**
+   * **Still five, and the fifth changed** — L2, docs/31 §4. The URL left: `publishCheck` no longer asks
+   * for it, because a publish is a commit and the host *answers* the question at deploy. The click
+   * arrived: the walk now ends at a URL rather than at a local publish, and the host has never seen the
+   * machine, so `site` › deploy runs `wrangler login` and waits for a person to allow it (decision 230).
+   * One action out, one in, and the one that came in is irreducible where the one that left was not —
+   * nobody gets a URL on somebody else's host anonymously. Measured, again: the walk counts `allow-host`
+   * only when the deploy result says login ran.
+   */
+  /**
+   * **Three, on the door F1 is about** — L4, docs/31 §5.
+   *
+   * Everything above counted the *relay* door: a sentence pasted into a harness that was already open,
+   * the agent running `init`, and therefore a shell approval and a restart. Decision 178 moved the front
+   * door to a typed line in S24 and docs/08 §2 was rewritten to it in L3 — and for those six sessions
+   * nothing measured the flow F1's first word points at. The number under the paragraph was five, the
+   * flow above the paragraph had three in it, and neither was wrong; they were about different walks.
+   *
+   * So the instrument walks both, and the one that carries F1's budget is the one §2 shows. Three is not
+   * a target that was met — the budget is still five, and is not being moved down to look better — it is
+   * what the line costs once `init` stopped asking for a name (decision 63) and the harness stopped
+   * needing a restart (178). The two that left are named in the case below, and the one that arrived,
+   * `allow-host`, is the irreducible one.
+   */
+  test("three human actions on the front door: type the line, say the sentence, click allow", () => {
+    expect(walk.door).toBe("front");
+    expect(walk.actions.map((a) => a.kind)).toEqual(["type", "say", "allow-host"]);
+    expect(walk.actions.length).toBeLessThanOrEqual(HANDOFF_BUDGET);   // F1's budget, and not moved to meet it
+    expect(walk.actions.map((a) => a.kind)).not.toContain("answer-url");   // the product stopped asking (L2)
+    // Both halves of the typed line are the product's, and both are read off what it printed rather than
+    // remembered: `init <dir>` made the directory, and its last line is the rest of what gets typed (L1).
+    expect(walk.printedNext).toBe("cd ash-and-ember && claude");
+    // …and the sentence ends online, because the host's config is in the repo by default (L3, decision 229).
+    expect(walk.printedSentence).toBe("Write me a first post and put it online.");
+  });
+
+  /**
+   * The second door is still five, and is still walked — the Desk offers that sentence (docs/08 §9) and
+   * somebody already inside a session has no use for a line that means closing it. Pinned exactly, in
+   * both directions, for the reason the count has always been pinned: the two doors differ by exactly
+   * two actions, and if that ever becomes one or three it is because the product moved.
+   */
+  test("the second door is five, and the two extra are the name question and the restart", () => {
+    expect(relay.actions).toHaveLength(5);
+    expect(relay.actions.map((a) => a.kind)).toEqual(["paste", "answer", "approve-shell", "restart", "allow-host"]);
+    expect(relay.actions).toHaveLength(HANDOFF_BUDGET);   // the older door still lands exactly on the budget
+    const extra = relay.actions.map((a) => a.kind).filter((k) => !walk.actions.some((a) => a.kind === k));
+    expect(extra).toEqual(["paste", "answer", "approve-shell", "restart"]);
+  });
+
+  /**
+   * …and the restart's absence from the front door is an observation, not an assumption. A harness reads
+   * `.mcp.json` when it starts; the only question is whether the file was there first. It is, because
+   * the person typed `cd my-site && claude` *after* `init` finished — and on the relay door it is not,
+   * because an agent ran `init` inside a session that had already read the file's absence.
+   */
+  test("the front door skips the restart because the file was on disk before the harness started", () => {
+    expect(walk.registeredBeforeHarness).toBe(true);
+    expect(relay.registeredBeforeHarness).toBe(false);
+    expect(walk.actions.map((a) => a.kind)).not.toContain("restart");
+    expect(relay.actions.find((a) => a.kind === "restart")!.proof).toBe("absent");
+    expect(relay.actions.find((a) => a.kind === "restart")!.detail).toContain("did not exist");
   });
 
   /**
@@ -74,20 +134,41 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * startup because that is what harnesses do.
    */
   test("approving a shell command and restarting the harness are never optimised away", () => {
-    const irreducible = walk.actions.filter((a) => a.irreducible).map((a) => a.kind);
+    const irreducible = relay.actions.filter((a) => a.irreducible).map((a) => a.kind);
     expect(irreducible).toContain("approve-shell");
     expect(irreducible).toContain("restart");
+    expect(irreducible).toContain("allow-host");             // the host must see the person once (docs/31 §3)
     // And the one that left is gone from the walk rather than quietly reclassified as optional.
+    expect(relay.actions.map((a) => a.kind)).not.toContain("approve-post");
+  });
+
+  /**
+   * The front door pays one, and it is the one nobody can delete. Decision 178 did not optimise the
+   * shell approval and the restart away — it moved who runs `init`, and they went with it; the rule
+   * that makes removing an irreducible action expensive is about the *product* removing it, which is
+   * why the relay walk above still pays both and the case above still pins them.
+   */
+  test("the front door's one irreducible action is the host's, and it is the last thing a person does", () => {
+    const irreducible = walk.actions.filter((a) => a.irreducible).map((a) => a.kind);
+    expect(irreducible).toEqual(["allow-host"]);
+    expect(walk.actions.at(-1)!.kind).toBe("allow-host");
     expect(walk.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
 
-  /** Half the count is structural and half is observed; a number that hides which is worse than two. */
+  /**
+   * Half the count is structural and half is observed; a number that hides which is worse than two.
+   *
+   * The front door's two structural actions are a person typing and a person speaking, and no code can
+   * prove either — but both have a product half that *is* observed, and the case above asserts those:
+   * the line `init` printed, and the sentence it printed. That is as close as a structural action gets
+   * to being measured, and the distinction is kept rather than blurred.
+   */
   test("every action a product can prove was proved by the product refusing", () => {
-    const observed = walk.actions.filter((a) => a.proof !== "structural");
-    expect(observed.map((a) => a.kind)).toEqual(["restart", "answer-url"]);
-    // One refusal now, from `publishCheck`, and it is the URL. The approval that used to follow it is
-    // opt-in from S19c — `publishCheck` still refuses for it, on a site that asks.
-    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual(["answer-url"]);
+    expect(walk.actions.filter((a) => a.proof !== "structural").map((a) => a.kind)).toEqual(["allow-host"]);
+    expect(relay.actions.filter((a) => a.proof !== "structural").map((a) => a.kind)).toEqual(["restart", "allow-host"]);
+    // One observed wait now, and it is the host's: `deploy` reported that login ran. `publishCheck` no
+    // longer refuses for the URL (L2); it still refuses for an approval on a site that asks (S19c).
+    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual(["allow-host"]);
   });
 
   /**
@@ -162,7 +243,9 @@ describe("F3 — the seven states, each naming its own next action", () => {
    * next step is a restart the agent cannot do, and init's stdout carries the one sentence it relays.
    */
   test("2 · scaffolded, harness not started → init's stdout says what to open and what to say", () => {
-    const restart = walk.actions.find((a) => a.kind === "restart")!;
+    // The front door crosses this state without stopping — the line types `cd … && claude` after `init`
+    // returns — so the state is reached on the relay walk, which is the one an agent's `init` produces.
+    const restart = relay.actions.find((a) => a.kind === "restart")!;
     expect(restart.proof).toBe("absent");
     expect(restart.detail).toContain("did not exist");
     // The sentence itself is asserted against the artefact in smoke.test.ts, where init's stdout is
@@ -175,7 +258,7 @@ describe("F3 — the seven states, each naming its own next action", () => {
     // Asserted inside the walk: it throws if `instructions` does not name `get-started`, because a walk
     // that got past this row without it would be measuring a flow no agent could follow.
     expect(walk.ttfpMs).toBeGreaterThan(0);
-    expect(walk.actions.some((a) => a.step === 7)).toBe(true);
+    expect(relay.actions.some((a) => a.step === 7)).toBe(true);
   });
 
   /** State 4: a draft nobody has approved. The surface is a person's — the Desk and the review page. */
@@ -184,18 +267,25 @@ describe("F3 — the seven states, each naming its own next action", () => {
     expect(walk.survivesRestart.deskStillRenders).toBe(true);
   });
 
-  /** State 5: published to `main`. Reached only through both refusals, which is the row's whole point. */
-  test("5 · published locally → reached, and the only thing a person owed was the URL", () => {
+  /** State 5: published to `main`. Reached with nothing owed by a person: the URL is the host's to answer now. */
+  test("5 · published locally → reached, and nobody was asked for anything", () => {
     expect(walk.publishedMs).toBeGreaterThan(walk.ttfpMs);
-    // Until S19c this asserted `approve-post`. Under decision 80 the agent publishes, and the one thing
-    // it could not answer for itself is where the site will be served — which is a fact about the world
-    // and not a judgement about the words.
-    expect(walk.actions.map((a) => a.kind)).toContain("answer-url");
+    // Until S19c this asserted `approve-post`; until L2, `answer-url`. Under decision 80 the agent
+    // publishes, and under docs/31 §4 the one thing it could not answer for itself — where the site will
+    // be served — is answered by the host at deploy rather than asked of a person at publish.
+    expect(walk.actions.map((a) => a.kind)).not.toContain("answer-url");
     expect(walk.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
 
-  /** State 6 is `site` › push, S19a and S19c. Named here so the row is not silently absent from the suite. */
-  test.todo("6 · live on the internet → `site` › push, which an agent may now make itself", () => {});
+  /**
+   * State 6: live. `site` › deploy, docs/31 §3 step 9 — the URL came from the host, `site.url` was the
+   * placeholder so the site was built and uploaded twice, and the person's part was one click.
+   */
+  test("6 · live → `site` › deploy ends at the host's URL, two uploads the first time", () => {
+    expect(walk.url).toMatch(/^https:\/\/[a-z0-9-]+\.stub\.workers\.dev$/);
+    expect(walk.deploys).toBe(2);
+    expect(walk.actions.map((a) => a.kind)).toContain("allow-host");
+  });
 });
 
 describe("F4 — survives the restart", () => {
@@ -204,6 +294,11 @@ describe("F4 — survives the restart", () => {
     expect(walk.survivesRestart.lost).toEqual([]);
     expect(walk.survivesRestart.checked.length).toBeGreaterThan(8);
     expect(walk.survivesRestart.deskStillRenders).toBe(true);
+    // L3: the deploy's note of the host's answer is the one thing in `.snypd/` that is neither derived
+    // nor a live process's claim — it went, it is reported by name, and the derived half (`deploy`:
+    // target, mode, policy, the URL from the config) is in `checked` and not in `lost`.
+    expect(walk.survivesRestart.hostRecord).toEqual(["lastDeploy"]);
+    expect(walk.survivesRestart.checked).toContain("deploy");
   });
 
   /**

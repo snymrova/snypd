@@ -1,0 +1,11 @@
+snypd: 1
+site:
+  name: Specimen
+  url: https://specimen.snypd.rocks
+  description: The pages a theme is judged on — every block, a long read, a full index, and the titles that break mastheads.
+  icon: /media/icon.png
+theme:
+  use: editorial
+types:
+  author:
+    layout: author

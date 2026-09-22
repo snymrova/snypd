@@ -702,7 +702,9 @@ export { recordPaths, PHASES } from "../agent/run";
 // S29 · R4: the registry demo — docs/20 §2.4's twelve steps over the studio specimen, scored on what the tools said.
 export { registry, runRegistry, registryMetrics, formatSteps, registryTranscript, registryPaths, judge, assessSite, stepsFor, scriptedRegistry, liveRegistry, STEPS, CASE, NOTE, QUERY, SWAP_TO, REGISTRY_PROMPT, REGISTRY_CALLS, type RegistryRun, type RegistryDriver, type StepResult } from "../agent/registry";
 export { benchPage, parseRecord, FAMILIES, HEADLINES, RECORD_URL, type BenchRecord, type RecordRow } from "./benchpage";
-export { gallery, looks, lookMetrics, formatShots, GALLERY_ROUTE, type Look, type Shot } from "./gallery";
+export { gallery, looks, lookMetrics, formatShots, buildAndServe, GALLERY_ROUTE, type Look, type Shot } from "./gallery";
+// docs/29 TF2: the camera — candidates × routes × widths × schemes, and the contact sheet.
+export { shoot, formatShoot, routeSlug, SPECIMEN_ROUTES, SHOOT_WIDTHS, type ShootOptions, type ShootResult, type ShootShot, type Candidate } from "./shoot";
 export { Session, type Turn } from "../agent/session";
 
 /**

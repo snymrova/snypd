@@ -1,6 +1,6 @@
 /**
  * @snypd/spec — the closed vocabulary (docs/01) and the built-in defaults (docs/02):
- * 13 primitive YAMLs, types, taxonomies, statuses, budgets, field types, and the detector table
+ * the primitive YAMLs, types, taxonomies, statuses, budgets, field types, and the detector table
  * `suggest_blocks` scores against (S15, `../detect`). Exposed as MCP
  * resources (docs/03) and exported as JSON Schema. The YAMLs are reached through `./assets`, a
  * generated barrel of static text imports (decision 46) — `import.meta.dir` was the old answer and it

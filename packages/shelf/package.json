@@ -1,0 +1,10 @@
+{
+  "name": "@snypd/shelf",
+  "version": "0.1.6",
+  "type": "module",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "dependencies": {
+    "@snypd/core": "workspace:*"
+  }
+}

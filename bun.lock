@@ -36,6 +36,7 @@
         "@snypd/mcp": "workspace:*",
         "@snypd/render": "workspace:*",
         "@snypd/runtime": "workspace:*",
+        "@snypd/shelf": "workspace:*",
       },
     },
     "packages/core": {
@@ -67,6 +68,7 @@
         "@snypd/bench": "workspace:*",
         "@snypd/core": "workspace:*",
         "@snypd/render": "workspace:*",
+        "@snypd/shelf": "workspace:*",
         "@snypd/spec": "workspace:*",
       },
       "devDependencies": {
@@ -89,6 +91,13 @@
     "packages/runtime": {
       "name": "@snypd/runtime",
       "version": "0.1.6",
+    },
+    "packages/shelf": {
+      "name": "@snypd/shelf",
+      "version": "0.1.6",
+      "dependencies": {
+        "@snypd/core": "workspace:*",
+      },
     },
     "packages/spec": {
       "name": "@snypd/spec",
@@ -176,6 +185,8 @@
     "@snypd/render": ["@snypd/render@workspace:packages/render"],
 
     "@snypd/runtime": ["@snypd/runtime@workspace:packages/runtime"],
+
+    "@snypd/shelf": ["@snypd/shelf@workspace:packages/shelf"],
 
     "@snypd/spec": ["@snypd/spec@workspace:packages/spec"],
 

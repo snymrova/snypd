@@ -126,7 +126,9 @@ switch (verb) {
     }
     if (args[0] === "gallery") {   // S22: every look every theme ships, measured and photographed (E9)
       const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
-      const { report, shots } = await bench.gallery({ root: args[1], out: opt("out"), route: opt("route"), focus: opt("focus"), only: opt("only")?.split(",").filter(Boolean),
+      const scheme = opt("scheme");
+      if (scheme !== undefined && !["light", "dark", "both"].includes(scheme)) { console.error(`--scheme=${scheme}: light, dark or both`); process.exit(2); }
+      const { report, shots } = await bench.gallery({ root: args[1], out: opt("out"), route: opt("route"), focus: opt("focus"), only: opt("only")?.split(",").filter(Boolean), scheme: scheme as "light" | "dark" | "both" | undefined,
         onLook: (l, i, n) => console.error(`${i}/${n} ${l.variation ? `${l.theme} › ${l.variation}` : l.theme}`) });
       console.log(bench.toMarkdown(report));
       console.log(`\n${bench.formatShots(shots)}`);
@@ -135,9 +137,9 @@ switch (verb) {
       break;
     }
     if (args[0] === "onboard") {   // S18g: first run, walked against the compiled binary (docs/08 F1)
-      const { report, walk } = await bench.onboard({ keep: flags.has("--keep") });
+      const { report, walk, relay } = await bench.onboard({ keep: flags.has("--keep") });
       console.log(bench.toMarkdown(report));
-      console.log(`\n${bench.formatWalk(walk)}`);
+      console.log(`\n${bench.formatWalk(walk, relay)}`);
       const over = bench.breaches(report);
       if (over.length) { console.error(`\nbudget breach: ${over.join(", ")}`); process.exit(1); }
       break;
@@ -303,15 +305,19 @@ switch (verb) {
     const root = args[0] ?? ".";
     try {
       // No required flags (S18d, docs/08 decision 63): name falls back to the directory, url to a
-      // placeholder that comes due at publish. The person running this has not seen a pixel yet.
-      const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme"), deploy: flag("deploy") as "cloudflare" | "vercel" | undefined });
-      const say: string[] = [`initialised ${r.created.join(", ")}`];
+      // placeholder the first deploy replaces with the host's answer. The person running this has not seen a pixel yet.
+      // `--host` is the L1 name (docs/31); `--deploy` is the S18d′ spelling and still means the same.
+      const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme"), deploy: (flag("host") ?? flag("deploy")) as "cloudflare" | "vercel" | "none" | undefined });
+      const say: string[] = [`${r.dirCreated ? `made ${root}/ and ` : ""}initialised ${r.created.join(", ")}`];
       // An empty directory gets its repo here rather than as homework (S18d): without one the scaffold
       // cannot be committed, and the first `content.create` refuses on a tree it was never told about.
       if (r.gitInit) say.push(`git init — new repository on ${DEFAULT_BASE}`);
-      // The one line a host runs is now an installed command rather than a shell script piped from a
-      // URL (S18d′) — worth printing, because it is the whole of what the host has to be told.
-      if (r.deploy) say.push(`${r.deploy}: build with \`${buildCommand(VERSION)}\`, serve dist/ — snypd never talks to a host`);
+      // The host's half is in the repo by default now (L1, decision 229). What the line says is what a
+      // person could otherwise only learn from the file: nothing was typed into a dashboard, and the
+      // one command a connected host would run is an installed one, not a shell script piped from a URL.
+      if (r.deploy) say.push(r.deploy === "cloudflare"
+        ? `${r.deploy}: wrangler.toml and a PR workflow are in the repo — \`site\` › deploy uploads through Cloudflare's own CLI and reads the URL back; snypd holds no credential`
+        : `${r.deploy}: host config and a PR workflow are in the repo — snypd holds no credential; a connected host builds with \`${buildCommand(VERSION)}\` and serves dist/`);
       // Commit the scaffold on the branch the site deploys from. Leaving it uncommitted would make the
       // agent's first write refuse — `useDrafts` will not carry work it did not do onto the drafts branch
       // — and would leave `main` without a `snypd.yaml` for the host to build after the first publish.
@@ -346,14 +352,24 @@ switch (verb) {
       }).join("\n");
       const out: string[] = ["", `\`${r.name}\` is a snypd site. There is no admin UI: content is written over MCP, by an agent.`];
       if (r.placeholderUrl)
-        out.push(`Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — and not before.`);
+        out.push(r.deploy === "cloudflare"
+          ? `Its URL is ${PLACEHOLDER_URL}, a placeholder. The first deploy reads the real one back from ${r.deploy} and sets it — nothing to type.`
+          : `Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything is pushed to a host — and not before.`);
       const registered = r.created.includes(MCP_FILE);
+      // The last thing printed is the next thing typed (L1, docs/31 §5): `init my-site` is run from the
+      // parent, so the person is not in the site yet, and the harness has to open *there*. `.` prints
+      // the bare `claude`. The sentence stays above it, because it is said after the harness opens.
+      const there = root === "." ? "claude" : `cd ${root} && claude`;
       out.push("",
         registered
           ? `Next: open Claude Code, Cursor or Codex in this directory — a harness reads ${MCP_FILE} when it starts — and say:`
           : `${MCP_FILE} already existed and was left alone. If it does not name a \`snypd\` server the tools will not load — check it, then open Claude Code, Cursor or Codex in this directory and say:`,
-        "", "    Write me a first post.", "",
-        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary and write the post.`);
+        // The sentence is the product (docs/31 §3, action 4). With the host's config in the repo — the
+        // default — the agent can take the post all the way to a URL, so the sentence says so; a site
+        // that will be served by something else stops at the post.
+        "", r.deploy === "cloudflare" ? "    Write me a first post and put it online." : "    Write me a first post.", "",
+        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary, write the post${r.deploy === "cloudflare" ? ", and put it online (the host asks you to click allow once, in a tab it opens)" : ""}.`,
+        "", `    ${there}`);
       console.log(wrap(out.join("\n")));
     } catch (e) {
       const err = e as Error & { hint?: string };
@@ -387,9 +403,52 @@ switch (verb) {
       const committed = Repo.open(root)?.commit(r.files, `${kind}: scaffold ${r.name}${r.extends ? ` extends ${r.extends}` : ""}`);
       if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
       say.push("", kind === "theme"
-        ? `Write theme.css. Everything else already renders — all 14 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
+        ? `Fill DESIGN.md, then write theme.css. Everything else already renders — all 14 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
         : `Write slots/note.tsx, then add \`${r.name}\` to \`plugins:\` in snypd.yaml. The manifest lists the other four tiers as one commented line each.`,
         `\`snypd check ${kind} ${r.name}\` says whether it is shelf-ready; \`snypd dev\` shows it.`);
+      console.log(say.join("\n"));
+    } catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
+      process.exit(1);
+    }
+    break;
+  }
+  /**
+   * `snypd seed <theme> --seed=<colour> …` (TF3, docs/29 §4) — a verb over the one artefact that is not
+   * content, like `new` and `check`: one colour and two numbers become a palette that passes the contrast
+   * gate by construction and a fluid type scale, written into the theme's `tokens:` with its comments
+   * kept, and the inputs recorded under `## Seed` in its DESIGN.md so a re-seed is one copied line.
+   */
+  case "seed": {
+    const { expandSeed, writeSeed, Repo } = await import("@snypd/core");
+    const { join, relative } = await import("node:path");
+    const { existsSync } = await import("node:fs");
+    const [name] = args;
+    const opt = (n: string) => rest.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
+    const pair = (n: string) => { const v = opt(n); if (!v) return undefined; const [a, b = a] = v.split(":").map(Number); return [a!, b!] as [number, number]; };
+    const root = opt("root") ?? ".";
+    if (!name || !opt("seed")) { console.error('usage: snypd seed <theme> --seed="oklch(0.55 0.13 252)" [--strategy=restrained|balanced|expressive] [--scheme=both|light|dark] [--ratio=1.2:1.25] [--base=17:19] [--face=<shelf id>] [--root=.]'); process.exit(1); }
+    try {
+      // Only a theme in this site's own themes/ — never one in node_modules or inside the binary.
+      const dir = join(root, "themes", name);
+      // The shelf is imported only when a face is asked for: it carries sixteen fonts.
+      const shelf = opt("face") ? await import("@snypd/shelf") : undefined;
+      const want = opt("face") ? shelf!.shelfFace(opt("face")!) : undefined;
+      if (opt("face") && !want) throw Object.assign(new Error(`no face "${opt("face")}" on the shelf`), { hint: `One of: ${shelf!.loadShelf().faces.map((f) => f.id).join(", ")}.` });
+      const r = expandSeed({ seed: opt("seed")!, strategy: opt("strategy") as never, scheme: opt("scheme") as never, ratio: pair("ratio"), base: pair("base"), xHeight: want?.xHeight });
+      if (!existsSync(join(dir, "theme.yaml"))) throw Object.assign(new Error(`no theme at ${dir}`), { hint: `\`snypd new theme ${name}\` first; seeding fills a theme, it does not make one.` });
+      const got = want ? shelf!.installFace(want.id, dir) : undefined;
+      const face = got && { id: got.face.id, font: got.font, stack: got.stack, role: got.face.role, pairsWith: got.face.pairsWith };
+      const files = writeSeed(dir, name, r, face).map((f) => relative(root, f));
+      const low = (rule: string) => Math.min(...r.report.pairs.filter((p) => p.rule === rule).map((p) => p.ratio)).toFixed(2);
+      const say = [`${Object.keys(r.tokens).length} tokens → ${files.join(", ")}`,
+        `  text ${low("contrast.text")}:1 · muted ${low("contrast.muted")}:1 · accent ${low("contrast.accent")}:1 · on-accent ${low("contrast.on-accent")}:1 (worst side; the gate asks 4.5)`,
+        ...(face ? [`  face ${face.id} (${got!.face.kb} KB, ${face.role}) → ${face.role === "text" ? "font.body" : "font.heading"}; leading.body ${r.tokens["leading.body"]!.default} from its x-height`] : []),
+        ...r.report.notes.map((n) => `  ${n}`)];
+      const committed = Repo.open(root)?.commit(files, `theme: seed ${name} from ${r.input.seed} (${r.input.strategy})`);
+      if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
+      say.push("", `\`snypd check theme ${name}\` judges it; \`snypd shoot --theme=${name}\` photographs it.`);
       console.log(say.join("\n"));
     } catch (e) {
       const err = e as Error & { hint?: string };
@@ -440,6 +499,32 @@ switch (verb) {
    * `site.icon` — PNGs under `content/media/cards/` and `content/media/icons/`, to commit. Needs Chrome
    * on this machine and never on the host; says so and exits 1 when there is none.
    */
+  case "shoot": {   // docs/29 TF2: every candidate × route × width × scheme, and one contact sheet
+    const { shoot, formatShoot } = await import("@snypd/bench");
+    // A flag it does not know is refused before anything runs: `shoot` clears its `--out`, and a
+    // `--help` read as "no options" once photographed a whole site into the default directory.
+    const SHOOT_USAGE = "usage: snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots]";
+    const unknown = [...flags].filter((f) => !/^--(theme|route|width|scheme|out)=/.test(f));
+    if (unknown.length) { console.error(unknown.some((f) => f === "--help" || f === "-h") ? SHOOT_USAGE : `${unknown.join(" ")}: not a shoot option\n${SHOOT_USAGE}`); process.exit(unknown.every((f) => f === "--help") ? 0 : 2); }
+    const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
+    const list = (n: string) => opt(n)?.split(",").map((x) => x.trim()).filter(Boolean);
+    const scheme = opt("scheme");
+    if (scheme !== undefined && !["light", "dark", "both"].includes(scheme)) { console.error(`--scheme=${scheme}: light, dark or both`); process.exit(2); }
+    const widths = list("width")?.map(Number);
+    if (widths?.some((w) => !Number.isInteger(w) || w < 200 || w > 3000)) { console.error(`--width=${opt("width")}: whole pixels, 200–3000`); process.exit(2); }
+    let r;
+    try {
+      r = await shoot({ root: args[0], themes: list("theme"), routes: list("route"), widths, scheme: scheme as "light" | "dark" | "both" | undefined, out: opt("out"),
+        onCandidate: (c, i, n) => console.error(`${i}/${n} ${c.slug}`) });
+    } catch (e) {
+      const err = e as Error & { hint?: string };
+      console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`);
+      process.exit(1);
+    }
+    console.log(formatShoot(r));
+    if (r.skipped) process.exit(1);
+    break;
+  }
   case "cards": {
     const { drawCards } = await import("@snypd/bench");
     const root = args[0] ?? ".";
@@ -461,15 +546,17 @@ switch (verb) {
   }
   default:
     console.log([
-      "usage: snypd <init|dev|serve|build|cards|bench|new|check> [--version]",
+      "usage: snypd <init|dev|serve|build|cards|shoot|bench|new|seed|check> [--version]",
       "",
-      "  snypd init [root] [--name=…] [--url=…] [--deploy=cloudflare|vercel]   scaffold a site and register it with your harness",
+      "  snypd init [dir] [--name=…] [--url=…] [--host=cloudflare|vercel|none]   scaffold a site (making dir if needed), Cloudflare config by default",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
+      "  snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots]   photograph themes on every route; contact sheet (needs Chrome)",
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
-      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
+      "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
+      "  snypd seed <theme> --seed=<colour> [--strategy=…] [--scheme=…] [--ratio=1.2:1.25] [--base=17:19] [--face=<shelf id>]   a readable palette + fluid type into a theme's tokens",
       "  snypd check theme|plugin [name|dir] [--all]                            judge one by rule — what the shelf runs",
       "  snypd config [root] [path] · snypd lint [root|file.md]                debugging aids",
       "",

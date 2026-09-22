@@ -1,10 +1,14 @@
 /**
- * `--deploy cloudflare | vercel` — the host's half of the contract, written once (S18d′, `07` §3b).
+ * `--host cloudflare | vercel | none` — the host's half of the contract, written once (S18d′, `07` §3b;
+ * written by default since L1, docs/31 decision 229).
  *
- * Snypd never talks to a host. It writes files and git; the host's whole job is: on push, run
- * `snypd build`, serve `dist/`. That contract fits in a config file, and this writes it — which is worth
- * a module rather than an inline string for one reason: **the build command is where distribution shows
- * up**. `07` §3b specified `curl -fsSL https://snypd.rocks/install | sh && snypd build`, and S18d′
+ * Snypd holds nothing a host issued. It writes files and git, and the contract is: run `snypd build`,
+ * serve `dist/`. Who runs those two is `deploy.mode` (docs/31 decision 228): in **git** mode the host
+ * watches the repo and runs the build command below on push; in **direct** mode the binary runs the
+ * host's own CLI (`wrangler deploy`) from the site root, the way it already runs `git push` — never
+ * reading the credential that CLI keeps in its own store. Either way that contract fits in a config
+ * file, and this writes it — which is worth a module rather than an inline string for one reason:
+ * **the build command is where distribution shows up**. `07` §3b specified `curl -fsSL https://snypd.rocks/install | sh && snypd build`, and S18d′
  * refused pipe-to-shell on two counts, so the line a host actually runs is now
  * `npx -y @snypd/cli@<version> build` — installed from the registry, provenance attested, no shell
  * script in the middle.
@@ -41,6 +45,15 @@ export const LAUNCHER = "@snypd/cli";
 
 export const DEPLOY_TARGETS = ["cloudflare", "vercel"] as const;
 export type DeployTarget = (typeof DEPLOY_TARGETS)[number];
+
+/**
+ * What `init` may be told about a host: a target, or `none` for a site that will be served by something
+ * that needs no config of ours. Absent means `DEFAULT_HOST` (decision 229): the stranger's walk in
+ * docs/31 §3 has no flag in it, so the default has to be the host the walk is built on.
+ */
+export const HOST_CHOICES = [...DEPLOY_TARGETS, "none"] as const;
+export type HostChoice = (typeof HOST_CHOICES)[number];
+export const DEFAULT_HOST: DeployTarget = "cloudflare";
 
 /** The one line a host runs. Overridable in the signature below so the test does not chase releases. */
 export const buildCommand = (version: string): string => `npx -y ${LAUNCHER}@${version} build`;
@@ -131,9 +144,11 @@ export function writeDeploy(root: string, target: DeployTarget, opts: { name: st
     // a `[build]` here would make `wrangler deploy` run it a second time on every deploy. The command is
     // in a comment instead, so the repo still says what it expects without paying for it twice.
     put("wrangler.toml", `# Cloudflare Workers, serving static assets. \`snypd build\` writes dist/; \`wrangler deploy\` uploads it.
-# Nothing here talks to an API — snypd writes files and git, and the host builds on push (docs/07 §3b).
+# snypd holds no credential and calls no API: \`site\` › deploy runs those two lines from here, through
+# Cloudflare's own CLI, and reads the URL back (docs/31). Nothing else has to be typed anywhere.
 #
-# The build command, for the dashboard's "Build command" field (Workers Builds runs it before deploy):
+# If the repo is connected in Cloudflare's dashboard instead, the host builds on push — its "Build
+# command" field is:
 #     ${buildCommand(version)}
 # The same command on the \`snypd/drafts\` branch builds a preview *with the drafts in it*, marked noindex —
 # \`site\` › push \`preview\` sends that branch, and says what a preview exposes before it goes.

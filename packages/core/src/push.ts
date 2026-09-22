@@ -127,10 +127,11 @@ export function pushState(root: string, cfg: LoadedConfig, opts: { drafts?: numb
     });
   }
 
-  // The same gate `publishCheck` applies one step earlier, for the same reason and one level up: the feed,
-  // the sitemap and the JSON-LD are absolute, so a site pushed under the placeholder is a site whose every
-  // canonical URL is `localhost`. Publishing already refuses; this is the last place to catch a repo whose
-  // content was published before the URL was set.
+  // The feed, the sitemap and the JSON-LD are absolute, so a site pushed under the placeholder is a site
+  // whose every canonical URL is `localhost`. In git mode the host builds exactly what was pushed, which
+  // makes this the last place to catch it — and since L2 the only one: `publishCheck` stopped asking
+  // (a publish is a commit, nothing is served by it) and `site` › deploy answers the question from the
+  // host instead of asking it (docs/31 §4).
   if (isPlaceholderUrl(cfg.config.site.url))
     blockers.push({
       reason: `site.url is still ${cfg.config.site.url} — a placeholder`,

@@ -8,7 +8,8 @@
     "@snypd/core": "workspace:*",
     "@snypd/spec": "workspace:*",
     "@snypd/render": "workspace:*",
-    "@snypd/bench": "workspace:*"
+    "@snypd/bench": "workspace:*",
+    "@snypd/shelf": "workspace:*"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0"
