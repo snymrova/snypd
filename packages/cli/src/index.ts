@@ -305,7 +305,7 @@ switch (verb) {
     const root = args[0] ?? ".";
     try {
       // No required flags (S18d, docs/08 decision 63): name falls back to the directory, url to a
-      // placeholder that comes due at publish. The person running this has not seen a pixel yet.
+      // placeholder the first deploy replaces with the host's answer. The person running this has not seen a pixel yet.
       // `--host` is the L1 name (docs/31); `--deploy` is the S18d′ spelling and still means the same.
       const r = initSite(root, { name: flag("name"), url: flag("url"), description: flag("description"), theme: flag("theme"), deploy: (flag("host") ?? flag("deploy")) as "cloudflare" | "vercel" | "none" | undefined });
       const say: string[] = [`${r.dirCreated ? `made ${root}/ and ` : ""}initialised ${r.created.join(", ")}`];
@@ -315,7 +315,9 @@ switch (verb) {
       // The host's half is in the repo by default now (L1, decision 229). What the line says is what a
       // person could otherwise only learn from the file: nothing was typed into a dashboard, and the
       // one command a connected host would run is an installed one, not a shell script piped from a URL.
-      if (r.deploy) say.push(`${r.deploy}: host config and a PR workflow are in the repo — snypd holds no credential; a connected host builds with \`${buildCommand(VERSION)}\` and serves dist/`);
+      if (r.deploy) say.push(r.deploy === "cloudflare"
+        ? `${r.deploy}: wrangler.toml and a PR workflow are in the repo — \`site\` › deploy uploads through Cloudflare's own CLI and reads the URL back; snypd holds no credential`
+        : `${r.deploy}: host config and a PR workflow are in the repo — snypd holds no credential; a connected host builds with \`${buildCommand(VERSION)}\` and serves dist/`);
       // Commit the scaffold on the branch the site deploys from. Leaving it uncommitted would make the
       // agent's first write refuse — `useDrafts` will not carry work it did not do onto the drafts branch
       // — and would leave `main` without a `snypd.yaml` for the host to build after the first publish.
@@ -350,7 +352,9 @@ switch (verb) {
       }).join("\n");
       const out: string[] = ["", `\`${r.name}\` is a snypd site. There is no admin UI: content is written over MCP, by an agent.`];
       if (r.placeholderUrl)
-        out.push(`Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — and not before.`);
+        out.push(r.deploy === "cloudflare"
+          ? `Its URL is ${PLACEHOLDER_URL}, a placeholder. The first deploy reads the real one back from ${r.deploy} and sets it — nothing to type.`
+          : `Its URL is ${PLACEHOLDER_URL}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything is pushed to a host — and not before.`);
       const registered = r.created.includes(MCP_FILE);
       // The last thing printed is the next thing typed (L1, docs/31 §5): `init my-site` is run from the
       // parent, so the person is not in the site yet, and the harness has to open *there*. `.` prints

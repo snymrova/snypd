@@ -55,12 +55,22 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * The sixth is not gone from the product. A site that declares `mcp.write: draft` still pays it, and
    * the branch that records it is still in `onboard.ts` for exactly that walk.
    */
-  test("five human actions, and the fifth is the URL", () => {
+  /**
+   * **Still five, and the fifth changed** — L2, docs/31 §4. The URL left: `publishCheck` no longer asks
+   * for it, because a publish is a commit and the host *answers* the question at deploy. The click
+   * arrived: the walk now ends at a URL rather than at a local publish, and the host has never seen the
+   * machine, so `site` › deploy runs `wrangler login` and waits for a person to allow it (decision 230).
+   * One action out, one in, and the one that came in is irreducible where the one that left was not —
+   * nobody gets a URL on somebody else's host anonymously. Measured, again: the walk counts `allow-host`
+   * only when the deploy result says login ran.
+   */
+  test("five human actions, and the fifth is the click that lets the host know this machine", () => {
     expect(walk.actions).toHaveLength(5);
     expect(walk.actions.map((a) => a.kind)).toEqual([
-      "paste", "answer", "approve-shell", "restart", "answer-url",
+      "paste", "answer", "approve-shell", "restart", "allow-host",
     ]);
-    expect(walk.actions).toHaveLength(HANDOFF_BUDGET);   // the design and the measurement, at last agreeing
+    expect(walk.actions).toHaveLength(HANDOFF_BUDGET);   // the design and the measurement, still agreeing
+    expect(walk.actions.map((a) => a.kind)).not.toContain("answer-url");   // the product stopped asking (L2)
   });
 
   /**
@@ -77,6 +87,7 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
     const irreducible = walk.actions.filter((a) => a.irreducible).map((a) => a.kind);
     expect(irreducible).toContain("approve-shell");
     expect(irreducible).toContain("restart");
+    expect(irreducible).toContain("allow-host");             // the host must see the person once (docs/31 §3)
     // And the one that left is gone from the walk rather than quietly reclassified as optional.
     expect(walk.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
@@ -84,10 +95,10 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
   /** Half the count is structural and half is observed; a number that hides which is worse than two. */
   test("every action a product can prove was proved by the product refusing", () => {
     const observed = walk.actions.filter((a) => a.proof !== "structural");
-    expect(observed.map((a) => a.kind)).toEqual(["restart", "answer-url"]);
-    // One refusal now, from `publishCheck`, and it is the URL. The approval that used to follow it is
-    // opt-in from S19c — `publishCheck` still refuses for it, on a site that asks.
-    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual(["answer-url"]);
+    expect(observed.map((a) => a.kind)).toEqual(["restart", "allow-host"]);
+    // One observed wait now, and it is the host's: `deploy` reported that login ran. `publishCheck` no
+    // longer refuses for the URL (L2); it still refuses for an approval on a site that asks (S19c).
+    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual(["allow-host"]);
   });
 
   /**
@@ -184,18 +195,25 @@ describe("F3 — the seven states, each naming its own next action", () => {
     expect(walk.survivesRestart.deskStillRenders).toBe(true);
   });
 
-  /** State 5: published to `main`. Reached only through both refusals, which is the row's whole point. */
-  test("5 · published locally → reached, and the only thing a person owed was the URL", () => {
+  /** State 5: published to `main`. Reached with nothing owed by a person: the URL is the host's to answer now. */
+  test("5 · published locally → reached, and nobody was asked for anything", () => {
     expect(walk.publishedMs).toBeGreaterThan(walk.ttfpMs);
-    // Until S19c this asserted `approve-post`. Under decision 80 the agent publishes, and the one thing
-    // it could not answer for itself is where the site will be served — which is a fact about the world
-    // and not a judgement about the words.
-    expect(walk.actions.map((a) => a.kind)).toContain("answer-url");
+    // Until S19c this asserted `approve-post`; until L2, `answer-url`. Under decision 80 the agent
+    // publishes, and under docs/31 §4 the one thing it could not answer for itself — where the site will
+    // be served — is answered by the host at deploy rather than asked of a person at publish.
+    expect(walk.actions.map((a) => a.kind)).not.toContain("answer-url");
     expect(walk.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
 
-  /** State 6 is `site` › push, S19a and S19c. Named here so the row is not silently absent from the suite. */
-  test.todo("6 · live on the internet → `site` › push, which an agent may now make itself", () => {});
+  /**
+   * State 6: live. `site` › deploy, docs/31 §3 step 9 — the URL came from the host, `site.url` was the
+   * placeholder so the site was built and uploaded twice, and the person's part was one click.
+   */
+  test("6 · live → `site` › deploy ends at the host's URL, two uploads the first time", () => {
+    expect(walk.url).toMatch(/^https:\/\/[a-z0-9-]+\.stub\.workers\.dev$/);
+    expect(walk.deploys).toBe(2);
+    expect(walk.actions.map((a) => a.kind)).toContain("allow-host");
+  });
 });
 
 describe("F4 — survives the restart", () => {

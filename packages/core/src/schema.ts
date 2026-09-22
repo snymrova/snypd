@@ -394,7 +394,16 @@ export const ConfigSchema = z.object({
    * and then `site` › push hands back the Desk's URL instead of pushing, which is what every site did
    * between S19a and S19c.
    */
-  deploy: z.object({ push: z.enum(["agent", "human"]).default("agent") }).passthrough().default({ push: "agent" }),
+  deploy: z.object({
+    push: z.enum(["agent", "human"]).default("agent"),
+    /**
+     * Who uploads (docs/31 decision 228). `direct`: `site` › deploy runs the host's CLI from here and reads
+     * the URL back. `git`: the host is connected to the repo and builds on push, the S18d′ shape. Absent
+     * means *whichever this site already is* — a remote says `git`, none says `direct` — so no site that
+     * deploys today changes how it does.
+     */
+    mode: z.enum(["direct", "git"]).optional(),
+  }).passthrough().default({ push: "agent" }),
   bench: z.object({ budgets: z.record(z.string(), z.union([z.number(), z.record(z.string(), z.number())])).default({}) }).passthrough().default({ budgets: {} }),
   fieldTypes: z.record(z.string(), z.object({ json: z.string() }).passthrough()).default({}),
 }).strict();

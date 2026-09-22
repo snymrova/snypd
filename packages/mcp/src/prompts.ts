@@ -78,7 +78,7 @@ function getStarted(args: Record<string, unknown>, n: Counts): GetPromptResult {
 
 **A · no site here yet.**${told ? ` I have already told you: ${told} — do not ask again.` : ""}
 
-Ask me${told ? " for anything above that is missing, and" : ""} for the site's name and one sentence about it, in a **single** message — not one question at a time. Do **not** ask for the URL: \`site\` › init takes a placeholder and the real origin is only needed at publish, which is a long way from here.
+Ask me${told ? " for anything above that is missing, and" : ""} for the site's name and one sentence about it, in a **single** message — not one question at a time. Do **not** ask for the URL: \`site\` › init takes a placeholder, and the first \`site\` › deploy reads the real one back from the host.
 
 Then \`find_tools\` with "set up a new site" to unlock the \`site\` tool, and \`site\` › init with what you have. It writes \`snypd.yaml\`, the content directories and \`.mcp.json\`, and creates the git repository if this directory is empty. Read what it returns — it says what is still unfinished. Then continue at **B**.
 
@@ -89,7 +89,7 @@ Then \`find_tools\` with "set up a new site" to unlock the \`site\` tool, and \`
 1. **Learn the vocabulary first.** Read \`snypd://spec/primitives\`. ${n.primitives} primitives — a post that is only prose is a post that wastes every one of them. Read \`snypd://theme\` for what is installed, and \`snypd://theme/tokens\` for what can be recoloured without writing CSS.
 2. **Write one real post.** Not "Hello world" — something true about this site, using at least two primitives. \`content.create\`, then fix whatever the lint it hands back tells you to fix, and repeat until it is clean. The hints are there to be acted on, not relayed to me.
 3. **Show me, then publish it — or hand it to me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Then \`content.publish\`. It publishes unless this type's \`mcp.write\` is \`draft\` — then the refusal says so, and you give me the review URL and I approve that exact version there — or unless \`site.url\` is still a placeholder, which is step 4's to report. Say which of the three happened.
-4. **Report**, in one short paragraph: what exists now, what the theme is, and what I should decide next — theme, tokens, or more posts. If \`site.url\` is still a placeholder, say so here and tell me it is needed before anything publishes. Do not ask for it earlier.
+4. **Report**, in one short paragraph: what exists now, what the theme is, and what I should decide next — theme, tokens, or more posts. If \`site.url\` is still a placeholder, say so here in half a sentence — the first \`site\` › deploy sets it from the host. Do not ask for it.
 
 ---
 

@@ -602,7 +602,7 @@ export function deskPage(f: DeskFacts, now: number = Date.now()): Html {
   const build = f.build
     ? `${f.build.routes} route${f.build.routes === 1 ? "" : "s"} in ${Math.round(f.build.ms)} ms · ${escape(ago(f.build.at, now))}`
     : "not built yet";
-  const placeholder = f.onboarding?.placeholderUrl ? ` <span class="wait">placeholder — needed before publish</span>` : "";
+  const placeholder = f.onboarding?.placeholderUrl ? ` <span class="wait">placeholder — the first deploy sets it</span>` : "";
 
   const inFlight = f.drafts.length
     ? `<section class="card"><h2>In flight (${f.drafts.length})</h2><ol>${f.drafts.map((d) => [

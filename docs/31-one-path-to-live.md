@@ -3,7 +3,7 @@
 **Owner:** PM · **Engineer:** Claude Code · **Decider:** Sunny · **Written:** 22 Sep 2026 · **Launch:** Tue 6 Oct 2026 (14 days)
 **Asked for:** *"before we have our own cloud, what path will have least friction in launching a site using snypd"* — then *"so lets focus on one path least friction for a stranger.. and then create a roadmap."*
 **Scope:** one path, chosen; the walk a stranger takes on it, action by action; what exists in the tree for each step and what does not; the sessions that close the gap before launch, dated; what is deliberately left off the path until after. This narrows the 22 Sep go-live funnel (seven documents, now in `docs/research/go-live/`) to its critical line. The funnel's "proposed decision 221" collided with the theme factory's 221–227; the decisions here are numbered from **228**.
-**Status:** decided — 228–230 taken as recommended (22 Sep 2026, Sunny: *"go ahead"*; docs/11 §8). L0 = PR #45; L1 built the same day (docs/11 §7b). Nothing here needs the cloud (docs on the 22 Sep architecture) and nothing here waits for it.
+**Status:** decided — 228–230 taken as recommended (22 Sep 2026, Sunny: *"go ahead"*; docs/11 §8). L0 = PR #45; L1 built the same day; **L2 built 22 Sep** (`site › deploy`, `core/src/host.ts`; docs/11 §7b) — the two ⚠ in §4 are answered from wrangler's source and still owed a run on Sunny's account. Nothing here needs the cloud (docs on the 22 Sep architecture) and nothing here waits for it.
 
 ---
 
@@ -64,6 +64,8 @@ Read against the tree at `tf-theme-factory` (b8efa11) and `main` (245f293).
 | custom domain | nothing | after launch (§7) |
 
 **Two things to verify on a real account in L2, marked ⚠ because this box could not reach the docs today:** (a) what `wrangler deploy` prints for an assets-only Worker and whether a brand-new account is prompted to register a `workers.dev` subdomain on its first deploy — if it is, preflight does that step; (b) that a `routes = [{ pattern = "example.com", custom_domain = true }]` line in `wrangler.toml` attaches a domain on redeploy when the zone is on Cloudflare, which is the whole of §7's domain step.
+
+**L2's answer, from wrangler 4.135.0's source rather than a run** (the copy that deployed snypd.rocks on 18 Sep was still in `~/.npm/_npx`; `core/src/host.ts` header quotes the lines). **(a)** `deploy` prints `✨ Success! Uploaded N files (M already uploaded) (t sec)`, then `Deployed <name> triggers (t sec)`, then one indented target per line — `https://<name>.<subdomain>.workers.dev` with the protocol added only for workers.dev, `<pattern> (custom domain)` for a domain — then `Current Version ID: <uuid>`; `parseDeploy` reads exactly that. A fresh account with no subdomain **is** asked, *"Would you like to register a workers.dev subdomain now?"*, and with no terminal the answer is *no* and the exit names `https://dash.cloudflare.com/<account>/workers/onboarding`. Two things keep that off the walk: wrangler detects an agent harness in the environment (`am-i-vibing`, which knows Claude Code, Cursor, OpenCode…) and then registers the subdomain itself from the project directory's name, so the walk in §3 never sees the question; outside a harness, `deployHint` turns the refusal into that one link (F3). **(b)** `{ pattern, custom_domain = true }` is a shape wrangler's config validator accepts and `deploy` publishes under *Custom domains* — §7's domain step is one line in `wrangler.toml`, as hoped. Both still want one run on a real fresh account; that is the day L7 spends.
 
 ## 5. The roadmap — fourteen days
 

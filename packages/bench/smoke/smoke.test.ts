@@ -61,7 +61,8 @@ describe("the compiled binary, in a directory it has never seen", () => {
     expect(r.out.trimEnd().split("\n").at(-1)).toBe("    claude");
     // The host's half is in the repo by default (decision 229), and the summary says so.
     expect(existsSync(join(dir, "wrangler.toml"))).toBe(true);
-    expect(r.out).toContain("cloudflare: host config and a PR workflow are in the repo");
+    expect(r.out).toContain("cloudflare: wrangler.toml and a PR workflow are in the repo");
+    expect(r.out).toContain("reads the URL back");                   // L2: the host answers the URL question
   });
 
   /**
@@ -200,7 +201,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
       expect(yaml).toContain(`name: "${basename(empty)}"`);
       expect(yaml).toContain("# placeholder");
       expect(r.out).toContain("git init — new repository on main");
-      expect(r.out).toContain("needed before anything publishes — and not before");   // the URL is due at publish, and only there
+      expect(r.out).toContain("The first deploy reads the real one back");   // the URL is the host's to answer (L2), not the person's
     } finally { rmSync(empty, { recursive: true, force: true }); }
   }, 30_000);
 

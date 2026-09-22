@@ -1264,7 +1264,7 @@ describe("Desk (S18b)", () => {
     expect(html).toContain(">later<");
     expect(html).toContain(">next<");
     // The placeholder is flagged on the status card rather than presented as the site's address.
-    expect(html).toContain("placeholder — needed before publish");
+    expect(html).toContain("placeholder — the first deploy sets it");
     // Every `pre` on this page scrolls, so every one of them is keyboard-reachable (decision 50).
     expect(html).not.toContain("<pre>");
 
@@ -1272,7 +1272,7 @@ describe("Desk (S18b)", () => {
     const settled = deskPage({ ...base, prompts: [{ name: "get-started", description: "Start here." }], onboarding: done }, now).html;
     expect(settled).not.toContain("First run");
     expect(settled).not.toContain("mcpServers");
-    expect(settled).not.toContain("placeholder — needed");
+    expect(settled).not.toContain("placeholder — the first");
     // S23: the prompt list used to vanish with the card. It is on the say-card now, which stays.
     expect(settled).toContain("<code>get-started</code>");
   });

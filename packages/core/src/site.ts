@@ -416,7 +416,8 @@ function ephemeralRunner(exec: string): "bunx" | "npx" | null {
  * `snypd init` exited 2 without `--name` and `--url`, and `site` › init called `need(args, "url")` — so a
  * person who had just met a CMS was asked for a production origin before seeing one pixel, and the agent
  * trying to help them could not route around it either. Name falls back to the directory, which is what
- * the person called it; URL falls back to `PLACEHOLDER_URL`, which comes due at publish (`publishCheck`).
+ * the person called it; URL falls back to `PLACEHOLDER_URL`, which `site` › deploy resolves from the host
+ * (and `push` refuses over, in git mode).
  *
  * A URL that is *passed* and is not a URL still throws: a typo is a different thing from an omission.
  */

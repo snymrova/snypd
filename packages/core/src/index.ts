@@ -22,6 +22,7 @@ export { Repo, git, initRepo, isRepoRoot, principal, commitHint, builtBranch, DR
 export { writeDeploy, buildCommand, DEPLOY_TARGETS, HOST_CHOICES, DEFAULT_HOST, LAUNCHER, VERSION, type DeployTarget, type HostChoice } from "./deploy";
 // S19a: the push — the only outward-facing act in the product, and the one a person performs (decision 44).
 export { pushState, pushSite, pushHint, deployTarget, originName, PUSH_ROUTE, DRAFTS_PUSH_EXPOSES, type PushState, type PushResult, type PushCommit, type PushBlocker } from "./push";
+export { deployState, deploySite, deployMode, deployHint, parseDeploy, findRunner, whoami, hostLogin, hostDeploy, distSize, WRANGLER_VERSION, LOGIN_TIMEOUT_MS, DEPLOY_TIMEOUT_MS, type DeployState, type DeployResult, type HostDeploy, type HostAccount, type LoginResult, type Runner, type BuildFn } from "./host";
 // P4: tier 4 — speak (docs/10 §4.2). A plugin's MCP tools and prompts: the contract, the loaders, and the call.
 export { loadPluginTools, loadPluginPrompts, callPluginTool, type PluginToolCtx, type PluginToolReply, type PluginToolAction, type PluginToolsModule, type PluginToolSet, type PluginPromptCtx, type PluginPromptDef, type PluginPromptsModule, type PluginPromptSet, type PluginPage } from "./speak";
 // P3: events — fire and report (docs/10 §4.5, decision 87) — and the allowlisted fetch a handler is handed (§4.7).

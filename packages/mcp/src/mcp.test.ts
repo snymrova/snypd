@@ -1210,7 +1210,7 @@ describe("the first run, from the agent's side", () => {
     expect(structured(init)).toMatchObject({ ok: true, git: true, placeholderUrl: true, name: "mcp-first-run" });
     const s = init.result.content[0].text as string;
     expect(s).toContain("placeholder");
-    expect(s).toContain("Do not ask for it yet.");           // the URL is due at publish, and only there
+    expect(s).toContain("Do not ask for it yet.");           // the first deploy sets it from the host (L2)
     expect(s).toContain("snypd://spec/primitives");          // what to do next, not what was done
   });
 
@@ -1350,33 +1350,52 @@ describe("the first run, from the agent's side", () => {
     expect(c.git(remote, "ls-tree", "-r", "--name-only", c.DRAFTS_BRANCH).stdout).toContain("content/posts/going-to-preview.md");
   });
 
-  test("the placeholder comes due exactly once, at publish, and the refusal changes when it is fixed", async () => {
-    const [, , created, refused] = await session([
+  test("the placeholder does not stop a publish (L2, docs/31 §4): the debt is paid at deploy", async () => {
+    const [, , created, published] = await session([
       req(1, "initialize"),
       call(2, "content.create", { type: "post", frontmatter: { title: "First" }, body: "Words enough to be a post.\n" }),
       call(3, "content.query", { type: "post" }),
       call(4, "content.publish", { type: "post", slug: "first" }),
     ], site);
-    // Drafting is not blocked by the placeholder — that is the half of the bargain that makes deferring
-    // the question tolerable at all.
     expect(created.result.isError).toBeUndefined();
-    expect(refused.result.isError).toBe(true);
-    expect(refused.result.content[0].text).toContain("placeholder");
-    expect(refused.result.content[0].text).toContain("site.url");
-
-    const [, set, stillRefused] = await session([
-      req(1, "initialize"),
-      call(2, "site", { action: "set_config", path: "site.url", value: "https://first-run.example" }),
-      call(3, "content.publish", { type: "post", slug: "first" }),
-    ], site);
-    expect(set.result.isError).toBeUndefined();
-    // Setting it was the whole debt. Until S19c a second refusal waited behind this one — the approval a
-    // human owed — and the test's point was that the message changed from one to the other. Under
-    // decision 80 the default type publishes, so the URL is the only thing that was ever owed, and the
-    // same call that refused now goes all the way. The renamed variable is the assertion.
-    const published = stillRefused;
+    // From S18d to L1 this call refused with "placeholder" and the fix was `site.url`. A publish is a
+    // commit; nothing is served by it. `push` still refuses under the placeholder (push.test.ts), and
+    // `site` › deploy answers the question from the host instead of asking it (below).
     expect(published.result.isError).toBeUndefined();
     expect(published.result.content[0].text).not.toContain("placeholder");
     expect(structured(published)).toMatchObject({ ok: true, status: "published" });
+  });
+
+  /**
+   * The walk's step 9 through the tool (docs/31 §3), against the stub wrangler: nobody is logged in,
+   * the site has the placeholder, one call — and the answer is a URL, with `site.url` set and committed.
+   */
+  test("site › deploy: login, build, upload, URL back, site.url set and committed, second upload against it", async () => {
+    const state = resolve("corpora/_test/mcp-first-run-stub");
+    rmSync(state, { recursive: true, force: true });
+    const env = { SNYPD_WRANGLER: resolve("packages/core/src/wrangler.stub.sh"), STUB_STATE: state };
+    Object.assign(process.env, env);
+    try {
+      const [, deployed, cfg] = await session([
+        req(1, "initialize"),
+        call(2, "site", { action: "deploy" }),
+        req(3, "resources/read", { uri: "snypd://config" }),
+      ], site);
+      expect(deployed.result.isError).toBeUndefined();
+      const s = structured(deployed) as { ok: boolean; url: string; deploys: number; urlSet: string; loggedIn: boolean; files: number };
+      expect(s).toMatchObject({ ok: true, url: "https://mcp-first-run.stub.workers.dev", deploys: 2, urlSet: "https://mcp-first-run.stub.workers.dev", loggedIn: true });
+      expect(s.files).toBeGreaterThan(0);
+      const text = deployed.result.content[0].text as string;
+      expect(text.startsWith("https://mcp-first-run.stub.workers.dev is live")).toBe(true);
+      expect(text).toContain("committed");                                   // the URL change landed
+      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toEqual(["whoami --json", "login", "deploy", "deploy"]);
+      expect(cfg.result.contents[0].text).toContain("https://mcp-first-run.stub.workers.dev");
+      // The site the host holds was built against the host's URL, not localhost.
+      expect(readFileSync(`${site}/dist/index.html`, "utf8")).toContain("https://mcp-first-run.stub.workers.dev");
+      expect(readFileSync(`${site}/dist/index.html`, "utf8")).not.toContain("localhost:4321");
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
+      rmSync(state, { recursive: true, force: true });
+    }
   });
 });

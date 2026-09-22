@@ -29,7 +29,7 @@
  */
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { Session } from "../agent/session";
 import { compile } from "./build";
 import type { Metric, Report } from "../src/index";
@@ -41,7 +41,7 @@ export const TTFV_BUDGET = 5_000;
 export const TTFP_BUDGET = 60_000;
 
 export type ActionKind =
-  | "paste" | "answer" | "approve-shell" | "restart" | "answer-url" | "approve-post" | "git-identity";
+  | "paste" | "answer" | "approve-shell" | "restart" | "answer-url" | "approve-post" | "git-identity" | "allow-host";
 
 export interface Action {
   /** The row of docs/08 §2 this belongs to, so the breakdown reads against the table it is scoring. */
@@ -66,6 +66,10 @@ export interface OnboardWalk {
   ttfpMs: number;
   publishedMs: number;
   lintClean: boolean;
+  /** Where the site is, as the host said it (docs/31 §3 step 9) — the walk's last line, and the one a person is told. */
+  url: string;
+  /** How many uploads the first `site` › deploy took: two, when the URL had to be learned and the site rebuilt against it. */
+  deploys: number;
   reviewUrl: string;
   /** F4: the same answers, after `.snypd/` is deleted underneath a running flow. */
   survivesRestart: RestartCheck;
@@ -167,6 +171,7 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean } = {}): P
   const act = (a: Action) => { actions.push(a); return a };
   let dev: ReturnType<typeof Bun.spawn> | undefined;
   let session: Session | undefined;
+  let stubState: string | undefined;
 
   try {
     // ── steps 1–3: a person arrives. There is nothing on disk to observe, and pretending otherwise
@@ -206,7 +211,11 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean } = {}): P
 
     // ── steps 8–9: the context dies, and a new harness picks up from `initialize`. A second process
     //    against the same directory is the honest form of that — nothing carries over but the disk.
-    session = new Session(dir, [bin, "serve", dir]);
+    // The host's CLI is the stub (`core/src/wrangler.stub.sh`): wrangler's own lines, no account, no
+    //    network. The walk measures the product's actions; the stub stands in for Cloudflare's tool
+    //    exactly as the bare repo stands in for GitHub in `push.test.ts`.
+    stubState = mkdtempSync(join(tmpdir(), "snypd-onboard-host-"));
+    session = new Session(dir, [bin, "serve", dir], { SNYPD_WRANGLER: resolve("packages/core/src/wrangler.stub.sh"), STUB_STATE: stubState });
     const hello = await session.start();
     if (!hello.instructions?.includes("get-started")) throw new Error("initialize's instructions do not name the prompt a new site starts from");
     await session.read("snypd://config");
@@ -233,10 +242,13 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean } = {}): P
 
     // ── steps 12–13: publish, and let the refusals do the counting.
     //
-    //    This is the part §2 could not settle on paper. `publishCheck` refuses for the placeholder URL
-    //    *before* it refuses for the missing approval, so the agent learns about both in a fixed order,
-    //    and each refusal that only a person can satisfy is one more action. Whether that is one or two
-    //    is the open question docs/08 left here in as many words; the loop answers it by running.
+    //    This is the part §2 could not settle on paper. From S18d to L1 `publishCheck` refused for the
+    //    placeholder URL *before* it refused for the missing approval, so the agent learned about both
+    //    in a fixed order, and each refusal that only a person can satisfy was one more action. Since
+    //    L2 (docs/31 §4) the URL is not asked here at all — a publish is a commit, and the host answers
+    //    the question at deploy — so the branch below is not reached on a default site. Kept, like the
+    //    approval branch under it: a site that is git-connected still pays it at `push`, and this file's
+    //    claim is that the count is measured, not decided.
     const origin = new URL(reviewUrl).origin;
     for (let guard = 0; guard < 6; guard++) {
       const r = await session.call("content.publish", { type: "post", slug: FIRST_POST.slug });
@@ -264,6 +276,18 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean } = {}): P
     }
     const publishedMs = performance.now() - t0;
 
+    // ── the walk's step 9 (docs/31 §3): `site` › deploy. The host has never seen this machine, so the
+    //    tool runs `wrangler login` and a person clicks *allow* in the tab it opened — once per machine,
+    //    and the one human action inside the tool. Then build, upload, the URL read back, `site.url` set
+    //    from it and the site uploaded again against it. Proved by the result, not assumed: `loggedIn`
+    //    is true only when login ran, and `deploys` is 2 only when the URL had to be learned.
+    const deployed = await session.call("site", { action: "deploy" });
+    const d = (deployed.structuredContent ?? {}) as { ok?: boolean; url?: string; loggedIn?: boolean; deploys?: number; urlSet?: string };
+    if (!d.ok || !d.url) throw new Error(`deploy did not end at a URL:\n${deployed.content.map((c) => c.text).join("\n")}`);
+    if (d.loggedIn) act({ step: 14, kind: "allow-host", what: "click allow in the tab `wrangler login` opened", irreducible: true, proof: "refused",
+      detail: "the host had never seen this machine; the tool ran its login and waited — nobody gets a URL on somebody else's host anonymously (docs/31 §3), and the credential lands in the host's own store, never ours" });
+    if (/localhost/.test(d.url)) throw new Error(`the host answered with a localhost URL: ${d.url}`);
+
     // ── F4: onboarding state is derived from disk, so deleting the cache changes no answer except the
     //    heartbeat. Checked here rather than in a test as well, because the walk is the only place a
     //    *live* flow exists to delete it out from under.
@@ -272,12 +296,13 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean } = {}): P
     return {
       binary: bin, driver: REFERENCE_DRIVER, actions, fresh: freshMachine(bin),
       ttfvMs: +ttfvMs.toFixed(1), ttfpMs: +ttfpMs.toFixed(1), publishedMs: +publishedMs.toFixed(1),
-      lintClean, reviewUrl, survivesRestart,
+      lintClean, reviewUrl, url: d.url, deploys: d.deploys ?? 0, survivesRestart,
     };
   } finally {
     session?.stop();
     if (dev) { dev.kill("SIGTERM"); await dev.exited.catch(() => {}) }
     if (!opts.keep) rmSync(dir, { recursive: true, force: true });
+    if (stubState) rmSync(stubState, { recursive: true, force: true });
   }
 }
 
@@ -385,7 +410,13 @@ export function onboardMetrics(w: OnboardWalk): Metric[] {
     { name: "onboard.ttfp", value: +(w.ttfpMs / 1000).toFixed(2), unit: "s", budget: TTFP_BUDGET / 1000,
       note: `the paste → a lint-clean draft with a review URL · driver: ${w.driver} — no model latency in this number, and S21 substitutes three that have it` },
     { name: "onboard.published", value: +(w.publishedMs / 1000).toFixed(2), unit: "s",
-      note: "…and on to a published post, through both refusals — report-only: it is bounded by how fast a person reads" },
+      note: "…and on to a published post — report-only: it is bounded by how fast a person reads" },
+    // docs/31 §5 · L4 names this row `onboard.live`; L2 puts it here because L2 is what changed the walk's
+    // end from a local publish to a URL. A count, exact, for the reason `handoff` is: two uploads is the
+    // shape of a first deploy (the URL is learned on the first and the site rebuilt against it), and one
+    // or three would each mean something moved.
+    { name: "onboard.live", value: w.deploys, unit: "uploads", budget: 2, exact: true,
+      note: `${w.url} — the first \`site\` › deploy, against the stub wrangler: login, build, upload, the URL read back, \`site.url\` set, build and upload again` },
   ];
 }
 

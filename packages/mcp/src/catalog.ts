@@ -36,7 +36,7 @@ const TYPE_ = str("Content type: `post`, `page`, `author` (snypd://types lists t
 /** Words `find_tools` matches on beyond the name and description — what an agent would actually type. */
 export const KEYWORDS: Record<string, string[]> = {
   theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance", "setting", "logo", "tagline", "show dates", "date format", "social links", "footer"],
-  site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "ship", "name", "domain", "host", "cloudflare", "vercel"],
+  site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "put it online", "online", "upload", "ship", "launch", "name", "domain", "host", "cloudflare", "vercel", "wrangler", "login"],
   bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y", "screenshot", "screenshots", "shoot", "photograph", "contact"],
   "content.explain": ["explain", "why", "what ran", "pipeline", "stages", "transform", "filter", "slot", "hook", "plugin", "debug", "trace", "inspect", "autolink", "changed my post", "unexpected", "link appeared", "route key", "cache"],
 };
@@ -61,9 +61,9 @@ export const CATALOG: Tool[] = [
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
   { name: "site",
-    description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or a request to put the site live. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
+    description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or putting the site online — `deploy` uploads it through the host's own CLI and answers with the URL. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `push` to put it live (or, with `preview`, to push the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "push"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `deploy` to put it online — builds, uploads through the host's CLI (Cloudflare, `wrangler`), and answers with the URL; on a machine the host has never seen it runs `wrangler login` first and a person clicks allow once · `push` to send the branch to a git remote the host builds from (or, with `preview`, to push the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "deploy", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       location: str("`set_nav`: which menu — a location the theme declares (`header`, `footer`; snypd://nav lists them)"),
@@ -385,7 +385,9 @@ export async function call(root: string, name: string, args: Record<string, unkn
           // what has to be said instead is what is still unknown, and when it stops being optional.
           return text([`initialised \`${r.name}\` — ${r.created.join(", ")}`, git,
             ...(r.deploy ? [`${r.deploy}: host config and a PR workflow are in the repo (the default). Nothing here holds a credential; a connected host builds with \`${c.buildCommand(c.VERSION)}\` and serves dist/.`] : []),
-            ...(r.placeholderUrl ? [`site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before anything publishes — content.publish refuses until then, and says so. Do not ask for it yet.`] : []),
+            ...(r.placeholderUrl ? [r.deploy === "cloudflare"
+              ? `site.url is ${r.url}, a placeholder. The first \`site\` › deploy reads the real one back from the host and sets it. Do not ask for it yet. Unless a person has a domain in mind, never.`
+              : `site.url is ${r.url}, a placeholder. The feed, sitemap and JSON-LD are absolute, so the real origin is needed before the site is pushed to a host — \`site\` › push refuses until then, and says so. Do not ask for it yet.`] : []),
             "Next: read snypd://spec/primitives, then content.create a post and content.render_preview to look at it."].join("\n"), { ok: true, ...r });
         }
         // The sentence is in both halves (R4, decision 199): Claude Code hands a model `structuredContent` when
@@ -471,6 +473,34 @@ export async function call(root: string, name: string, args: Record<string, unkn
             git,
             `Connect the repo to ${targetName === "cloudflare" ? "Cloudflare (Workers, the option their dashboard gives you for a repo)" : "Vercel"} once, in their dashboard; after that every push builds. \`site\` › push says what would go and where a person presses it.`,
           ].join("\n"), { ok: true, deploy: targetName, created, changed: true });
+        }
+        /**
+         * **`deploy` uploads** (docs/31 §4, decisions 228–230): the walk's step 9. Build, `wrangler deploy`
+         * from the site root through the host's own CLI, read the URL back — and on a first deploy set
+         * `site.url` from what the host said, build again and upload again, so nothing the host serves
+         * points at `localhost`. On a machine Cloudflare has never seen it runs `wrangler login` first,
+         * which opens a tab; the person clicks *allow* and this call continues. That wait is the one
+         * human action inside the tool, and the result's first line says whether it happened.
+         *
+         * `deploy.push: human` refuses here exactly as it refuses `push` (229). A site with a remote and
+         * no `deploy.mode` is a git-connected site and is sent to `push` instead — snypd.rocks and every
+         * site that deployed before L2 keeps deploying the way it did.
+         */
+        if (action === "deploy") {
+          const cfgDeploy = cfgOf();
+          const { build } = await import("@snypd/render");
+          const r = await c.deploySite(root, cfgDeploy, { as: "agent", build: async (rt) => { await build(rt); } });
+          const kb = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${(n / 1024).toFixed(0)} KB`;
+          const structured = { ok: r.ok, deployed: r.ok, target: r.target, url: r.url, urls: r.urls, uploaded: r.uploaded, skipped: r.skipped, files: r.files, bytes: r.bytes, versionId: r.versionId, loggedIn: r.loggedIn, urlSet: r.urlSet, deploys: r.deploys, mode: r.state.mode, policy: r.state.policy, blockers: r.state.blockers, by: r.by, at: r.at };
+          if (!r.ok) return { ...fail(`not deployed: ${r.reason}`, r.hint), structuredContent: { ...structured, error: r.reason, hint: r.hint } };
+          const git = r.paths.length ? await commit(r.paths, `site: url ${r.urlSet} — from ${r.target}`) : "";
+          return text([
+            `${r.url} is live — ${r.files} file${r.files === 1 ? "" : "s"}, ${kb(r.bytes ?? 0)}, on ${r.target}${r.uploaded !== undefined ? ` (${r.uploaded} uploaded${r.skipped ? `, ${r.skipped} the host already had` : ""})` : ""}.`,
+            ...(r.loggedIn ? [`Cloudflare had not seen this machine: \`wrangler login\` ran and a person allowed it. It will not ask again here.`] : []),
+            ...(r.urlSet ? [`site.url was the placeholder; it is now ${r.urlSet}, read back from the host — the site was built and uploaded a second time against it, so its feed, sitemap and JSON-LD say the right origin. ${git}`] : []),
+            ...(r.urls && r.urls.length > 1 ? [`Also answers at ${r.urls.filter((u) => u !== r.url).join(", ")}.`] : []),
+            `Every deploy from now on is one call and no clicks. Back this up on GitHub when you like — say so.`,
+          ].join("\n"), structured);
         }
         /**
          * **`push` pushes** (S19c, decision 80), unless `deploy.push` is `human` — in which case it does
@@ -897,7 +927,9 @@ async function doctor(root: string): Promise<ToolResult> {
   }
 
   if (facts.placeholderUrl)
-    warn(`site.url is ${cfg.config.site.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before anything publishes (content.publish refuses until then)`);
+    warn(c.deployTarget(root) === "cloudflare" && c.deployMode(root, cfg) === "direct"
+      ? `site.url is ${cfg.config.site.url}, a placeholder — the first \`site\` › deploy reads the real one back from the host and sets it`
+      : `site.url is ${cfg.config.site.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before the site is pushed to a host (\`site\` › push refuses until then)`);
 
   // Broken and unfinished are different things, and a first run is full of the second kind (S18d): a
   // scaffold with no content and a placeholder URL is a site working exactly as intended two minutes in.
