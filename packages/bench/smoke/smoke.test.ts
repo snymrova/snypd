@@ -53,7 +53,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
     // is told what to open and what to say; the agent gets the one sentence it relays — so the
     // assertions are the sentences, not keywords.
     expect(r.out).toContain("open Claude Code, Cursor or Codex in this directory");
-    expect(r.out).toContain("Write me a first post.");
+    expect(r.out).toContain("Write me a first post and put it online.");   // L3: the sentence in docs/31 §3, because the host's half is in the repo
     expect(r.out).toContain("If a harness is already open here, restart it so the snypd tools load.");
     // …and it names where the far side picks up, because the restart destroys the context this printed into.
     expect(r.out).toContain("get-started");

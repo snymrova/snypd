@@ -23,7 +23,7 @@ import { loadConfig } from "./config";
 import { git, initRepo } from "./git";
 import { writeDeploy } from "./deploy";
 import { createContent, publishCheck, approvals } from "./write";
-import { deployHint, deployMode, deploySite, deployState, parseDeploy, findRunner, WRANGLER_VERSION } from "./host";
+import { deployHint, deployMode, deploySite, deployState, parseDeploy, findRunner, readDeploy, deployPath, WRANGLER_VERSION } from "./host";
 import { pushState } from "./push";
 
 const ROOT = "corpora/_test/host";
@@ -163,12 +163,36 @@ describe("site › deploy — the walk's step 9 (docs/31 §3)", () => {
     expect(readFileSync(`${ROOT}/snypd.yaml`, "utf8")).toContain("https://host-test.stub.workers.dev");
     expect(readFileSync(`${ROOT}/snypd.yaml`, "utf8")).not.toContain("placeholder");   // the comment went with the value
 
+    // L3: the deploy that knows writes it down, so doctor can answer "when did this last go up, and is
+    // site.url the host's" without starting wrangler. It is in the disposable directory: a clone starts
+    // with no record, which is true of the clone.
+    const rec = readDeploy(ROOT)!;
+    expect(rec).toMatchObject({ url: "https://host-test.stub.workers.dev", urls: ["https://host-test.stub.workers.dev"], files: 2, deploys: 2, target: "cloudflare", versionId: "00000000-0000-4000-8000-000000000001" });
+    expect(rec.at).toBe(r.at);
+    expect(rec.account).toBeUndefined();                                     // login ran; whoami's answer predates it
+    expect(deployPath(ROOT)).toBe(join(ROOT, ".snypd", "deploy.json"));
+
     // Every deploy after the first: one upload, no login, nothing to commit.
     const again = await deploySite(ROOT, loadConfig(ROOT), { build });
     expect(again).toMatchObject({ ok: true, deploys: 1, paths: [], url: "https://host-test.stub.workers.dev" });
     expect(again.loggedIn).toBeUndefined();
     expect(again.urlSet).toBeUndefined();
     expect(calls().slice(4)).toEqual(["whoami --json", "deploy"]);
+    // …and the record follows the last deploy, now with who the host said was logged in.
+    expect(readDeploy(ROOT)).toMatchObject({ deploys: 1, at: again.at, account: { email: "stub@example.com" } });
+  });
+
+  test("no record until a deploy succeeds, and a truncated one reads as none", async () => {
+    setup();
+    expect(readDeploy(ROOT)).toBeUndefined();
+    process.env.STUB_DEPLOY = "notauth";
+    mkdirSync(STATE, { recursive: true }); writeFileSync(`${STATE}/loggedin`, "");   // logged in, and the host refuses the upload anyway
+    const r = await deploySite(ROOT, loadConfig(ROOT), { build });
+    expect(r.ok).toBe(false);
+    expect(readDeploy(ROOT)).toBeUndefined();
+    mkdirSync(join(ROOT, ".snypd"), { recursive: true });
+    writeFileSync(deployPath(ROOT), '{"url": "https://x.example", "at"');
+    expect(readDeploy(ROOT)).toBeUndefined();
   });
 
   test("a URL a person already set is not replaced by the host's free hostname", async () => {

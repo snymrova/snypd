@@ -851,14 +851,43 @@ async function doctor(root: string): Promise<ToolResult> {
   // problem: a site with no remote is a site somebody is still writing, which is most of them for most of
   // their life — and the fix is a person's, not an agent's, in both directions.
   const push = repo ? c.pushState(root, cfg) : undefined;
-  if (push) {
-    if (push.remote) ok(`remote \`${push.remote.name}\` → ${push.origin ?? push.remote.url}${push.deploy ? ` · ${push.deploy}` : ""}`);
-    else if (push.blockers.some((b) => /remote/.test(b.reason))) warn("no remote — this repo is not connected to a host, so nothing can go live yet");
-    if (push.remote && push.ok) {
+  // How this site goes live decides which rows say so (L3, docs/31 §4 "what the agent sees"). A site with
+  // a remote and no `deploy.mode` deploys on push, and the push rows below are its story. Every site
+  // `init` has made since L1 deploys directly, and for those "no remote" was the wrong sentence — it said
+  // nothing could go live, on the one path where going live is a single call. The four host rows are read
+  // from the tree and from `.snypd/deploy.json`, never from wrangler: `preflight: false` costs nothing,
+  // and the preflight form is a package-runner start and a request to Cloudflare for a fact that only
+  // changes when a deploy changes it. So "logged in" is answered as of the last deploy, and said as such.
+  const dep = await c.deployState(root, cfg, { preflight: false });
+  const last = c.readDeploy(root);
+  const when = (iso: string) => iso.replace("T", " ").slice(0, 16);
+  const sameUrl = (a: string, b: string) => a.replace(/\/+$/, "").toLowerCase() === b.replace(/\/+$/, "").toLowerCase();
+  if (dep.mode === "direct") {
+    if (dep.target === "cloudflare") {
+      const runner = c.findRunner();
+      if (runner) ok(`host: ${dep.target}, deployed from here through wrangler ${dep.wrangler} via \`${runner.kind}\`${dep.policy === "human" ? " — `deploy.push` is `human`, so `site` › deploy reports and a person uploads" : ""}`);
+      else warn(`host: ${dep.target}, but neither \`npx\` nor \`bunx\` is on this machine, so wrangler cannot run — install Node (https://nodejs.org) or Bun (https://bun.sh); snypd does not bundle the host's CLI`);
+      if (last) ok(`last deploy ${when(last.at)} by ${last.by}: ${last.url} — ${last.files} file${last.files === 1 ? "" : "s"}${last.deploys > 1 ? `, ${last.deploys} uploads` : ""}${last.account?.email ? `; logged in as ${last.account.email} then` : ""}`);
+      else warn("no deploy on record here — `site` › deploy puts it online: one call, and on a machine the host has never seen a person clicks allow once");
+      if (dep.placeholderUrl) warn(`site.url is ${dep.url}, a placeholder — the first \`site\` › deploy reads the real one back from the host and sets it`);
+      else if (last && last.urls.some((u) => sameUrl(u, dep.url))) ok(`site.url is the host's — ${dep.url}`);
+      else if (last) warn(`site.url is ${dep.url}, and the host did not answer at it on the last deploy (${last.urls.join(", ")}) — a domain not attached yet, or a URL set by hand; the feed and sitemap say ${dep.url} either way`);
+    } else if (dep.blockers[0]) {
+      // No host config, or a host whose CLI this does not run: the blocker deploy would refuse with, said
+      // now — an unfinished thing rather than a problem, because a site with no host is a site somebody
+      // is still writing, and the remedy is one call.
+      warn(`${dep.blockers[0].reason} — ${dep.blockers[0].hint}`);
+      if (dep.placeholderUrl) warn(`site.url is ${dep.url}, a placeholder — the feed, sitemap and JSON-LD are absolute; a direct deploy sets it from the host, and a push needs \`site\` › set_config \`site.url\` first`);
+    }
+  } else {
+    if (push?.remote) ok(`remote \`${push.remote.name}\` → ${push.origin ?? push.remote.url}${push.deploy ? ` · ${push.deploy}` : ""}`);
+    else if (push?.blockers.some((b) => /remote/.test(b.reason))) warn("no remote — `deploy.mode` is `git`, so the host builds what is pushed, and there is nowhere to push");
+    if (push?.remote && push.ok) {
       if (!push.known) warn(`\`${push.branch}\` has never been pushed — a person does that from the Desk, and \`site\` › push says where`);
       else if (push.ahead) warn(`${push.ahead} commit${push.ahead === 1 ? "" : "s"} on \`${push.branch}\` are not on \`${push.remote.name}\` — published items nobody has put live yet`);
       else ok(`\`${push.branch}\` is up to date with \`${push.remote.name}\` as of the last fetch`);
     }
+    if (dep.placeholderUrl) warn(`site.url is ${dep.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before the site is pushed to a host (\`site\` › push refuses until then)`);
   }
 
   // ── The facts docs/08 decision 64 adds ───────────────────────────────────────────────────────────
@@ -926,11 +955,6 @@ async function doctor(root: string): Promise<ToolResult> {
     if (bare.length) warn(`${bare.length} published item${bare.length === 1 ? " has" : "s have"} no description — search results and share cards fall back to the first paragraph (${bare.slice(0, 3).map((f) => `${f.type}/${f.slug}`).join(", ")}${bare.length > 3 ? "…" : ""})`);
   }
 
-  if (facts.placeholderUrl)
-    warn(c.deployTarget(root) === "cloudflare" && c.deployMode(root, cfg) === "direct"
-      ? `site.url is ${cfg.config.site.url}, a placeholder — the first \`site\` › deploy reads the real one back from the host and sets it`
-      : `site.url is ${cfg.config.site.url}, a placeholder — the feed, sitemap and JSON-LD are absolute, so \`site\` › set_config \`site.url\` is needed before the site is pushed to a host (\`site\` › push refuses until then)`);
-
   // Broken and unfinished are different things, and a first run is full of the second kind (S18d): a
   // scaffold with no content and a placeholder URL is a site working exactly as intended two minutes in.
   // Saying "nothing to fix" under two ⚠ rows reads as though the rows did not count.
@@ -940,6 +964,12 @@ async function doctor(root: string): Promise<ToolResult> {
   return text([...lines, tail].join("\n"),
     { ok: !problems.length, problems, lint: { errors: lint.errors, warnings: lint.warnings },
       facts: { config: true, theme: !!active, git: !!repo, registered: reg.present && reg.names && !reg.missingCommand, harness: harness === "connected", harnessState: harness, startedAt, client, dev: !!dev, deskUrl: dev ? `${dev.url}/_snypd` : undefined, items, placeholderUrl: facts.placeholderUrl,
-        push: push ? { remote: push.remote?.name, origin: push.origin, deploy: push.deploy, branch: push.branch, ahead: push.ahead, known: push.known, ready: push.ok } : undefined } });
+        push: push ? { remote: push.remote?.name, origin: push.origin, deploy: push.deploy, branch: push.branch, ahead: push.ahead, known: push.known, ready: push.ok } : undefined,
+        // Two keys, not one, because F4's instrument diffs doctor's facts key by key after `rm -rf .snypd/`
+        // (bench/smoke/onboard.ts): `deploy` is derived from the tree on every call and must survive;
+        // `lastDeploy` is the record a deploy left of an event on the host, which nothing here can
+        // re-derive without the network, and is exempt by name the way `dev` is.
+        deploy: { target: dep.target, mode: dep.mode, policy: dep.policy, wrangler: dep.wrangler, url: dep.url, ready: dep.ok },
+        lastDeploy: last ? { at: last.at, by: last.by, url: last.url, urls: last.urls, files: last.files, bytes: last.bytes, deploys: last.deploys, email: last.account?.email, urlIsHosts: !dep.placeholderUrl && last.urls.some((u) => sameUrl(u, dep.url)) } : undefined } });
 }
 

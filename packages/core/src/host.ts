@@ -51,10 +51,11 @@
  * key because a site's config must not be able to redirect a deploy to an arbitrary program.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isPlaceholderUrl, type LoadedConfig } from "./config";
 import { Repo, principal } from "./git";
+import { ensureDisposableDir, INDEX_DIR } from "./paths";
 import { deployTarget, type PushBlocker } from "./push";
 import { setConfig } from "./site";
 import type { DeployTarget } from "./deploy";
@@ -301,6 +302,56 @@ export interface DeployResult {
 export type BuildFn = (root: string) => Promise<unknown>;
 
 /**
+ * `.snypd/deploy.json` — the last deploy that left *this machine* (L3, docs/31 §4 "what the agent sees").
+ *
+ * Doctor's four host rows want facts the tree does not hold: has this site ever gone up, from where, and
+ * is `site.url` the address the host actually answered with. The alternative is asking wrangler — a
+ * package-runner start and one request to Cloudflare on every doctor call, for a fact that only changes
+ * when *we* change it. So the deploy that knows writes it down, in the disposable directory beside
+ * `dev.json` and `activity.json`, and a clone starts with "no deploy on record here", which is
+ * true. The account is kept so "logged in" can be answered the same way: as of the last deploy, and
+ * said as such.
+ */
+export interface DeployRecord {
+  at: string;
+  by: string;
+  target: DeployTarget;
+  url: string;
+  urls: string[];
+  files: number;
+  bytes: number;
+  uploaded?: number;
+  versionId?: string;
+  /** Who wrangler said was logged in when this went up — `whoami`'s answer, not a fresh one. */
+  account?: HostAccount;
+  /** How many uploads that call made: two on a first deploy, one after. */
+  deploys: number;
+}
+
+export const deployPath = (root: string) => join(root, INDEX_DIR, "deploy.json");
+
+/** Best effort, like `recordEvents`: a record that threw would fail the deploy it exists to describe. */
+export function recordDeploy(root: string, rec: DeployRecord): void {
+  const file = deployPath(root), tmp = `${file}.${process.pid}.tmp`;
+  try {
+    ensureDisposableDir(join(root, INDEX_DIR));
+    writeFileSync(tmp, `${JSON.stringify(rec, null, 2)}\n`);
+    renameSync(tmp, file);
+  } catch { try { rmSync(tmp, { force: true }); } catch { /* nothing here is worth an exception */ } }
+}
+
+/** The record as written, or nothing. Shape-checked the way `readDev` is: a truncated write is no record. */
+export function readDeploy(root: string): DeployRecord | undefined {
+  const f = deployPath(root);
+  if (!existsSync(f)) return undefined;
+  try {
+    const j = JSON.parse(readFileSync(f, "utf8")) as Partial<DeployRecord>;
+    if (typeof j.url !== "string" || typeof j.at !== "string" || typeof j.target !== "string") return undefined;
+    return { at: j.at, by: j.by ?? "", target: j.target, url: j.url, urls: Array.isArray(j.urls) ? j.urls.filter((u): u is string => typeof u === "string") : [j.url], files: j.files ?? 0, bytes: j.bytes ?? 0, uploaded: j.uploaded, versionId: j.versionId, account: j.account, deploys: j.deploys ?? 1 };
+  } catch { return undefined; }
+}
+
+/**
  * The walk's step 9 (docs/31 §3): preflight, login if the host has never seen this machine, build,
  * upload, read the URL back — and when `site.url` was the placeholder, set it, build again and upload
  * again, because the feed, the sitemap and every JSON-LD block were written against `localhost` the
@@ -345,7 +396,9 @@ export async function deploySite(root: string, cfg: LoadedConfig, opts: { build:
     d = again;
   }
   const size = distSize(join(root, "dist"));
-  return { ok: true, target: state.target, url: d.url, urls: d.urls, uploaded: d.uploaded, skipped: d.skipped, bytes: size.bytes, files: size.files, versionId: d.versionId, loggedIn, urlSet, paths, deploys, by: who, at: at(), state };
+  const done = at();
+  recordDeploy(root, { at: done, by: who, target: state.target!, url: d.url!, urls: d.urls, files: size.files, bytes: size.bytes, uploaded: d.uploaded, versionId: d.versionId, account: state.account, deploys });
+  return { ok: true, target: state.target, url: d.url, urls: d.urls, uploaded: d.uploaded, skipped: d.skipped, bytes: size.bytes, files: size.files, versionId: d.versionId, loggedIn, urlSet, paths, deploys, by: who, at: done, state };
 }
 
 /** What the host now holds, counted on disk — wrangler says how many files went, not how big the site is. */

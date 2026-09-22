@@ -1176,6 +1176,20 @@ describe("the first run, from the agent's side", () => {
     // …and it does not ask for a URL up front on the branch that creates a site, because init no longer
     // needs one (decision 63) and asking for a production domain before the first pixel is the defect.
     expect(s).toContain("Do **not** ask for the URL");
+    // L3 (docs/31 §4): the prompt ends online, not at a review URL — `site` › deploy is a numbered step
+    // on the majority branch, the pause for the *allow* click is explained before it happens, and the
+    // agent is told there is nothing to ask for that the call does not get for itself.
+    expect(s).toContain("4. **Put it online.**");
+    expect(s).toContain("`site` › deploy, one call");
+    expect(s).toContain("click *allow*");
+    expect(s).toContain("Do not ask me for a URL, a repository or an account");
+    expect(s).not.toContain("step 4's to report");
+  });
+
+  test("find_tools hands over `site` for the ways a person says \"put it online\" (L3)", async () => {
+    const { search } = await import("./catalog");
+    for (const q of ["put it online", "go live", "deploy the site", "make it live on the internet", "ship it", "publish the site to cloudflare"])
+      expect(search(q)[0]?.name, q).toBe("site");
   });
 
   /**
@@ -1236,11 +1250,17 @@ describe("the first run, from the agent's side", () => {
     // S18e adds the fifth derived fact — is a preview already serving this site (decision 64's rule:
     // nothing on the Desk that doctor cannot answer). Nothing is running in a test, so it is a ⚠.
     expect(s).toContain("no preview server");
-    // S19a adds the sixth: where does this site go when it goes live. A repo with no remote is the
-    // ordinary state of a site somebody is still writing, so it is a ⚠ and never a problem — and it is
-    // the fourth unfinished thing on a two-minute-old scaffold.
-    expect(s).toContain("no remote");
+    // S19a added the sixth: where does this site go when it goes live. Since L3 a site `init` made — no
+    // remote, wrangler.toml in the repo — deploys directly, and "no remote" was the wrong sentence for it:
+    // it said nothing could go live on the one path where going live is a single call. The host rows say
+    // where it deploys and that it never has, from the tree and `.snypd/deploy.json`, without starting
+    // wrangler — a ⚠ that names the call, and still the fourth unfinished thing on a two-minute-old scaffold.
+    expect(s).not.toContain("no remote");
+    expect(s).toContain("host: cloudflare, deployed from here through wrangler");
+    expect(s).toContain("no deploy on record here — `site` › deploy puts it online");
     expect(structured(doc).facts.push).toMatchObject({ branch: "main", ahead: 0, known: false, ready: false });
+    expect(structured(doc).facts.deploy).toMatchObject({ target: "cloudflare", mode: "direct", policy: "agent", ready: true });
+    expect(structured(doc).facts.lastDeploy).toBeUndefined();
     // U2 adds the seventh: the theme renders two menus and the site has written neither yet — the header
     // a visitor sees first is a bare site name until `site` › set_nav. A ⚠ that names the remedy.
     expect(s).toContain("no menus yet");
@@ -1390,6 +1410,17 @@ describe("the first run, from the agent's side", () => {
       expect(text).toContain("committed");                                   // the URL change landed
       expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toEqual(["whoami --json", "login", "deploy", "deploy"]);
       expect(cfg.result.contents[0].text).toContain("https://mcp-first-run.stub.workers.dev");
+      // L3: doctor now answers the four host questions from the record the deploy left, and nothing it
+      // says here started wrangler — the stub's call log above is the whole of what ran.
+      const [, doc] = await session([req(1, "initialize"), call(2, "site", { action: "doctor" })], site);
+      const d = doc.result.content[0].text as string;
+      expect(d).toContain("last deploy ");
+      expect(d).toContain("https://mcp-first-run.stub.workers.dev — ");
+      expect(d).toContain("2 uploads");
+      expect(d).toContain("site.url is the host's — https://mcp-first-run.stub.workers.dev");
+      expect(d).not.toContain("placeholder");
+      expect(structured(doc).facts.lastDeploy).toMatchObject({ urlIsHosts: true, url: "https://mcp-first-run.stub.workers.dev", deploys: 2 });
+      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toHaveLength(4);
       // The site the host holds was built against the host's URL, not localhost.
       expect(readFileSync(`${site}/dist/index.html`, "utf8")).toContain("https://mcp-first-run.stub.workers.dev");
       expect(readFileSync(`${site}/dist/index.html`, "utf8")).not.toContain("localhost:4321");

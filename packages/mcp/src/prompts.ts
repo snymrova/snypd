@@ -17,7 +17,7 @@ import type { GetPromptResult, Handlers, Prompt } from "./protocol";
 
 export const PROMPTS: Prompt[] = [
   { name: "get-started",
-    description: "Start here on any snypd site you have not written for yet: it reads what this site already is — nothing, a fresh scaffold, or an established site — and takes the right next step from there, ending in a first post with a review URL.",
+    description: "Start here on any snypd site you have not written for yet: it reads what this site already is — nothing, a fresh scaffold, or an established site — and takes the right next step from there, ending with a first post online at a URL the host answered with.",
     arguments: [
       { name: "name", description: "What the site is called. Only used if it does not exist yet", required: false },
       { name: "url", description: "Where it will be served from, e.g. https://example.com. Optional — a placeholder is used until publish", required: false },
@@ -65,8 +65,8 @@ function getStarted(args: Record<string, unknown>, n: Counts): GetPromptResult {
   const name = arg(args, "name"), url = arg(args, "url");
   const told = [name && `name ${JSON.stringify(name)}`, url && `url ${JSON.stringify(url)}`].filter(Boolean).join(", ");
   return {
-    description: "Set up a snypd site and write its first post",
-    messages: user(`Get this snypd site to its first post. Work through it yourself; stop to ask me only what you cannot know.
+    description: "Set up a snypd site, write its first post, and put it online",
+    messages: user(`Get this snypd site to its first post, and put it online. Work through it yourself; stop to ask me only what you cannot know.
 
 **1. Find out which of three situations you are in.** Read \`snypd://config\`, then call \`content.query\` with no arguments. Those two answers pick the branch, and the rest of this only applies to one of them:
 
@@ -88,14 +88,15 @@ Then \`find_tools\` with "set up a new site" to unlock the \`site\` tool, and \`
 
 1. **Learn the vocabulary first.** Read \`snypd://spec/primitives\`. ${n.primitives} primitives — a post that is only prose is a post that wastes every one of them. Read \`snypd://theme\` for what is installed, and \`snypd://theme/tokens\` for what can be recoloured without writing CSS.
 2. **Write one real post.** Not "Hello world" — something true about this site, using at least two primitives. \`content.create\`, then fix whatever the lint it hands back tells you to fix, and repeat until it is clean. The hints are there to be acted on, not relayed to me.
-3. **Show me, then publish it — or hand it to me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Then \`content.publish\`. It publishes unless this type's \`mcp.write\` is \`draft\` — then the refusal says so, and you give me the review URL and I approve that exact version there — or unless \`site.url\` is still a placeholder, which is step 4's to report. Say which of the three happened.
-4. **Report**, in one short paragraph: what exists now, what the theme is, and what I should decide next — theme, tokens, or more posts. If \`site.url\` is still a placeholder, say so here in half a sentence — the first \`site\` › deploy sets it from the host. Do not ask for it.
+3. **Show me, then publish it — or hand it to me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Then \`content.publish\`. It publishes unless this type's \`mcp.write\` is \`draft\` — then the refusal says so, and you give me the review URL and I approve that exact version there. A placeholder \`site.url\` does not stop a publish; step 4 resolves it. Say which of the two happened.
+4. **Put it online.** \`find_tools\` with "put it online" unlocks the \`site\` tool; then \`site\` › deploy, one call. It builds, uploads through the host's own CLI and answers with the URL. Two things it may do on the way, and both are its to do, not yours to prepare for: on a machine the host has never seen it runs \`wrangler login\` and waits for me to click *allow* in the tab that opens — tell me that is what the pause is; and when \`site.url\` is the placeholder it sets it from the host's answer, builds again and uploads again, so the first deploy is two uploads. Do not ask me for a URL, a repository or an account: nothing is needed that the call does not get for itself. If it refuses, read the refusal — every one names its next action — and do that, or relay it to me when the action is mine (\`deploy.push\` is \`human\`; a site that deploys on push, where \`site\` › push is the call instead).
+5. **Report**, in one short paragraph: the URL, what exists now, what the theme is, and what I should decide next — theme, tokens, more posts, or backing the repository up on GitHub (say so and it is one call).
 
 ---
 
 **C · this is already a site.** Do not initialise and do not write anything yet.
 
-Run \`site\` › doctor and tell me what it found, in plain sentences rather than a dump. Then say what is here — how many items, of which types, on what theme — and ask what I want written. If I have already told you a topic, use the \`write-post\` prompt instead of this one; it is the shorter path for exactly that. If doctor's basics rows are unfinished — no icon, no not-found page, no share cards — offer the \`site-basics\` prompt.`),
+Run \`site\` › doctor and tell me what it found, in plain sentences rather than a dump. Then say what is here — how many items, of which types, on what theme, and whether it is online: doctor's host rows say where it deploys, when it last went up from this machine, and whether \`site.url\` is the address the host answered with. A site that has never been deployed is one \`site\` › deploy from a URL — offer that. Then ask what I want written. If I have already told you a topic, use the \`write-post\` prompt instead of this one; it is the shorter path for exactly that. If doctor's basics rows are unfinished — no icon, no not-found page, no share cards — offer the \`site-basics\` prompt.`),
   };
 }
 
@@ -117,7 +118,7 @@ function writePost(args: Record<string, unknown>): GetPromptResult {
 
 **If you were given prose to work from** rather than writing it fresh, call \`content.suggest_blocks\` on it first: it finds the table that is already a chart and the numbered list that is already a flow, and applies the ones you accept.
 
-**Show me the result, then publish it — or hand it to me.** \`content.render_preview\`: the page, the markdown twin, the review URL. Then \`content.publish\`, unless this type's \`mcp.write\` is \`draft\` — the refusal says so — in which case give me the review URL and I approve that exact version there. Tell me in two sentences what the post argues and which primitives it uses, and which of the two happened. If this site has share cards (\`content/media/cards/\` exists), say that \`snypd cards\` will draw this post's — or run it, if you have a shell — and that the PNG needs committing.`),
+**Show me the result, then publish it — or hand it to me.** \`content.render_preview\`: the page, the markdown twin, the review URL. Then \`content.publish\`, unless this type's \`mcp.write\` is \`draft\` — the refusal says so — in which case give me the review URL and I approve that exact version there. Tell me in two sentences what the post argues and which primitives it uses, and which of the two happened. A publish is a commit, not an upload: \`site\` › deploy is what puts the published version online (one call; \`find_tools\` "put it online" unlocks it), or \`site\` › push on a site that deploys on push — do that, and give me the URL. If this site has share cards (\`content/media/cards/\` exists), say that \`snypd cards\` will draw this post's — or run it, if you have a shell — and that the PNG needs committing.`),
   };
 }
 

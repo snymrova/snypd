@@ -27,34 +27,36 @@ That gap is short. It is also the whole funnel. A CMS that is excellent from tur
 
 This is the spine of the document. Everything below either serves this sequence or is explicitly named as serving somebody else.
 
-A person arrives at the repo, or at snypd.rocks. What they see is **one command, then the harness**:
+A person arrives at the repo, or at snypd.rocks. What they see is **one line, then one sentence**:
 
 ```
-mkdir field-notes && cd field-notes
-bunx @snypd/cli init
-claude
-> Write me a first post.
+bunx @snypd/cli init my-site && cd my-site && claude
+> Write me a first post and put it online.
 ```
 
 | # | Who acts | What happens | Human action? |
 |---|---|---|---|
-| 1 | person | makes a directory and runs `bunx @snypd/cli init` in it | **yes** — type |
-| 2 | `init` | writes `snypd.yaml`, the content dirs, `.gitignore`, `.mcp.json`; `git init` (the directory is empty, because nothing has touched it yet); commits the scaffold. Prints what exists, what is still unknown, and what to open and say next (decision 178) | — |
-| 3 | person | opens Claude Code, Cursor or Codex in the directory — it reads `.mcp.json` as it starts — and says *Write me a first post.* | **yes** — open, say |
-| 4 | agent | `initialize` returns `instructions`, which name `get-started` for a site with no content. The agent reads `snypd://config`, `snypd://spec/primitives`, `snypd://theme` | — |
+| 1 | person | types the line: `init my-site` makes the directory, and the last thing it prints is the next thing typed | **yes** — type |
+| 2 | `init` | writes `snypd.yaml`, the content dirs, `.gitignore`, `.mcp.json`, **`wrangler.toml` and the PR workflow** (the host's half is the default, not a flag — decision 229); `git init`; commits the scaffold. Prints what exists, what is still unknown, and the sentence to say (decision 178) | — |
+| 3 | person | the harness opens in the directory — it reads `.mcp.json` as it starts — and the person says *Write me a first post and put it online.* | **yes** — say |
+| 4 | agent | `initialize` returns `instructions`, which name `get-started`. The prompt branches on what is here (B: scaffolded, nothing written); the agent reads `snypd://config`, `snypd://spec/primitives`, `snypd://theme` | — |
 | 5 | agent | writes one real post using at least two primitives, fixes the lint it gets back, calls `content.render_preview` | — |
 | 6 | agent | hands back the page, the markdown twin, and the review URL — the page a person reads if they want to, not a gate they must pass | — |
-| 7 | agent | `content.publish` — which refuses once, for the origin: the feed, sitemap and JSON-LD are absolute and `site.url` is still the placeholder | — |
-| 8 | person | says where the site will be served | **yes** — answer the URL |
-| 9 | agent | `content.publish` lands the one item on the deploy branch, then `site` › push sends it to the host | — |
+| 7 | agent | `content.publish` — a commit on the deploy branch. **It no longer refuses for the origin** (L2): a publish serves nothing, so the placeholder is deploy's to resolve | — |
+| 8 | agent | `site` › deploy: preflight (`npx`, `wrangler`, who is logged in). Nobody is, on a machine the host has never seen, so the binary runs `wrangler login` itself (decision 230), which opens a browser tab | — |
+| 9 | person | clicks *allow* in that tab, once per machine | **yes** — click |
+| 10 | binary | `snypd build` → `wrangler deploy` → reads the URL back → `site.url` was the placeholder, so it sets it, builds again, uploads again → answers with the URL, the files, the bytes, and *back this up on GitHub when you like* | — |
+| 11 | agent | tells the person the URL | — |
 
-**Three human actions, and none of them is a restart.** The harness has to start *after* `.mcp.json` exists — that is not ours to change — so whoever runs `init` decides whether that start is an open or a restart. A person who runs it first opens the harness once.
+**Three human actions, and none of them is a restart, an account form or a URL.** The harness has to start *after* `.mcp.json` exists — that is not ours to change — so whoever runs `init` decides whether that start is an open or a restart; the line makes it an open. The host has to see the person once, because nobody gets a URL on somebody else's host anonymously; that is the click. The sentence is the product. `onboard.live` measures this walk against a stub `wrangler` (docs/31 §5 · L4), the way `onboard.handoff` measures the first two thirds of it (§5c).
+
+**Rewritten 22 Sep 2026 (L3, docs/31; decisions 228–230).** The nine-row table this replaces ended at *a person says where the site will be served* and `site` › push to a host that had been connected in a dashboard — three human actions on the page and about seven more off it (a repository, a remote, the dashboard, the build command). docs/31 §2 counted them and chose the road the 18 Sep snypd.rocks deploy had found by accident: the host's own CLI, run by the binary the way it runs `git`, uploading `dist/` with no repository in the loop. The URL question left the table — the host answers it — and the *allow* click arrived, which is the irreducible one. A site that was connected the older way (a remote, no `deploy.mode`) keeps deploying on push, and this table is not about it.
 
 **Rewritten 16 Sep 2026 (decision 178).** From S18d to S23 the front door was a sentence pasted into a harness that was already open (decisions 58–60): the agent asked the site's name, ran `init`, and relayed *restart your harness* — six human touches, two of them the restart, one of them a Bash permission prompt for `bunx`, and a README paragraph explaining "the one thing the agent cannot do". The sentence still works and the Desk still offers it (§9), for somebody who is already inside a harness; it is no longer what the README leads with. **Step numbers elsewhere in this document refer to the fourteen-row table this replaced** — step 4 was `init`, step 12 the first publish; the old table is in git history and its sections were not renumbered, because they record what was measured when.
 
 **Rewritten in S19c (`07` decision 80).** Steps 11–13 used to be *hand back the review URL → a person approves → publish*, and the fifth action was that approval. The write policy's default moved from `draft` to `publish`, so an agent takes the post all the way and the one thing it still cannot answer for itself is where the site will live — a fact about the world, not a judgement about the words. A site that wants the older shape declares `types.post.mcp.write: draft` and gets step 12 back exactly as it was, review page and all.
 
-**The URL is absent from this table on purpose.** The feed, sitemap and JSON-LD are all absolute, so a real origin is genuinely required — at the first publish, not at `init`. Asking for a production domain before a person has seen one pixel is the single most common way a setup flow loses somebody (decision 63).
+**The URL is absent from this table on purpose.** The feed, sitemap and JSON-LD are all absolute, so a real origin is genuinely required — and since L2 it is the host that supplies it, at the first deploy: `site.url` is set from what `wrangler deploy` printed, and the site is built and uploaded once more against it. Asking for a production domain before a person has seen one pixel is the single most common way a setup flow loses somebody (decision 63); asking for one the host was about to hand over is the same mistake with an extra step. *"Give it the domain catbook.example"* is a sentence for later (docs/31 §7).
 
 **`init` is built and waiting on one decision** (S18d′). The README carries the command, and everything `bunx @snypd/cli`
 needs is written: a launcher on npm whose binary arrives as one platform-gated optional dependency, a release workflow
@@ -223,7 +225,7 @@ to take quietly in a session that was asked to measure; it is docs/11 §10 quest
 
 ---
 
-## 6. The seven states
+## 6. The seven states — eight since L3
 
 | # | State | Reached by | Who is looking | What must tell them the next step | Exists? |
 |---|---|---|---|---|---|
@@ -232,8 +234,11 @@ to take quietly in a session that was asked to measure; it is docs/11 §10 quest
 | 2 | site scaffolded, **harness not restarted** | `snypd init` | **agent**, then person | **`init`'s stdout** (decision 60) — the agent relays what it cannot do | ✅ S18d — addressed to the agent, the restart phrased to be relayed verbatim |
 | 3 | MCP loaded, zero content | restart | agent | **`initialize`'s `instructions`** → `get-started` (decision 61) | ✅ S18d — static, and it names the prompt; `get-started` branches |
 | 4 | first draft, unpublished | one sentence | person | Desk "in flight" + review page | ✅ shipped S18b′ |
-| 5 | published locally to `main` | approval | person | Desk build card | ✅ |
-| 6 | live on the internet | `site.push` | person | — | S19a |
+| 5 | published locally to `main` | `content.publish` | person | Desk build card | ✅ |
+| 6 | **the host has never seen this machine** | `site` › deploy's preflight | **person** — a browser tab the binary opened | **the tab itself** (Cloudflare's login page), and the agent, who was told by `get-started` to say what the pause is | ✅ L2/L3 — `wrangler login` run by the binary (decision 230); the refusal carries the URL when nobody clicks |
+| 7 | live on the internet | `site` › deploy | person | the URL, in the agent's answer; `site` › doctor's host rows afterwards (where it deploys, when it last did, whether `site.url` is the host's) | ✅ L2/L3 |
+
+**State 6 is new (22 Sep 2026, L2/L3)** and is the one state after the restart where a person is looking at something that is not the harness: a login page the binary opened, on the host's domain, with nothing of ours on it. What tells them the next step is the page itself — it is Cloudflare's — and the agent, whose `get-started` text says to name the pause before it happens. What must *not* happen is the agent asking for an account, a token or a URL to fill the silence; the prompt says so in those words. State 7's reader is served the same way the review URL was in state 4: by the answer, and afterwards by `doctor`, which reads `.snypd/deploy.json` rather than the host so that the four host rows cost nothing.
 
 **States 2 and 3 were the crack**, and both are crossed by an agent, not a person. The first draft of this document located the crack correctly and then handed it to a browser. S18d closed both, in strings: state 2's stdout is written for the reader it has, and state 3 picks up from `initialize` rather than from a handoff that cannot survive the restart. States 4–5 are in good shape and are not re-litigated here.
 

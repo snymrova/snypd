@@ -325,6 +325,11 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean } = {}): P
  *    does not stop the server, but nothing can find it until that process writes the note again. It is a
  *    live process's claim about itself, not state derived from the repository, and it is reported
  *    separately rather than counted as either.
+ *  - **host record** — `.snypd/deploy.json` (L3) is the last deploy's note of what the host answered:
+ *    the URL, the count, when. It is a memory of an event on another system, not state derived from
+ *    the repository, and the repository cannot re-derive it without the network. Doctor's sentence for
+ *    its absence is *no deploy on record here*, which is true after the deletion — and `site.url`,
+ *    which the deploy committed, is still in the config. Reported separately, like the live record.
  *  - **lost** — anything else. Every remaining fact is derived from git and the config on each request,
  *    so a difference here is F4 failing: onboarding state that only existed in a cache.
  */
@@ -332,6 +337,7 @@ export interface RestartCheck {
   checked: string[];
   heartbeat: string[];
   liveRecord: string[];
+  hostRecord: string[];
   lost: string[];
   /** The Desk must still answer after its cache is deleted — the failure mode this instrument invites. */
   deskStillRenders: boolean;
@@ -349,6 +355,8 @@ export interface RestartCheck {
 const HEARTBEAT_FACTS = new Set(["harness", "harnessState", "startedAt", "client"]);
 /** …and the running preview's own note of itself, which is a claim rather than derived state. */
 const LIVE_RECORD_FACTS = new Set(["dev", "deskUrl"]);
+/** …and the last deploy's note of what the host said (L3): an event elsewhere, not derivable here. */
+const HOST_RECORD_FACTS = new Set(["lastDeploy"]);
 
 async function checkRestart(session: Session, dir: string, devUrl: string): Promise<RestartCheck> {
   const facts = async (): Promise<Record<string, unknown>> => {
@@ -380,7 +388,8 @@ async function checkRestart(session: Session, dir: string, devUrl: string): Prom
     checked,
     heartbeat: changed.filter((k) => HEARTBEAT_FACTS.has(k)),
     liveRecord: changed.filter((k) => LIVE_RECORD_FACTS.has(k)),
-    lost: changed.filter((k) => !HEARTBEAT_FACTS.has(k) && !LIVE_RECORD_FACTS.has(k)),
+    hostRecord: changed.filter((k) => HOST_RECORD_FACTS.has(k)),
+    lost: changed.filter((k) => !HEARTBEAT_FACTS.has(k) && !LIVE_RECORD_FACTS.has(k) && !HOST_RECORD_FACTS.has(k)),
     deskStillRenders: desk.ok && page.includes("Snypd Desk"),
     deskFirstRun: { before: deskBefore.includes("First run"), after: page.includes("First run") },
   };
@@ -453,7 +462,8 @@ export function formatWalk(w: OnboardWalk): string {
         (r.heartbeat.length
           ? `The heartbeat facts doctor reports changed (${r.heartbeat.join(", ")}), which F4 exempts by name. `
           : `Doctor's own heartbeat facts did not move, and cannot: the session asking is the harness, and decision 70 has in-process memory outrank the file so a server cannot report itself unspoken-to while answering. `) +
-        `The running preview's record of where it bound (${r.liveRecord.join(", ") || "unchanged"}) went with the directory it lives in, and returns when that process writes it again.`,
+        `The running preview's record of where it bound (${r.liveRecord.join(", ") || "unchanged"}) went with the directory it lives in, and returns when that process writes it again. ` +
+        `The last deploy's note of what the host answered (${r.hostRecord.join(", ") || "unchanged"}) went too, and doctor now says *no deploy on record here* — true, and \`site.url\` is in the config the deploy committed.`,
     `The Desk still renders with its cache deleted: ${r.deskStillRenders ? "yes" : "**no**"}. Its first-run checklist ` +
       (r.deskFirstRun.before === r.deskFirstRun.after
         ? `was ${r.deskFirstRun.after ? "showing" : "finished"} on both sides.`

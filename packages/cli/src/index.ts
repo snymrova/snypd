@@ -364,8 +364,11 @@ switch (verb) {
         registered
           ? `Next: open Claude Code, Cursor or Codex in this directory — a harness reads ${MCP_FILE} when it starts — and say:`
           : `${MCP_FILE} already existed and was left alone. If it does not name a \`snypd\` server the tools will not load — check it, then open Claude Code, Cursor or Codex in this directory and say:`,
-        "", "    Write me a first post.", "",
-        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary and write the post.`,
+        // The sentence is the product (docs/31 §3, action 4). With the host's config in the repo — the
+        // default — the agent can take the post all the way to a URL, so the sentence says so; a site
+        // that will be served by something else stops at the post.
+        "", r.deploy === "cloudflare" ? "    Write me a first post and put it online." : "    Write me a first post.", "",
+        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary, write the post${r.deploy === "cloudflare" ? ", and put it online (the host asks you to click allow once, in a tab it opens)" : ""}.`,
         "", `    ${there}`);
       console.log(wrap(out.join("\n")));
     } catch (e) {

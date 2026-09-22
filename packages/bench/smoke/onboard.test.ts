@@ -222,6 +222,11 @@ describe("F4 — survives the restart", () => {
     expect(walk.survivesRestart.lost).toEqual([]);
     expect(walk.survivesRestart.checked.length).toBeGreaterThan(8);
     expect(walk.survivesRestart.deskStillRenders).toBe(true);
+    // L3: the deploy's note of the host's answer is the one thing in `.snypd/` that is neither derived
+    // nor a live process's claim — it went, it is reported by name, and the derived half (`deploy`:
+    // target, mode, policy, the URL from the config) is in `checked` and not in `lost`.
+    expect(walk.survivesRestart.hostRecord).toEqual(["lastDeploy"]);
+    expect(walk.survivesRestart.checked).toContain("deploy");
   });
 
   /**
