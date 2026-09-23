@@ -95,12 +95,15 @@ variations:
   broadsheet:
     description: A wider column, sans headlines, tighter leading, a press blue.
     tokens:
-      measure:       "38rem"
+      # 42rem against the theme's 37: a newspaper column is wider *and* its leading is tighter, which is
+      # the same trade a broadsheet makes on paper. This moved with the default — at the old 38rem it
+      # would now be one rem wider than the theme it is meant to contrast with.
+      measure:       "42rem"
       font.heading:  "var(--font-ui)"
       leading.body:  "1.5"
       leading.tight: "1.05"
       size.h1:       "clamp(2.4rem, 1.6rem + 3.6vw, 4rem)"
-      size.h2:       "clamp(1.5rem, 1.28rem + 1.1vw, 2.05rem)"
+      size.h2:       "clamp(1.65rem, 1.36rem + 1.3vw, 2.3rem)"
       color.accent:  "light-dark(oklch(0.45 0.15 255), oklch(0.78 0.11 245))"
 
 personality: >-
@@ -148,14 +151,31 @@ tokens:
   font.ui:      { default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif", customisable: true, kind: font, description: "Eyebrows, meta, nav, captions." }
   font.mono:    { default: "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace", customisable: true, kind: font, description: "Code." }
   font.heading: { default: "var(--font-body)", customisable: true, kind: font, description: "Headings. Defaults to the prose face, which is what this theme has always set them in; point it at font.ui for a sans-headline look." }
-  size.body:    { default: "clamp(1.0625rem, 0.98rem + 0.42vw, 1.1875rem)", customisable: true, kind: size, description: "Body size; fluid between phone and desktop." }
+  # ── The scale. Four sizes and one ratio, and the ratio is what makes them a scale rather than four
+  # numbers: 21 · 24.8 · 35 · 54.4 at the desktop end, each step about 1.2 over the one under it except
+  # h1, which is allowed to be a title. What this replaced was flatter — a 19 px body under a 21.6 px h3,
+  # which is to say a sub-heading the same size as the prose it was meant to be over. A heading that is
+  # not bigger is not a heading; it is bold text, and the reader finds the section by scanning for weight
+  # instead of size, which is slower and is what "flat hierarchy" means when a taste rule says it.
+  #
+  # Body is 18 px on a phone and 21 px on a desktop. 21 is larger than the web's habit and it is the
+  # number every long-form reader converged on, because the habit came from interfaces — 16 px is a size
+  # for a form label, and an essay is not a form. The measure moves with it (below) so the line still
+  # holds about the same number of characters.
+  size.body:    { default: "clamp(1.125rem, 1rem + 0.6vw, 1.3125rem)", customisable: true, kind: size, description: "Body size; fluid between phone and desktop. 18px on a phone, 21px on a desktop." }
   size.h1:      { default: "clamp(2.1rem, 1.55rem + 2.7vw, 3.4rem)", customisable: true, kind: size, description: "Post and index title." }
-  size.h2:      { default: "clamp(1.45rem, 1.24rem + 1.05vw, 1.95rem)", customisable: true, kind: size, description: "Section heading." }
-  size.h3:      { default: "clamp(1.15rem, 1.06rem + 0.45vw, 1.35rem)", customisable: true, kind: size, description: "Sub-heading." }
-  size.small:   { default: "0.8125rem", customisable: true, kind: size, description: "Meta and caption." }
+  size.h2:      { default: "clamp(1.6rem, 1.32rem + 1.25vw, 2.2rem)", customisable: true, kind: size, description: "Section heading." }
+  size.h3:      { default: "clamp(1.25rem, 1.12rem + 0.6vw, 1.55rem)", customisable: true, kind: size, description: "Sub-heading, and the title in a listing." }
+  # 14 px, not 13. This token is not only the byline and the caption: it is the sidenote in the margin,
+  # the tag, the table body and the footnote list — things a reader is expected to *read*, and 13 px is
+  # where reading becomes deciphering for anyone over about forty.
+  size.small:   { default: "0.875rem", customisable: true, kind: size, description: "Meta, caption, sidenote, table body." }
   leading.body: { default: "1.65", customisable: true, kind: number, description: "Prose line height." }
-  leading.tight: { default: "1.15", customisable: true, kind: number, description: "Heading line height." }
-  measure:      { default: "34rem", customisable: true, kind: size, description: "Width of the reading column — the theme's single most opinionated number." }
+  leading.tight: { default: "1.12", customisable: true, kind: number, description: "Heading line height. Tighter than it was, because the headings are bigger and leading is a ratio." }
+  # 37rem = 592 px, which at the new body size is the same 62–66 characters the old 34rem held at the old
+  # one. Measure follows size or it is not a measure: holding 34rem while the type grew would have bought
+  # a 55-character line, and a line that short makes the eye return more often than it reads.
+  measure:      { default: "37rem", customisable: true, kind: size, description: "Width of the reading column — the theme's single most opinionated number." }
 
   # ── Space. One ratio, six steps; every gap in theme.css is one of these.
   space.1: { default: "0.25rem", customisable: true, kind: size, description: "Hairline gap." }
