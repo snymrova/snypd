@@ -9,13 +9,13 @@ Someone reading one essay start to finish, on a laptop at a desk or a phone in b
 Read.
 
 ## References
-A well-set book page. The long reads of a serious newspaper's web edition, with the chrome taken away.
+A well-set book page. The long reads of a serious newspaper's web edition, with the chrome taken away — taken away, not capitalised: the header and footer are quiet because they are small, sans and muted, never because they shout in 13 px caps.
 
 ## The rut
 Cream paper, a terracotta accent, a serif, a hairline under the masthead — "the cosy literary blog".
 
 ## Boldness goes here
-The column itself: Source Serif 4 at a 34rem measure with generous leading. Everything else defers to the prose.
+The column itself: Source Serif 4 at 21 px on a 37rem measure with generous leading — larger than the web's habit, because the habit came from interfaces and an essay is not a form. Everything else defers to the prose.
 
 ## Safe / Risk
 - Safe: a text serif for body, because reading is the job.
@@ -31,3 +31,4 @@ The column itself: Source Serif 4 at a 34rem measure with generous leading. Ever
 
 ## Decisions
 - 2026-09-19 DESIGN.md written from theme.yaml's header and personality (TF5); nothing about the look changed.
+- 2026-09-23 The scale rebuilt on one ratio — 21 · 24.8 · 35 · 54.4 at the desktop end, `size.small` 13 → 14 px, `measure` 34 → 37rem so the line still holds 62–66 characters (decisions 235–236). The chrome's capitals removed (237), link underlines drawn at a third of their own colour (238), and a listing's title made larger than its description (239). The rut above is still the rut; none of this moved the palette.
