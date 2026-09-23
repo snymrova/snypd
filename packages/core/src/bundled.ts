@@ -38,7 +38,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "2fc50351fe85670d6dce4752afff058d0db0b370",
+    hash: "197f0bbc2371a08f55bb5485fcaafaddd07b3b17",
     files: {
       "DESIGN.md": _base_DESIGN_md,
       "theme.css": _base_theme_css,
@@ -76,7 +76,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "editorial": {
-    hash: "7de6ee690b1252bcf441a5de6c7d9b7548e53fea",
+    hash: "b483f568d656ffe6d16f3800c5ed278c704e2625",
     files: {
       "DESIGN.md": _editorial_DESIGN_md,
       "fonts/OFL.txt": _editorial_fonts_OFL_txt,
@@ -91,7 +91,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "technical": {
-    hash: "475778a2ef3b143b82a3691c986a4bbbe138ff21",
+    hash: "5d3ad30168f276a71b694b957c6d97f44a18fba7",
     files: {
       "DESIGN.md": _technical_DESIGN_md,
       "theme.css": _technical_theme_css,
@@ -105,7 +105,7 @@ export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "studio": {
-    hash: "303d0500c06ff6d0872c12c092536f282e91faae",
+    hash: "38bd5351dd18ef990d463d70f9075dc112a037f4",
     files: {
       "DESIGN.md": _studio_DESIGN_md,
       "fonts/OFL.txt": _studio_fonts_OFL_txt,

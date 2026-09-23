@@ -771,7 +771,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const head = a.slice(a.indexOf("<head>"), a.indexOf("</head>"));
     expect(head).toContain('<meta name="x-slot" content="local:L"><!--head:second-->');
     expect(head.indexOf('application/ld+json')).toBeLessThan(head.indexOf('name="x-slot"'));   // last in head, after the JSON-LD
-    expect(a).toMatch(/<body>\s*<!--body-start:local:\/articles\/a:L-->\s*<header>/);
+    expect(a).toMatch(/<body>\s*<!--body-start:local:\/articles\/a:L-->\s*<header class=\"snypd-masthead\">/);
     expect(a).toMatch(/<!--before-content:local:\/articles\/a:L-->\s*<p>Body of A\.<\/p>\s*<!--after-content:local:\/articles\/a:L-->/);
     expect(a).toMatch(/<!--footer-end:local:\/articles\/a:L-->\s*<\/footer>/);
     expect(a).toMatch(/<\/footer>\s*<!--body-end:local:\/articles\/a:L-->\s*<\/body>/);

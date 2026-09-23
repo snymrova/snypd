@@ -451,7 +451,7 @@ body:has(.snypd-work-close[data-tone="light"]) > footer { color-scheme: dark; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* Everything else stops in `base` (docs/36, the one reduced-motion rule every sheet carried). */
 }
 @media print { body > header.snypd-masthead { position: static; background: none; } }
 

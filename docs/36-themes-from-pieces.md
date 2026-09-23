@@ -269,3 +269,47 @@ Parked, in docs/35's order, to resume after 0.2.1: V1 (aliases — half a day, c
 ## 12. What would make this wrong
 
 Residue over target means the slots are cut in the wrong places — find the missing one before P4. More than a handful of failing pairs means pieces lean on each other's rules and the contract leaks. P0 showing the factory's tokens are mostly pictures moves E1 and P6 to the front — and if `look`'s crops do not cut those picture tokens by more than half against today's full sheets, the crop is the wrong unit. And if Sunny looks at the first `explore` sheet and sees six templates, the shelf is too thin: the answer is another variant carved from a sheet someone judged, not a return to writing the whole sheet by hand.
+
+---
+
+## 13. P1 as built — 23 Sep 2026
+
+**Asked for:** *"our complete focus should be on giving the agent capability to generate themes like people use lego pieces to build amazing stuff."* Decision **272** is taken on that word — the theme track goes first and alone, launch chores included where they compete. 266–271, 273 and 274 are proceeding as recommended and stay open to reversal until 0.2.0.
+
+**Landed** (branch `pieces-p0-p1`, stacked on `s39-editorial-scale` because the carve needs the editorial scale):
+
+- **`packages/spec/defaults/theme-contract.yaml`** — the 40 tokens, seven optional tokens with derived defaults (`font.display`, `size.display`, `size.number`, `measure.wide`, `measure.breakout`, `motion.duration`, `motion.quick` — the last three are new, found as literals in more than one sheet), 60 classes, the `language-` prefix, and the literal vocabulary. Read through `themeContract()` in `@snypd/spec`; not merged into site config, so it costs `snypd://config` nothing. The optional tokens are *not emitted yet* — P2 emits one when a piece reads it, so a theme on no pieces ships no extra bytes.
+- **`packages/render/src/contract.ts`** — `cssRules` (leaf rules with their at-rule context and nesting, strings kept in selectors), `ruleKey`, `literalHits` (`piece.literal`), `selectorClasses`, `selectorHits` (`piece.selector`). Unwired to `check theme` until there is a piece to check (P2).
+- **`contract.test.ts`** — the class list is held to exactly what `base`'s TSX, the renderer and viz emit (both directions, read statically so every branch counts); the tokens to what the three bundled themes declare; the house count to **20**, the same number §1 measured by hand.
+- **`base`'s header adopts the masthead** (decision 273): `header.snypd-masthead > div.snypd-brand > a (img.snypd-logo | name) + p.snypd-tagline?`. `base` now declares `logo` and `tagline`; the tagline is shown only when set. Editorial, technical, studio and folio keep their own header files until P3 — their markup is unchanged. **Studio now inherits a `tagline` setting its header ignores** until the masthead piece lands.
+- **Reduced motion moves to `base`**: the `*, *::before, *::after { … 0.01ms !important }` rule every sheet carried is in `base`'s sheet, where a lower layer's `!important` is the precedence it wants. Each theme keeps `@view-transition { navigation: none }` next to its own `navigation: auto` — that at-rule is decided by order in the sheet, not by layer, so it cannot move under the theme's. Folio keeps its copy (the site repo moves in P3).
+- Two tests moved with the change: the MCP settings test switches to `base` and now finds two settings where it found none; a render test reads `<header class="snypd-masthead">`. **The "declares no settings" branch** (`catalog.ts:300`, `resources.ts:93`) is now reachable only by a theme that does not extend `base`, and no test reaches it.
+
+**Measured:** 601 pass / 0 fail (595 + 6 new), typecheck clean.
+
+**The literal vocabulary, and where every exception goes.** With `em ch % fr lh cqi vmax`, `0`, `1px 2px 3px` (either sign) and alpha-only masks passing, the four sheets hold **134** literals (editorial 21, technical 13, studio 55, folio 45 — counted with the reduced-motion rule still in place). Each has a destination, decided now so that P3 carves without deciding:
+
+| Literal, sheets | Goes to |
+|---|---|
+| `0.01ms` reduced motion — e t s f | `base` (done) |
+| `240ms` / `280ms` title transition — e t s | `motion.duration` |
+| `150ms` / `200ms` transitions — e t s f | `motion.quick` (the 200 ms ones move 50 ms; not in a still — named as expected difference (e)) |
+| `400ms` — s | `motion.duration` |
+| `28s` marquee — s | `wall/marquee` `needs: motion.marquee: 28s` |
+| `--breakout` 12 / 14 / 19 / 24rem — t e f s | `measure.breakout`, the theme's value |
+| `--sidenote` 3rem / 9rem / 14rem / 100vw — e | `notes/sidenotes` `needs: measure.sidenote` |
+| `max-width` / `width` 30–38rem — e t s f (10 uses) | `measure` (they are prose-width boxes) |
+| `max-width` 10–12rem — e t s f | `em` (a logo, an avatar — it scales with the type) |
+| `grid-template-columns` 9–34rem — e t s f | the owning piece's `needs:` with the sheet's value as default (`entries`, `footer`, `home`) |
+| rem `font-size` / `font` 0.75–4rem — t s f | the nearest `size.*`; where none is near, the piece's `needs:` |
+| `vw` in a font clamp — s f | `size.display` |
+| rem padding / gap / margin — e t f (mostly folio) | `space.*`, or `em` where it sits on a control |
+| heights 1.7–3.875rem — e t s f | `em` |
+| `--masthead: 4rem` — s | `masthead/bar` `needs: size.masthead` |
+| `border-radius: 100px` — e s f (7) | `100vmax` — the same pill |
+| `border-radius` 3–5px — s f | `radius` |
+| `blur(14px)` — s | `em` |
+| `72vh` / `78vh` hero — s | `home/bands`, a switch |
+| `translate: 0 1.25rem` reveal — s | `em` |
+
+**Next: P2** — `packages/pieces`, `piece.yaml`, `pieces:` through config and render, the `snypd.pieces` layer, `house` as the first piece, `snypd://theme/pieces`.

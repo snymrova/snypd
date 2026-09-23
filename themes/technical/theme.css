@@ -19,7 +19,7 @@
 /* Nothing here animates for a reader who asked for that, including the navigation itself. */
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* Everything else stops in `base` (docs/36, the one reduced-motion rule every sheet carried). */
 }
 
 :root {

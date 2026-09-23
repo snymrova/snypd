@@ -650,21 +650,21 @@ describe("find_tools + the catalogue", () => {
     expect(back.result.content[0].text).toContain("dateFormat: \"long\" → \"iso\" (default)");
     expect(readFileSync(`${site}/snypd.yaml`, "utf8")).not.toContain("dateFormat");
 
-    // On to `base`, which declares none: the resource is not listed, the tool says what the theme does
-    // have instead of failing blankly, and the value left behind is a warning with a way to remove it.
-    const [, , baseList, noSettings, baseDoctor] = await session([
+    // On to `base`, which declares only the two its header reads (logo, tagline — decision 273): the
+    // tagline set under editorial is still a setting here, and an id only editorial declares is refused
+    // with the list of what base does have.
+    const [, , baseList, notBase, baseDoctor] = await session([
       req(1, "initialize"),
       call(2, "theme", { action: "set", name: "base" }),
       req(3, "resources/list"),
-      call(4, "theme", { action: "set_settings", settings: { tagline: "x" } }),
+      call(4, "theme", { action: "set_settings", settings: { showDates: false } }),
       call(5, "site", { action: "doctor" }),
     ], site);
-    expect(baseList.result.resources.map((r: any) => r.uri)).not.toContain("snypd://theme/settings");
-    expect(noSettings.result.isError).toBe(true);
-    expect(noSettings.result.content[0].text).toContain("theme `base` declares no settings");
-    expect(noSettings.result.content[0].text).toContain("set_tokens");
-    expect(baseDoctor.result.content[0].text).toContain("1 setting value `base` does not declare, left by another theme: tagline");
-    expect(baseDoctor.result.content[0].text).not.toContain("settings: 0 declared");
+    expect(baseList.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/settings");
+    expect(notBase.result.isError).toBe(true);
+    expect(notBase.result.content[0].text).toContain("unknown setting: showDates");
+    expect(notBase.result.content[0].text).toContain("logo (image)");
+    expect(baseDoctor.result.content[0].text).toContain("settings: 2 declared by `base`, 1 set (tagline)");
   });
 
   test("S22: snypd://themes is the shelf's read — every installed theme, what it reads as, and the looks it ships", async () => {

@@ -323,7 +323,7 @@ figcaption { margin-top: var(--space-2); text-align: center; }
 @view-transition { navigation: auto; }
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* Everything else stops in `base` (docs/36, the one reduced-motion rule every sheet carried). */
 }
 
 /* ── The runtime pass (U7, docs/14). Everything below is the platform doing what a script used to, and
