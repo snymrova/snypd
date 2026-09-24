@@ -1,0 +1,16 @@
+piece: home/bands
+from: studio
+line: Full-bleed bands, dark and light — the hero with a showreel behind a display-size headline, each `##` section a numbered band, the newest posts last.
+reads: [font.display, size.small, size.h3, size.display, space.3, space.4, space.5, space.6, color.bg, color.text, color.accent, measure, measure.deck, size.masthead, size.hero, measure.step]
+needs:
+  size.masthead: 4rem
+  size.hero: 78vh
+  measure.deck: 34rem
+  measure.step: 13rem
+emits: [snypd-band, snypd-hero]
+settings:
+  - { id: bands, type: select, label: Bands, group: "Front page", default: dark-first, options: [dark-first, light-first, off], info: "The front page's sections as alternating dark and light bands, starting with the hero; `off` keeps the whole page in the reader's scheme." }
+pairs:
+  column: three-track
+layouts:
+  home: ./layout.tsx

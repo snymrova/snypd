@@ -1,0 +1,9 @@
+piece: entries/cards
+from: studio
+line: A grid of hairline cards — the cover on each, scaling under the pointer; the first term and the date in small caps; the title in the display face.
+reads: [font.display, size.small, size.h3, space.2, space.3, space.4, color.border, color.surface, color.muted, color.accent, radius, measure, motion.duration, measure.card]
+needs:
+  measure.card: 17rem
+emits: [snypd-entry-card, snypd-entry-card-image, snypd-entry-card-meta, snypd-entry-card-title, snypd-entry-card-text]
+parts:
+  entries: ./part.tsx

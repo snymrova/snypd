@@ -136,7 +136,8 @@ export function handlers(root: string): Handlers {
     if (part === "pieces" || part.startsWith("pieces/")) {
       const m = (await import("../../pieces/src/index")).loadPieces();
       const on = new Map(cfg.pieces.map((p) => [p.id, p]));
-      const sw = (v: (typeof m.pieces)[string]) => Object.entries(v.switches).map(([k, d]) => `${k}=${d.of ? d.of.join("|") : "true|false"}`);
+      // A switch with `of:` prints its values; a bare name is an on/off one (the index's legend says so).
+      const sw = (v: (typeof m.pieces)[string]) => Object.entries(v.switches).map(([k, d]) => d.of ? `${k}=${d.of.join("|")}` : k);
       const pairs = (v: (typeof m.pieces)[string]) => Object.entries(v.pairs).map(([k, w]) => `${k}: ${Array.isArray(w) ? w.join("|") : w}`);
       if (part !== "pieces") {
         const slot = part.slice("pieces/".length);
@@ -171,9 +172,10 @@ export function handlers(root: string): Handlers {
       const use = cfg.config.theme.use;
       return [YAML, `# The shelf: the slots a theme is assembled from and the pieces that fill them (docs/36), one gist\n` +
         `# each — snypd://theme/pieces/<slot> is the whole of every piece in a slot: its line, switches, settings.\n` +
-        `# Name one per slot in theme.yaml: \`pieces: { toc: block }\`, or \`{ use: <name>, <switch>: <value> }\`. A\n` +
-        `# piece reads the contract tokens and styles base's classes, so it sits on any theme; a theme's own\n` +
-        `# theme.css still wins over every piece (\`@layer snypd.pieces\` is beneath \`snypd.theme\`).\n` +
+        `# Name one per slot in theme.yaml: \`pieces: { toc: block }\`, or \`{ use: <name>, <switch>: <value> }\`; a\n` +
+        `# switch listed bare is true|false. A piece reads the contract tokens and styles base's classes, so it\n` +
+        `# sits on any theme; a theme's own theme.css still wins over every piece (\`@layer snypd.pieces\` is\n` +
+        `# beneath \`snypd.theme\`).\n` +
         (cfg.pieces.length ? "" : `# \`${use}\` is on no pieces — its sheet is all its own.\n`) +
         `slots:\n${lines.join("\n")}\n` +
         (empty.length ? `# nothing on the shelf yet for: ${empty.join(", ")}\n` : "")];

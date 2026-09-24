@@ -4,15 +4,18 @@
 :root {
   --content: min(100% - var(--space-4) * 2, var(--measure));
   --breakout: min(100% - var(--space-4) * 2, var(--measure-breakout));
-}
-main {
-  display: grid;
-  grid-template-columns:
+  /* The three tracks as one value, so a piece that lays something else on the page's grid — a band, a
+     footer — names the same tracks instead of restating them. */
+  --tracks:
     [full-start] 1fr
     [wide-start] calc((var(--breakout) - var(--content)) / 2)
     [text-start] var(--content) [text-end]
     calc((var(--breakout) - var(--content)) / 2) [wide-end]
     1fr [full-end];
+}
+main {
+  display: grid;
+  grid-template-columns: var(--tracks);
   padding-block: var(--space-5) var(--space-6);
   /* `p` has no margin, so every break in the column is this one number. */
   row-gap: var(--space-4);

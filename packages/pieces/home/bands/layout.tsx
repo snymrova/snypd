@@ -1,15 +1,16 @@
 import { part, settingText, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
- * The front page as bands (S29, docs/17 §3): the page's cover and everything before its first `##` is
- * the hero, then every `##` section is one full-bleed band, then the newest posts are the last. The
- * bands alternate — dark, light, dark — by `data-tone`, which the stylesheet turns into one declaration
- * per band (`color-scheme`) over the same tokens the rest of the page uses; the `bands` setting picks
- * which scheme the hero takes, or turns the alternation off and leaves every band in the reader's.
+ * The layout of `home/bands`, carved from studio (docs/36 §2). The front page as bands (S29, docs/17 §3):
+ * the page's cover and everything before its first `##` is the hero, then every `##` section is one
+ * full-bleed band, then the newest posts are the last. The bands alternate — dark, light, dark — by
+ * `data-tone`, which the stylesheet turns into one declaration per band (`color-scheme`) over the same
+ * tokens the rest of the page uses; the `bands` setting picks which scheme the hero takes, or turns the
+ * alternation off and leaves every band in the reader's.
  *
  * `page.sections` is `page.body` split at its headings by the renderer, not by this file (theme.ts):
  * the heading ids are the ones the renderer issued, so a link into a band still lands. The other five
- * layouts are `base`'s and render `body` whole — a post on this theme is a reading page, not a stack of
+ * layouts are `base`'s and render `body` whole — a post on a banded theme is a reading page, not a stack of
  * bands. `title` is the site's name (the build sets it for `/`); the page's own title is the headline.
  */
 export default function Home({ ctx, page, entries, archive, route, title, description, jsonLd }: LayoutProps): Html {

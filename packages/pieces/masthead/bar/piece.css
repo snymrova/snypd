@@ -1,0 +1,50 @@
+/* masthead/bar — carved from studio. Sticky, a translucent bar of the page's own background blurring what
+   passes under it (both Baseline). docs/17 §3 asked for a masthead that *flips* with the band under it, and
+   the CSS-only way — white type in `mix-blend-mode: difference` — was tried for an hour: axe cannot see a
+   blend, read white on a light page as five contrast failures, and the gate won (docs/17 §5: the effect
+   goes, not the gate). So the bar carries its own colour, which is what the reference's masthead does
+   between its flips anyway. `home/bands` sets its scheme to the hero's. */
+html { scroll-padding-top: var(--size-masthead); }
+/* The page starts under the bar: in flow the bar would sit above the page as a strip; the negative margin
+   below slides the page up under it, and this gives the first line the room back. */
+main { padding-top: calc(var(--size-masthead) + var(--space-5)); }
+body > header.snypd-masthead {
+  position: sticky; top: 0; z-index: 3;
+  margin-bottom: calc(-1 * var(--size-masthead));
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4);
+  min-height: var(--size-masthead); padding: var(--space-2) var(--space-4);
+  /* 88 % is the tier-A floor: at 72 % a dark bar over a light band was a mid grey the muted nav text
+     measured 3.1:1 on (docs/18 §2 · 3). Once stuck, the bar is opaque (scroll-state, below). */
+  color: var(--color-text); background: color-mix(in oklab, var(--color-bg) 88%, transparent);
+  backdrop-filter: blur(var(--size-blur)); -webkit-backdrop-filter: blur(var(--size-blur));
+  font: 500 var(--size-small) / 1.4 var(--font-display); letter-spacing: 0.02em;
+}
+.snypd-masthead a { color: inherit; text-decoration: none; }
+.snypd-brand { font-size: var(--size-brand); font-weight: 700; letter-spacing: -0.02em; }
+.snypd-logo { display: block; height: 1.8em; width: auto; max-width: var(--measure-logo); }
+body > header nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+body > header nav li { margin-top: 0; }
+/* The links: the text colour softened, never the muted grey, so they read on the bar over either scheme; a
+   hit area of 24 px (WCAG 2.5.8) grown with padding the negative margin takes back, so the bar does not;
+   and the underline a rule inside the padding, where the pointer is. */
+body > header nav a { display: inline-block; padding-block: 0.5em; margin-block: -0.5em; color: var(--color-text); opacity: 0.8; box-shadow: inset 0 -1px transparent; }
+body > header nav a:hover { opacity: 1; }
+body > header nav a[aria-current="page"] { opacity: 1; box-shadow: inset 0 -1px var(--color-accent); }
+/* The phone menu is a sheet: `base` lays it out, this colours it. */
+.snypd-menu-button { font: inherit; border-color: currentColor; color: inherit; border-radius: 100vmax; padding: 0.4em 0.9em; }
+#snypd-menu:popover-open { color: var(--color-text); background: var(--color-bg); font-size: var(--size-body); border-top: 1px solid var(--color-border); }
+#snypd-menu:popover-open a { color: var(--color-text); }
+@media print { body > header.snypd-masthead { position: static; background: none; } }
+
+/* Once stuck (one engine, tier B): opaque, in its own colour, so its links measure against one background
+   whatever passes under it (docs/18 §2 · 3), and the name steps down a size. */
+@supports (container-type: scroll-state) {
+  body > header.snypd-masthead { container-type: scroll-state; }
+  /* A container cannot style itself from its own query, so the opaque bar is its `::after`, faded in. */
+  body > header.snypd-masthead { isolation: isolate; }
+  body > header.snypd-masthead::after { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--color-bg); opacity: 0; transition: opacity var(--motion-quick) ease-out; pointer-events: none; }
+  @container scroll-state(stuck: top) {
+    .snypd-brand { font-size: var(--size-brand-stuck); }
+    body > header.snypd-masthead::after { opacity: 1; }
+  }
+}

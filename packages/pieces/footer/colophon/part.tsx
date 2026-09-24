@@ -1,6 +1,7 @@
 /**
- * The footer: a band of its own, on the page's grid, that ends on the name (docs/17 §3; the reference's
- * footer is nav, social, offices, legal, then the wordmark set huge). Four rows, in reading order:
+ * The part of `footer/colophon`, carved from studio (docs/36 §2). The footer: a band of its own, on the
+ * page's grid, that ends on the name (docs/17 §3; the reference's footer is nav, social, offices, legal,
+ * then the wordmark set huge). Four rows, in reading order:
  *
  *   1. the site's description — the one line snypd.yaml already has, set in the display face, and the
  *      lists beside it: the `footer` menu (U2), the `social` and `offices` settings (U3), each a column —

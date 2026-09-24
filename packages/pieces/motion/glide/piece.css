@@ -1,5 +1,5 @@
-/* motion/glide — carved from technical and editorial, which differ only in the duration (240 and 280 ms,
-   now `motion.duration`).
+/* motion/glide — carved from technical, editorial and studio, which differ only in the duration (240, 280
+   and 280 ms, now `motion.duration`) and in what else moves (the two switches).
 
    Cross-document view transitions (docs/11 §5.3): one declaration, zero JavaScript, and a browser without
    it navigates exactly as before. `@view-transition` is decided by order in the sheet, not by layer, so
@@ -13,13 +13,3 @@
    pages (S36): the page swaps at once, and only the title glides into place. */
 ::view-transition-group(.snypd-title) { animation-duration: var(--motion-duration); animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
-
-/* A reading-progress line at the top of a post, scroll-driven (Chrome, Safari); Firefox shows none. */
-@supports (animation-timeline: scroll()) {
-  body:has(.snypd-post)::before {
-    content: ""; position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 2;
-    background: var(--color-accent); transform-origin: 0 50%;
-    animation: snypd-progress linear both; animation-timeline: scroll(root);
-  }
-  @keyframes snypd-progress { from { scale: 0 1; } to { scale: 1 1; } }
-}

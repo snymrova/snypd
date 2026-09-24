@@ -1,0 +1,31 @@
+/* wall/marquee — carved from studio (docs/17 §3, §4.3). Marks in a hairline row, a step under full strength
+   until the pointer; as a marquee, one `@keyframes` over the duplicated row `base` already renders, paused
+   under the pointer and stood still for a reader who asked for reduced motion. Tier A throughout. */
+.snypd-logo-wall-title { font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); margin-bottom: var(--space-3); }
+.snypd-logo-wall ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+/* Every mark on one baseline: the caption has a row of its own whether or not the mark has one, so a mark
+   with "since 2019" under it does not sit higher than its neighbour (docs/18 §2 · 9). */
+.snypd-logo-wall li { margin: 0; display: grid; grid-template-rows: var(--size-mark) auto; align-items: start; gap: var(--space-2); justify-items: start; }
+.snypd-logo-wall:has(small) li { grid-template-rows: var(--size-mark) 1.2em; }
+/* 0.85 at rest: a black mark on a light band still reads (0.7 measured 2.2:1); 1 under the pointer (§2 · 11).
+   The width cap is 4.8 of the mark's own heights — the 12rem it was, at a 2.5rem mark. */
+.snypd-logo-wall img { display: block; height: var(--size-mark); width: auto; max-width: calc(var(--size-mark) * 4.8); object-fit: contain; opacity: 0.85; transition: opacity var(--motion-quick) ease-out; }
+.snypd-logo-wall li:hover img, .snypd-logo-wall a:focus-visible img { opacity: 1; }
+.snypd-logo-wall small { font-size: var(--size-small); line-height: 1.2; color: var(--color-muted); white-space: nowrap; }
+.snypd-marquee { display: flex; overflow: hidden; gap: var(--space-5); mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
+.snypd-marquee ul { flex: none; flex-wrap: nowrap; border-top: 0; padding-top: 0; animation: snypd-marquee var(--motion-marquee) linear infinite; }
+.snypd-marquee:hover ul { animation-play-state: paused; }
+@keyframes snypd-marquee { to { translate: calc(-100% - var(--space-5)) 0; } }
+/* Stood still, as the grid the primitive already has: for a reader who asked for reduced motion, and on
+   anything narrower than 48 rem, where the mask ate half of every mark and "since 2019" read "e 2019"
+   (§2 · 9). The author writes `layout="marquee"` once and gets the right thing at every width. */
+@media (prefers-reduced-motion: reduce) {
+  .snypd-marquee { display: block; mask-image: none; overflow: visible; }
+  .snypd-marquee ul { animation: none; flex-wrap: wrap; border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+  .snypd-marquee ul[aria-hidden] { display: none; }
+}
+@media (max-width: 48rem) {
+  .snypd-marquee { display: block; mask-image: none; overflow: visible; }
+  .snypd-marquee ul { animation: none; flex-wrap: wrap; border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+  .snypd-marquee ul[aria-hidden] { display: none; }
+}

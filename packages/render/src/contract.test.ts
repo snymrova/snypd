@@ -86,11 +86,11 @@ a { color: red; }
     // P1 measured twenty rules in all four sheets. The reduced-motion reset went to base (P1); P3's carve
     // moved four more out, because a rule in the first sublayer loses to every later slot whatever its
     // specificity — the byline's link colour (cover), the full-width figure (column), the footnote list
-    // (notes, twice). What is left is the floor, and it is still in studio's and folio's own sheets word
-    // for word until they are carved.
+    // (notes, twice). What is left is the floor, and it is still in folio's own sheet word for word until
+    // it is carved (studio was, in P3's second half).
     const house = cssRules(readFileSync(join(REPO, "packages/pieces/house/house/piece.css"), "utf8")).map(ruleKey);
     expect(house.length).toBe(15);
-    for (const f of ["themes/studio/theme.css", "sites/snypd.rocks/themes/folio/theme.css"]) {
+    for (const f of ["sites/snypd.rocks/themes/folio/theme.css"]) {
       const keys = new Set(cssRules(readFileSync(join(REPO, f), "utf8")).map(ruleKey));
       expect(house.filter((k) => !keys.has(k)), f).toEqual([]);
     }

@@ -1,0 +1,28 @@
+/* prose/display — carved from studio. One display face, very large, tight and balanced, for every heading;
+   the body in whatever `font.body` is, which on an agency page is the system sans. */
+:root { color-scheme: var(--color-scheme); }
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: var(--size-body) / var(--leading-body) var(--font-body);
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none;
+}
+
+h1, h2, h3, h4 { font-family: var(--font-heading); line-height: var(--leading-tight); font-weight: 700; text-wrap: balance; margin: 0; }
+h1 { font-size: var(--size-h1); letter-spacing: -0.035em; }
+h2 { font-size: var(--size-h2); letter-spacing: -0.025em; margin-top: var(--space-5); }
+h3 { font-size: var(--size-h3); letter-spacing: -0.01em; margin-top: var(--space-4); line-height: 1.15; }
+
+p { text-wrap: pretty; }
+ul, ol { padding-inline-start: 1.35em; }
+a { color: var(--color-accent); text-underline-offset: 0.16em; text-decoration-thickness: from-font; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: var(--radius-small); }
+strong { font-weight: 650; }
+img, svg { max-width: 100%; height: auto; }
+
+/* An ordinary blockquote: ruled and muted, set apart from the prose around it. */
+blockquote { margin-block: var(--space-4); padding-left: var(--space-4); border-left: 2px solid var(--color-border); color: var(--color-muted); }

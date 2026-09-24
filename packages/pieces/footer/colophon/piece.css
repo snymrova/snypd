@@ -1,0 +1,35 @@
+/* footer/colophon — carved from studio. A band of its own on the page's grid (the column's `--tracks`), so
+   the one edge (decision 188) reaches the last thing on the page. Three rows: the description with the
+   lists beside it, the name set huge, the note under a hairline. */
+body > footer {
+  display: grid; grid-template-columns: var(--tracks);
+  margin-top: 0; padding-block: var(--space-6) var(--space-4); row-gap: var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg); color: var(--color-text);
+  font: 500 var(--size-body) / 1.5 var(--font-display);
+}
+/* No margin above it: the page's bottom padding is the one token between the last thing on the page and the
+   footer's rule (docs/19 §2 · 6). */
+body > footer > * { grid-column: wide; }
+/* Row one: the description at a display size, the lists to its right, each list a column. The description
+   has a floor (docs/19 §2 · 1) — it holds ≥ 20 characters a line beside the lists, the lists give up their
+   slack, and below 64 rem the lists go under it. */
+.snypd-footer-top { display: grid; grid-template-columns: minmax(min(100%, var(--measure-footer-lede)), 1fr) auto; gap: var(--space-5) var(--space-6); align-items: start; }
+.snypd-footer-lede { margin: 0; font: 500 var(--size-footer-lede) / 1.15 var(--font-display); letter-spacing: -0.02em; max-width: 24ch; text-wrap: balance; }
+.snypd-footer-lists { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-5); }
+.snypd-footer-lists ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); min-width: var(--measure-footer-list); }
+.snypd-footer-lists li { margin-top: 0; }
+/* The links in the text colour — they are the footer's content, not its meta — and the hit area grown to
+   24 px with padding the negative margin takes back (WCAG 2.5.8). */
+.snypd-footer-lists a { display: inline-block; padding-block: 0.25em; margin-block: -0.25em; color: var(--color-text); text-decoration: none; opacity: 0.8; }
+.snypd-footer-lists a:hover, .snypd-footer-lists a[aria-current="page"] { opacity: 1; color: var(--color-accent); }
+/* Row two: the name, as the wordmark the page ends on — allowed to break rather than overflow a phone. */
+.snypd-wordmark { margin: 0; font: 700 var(--size-wordmark) / 0.9 var(--font-display); letter-spacing: -0.05em; color: var(--color-text); overflow-wrap: anywhere; }
+/* Row three, under a hairline: the note and whatever a plugin puts in `footer-end`. Empty, it is gone. */
+.snypd-footer-end { border-top: 1px solid var(--color-border); padding-top: var(--space-3); display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); font: var(--size-small) / 1.5 var(--font-ui); color: var(--color-muted); }
+.snypd-footer-end:empty { display: none; }
+.snypd-footer-note { margin: 0; max-width: 64ch; }
+.snypd-footer-note a { color: inherit; text-underline-offset: 0.2em; }
+@media (max-width: 64rem) {
+  .snypd-footer-top { grid-template-columns: 1fr; }
+}

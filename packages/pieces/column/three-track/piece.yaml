@@ -1,7 +1,8 @@
 piece: column/three-track
-from: technical
+from: technical, editorial, studio
 line: One grid, three tracks — text, breakout, full. Prose in the text track; charts, diagrams and wide figures break out by `measure.breakout`.
 reads: [space.3, space.4, space.5, space.6, measure, measure.breakout]
 switches:
   rhythm: { default: loose, of: [loose, tight], description: "The gap between two blocks: `loose` is space.4, four fifths of a line; `tight` is space.3, for reference that is scanned." }
   data:   { default: false, description: "Code blocks and tables take the breakout track too — where data is the content rather than an illustration of it." }
+  fit:    { default: false, description: "A chart, diagram or flow shrinks to its drawing and centres on the track, its caption wrapping under the drawing — one left edge per figure." }

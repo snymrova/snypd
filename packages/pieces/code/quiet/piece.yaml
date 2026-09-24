@@ -1,4 +1,8 @@
 piece: code/quiet
-from: editorial
+from: editorial, studio
 line: Code and tables that defer to the prose — inline code on a tint, blocks as a bordered slab, full-width tables in the UI face with small-caps headers.
-reads: [font.mono, font.ui, size.small, space.2, space.3, color.surface, color.border, color.muted, radius]
+reads: [font.mono, font.ui, font.display, size.small, space.2, space.3, color.surface, color.border, color.muted, radius, radius.small]
+needs:
+  radius.small: var(--radius)
+switches:
+  display-heads: { default: false, description: "Table headers in the display face and tracked wider — a theme whose chrome is set in it." }
