@@ -319,7 +319,7 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean; door?: Do
     await session.call("content.lint", { type: "post", slug: FIRST_POST.slug });
     const lintClean = spawnBin(bin, ["lint", "."], dir).code === 0;
     const prev = await session.call("content.render_preview", { type: "post", slug: FIRST_POST.slug });
-    const said = prev.content.map((c) => c.text).join("\n");
+    const said = prev.content.map((c) => ("text" in c ? c.text : "")).join("\n");
     // Three URLs come back — the page, its markdown twin and the review page — and only the third is the
     // one a person acts on. Matching the first `http` would take the page, which is what the first draft
     // of this walk did: the approve POST still worked (same origin) and `reviewUrl` was quietly a lie.
@@ -341,7 +341,7 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean; door?: Do
     for (let guard = 0; guard < 6; guard++) {
       const r = await session.call("content.publish", { type: "post", slug: FIRST_POST.slug });
       if (!r.isError) break;
-      const said = r.content.map((c) => c.text).join("\n");
+      const said = r.content.map((c) => ("text" in c ? c.text : "")).join("\n");
       if (/placeholder/i.test(said)) {
         act({ step: 12, kind: "answer-url", what: "answer where the site will be served", irreducible: false, proof: "refused",
           detail: "publish refused: the feed, sitemap and JSON-LD are absolute, so the origin is due here — decision 63 keeps it off step 4, and this is where the debt comes due" });
@@ -371,7 +371,7 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean; door?: Do
     //    is true only when login ran, and `deploys` is 2 only when the URL had to be learned.
     const deployed = await session.call("site", { action: "deploy" });
     const d = (deployed.structuredContent ?? {}) as { ok?: boolean; url?: string; loggedIn?: boolean; deploys?: number; urlSet?: string };
-    if (!d.ok || !d.url) throw new Error(`deploy did not end at a URL:\n${deployed.content.map((c) => c.text).join("\n")}`);
+    if (!d.ok || !d.url) throw new Error(`deploy did not end at a URL:\n${deployed.content.map((c) => ("text" in c ? c.text : "")).join("\n")}`);
     // Row 9 of the §2 table L3 rewrote; on the relay door the step numbers are the fourteen-row table
     // that one replaced, where the deploy would have been the fifteenth row had it been written down.
     if (d.loggedIn) act({ step: door === "front" ? 9 : 14, kind: "allow-host", what: "click allow in the tab `wrangler login` opened", irreducible: true, proof: "refused",

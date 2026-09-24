@@ -1,0 +1,31 @@
+/* house — the rules all four sheets carry verbatim (docs/36 §1: twenty measured, P1). The twentieth, the
+   reduced-motion reset, moved to base in P1, where a lower layer's `!important` is the precedence it wants.
+   Nothing here is a choice a theme makes; it is the floor every theme on pieces stands on. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Rhythm: blocks carry no margin of their own; the column's gap is the only space between them. */
+p, ul, ol, dl, blockquote, pre, table, figure, figcaption { margin: 0; }
+li + li { margin-top: var(--space-2); }
+small, time, figcaption { font-family: var(--font-ui); font-size: var(--size-small); color: var(--color-muted); }
+hr { border: 0; border-top: 1px solid var(--color-border); margin-block: var(--space-5); }
+
+.snypd-figure[data-width="full"] { grid-column: full; }
+.snypd-cover { margin-bottom: var(--space-3); }
+.snypd-byline a { color: inherit; }
+.snypd-callout[data-kind="warning"] { --kind: var(--color-viz-3); }
+.snypd-logo-wall { margin-block: var(--space-4); }
+
+/* A drawn figure keeps its drawn size (docs/18): the scroller holds it, and a diagram or flow may shrink
+   to seventy per cent of its width before the scroller takes over. */
+.snypd-scroll { --viz-max-width: none; overflow-x: auto; overscroll-behavior-x: contain; }
+.snypd-scroll > svg { display: block; margin-inline: auto; }
+.snypd-diagram .snypd-scroll, .snypd-flow .snypd-scroll { --viz-max-width: 100%; }
+.snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }
+.snypd-chart figcaption:empty, .snypd-diagram figcaption:empty, .snypd-flow figcaption:empty { display: none; }
+
+.footnotes { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--color-border); font-size: var(--size-small); color: var(--color-muted); }
+.footnotes ol { padding-inline-start: 1.5em; }
+
+.snypd-faq-item:last-child { border-bottom: 1px solid var(--color-border); }
+.snypd-faq-item summary::-webkit-details-marker { display: none; }

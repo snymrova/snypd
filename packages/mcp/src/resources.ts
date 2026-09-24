@@ -122,10 +122,42 @@ export function handlers(root: string): Handlers {
         layouts: Object.keys(t.layouts).sort(),
         primitives: t.coverage,
         parts: t.partCoverage,
-        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries, toc) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout. `toc` is the post layout's contents slot and renders nothing in `base`: a theme that wants a contents list overrides it and reads `page.headings`",
+        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · piece = a piece's (`via` is <slot>/<name>, snypd://theme/pieces) · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries, toc) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout. `toc` is the post layout's contents slot and renders nothing in `base`: a theme that wants a contents list overrides it and reads `page.headings`",
       }, null, 2)];
     }
-    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /variations, /settings, /coverage)`);
+    /**
+     * The shelf (docs/36 §5): every slot a theme is assembled from, and every piece that fills one — one
+     * line each, which is what an agent assembling a theme chooses on. Generated from the manifest, so it
+     * is never out of step with what `pieces:` accepts; the active theme's choices are marked, which is
+     * the one thing on it that depends on the site. Gated at 1,200 tokens (mcp.test.ts).
+     */
+    if (part === "pieces") {
+      const m = (await import("../../pieces/src/index")).loadPieces();
+      const on = new Map(cfg.pieces.map((p) => [p.id, p]));
+      const lines: string[] = [];
+      const empty: string[] = [];
+      for (const s of m.slots) {
+        const vs = Object.values(m.pieces).filter((p) => p.slot === s.slot);
+        if (!vs.length) { empty.push(s.slot); continue; }
+        lines.push(`  ${s.slot}:${s.always ? "   # always on, for every theme on pieces" : ""}`, `    ask: ${JSON.stringify(s.line)}`);
+        for (const v of vs) {
+          const sw = Object.entries(v.switches).map(([k, d]) => `${k}=${d.of ? d.of.join("|") : "true|false"}`);
+          const pairs = Object.entries(v.pairs).map(([k, w]) => `${k}: ${Array.isArray(w) ? w.join("|") : w}`);
+          const meta = [`from ${v.from}`, `${v.kb} KB`, ...(sw.length ? [`switches ${sw.join(", ")}`] : []), ...(pairs.length ? [`pairs ${pairs.join(", ")}`] : []),
+            ...(v.settings.length ? [`settings ${v.settings.map((x) => x.id).join(", ")}`] : []), ...(on.has(v.piece) ? ["IN USE"] : [])];
+          lines.push(`    ${v.name}: ${JSON.stringify(v.line)}   # ${meta.join(" · ")}`);
+        }
+      }
+      const use = cfg.config.theme.use;
+      return [YAML, `# The shelf: the slots a theme is assembled from and the pieces that fill them (docs/36).\n` +
+        `# Name one per slot in theme.yaml — \`pieces: { toc: block }\`, or \`{ use: <name>, <switch>: <value> }\`.\n` +
+        `# A piece reads the forty contract tokens and styles base's classes, so it sits on any theme; a theme's\n` +
+        `# own theme.css still wins over every piece (\`@layer snypd.pieces\` is beneath \`snypd.theme\`).\n` +
+        `# \`${use}\` ${cfg.pieces.length ? `is on ${cfg.pieces.map((p) => p.id).join(", ")}` : "is on no pieces — its sheet is all its own"}.\n` +
+        `slots:\n${lines.join("\n")}\n` +
+        (empty.length ? `# nothing on the shelf yet for: ${empty.join(", ")}\n` : "")];
+    }
+    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /variations, /settings, /coverage, /pieces)`);
     return [YAML, c.renderThemeSummary(root, cfg)];
   };
   return {
@@ -141,6 +173,7 @@ export function handlers(root: string): Handlers {
         { uri: "snypd://theme/tokens", name: "theme/tokens", mimeType: YAML, description: "Every token the theme declares, with its value, default and whether it may be set from snypd.yaml — the knobs that change how the site looks without writing CSS" },
         ...(c.settingDecls.length ? [{ uri: "snypd://theme/settings", name: "theme/settings", mimeType: YAML, description: "What this theme lets the site choose without writing CSS — each setting's type, what it means, and what it is set to now; `theme` › set_settings writes one" }] : []),
         ...(c.variations.length ? [{ uri: "snypd://theme/variations", name: "theme/variations", mimeType: YAML, description: "The complete named looks this theme ships — what each one is and which tokens it moves; `theme` › set with `variation` switches in one word" }] : []),
+        { uri: "snypd://theme/pieces", name: "theme/pieces", mimeType: YAML, description: "The shelf: every slot a theme is assembled from (masthead, prose, entries…) and the pieces that fill each, one line apiece — what `pieces:` in theme.yaml can name" },
         { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 14 primitives and 5 parts (shell, header, footer, entries, toc) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
         { uri: "snypd://themes", name: "themes", mimeType: YAML, description: "Every theme this site can switch to — installed and bundled — with what each reads as and the looks it ships; `theme` › set takes any of them" },
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
@@ -161,11 +194,19 @@ export function handlers(root: string): Handlers {
         { uriTemplate: "snypd://content/{type}/{slug}", name: "content", mimeType: YAML, description: "One content item: its frontmatter, then the markdown body. Add `.md` for the file exactly as it is on disk" },
         { uriTemplate: "snypd://history/{type}/{slug}", name: "history", mimeType: JSON_, description: "Commits touching one item, newest first, each with the principal that made it (docs/02 §7)" },
         { uriTemplate: "snypd://lint/{type}/{slug}", name: "lint", mimeType: JSON_, description: "Lint diagnostics for one content file: rule id, severity, line, message and a fix hint (docs/01 editorial lint)" },
+        { uriTemplate: "snypd://look/{id}/{picture}", name: "look", mimeType: "image/webp", description: "A picture `theme` › look took (E1): `full.webp` is the whole page with every problem boxed, `before.webp` the previous look at the same crop. The look's result links the ones it made; the last two dozen are kept" },
         { uriTemplate: "snypd://{plugin}/last", name: "plugin/last", mimeType: YAML, description: "What one plugin said the last few times an event fired at it (P4): its rows from the event ring, newest first. `snypd://plugins` names the plugins that react" },
       ];
     },
     async readResource(uri) {
       const text = (mimeType: string, text: string) => [{ uri, mimeType, text }];
+      // The one binary resource (E1): a picture from `.snypd/look/`, by the id and name the look linked.
+      const lookM = /^snypd:\/\/look\/([0-9a-f]{8})\/(crop|full|before)\.webp$/.exec(uri);
+      if (lookM) {
+        const file = join(root, ".snypd", "look", lookM[1]!, `${lookM[2]}.webp`);
+        if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (the last two dozen looks are kept; look again)`);
+        return [{ uri, mimeType: "image/webp", blob: readFileSync(file).toString("base64") }];
+      }
       const contentM = /^snypd:\/\/(content|history)\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9/-]*?)(\.md)?$/i.exec(uri);
       if (contentM) {
         const c = await loadCore(), cfg = await config();

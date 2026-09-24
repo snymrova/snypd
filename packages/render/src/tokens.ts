@@ -29,7 +29,8 @@ export function tokensCss(tokens: Record<string, string>): string {
 }
 
 /**
- * The four layers, in the order a site resolves them (decision 119). Declared in one statement at the
+ * The five layers, in the order a site resolves them (decision 119; `snypd.pieces` since decision 270,
+ * between base and the theme — a piece is shared, so a theme's own rule beats it whatever its specificity). Declared in one statement at the
  * top of the sheet so the order is the *statement's* and not the accident of which theme in the chain
  * happened to ship CSS: a parent with no stylesheet must not silently promote its child.
  *
@@ -37,7 +38,7 @@ export function tokensCss(tokens: Record<string, string>): string {
  * naming it now is what makes adding one later not a breaking change. Unlayered CSS still beats all four,
  * which is the escape hatch a person editing their own site should have.
  */
-export const CSS_LAYERS = "@layer snypd.tokens, snypd.base, snypd.theme, snypd.site;\n";
+export const CSS_LAYERS = "@layer snypd.tokens, snypd.base, snypd.pieces, snypd.theme, snypd.site;\n";
 
 /**
  * A theme's stylesheet name as a CSS layer identifier. Theme names are file paths and `theme:` keys, not

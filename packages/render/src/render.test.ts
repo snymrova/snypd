@@ -296,7 +296,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(r.artefacts).toBe(13);
     // S14: minified on the way out. H0: the layer statement first, the tokens in `snypd.tokens`, the
     // chain's only sheet in `snypd.base` — `base` is the root of its own chain.
-    expect(read("assets", "theme.css")).toBe("@layer snypd.tokens,snypd.base,snypd.theme,snypd.site;@layer snypd.tokens{:root{--color-accent: #f00;--content-width: 64ch}}@layer snypd.base{a{color: var(--color-accent)}}");
+    expect(read("assets", "theme.css")).toBe("@layer snypd.tokens,snypd.base,snypd.pieces,snypd.theme,snypd.site;@layer snypd.tokens{:root{--color-accent: #f00;--content-width: 64ch}}@layer snypd.base{a{color: var(--color-accent)}}");
     expect(read("about")).toMatch(/<link rel="stylesheet" href="\/assets\/theme\.css\?v=[0-9a-f]{10}">/);
     expect(read("", "llms.txt")).toContain("# T2\n\n> A test site\n");
     expect(JSON.parse(read("api", "site.json")).description).toBe("A test site");
@@ -1981,7 +1981,7 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
   test("the menu is a popover behind a button, and base's own sheet ships in its layer", () => {
     expect(read("")).toContain('<nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover><li><a href="/" aria-current="page">Home</a></li></ul></nav>');
     const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
-    expect(css.startsWith("@layer snypd.tokens,snypd.base,snypd.theme,snypd.site;@layer snypd.base{")).toBe(true);
+    expect(css.startsWith("@layer snypd.tokens,snypd.base,snypd.pieces,snypd.theme,snypd.site;@layer snypd.base{")).toBe(true);
     for (const rule of ["#snypd-menu:not(:popover-open){display: none !important}", ".snypd-figure-open{", ".snypd-lightbox::backdrop{", ".snypd-faq-item::details-content{", "position-area: block-start span-all", "@starting-style{"]) expect(css).toContain(rule);
     expect(css).not.toContain("var(--");                 // behaviour, not looks: base declares no token and reads none
   });

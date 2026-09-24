@@ -16,15 +16,27 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { BUNDLED, BUNDLED_PLUGINS } from "./bundled";
+import { BUNDLED, BUNDLED_PIECES, BUNDLED_PLUGINS } from "./bundled";
 
 /** The dir a bundled theme is given when it has no directory. Never passed to `fs`. */
 export const bundledDir = (name: string) => `snypd:theme/${name}`;
 /** The same for a first-party plugin (docs/10 §4.8, decision 83): one seam, a second prefix, no second loader. */
 export const bundledPluginDir = (name: string) => `snypd:plugin/${name}`;
-export const isBundledDir = (dir: string) => dir.startsWith("snypd:theme/") || dir.startsWith("snypd:plugin/");
+/** And for a piece (docs/36 §4.6): `snypd:piece/<slot>/<name>`. */
+export const bundledPieceDir = (id: string) => `snypd:piece/${id}`;
+export const isBundledDir = (dir: string) => dir.startsWith("snypd:theme/") || dir.startsWith("snypd:plugin/") || dir.startsWith("snypd:piece/");
 const bundledName = (dir: string) => dir.slice(dir.indexOf("/") + 1);
-const of = (dir: string) => (dir.startsWith("snypd:theme/") ? BUNDLED[bundledName(dir)] : dir.startsWith("snypd:plugin/") ? BUNDLED_PLUGINS[bundledName(dir)] : undefined);
+const of = (dir: string) => (dir.startsWith("snypd:theme/") ? BUNDLED[bundledName(dir)] : dir.startsWith("snypd:plugin/") ? BUNDLED_PLUGINS[bundledName(dir)] : dir.startsWith("snypd:piece/") ? BUNDLED_PIECES[bundledName(dir)] : undefined);
+/** Where the pieces live in a checkout. Inside a binary this path does not exist and the barrel answers. */
+const PIECES_ON_DISK = join(import.meta.dir, "..", "..", "pieces");
+/**
+ * A piece's directory, `<slot>/<name>` (docs/36 §4.6): on disk in a checkout, so an edit to a piece is
+ * picked up like an edit to a theme; the bundled barrel inside a binary. Read with `themeFile` and friends.
+ */
+export function pieceDir(id: string): string {
+  const d = join(PIECES_ON_DISK, id);
+  return existsSync(join(d, "piece.yaml")) ? d : bundledPieceDir(id);
+}
 /** `./primitives/x.tsx` and `primitives/x.tsx` are the same slot; theme.yaml writes both. */
 const norm = (rel: string) => rel.replace(/^\.\//, "");
 

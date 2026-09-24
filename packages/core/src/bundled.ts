@@ -25,6 +25,10 @@ import _plugin_analytics_snypd_yaml from "../../../plugins/analytics/snypd.yaml"
 import _plugin_autolink_snypd_yaml from "../../../plugins/autolink/snypd.yaml" with { type: "text" };
 import _plugin_changelog_snypd_yaml from "../../../plugins/changelog/snypd.yaml" with { type: "text" };
 import _plugin_indexnow_snypd_yaml from "../../../plugins/indexnow/snypd.yaml" with { type: "text" };
+import _piece_house_house_piece_css from "../../pieces/house/house/piece.css" with { type: "text" };
+import _piece_house_house_piece_yaml from "../../pieces/house/house/piece.yaml" with { type: "text" };
+import _piece_toc_block_piece_css from "../../pieces/toc/block/piece.css" with { type: "text" };
+import _piece_toc_block_piece_yaml from "../../pieces/toc/block/piece.yaml" with { type: "text" };
 
 export interface BundledTheme {
   hash: string;
@@ -174,6 +178,33 @@ export const BUNDLED_PLUGINS: Readonly<Record<string, BundledTheme>> = {
       "prompts.ts": () => import("../../../plugins/indexnow/prompts.ts"),
       "push.ts": () => import("../../../plugins/indexnow/push.ts"),
       "tools.ts": () => import("../../../plugins/indexnow/tools.ts"),
+    },
+  },
+};
+
+/** The pieces (docs/36 §4.6), keyed `<slot>/<name>`: the same shape, the same seam, a third prefix. */
+export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
+  "house/house": {
+    hash: "5221e3629f0bc1ace471409a8b818eff9dcad16b",
+    files: {
+      "piece.css": _piece_house_house_piece_css,
+      "piece.yaml": _piece_house_house_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+    },
+  },
+  "toc/block": {
+    hash: "7faa995d8958c393f4d651a2c136f896d0e4d143",
+    files: {
+      "piece.css": _piece_toc_block_piece_css,
+      "piece.yaml": _piece_toc_block_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+      "part.tsx": () => import("../../pieces/toc/block/part.tsx"),
     },
   },
 };

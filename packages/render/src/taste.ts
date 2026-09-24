@@ -184,9 +184,9 @@ const hex = (c: Rgb) => "#" + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toS
 /** What `TASTE_PROBE` measures on one page. Every number is a computed value, in px. */
 export interface TasteMeasure {
   /** Uppercase, tracked elements directly before an h1/h2. */
-  eyebrows: { text: string; heading: string }[];
+  eyebrows: { text: string; heading: string; box?: [number, number, number, number] }[];
   /** Body copy (p, li in main) with ≥ 40 characters, smallest first. */
-  body: { px: number; text: string }[];
+  body: { px: number; text: string; box?: [number, number, number, number] }[];
   /** Characters per full line, one per paragraph of ≥ 180 characters that wraps at least three times. */
   measures: number[];
   /** The first h1, h2 and h3 on the page. */
@@ -206,21 +206,23 @@ function probe(): TasteMeasure {
   const vis = (e: Element) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const cs = (e: Element) => getComputedStyle(e);
   const text = (e: Element) => (e.textContent || "").replace(/\s+/g, " ").trim();
+  // Where on the page, in document pixels — `theme › look` draws a numbered box there (docs/36 §5a).
+  const box = (e: Element): [number, number, number, number] => { const r = e.getBoundingClientRect(); return [Math.round(r.left + (globalThis as any).scrollX), Math.round(r.top + (globalThis as any).scrollY), Math.round(r.width), Math.round(r.height)]; };
   const scope = document.querySelector("main") || document.body;
 
-  const eyebrows: { text: string; heading: string }[] = [];
+  const eyebrows: TasteMeasure["eyebrows"] = [];
   for (const h of document.querySelectorAll("h1, h2")) {
     const p = h.previousElementSibling;
     if (!p || !vis(p) || !text(p)) continue;
     const s = cs(p), size = parseFloat(s.fontSize) || 16, ls = parseFloat(s.letterSpacing) || 0;
-    if (s.textTransform === "uppercase" && ls / size > 0.05) eyebrows.push({ text: text(p).slice(0, 40), heading: text(h).slice(0, 40) });
+    if (s.textTransform === "uppercase" && ls / size > 0.05) eyebrows.push({ text: text(p).slice(0, 40), heading: text(h).slice(0, 40), box: box(p) });
   }
 
-  const body: { px: number; text: string }[] = [];
+  const body: TasteMeasure["body"] = [];
   for (const e of scope.querySelectorAll("p, li")) {
     if (e.closest("nav, footer, header, figcaption, aside, .footnotes") || !vis(e)) continue;
     const t = text(e);
-    if (t.length >= 40) body.push({ px: parseFloat(cs(e).fontSize) || 0, text: t.slice(0, 40) });
+    if (t.length >= 40) body.push({ px: parseFloat(cs(e).fontSize) || 0, text: t.slice(0, 40), box: box(e) });
   }
   body.sort((a, b) => a.px - b.px);
 

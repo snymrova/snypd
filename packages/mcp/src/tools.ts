@@ -171,6 +171,8 @@ async function previewServer(root: string, port?: number): Promise<{ url: string
  * not a reason to close the browser tab they have open.
  */
 export async function dispose(): Promise<void> {
+  // The browser `theme › look` started, before the server it was looking at.
+  if (catalog) await catalog.disposeCatalog();
   const p = previewing;
   previewing = undefined;
   if (p) { try { (await p).stop(); } catch { /* already gone */ } }
@@ -485,7 +487,7 @@ export function handlers(root: string, notify?: (method: string, params?: Record
             const { CATALOG_NAMES, call } = await loadCatalog();
             // A catalogue tool is callable whether or not `find_tools` listed it first: the schema is the
             // same either way, and refusing here would only punish a client that read the schema and acted.
-            if (CATALOG_NAMES.has(name)) { unlocked.add(name); return await call(root, name, args); }
+            if (CATALOG_NAMES.has(name)) { unlocked.add(name); return await call(root, name, args, { preview: () => previewServer(root) }); }
             // …and a plugin's tool the same way (P4). Checked after the built-ins, so a plugin named
             // `site` cannot take the call — it loses the name and keeps every other tier.
             const { callPlugin } = await loadPluginTools();

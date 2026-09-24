@@ -48,7 +48,7 @@ describe("stdio", () => {
       req(3, "resources/read", { uri: "snypd://lint/post/post-00005" }),
       req(4, "resources/read", { uri: "snypd://lint/post/nope" }),
     ]);
-    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}", "snypd://{plugin}/last"]);
+    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}", "snypd://look/{id}/{picture}", "snypd://{plugin}/last"]);
     const lintRes = JSON.parse(lintOk.result.contents[0].text);
     expect(lintRes.file).toBe("content/posts/post-00005.md");
     expect(lintRes.errors).toBe(0); expect(lintRes.diagnostics).toEqual([]); expect(lintRes.words).toBeGreaterThan(100);
@@ -1055,6 +1055,18 @@ describe("find_tools + the catalogue", () => {
     expect(switched.result.content[0].text).toContain("base does not declare");
   });
 
+  test("snypd://theme/pieces is the shelf: every slot, every piece on one line, the active theme's marked — under 1,200 tokens (docs/36 §5)", async () => {
+    const [, list, shelf] = await session([req(1, "initialize"), req(2, "resources/list"), req(3, "resources/read", { uri: "snypd://theme/pieces" })], "corpora/theme");
+    expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/pieces");
+    const text: string = shelf.result.contents[0].text;
+    expect(text).toContain("`editorial` is on no pieces");
+    expect(text).toContain("  house:   # always on");
+    expect(text).toMatch(/^    block: ".*# from technical · [\d.]+ KB · settings tocDepth$/m);
+    expect(text).not.toContain("IN USE");
+    const { countTokens } = await import("../../bench/src/tokens");
+    expect(countTokens(text)).toBeLessThanOrEqual(1200);
+  });
+
   test("theme, tokens and coverage are resources, and prompts are scripts an agent can run", async () => {
     const [, theme, tokens, coverage, badTheme, prompts, post, badPrompt, theme2] = await session([
       req(1, "initialize"),
@@ -1512,5 +1524,78 @@ describe("the first run, from the agent's side", () => {
       for (const k of Object.keys(env)) delete process.env[k];
       rmSync(state, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * E1 (docs/36 §5a): the eyes over MCP. In process, because the picture's link is only known once the look
+ * has answered, and because the session's `close` is what has to take the browser with it.
+ */
+describe("theme › look", () => {
+  const site = "corpora/_test/mcp-look";
+  const call = (id: number, name: string, args: object = {}) => ({ jsonrpc: "2.0" as const, id, method: "tools/call", params: { name, arguments: args } });
+  beforeAll(async () => {
+    rmSync(site, { recursive: true, force: true });
+    const { cpSync } = await import("node:fs");
+    cpSync("corpora/specimen", site, { recursive: true, filter: (f) => !f.includes("/.snypd") && !f.includes("/dist") });
+  });
+
+  test("with no browser it still answers — what `check theme` knows, and how to get eyes", async () => {
+    const was = process.env.SNYPD_CHROME;
+    process.env.SNYPD_CHROME = "none";
+    try {
+      const s = createServer(site);
+      const r = (await s.handle(call(1, "theme", { action: "look", slot: "masthead" }))) as any;
+      await s.close();
+      expect(r.result.isError).toBeUndefined();
+      expect(r.result.content.map((c: any) => c.type)).toEqual(["text"]);
+      expect(r.result.content[0].text).toContain("no picture — no browser on this machine");
+      expect(r.result.content[0].text).toContain("snypd eyes install");
+      expect(r.result.structuredContent).toMatchObject({ ok: true, picture: false });
+    } finally { if (was === undefined) delete process.env.SNYPD_CHROME; else process.env.SNYPD_CHROME = was; }
+  });
+
+  test("the facts as text, one picture, the full page as a link that reads back as a blob — and close takes the browser", async () => {
+    const eyes = await import("@snypd/bench/look");
+    if (!eyes.eyesBrowser()) return;   // no browser: the test above is this machine's
+    const s = createServer(site);
+    try {
+      const r = (await s.handle(call(1, "theme", { action: "look", slot: "masthead", width: 390, state: "menu-open", scheme: "dark" }))) as any;
+      expect(r.result.isError).toBeUndefined();
+      const types = r.result.content.map((c: any) => c.type);
+      expect(types.slice(0, 3)).toEqual(["text", "image", "resource_link"]);
+      expect(r.result.content[0].text).toMatch(/^masthead · \/ · 390 dark · menu-open · \d+ ms/);
+      expect(r.result.content[1].mimeType).toBe("image/webp");
+      expect(r.result.structuredContent).toMatchObject({ ok: true, width: 390, scheme: "dark", state: "menu-open", selector: "header.snypd-masthead" });
+      const link = r.result.content[2].uri as string;
+      expect(link).toMatch(/^snypd:\/\/look\/[0-9a-f]{8}\/full\.webp$/);
+      const read = (await s.handle({ jsonrpc: "2.0", id: 2, method: "resources/read", params: { uri: link } })) as any;
+      expect(read.result.contents[0].mimeType).toBe("image/webp");
+      expect(Buffer.from(read.result.contents[0].blob, "base64").subarray(8, 12).toString()).toBe("WEBP");
+      const bad = (await s.handle({ jsonrpc: "2.0", id: 3, method: "resources/read", params: { uri: "snypd://look/00000000/full.webp" } })) as any;
+      expect(bad.error.code).toBe(-32002);
+
+      // A scheme the look cannot draw in one picture is refused before any browser starts.
+      const both = (await s.handle(call(4, "theme", { action: "look", scheme: "both" }))) as any;
+      expect(both.result.isError).toBe(true);
+
+      const outline = (await s.handle(call(5, "theme", { action: "look", view: "outline", route: "/posts/every-primitive-once/" }))) as any;
+      expect(outline.result.content.map((c: any) => c.type)).toEqual(["text"]);
+      expect(outline.result.content[0].text).toContain("banner [masthead]");
+      expect(eyes.eyesOpen()).toBe(true);
+    } finally { await s.close(); }
+    expect(eyes.eyesOpen()).toBe(false);
+  });
+
+  test("find_tools reaches it by what an agent would say; doctor names the browser; the template is listed", async () => {
+    const s = createServer(site);
+    try {
+      const found = (await s.handle(call(1, "find_tools", { query: "screenshot the masthead" }))) as any;
+      expect(JSON.stringify(found.result)).toContain("\"theme\"");
+      const doc = (await s.handle(call(2, "site", { action: "doctor" }))) as any;
+      expect(doc.result.content[0].text).toMatch(/eyes: (`theme` › look uses|no browser)/);
+      const t = (await s.handle({ jsonrpc: "2.0", id: 3, method: "resources/templates/list" })) as any;
+      expect(t.result.resourceTemplates.map((x: any) => x.uriTemplate)).toContain("snypd://look/{id}/{picture}");
+    } finally { await s.close(); }
   });
 });

@@ -536,6 +536,29 @@ switch (verb) {
     console.log("commit content/media/cards and content/media/icons: the host serves them and never needs a browser");
     break;
   }
+  /**
+   * `snypd eyes [install]` (E1, docs/36 §5a): which browser `theme › look` will use, and — only when a person
+   * types `install` — chrome-headless-shell fetched once to ~/.cache/snypd. Opt-in, never silent.
+   */
+  case "eyes": {
+    const { eyesBrowsers } = await import("@snypd/bench/look");
+    if (args[0] === "install") {
+      const { eyesInstall } = await import("@snypd/bench/eyes");
+      let r;
+      try { r = await eyesInstall({ onProgress: (l) => console.error(l) }); }
+      catch (e) { const err = e as Error & { hint?: string }; console.error(`snypd eyes install: ${err.message}`); if (err.hint) console.error(`↳ ${err.hint}`); process.exit(1); }
+      console.log(r.already ? `chrome-headless-shell ${r.version} is already installed: ${r.path}` : `installed chrome-headless-shell ${r.version} (${(r.bytes / 1e6).toFixed(0)} MB): ${r.path}`);
+      if (r.warning) console.log(`⚠  ${r.warning}`);
+      break;
+    }
+    if (args[0] && args[0] !== "status") { console.error("usage: snypd eyes [install]"); process.exit(2); }
+    const all = eyesBrowsers();
+    if (!all.length) { console.log("no browser — `theme › look` answers without a picture. `snypd eyes install` fetches chrome-headless-shell (~90 MB) to ~/.cache/snypd once."); break; }
+    console.log(`theme › look uses ${all[0]!.name}: ${all[0]!.path}`);
+    for (const b of all.slice(1, 6)) console.log(`  then ${b.name}: ${b.path}`);
+    if (all.length > 6) console.log(`  … and ${all.length - 6} more`);
+    break;
+  }
   // S18d′: a distributed binary is asked "which one is this?" by bug reports, package managers and
   // agents alike, and until now nothing answered. The import is lazy for the same reason every other one
   // here is (decision 49): `--version` must not put a module on the path `initialize` pays for.
@@ -546,13 +569,14 @@ switch (verb) {
   }
   default:
     console.log([
-      "usage: snypd <init|dev|serve|build|cards|shoot|bench|new|seed|check> [--version]",
+      "usage: snypd <init|dev|serve|build|cards|shoot|eyes|bench|new|seed|check> [--version]",
       "",
       "  snypd init [dir] [--name=…] [--url=…] [--host=cloudflare|vercel|none]   scaffold a site (making dir if needed), Cloudflare config by default",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
       "  snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots]   photograph themes on every route; contact sheet (needs Chrome)",
+      "  snypd eyes [install]                                                  which browser theme › look uses; `install` fetches chrome-headless-shell once",
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",

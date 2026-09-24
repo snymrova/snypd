@@ -1,0 +1,7 @@
+{
+  "name": "@snypd/pieces",
+  "version": "0.1.7",
+  "type": "module",
+  "main": "src/index.ts",
+  "license": "MIT"
+}

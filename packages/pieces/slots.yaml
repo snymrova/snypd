@@ -1,0 +1,23 @@
+# The slots a theme is assembled from (docs/36 §2), in canonical order: the order of the
+# `snypd.pieces.<slot>` sublayers, so which slot's rule wins between two slots is this list and not the
+# accident of which piece was concatenated first (docs/36 §4.2, decision 270). One line each — the
+# question the slot answers, which is what `snypd://theme/pieces` prints above its variants.
+#
+# `always: true` is a slot every theme on pieces gets without naming it.
+slots:
+  - { slot: house,     always: true, line: "The rules every sheet shares — box sizing, rhythm resets, the drawn-size rules for charts and diagrams." }
+  - { slot: column,    line: "The page's grid: the prose column and how far a figure may break out of it." }
+  - { slot: prose,     line: "How body text reads — headings, lists, quotes, links." }
+  - { slot: code,      line: "Inline code, code blocks and tables." }
+  - { slot: blocks,    line: "The fourteen primitives: callouts, figures, stats, steps, FAQs." }
+  - { slot: cover,     line: "The top of a post — title, eyebrow, subtitle, byline, cover image." }
+  - { slot: masthead,  line: "The site header — name, logo, tagline, menu." }
+  - { slot: entries,   line: "A list of posts — on the index, a term, an author." }
+  - { slot: post-foot, line: "The end of a post — terms, source link, author." }
+  - { slot: footer,    line: "The site footer." }
+  - { slot: home,      line: "The front page's layout." }
+  - { slot: notes,     line: "Footnotes — cards at the end, or notes in the margin." }
+  - { slot: toc,       line: "A post's table of contents." }
+  - { slot: wall,      line: "The logo wall — a row, or a marquee." }
+  - { slot: motion,    line: "Transitions and entrances — none, a glide, a reveal." }
+  - { slot: backdrop,  line: "A drawn background behind the page." }

@@ -11,7 +11,7 @@ import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as parseYaml } from "js-yaml";
 import { primitiveNames } from "@snypd/spec";
-import { resolveThemeChain, sha1, INDEX_DIR, MAX_FONT_KB, isBundledDir, themeBytes, themeBinary, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeFont, type ThemeLink, type ThemeYaml } from "@snypd/core";
+import { resolveThemeChain, sha1, INDEX_DIR, MAX_FONT_KB, isBundledDir, pieceDir, piecesCtx, type ResolvedPiece, themeBytes, themeBinary, themeFile, themeFiles, themeHas, themeModule, themeSignature, type Block, type Config, type LinkItem, type LoadedConfig, type NavLink, type SettingValue, type ThemeFont, type ThemeLink, type ThemeYaml } from "@snypd/core";
 import { Html, raw } from "./jsx-runtime";
 import { hostModules } from "./hostmodules";
 import type { Sectioned } from "./html";
@@ -67,6 +67,13 @@ export interface SiteCtx {
    * be the copy a search engine keeps. `snypd dev` never sets it: its pages are `dist/`'s bytes (decision 51).
    */
   preview: boolean;
+  /**
+   * The pieces the theme is built from, by slot, with their switches (docs/36 §4.5): `{ masthead: { use:
+   * "title-bar", sticky: true, tagline: "under" } }`. A part reads a switch with `ctx.pieces.masthead?.tagline`.
+   * Build-time switches, not settings: a site answers settings; a theme chooses these. Empty for a theme
+   * on no pieces.
+   */
+  pieces: Readonly<Record<string, Readonly<{ use: string } & Record<string, boolean | string>>>>;
 }
 
 /**
@@ -250,8 +257,8 @@ export function Part({ name, ctx, ...props }: { name: string; ctx: SiteCtx } & R
   return part(ctx, name)({ ctx, ...props });
 }
 
-/** `own` = this theme's file · `inherited` = an ancestor's (`via` names it) · `fallback` = another primitive's component (`via` names it) · `missing` = the generic wrapper. */
-export interface Coverage { name: string; status: "own" | "inherited" | "fallback" | "missing"; via?: string }
+/** `own` = this theme's file · `inherited` = an ancestor's (`via` names it) · `fallback` = another primitive's component (`via` names it) · `piece` = a piece's (`via` is `<slot>/<name>`) · `missing` = the generic wrapper. */
+export interface Coverage { name: string; status: "own" | "inherited" | "fallback" | "piece" | "missing"; via?: string }
 export interface Theme {
   name: string; dir: string; hash: string; yaml: ThemeYaml;
   /** This theme and its `extends:` ancestors, child first. `chain[0].dir === dir`. */
@@ -267,6 +274,12 @@ export interface Theme {
   parts: Parts;
   /** Per part: the four in `PART_NAMES` first, then anything else the chain declares. `missing` here has no generic — a layout that asks for it throws (see `part`). */
   partCoverage: Coverage[];
+  /** The pieces the theme is built from, slot order (docs/36 §4). Empty for a theme on no pieces. */
+  pieces: ResolvedPiece[];
+  /** `ctx.pieces`, built once. */
+  piecesCtx: SiteCtx["pieces"];
+  /** Per layout the theme renders: whose file it is — the same four words parts get, plus `piece`. */
+  layoutCoverage: Coverage[];
 }
 
 /**
@@ -388,7 +401,11 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   // and `existsSync` on its marker dir reports a theme that is present as missing (decision 46).
   if (!self || !themeHas(self.dir, "theme.yaml")) throw new Error(`theme "${name}" not found (theme.use in snypd.yaml; looked in themes/, node_modules/, and the themes bundled in this build)`);
   const dir = self.dir;
-  const dirs = chain.map((c) => c.dir);
+  // The pieces' directories join the chain's in the hash and the stamp (docs/36 §4.6): a fix to a piece
+  // re-renders every route of every theme on it, exactly as an edit to a parent theme does its children.
+  const pieces = cfg.pieces ?? [];
+  const pieceLinks = new Map<string, ThemeLink>(pieces.map((p) => [p.id, { name: `piece ${p.id}`, dir: pieceDir(p.id) }]));
+  const dirs = [...chain.map((c) => c.dir), ...[...pieceLinks.values()].map((l) => l.dir)];
   const stamp = themeStamp(dirs);
   const hit = loaded.get(dir);
   if (hit && hit.stamp === stamp) return hit;
@@ -449,11 +466,29 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
     bundled = await bundleTheme(entries, outRoot);
   }
 
+  // What each link's own `pieces:` put in a slot (docs/36 §4.3–4.4): at every link, nearest first, that
+  // theme's own file and then the piece *it* names — then the next ancestor. So a theme that extends
+  // studio and sets `entries: ledger` gets the ledger: its own `pieces:` is nearer than studio's part.
+  const piecesOf = (x: { link: ThemeLink }) => pieces.filter((p) => p.declaredBy === x.link.name);
+  const pieceFile = (x: { link: ThemeLink }, kind: "parts" | "layouts", n: string): { link: ThemeLink; file: string; piece: string } | undefined => {
+    for (const p of piecesOf(x)) { const f = p.entry[kind][n]; if (f) return { link: pieceLinks.get(p.id)!, file: f.replace(/^\.\//, ""), piece: p.id }; }
+    return undefined;
+  };
+
+  // `layouts:` replaces up the chain (a child's list is the list); a piece that ships a layout adds its name.
   const layouts: Record<string, LayoutComponent> = {};
-  for (const l of yaml.layouts ?? []) {
-    const found = links.find((x) => themeHas(x.link.dir, `layouts/${l}.tsx`));
+  const layoutCoverage: Coverage[] = [];
+  const layoutNames = [...new Set([...(yaml.layouts ?? []), ...pieces.flatMap((p) => Object.keys(p.entry.layouts))])];
+  for (const l of layoutNames) {
+    let found: { link: ThemeLink; file: string; piece?: string } | undefined;
+    for (const x of links) {
+      if (themeHas(x.link.dir, `layouts/${l}.tsx`)) { found = { link: x.link, file: `layouts/${l}.tsx` }; break; }
+      const pf = pieceFile(x, "layouts", l);
+      if (pf) { found = pf; break; }
+    }
     if (!found) throw new Error(`theme ${name}: layout "${l}" is declared in theme.yaml but layouts/${l}.tsx is missing${chain.length > 1 ? ` in ${chain.map((c) => c.name).join(" or ")}` : ""}`);
-    layouts[l] = await mod(found.link, `layouts/${l}.tsx`) as LayoutComponent;
+    layouts[l] = await mod(found.link, found.file) as LayoutComponent;
+    layoutCoverage.push(found.piece ? { name: l, status: "piece", via: found.piece } : found.link.dir !== dir ? { name: l, status: "inherited", via: found.link.name } : { name: l, status: "own" });
   }
 
   // Nearest declarer wins: the first theme in the chain whose map names a file for `n`. A `{ fallback }`
@@ -462,17 +497,18 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   // bundled theme has no directory to join it onto (decision 46).
   // The same walk serves primitives and parts (decision 72): a part is a slot with a name, resolved
   // against the dir of the theme that declared it, and `coverage` says the same four words about it.
-  const declarer = (map: "map" | "parts", n: string, seen: string[] = []): { link: ThemeLink; file: string; via?: string } | undefined => {
+  const declarer = (map: "map" | "parts", n: string, seen: string[] = []): { link: ThemeLink; file: string; via?: string; piece?: string } | undefined => {
     if (seen.includes(n)) return undefined;
     for (const x of links) {
       const e = x[map][n];
       if (typeof e === "string") return { link: x.link, file: e.replace(/^\.\//, "") };
       if (e && typeof e.fallback === "string") { const f = declarer(map, e.fallback, [...seen, n]); return f && { ...f, via: e.fallback }; }
+      if (map === "parts") { const pf = pieceFile(x, "parts", n); if (pf) return pf; }
     }
     return undefined;
   };
   const cover = (n: string, d: NonNullable<ReturnType<typeof declarer>>): Coverage =>
-    d.via ? { name: n, status: "fallback", via: d.via } : d.link.dir !== dir ? { name: n, status: "inherited", via: d.link.name } : { name: n, status: "own" };
+    d.piece ? { name: n, status: "piece", via: d.piece } : d.via ? { name: n, status: "fallback", via: d.via } : d.link.dir !== dir ? { name: n, status: "inherited", via: d.link.name } : { name: n, status: "own" };
   const primitives: Record<string, PrimitiveComponent> = {};
   const coverage: Coverage[] = [];
   for (const n of primitiveNames()) {
@@ -483,11 +519,11 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   }
   const parts = {} as Parts;
   const partCoverage: Coverage[] = [];
-  const declaredParts = [...new Set<string>([...PART_NAMES, ...links.flatMap((x) => Object.keys(x.parts))])];
+  const declaredParts = [...new Set<string>([...PART_NAMES, ...links.flatMap((x) => Object.keys(x.parts)), ...pieces.flatMap((p) => Object.keys(p.entry.parts))])];
   for (const n of declaredParts) {
     const d = declarer("parts", n);
     if (!d) { partCoverage.push({ name: n, status: "missing" }); continue; }
-    if (!themeHas(d.link.dir, d.file)) throw new Error(`theme ${d.link.name}: part "${n}" is declared in theme.yaml but ${d.file} is missing`);
+    if (!themeHas(d.link.dir, d.file)) throw new Error(`${d.piece ? d.link.name : `theme ${d.link.name}`}: part "${n}" is declared in ${d.piece ? "piece.yaml" : "theme.yaml"} but ${d.file} is missing`);
     parts[n] = await mod(d.link, d.file) as PartComponent;
     partCoverage.push(cover(n, d));
   }
@@ -512,7 +548,11 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
     const at = atImport(src);
     if (at) throw new Error(`theme ${link.name}: ${y.css}:${at} has an @import — a theme ships one stylesheet, and an @import inside a cascade layer never loads`);
     sheets.push(`@layer ${i === 0 ? "snypd.base" : `snypd.theme.${layerIdent(link.name)}`} {\n${src}\n}\n`);
+    // The pieces sit between base and the first theme that extends it — in the text as in the cascade
+    // (decision 270), so the expanded sheet reads in the order it resolves.
+    if (i === 0) sheets.push(...pieceSheets(pieces, pieceLinks));
   });
+  if (!ordered.some(({ yaml: y }) => y.css) && pieces.length) sheets.push(...pieceSheets(pieces, pieceLinks));
   const css = sheets.length ? sheets.join("") : undefined;
 
   /**
@@ -549,9 +589,41 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
     font = { ...f, declaredBy: tn, url, bytes, css: fontFaceCss(f, url), licence: lic && { name: lic.name, text: lic.text! } };
   }
 
-  const theme = { name, dir, chain, hash, yaml, css, font, layouts, primitives, coverage, parts, partCoverage, stamp };
+  const theme = { name, dir, chain, hash, yaml, css, font, layouts, primitives, coverage, parts, partCoverage, pieces, piecesCtx: piecesCtx(pieces), layoutCoverage, stamp };
   loaded.set(dir, theme);
   return theme;
+}
+
+/**
+ * The pieces' stylesheets, one `snypd.pieces.<slot>` sublayer each, in canonical slot order (docs/36 §4.2,
+ * decision 270): `piece.css`, then each switch file the resolved switches include — `<id>.css` for a
+ * boolean switch that is on, `<id>-<value>.css` for one with `of:` where that file exists. Concatenated in
+ * slot order, which is what fixes the sublayers' order: a layer's place is its first appearance.
+ *
+ * A piece's sheet follows a theme's rules: one file, no `@import` (it would be dropped inside a layer).
+ */
+export function pieceSheets(pieces: ResolvedPiece[], links: Map<string, ThemeLink>): string[] {
+  const out: string[] = [];
+  for (const p of pieces) {
+    const body: string[] = [];
+    for (const { file: f, css: src } of pieceCss(p, links.get(p.id)?.dir)) {
+      const at = atImport(src);
+      if (at) throw new Error(`piece ${p.id}: ${f}:${at} has an @import — a piece ships its sheet whole, and an @import inside a cascade layer never loads`);
+      body.push(src);
+    }
+    if (body.length) out.push(`@layer snypd.pieces.${p.slot} {\n${body.join("\n")}\n}\n`);
+  }
+  return out;
+}
+
+/**
+ * The stylesheets one resolved piece contributes, in order: `piece.css`, then each switch file its switches
+ * include that exists. What the renderer concatenates and what `check theme` lints, so the two cannot
+ * disagree about which files a switch turns on.
+ */
+export function pieceCss(p: ResolvedPiece, dir = pieceDir(p.id)): { file: string; css: string }[] {
+  const files = ["piece.css", ...Object.entries(p.switches).flatMap(([sw, v]) => v === true ? [`${sw}.css`] : typeof v === "string" ? [`${sw}-${v}.css`] : [])];
+  return files.flatMap((file) => { const css = themeFile(dir, file); return css === undefined ? [] : [{ file, css }]; });
 }
 
 export { Html };

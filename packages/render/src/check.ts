@@ -36,7 +36,9 @@ import {
   themeTokens, themeVariations, themeFile, isPlaceholder, pluginShortName, tiersOf, tokenVars,
   type LoadedConfig, type Mode, type Rgb,
 } from "@snypd/core";
-import { loadTheme, type Theme, LAYOUT_NAMES } from "./theme";
+import { themeContract } from "@snypd/spec";
+import { loadTheme, pieceCss, type Theme, LAYOUT_NAMES } from "./theme";
+import { literalHits, selectorHits } from "./contract";
 import { applyChosen, chosenRules, designVerdict, plainCss, staticTaste } from "./taste";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
@@ -210,7 +212,7 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     add("coverage.parts", missingPart.length ? "fail" : "pass",
       missingPart.length
         ? `${missingPart.map((c) => c.name).join(", ")} — a layout that asks for one of these throws`
-        : `${theme.partCoverage.length}/${theme.partCoverage.length}${theme.partCoverage.some((c) => c.status === "own") ? ` (${theme.partCoverage.filter((c) => c.status === "own").map((c) => c.name).join(", ")} its own)` : ""}`);
+        : `${theme.partCoverage.length}/${theme.partCoverage.length}${theme.partCoverage.some((c) => c.status === "own") ? ` (${theme.partCoverage.filter((c) => c.status === "own").map((c) => c.name).join(", ")} its own)` : ""}${theme.partCoverage.some((c) => c.status === "piece") ? ` (${theme.partCoverage.filter((c) => c.status === "piece").map((c) => `${c.name} from ${c.via}`).join(", ")})` : ""}`);
   }
 
   // ── what a shelf needs and a build does not (decision 123) ─────────────────────────────────────
@@ -276,26 +278,65 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     add("font.fallback", "pass", `metric-matched fallback: size-adjust ${theme.font.fallback["size-adjust"]}, ascent ${theme.font.fallback["ascent-override"]}`);
   }
 
+  // ── the pieces (docs/36 §4.6, decision 269) ─────────────────────────────────────────────────────
+  // What the theme is built from, and whether the theme gives them what they read. A contract token a
+  // piece reads and the theme does not declare is a `var()` with nothing behind it — the rule it sits in
+  // is dropped at computed-value time — so it fails. The contract lints themselves already ran when the
+  // piece went on the shelf (the manifest generator refuses a piece that breaks one); they run again here
+  // over the files *this* theme's switches include, so a finding carries the piece's file and line.
+  const pieces = theme?.pieces ?? cfg.pieces;
+  const pieceSources = theme ? pieces.flatMap((p) => pieceCss(p).map(({ file, css }) => ({ label: `piece/${p.id}/${file}`, css, piece: p }))) : [];
+  if (!pieces.length) add("pieces.used", "skip", "this theme is on no pieces — its sheet is all its own");
+  else {
+    const kb = pieces.reduce((a, p) => a + p.entry.kb + Object.entries(p.switches).reduce((b, [sw, v]) => b + (p.entry.switchKb[v === true ? sw : `${sw}-${v}`] ?? 0), 0), 0);
+    add("pieces.used", "pass", `${pieces.map((p) => `${p.slot}: ${p.name}${Object.entries(p.switches).filter(([sw, v]) => v !== p.entry.switches[sw]!.default).map(([sw, v]) => ` ${sw}=${v}`).join("")}${p.always ? " (always)" : ""}`).join(" · ")} — ${kb.toFixed(1)} KB of CSS, counted in \`cssKb\``);
+    const contract = themeContract();
+    const view = themeView(cfg);
+    const missing = [...new Set(pieces.flatMap((p) => p.entry.reads.filter((t) => contract.tokens.includes(t) && !(t in view)).map((t) => `${t} (${p.id})`)))];
+    add("pieces.tokens", missing.length ? "fail" : "pass",
+      missing.length ? `${missing.length} contract token${missing.length === 1 ? "" : "s"} a piece reads and this theme does not declare: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? "…" : ""} — each is a var() with nothing behind it; \`snypd theme seed\` writes all forty`
+        : `every token the pieces read is declared${Object.keys(view).length ? "" : " (none are read)"}`);
+    const hits = pieceSources.flatMap(({ label, css, piece }) => [
+      ...literalHits(css, contract.literals).map((h) => `${label}:${h.line} ${h.prop}: ${h.value}`),
+      ...selectorHits(css, [...contract.classes, ...piece.entry.emits], contract.classPrefixes).map((h) => `${label}:${h.line} .${h.cls}`),
+    ]);
+    add("pieces.contract", hits.length ? "fail" : "pass",
+      hits.length ? `${hits.length} outside the contract: ${hits.slice(0, 6).join("; ")}${hits.length > 6 ? `; +${hits.length - 6} more` : ""}` : `${pieceSources.length} sheet${pieceSources.length === 1 ? "" : "s"}, every literal in the vocabulary and every class one base or the piece emits`);
+  }
+
   // ── the tier rule (U7, docs/14 §7 call 1) ──────────────────────────────────────────────────────
   // A two-engine or one-engine feature outside `@supports` is a finding with a line: not a failure,
   // because whether the fallback is "today's page" or "the menu is gone" is what the author has to
-  // look at, and this rule is the list of where to look. The theme's own sheet only — a parent's is
-  // the parent's finding, and it was checked when the parent was.
+  // look at, and this rule is the list of where to look. The theme's own sheet and its pieces' — the
+  // expanded CSS, less its ancestors': a parent's is the parent's finding, checked when the parent was.
   const ownCss = typeof yaml.css === "string" ? themeFile(self.dir, yaml.css) : undefined;
-  if (ownCss === undefined) add("css.enhancement-guarded", "skip", "this theme has no stylesheet of its own");
+  const sources = [...(ownCss !== undefined ? [{ label: basename(String(yaml.css)), css: ownCss }] : []), ...pieceSources];
+  if (!sources.length) add("css.enhancement-guarded", "skip", "this theme has no stylesheet of its own");
   else {
-    const loose = unguardedCss(ownCss);
+    const loose = sources.flatMap(({ label, css }) => unguardedCss(css).map((l) => ({ ...l, label })));
     add("css.enhancement-guarded", loose.length ? "warn" : "pass",
       loose.length
-        ? `${loose.length} use${loose.length === 1 ? "" : "s"} of a ${[...new Set(loose.map((l) => l.tier))].join("/")} feature outside \`@supports\`: ${loose.slice(0, 6).map((l) => `${basename(String(yaml.css))}:${l.line} ${l.what} — \`@supports ${l.test}\``).join("; ")}${loose.length > 6 ? `; +${loose.length - 6} more` : ""} — fine when the fallback is the page as it is; a finding when a reader needs it`
-        : `every two-engine and one-engine feature this build knows is under \`@supports\`, or absent (${GUARDED_CSS.length} checked)`,
-      String(yaml.css));
+        ? `${loose.length} use${loose.length === 1 ? "" : "s"} of a ${[...new Set(loose.map((l) => l.tier))].join("/")} feature outside \`@supports\`: ${loose.slice(0, 6).map((l) => `${l.label}:${l.line} ${l.what} — \`@supports ${l.test}\``).join("; ")}${loose.length > 6 ? `; +${loose.length - 6} more` : ""} — fine when the fallback is the page as it is; a finding when a reader needs it`
+        : `every two-engine and one-engine feature this build knows is under \`@supports\`, or absent (${GUARDED_CSS.length} checked${pieceSources.length ? `, over ${ownCss !== undefined ? "the theme's sheet and " : ""}${pieceSources.length} from its pieces` : ""})`,
+      ownCss !== undefined ? String(yaml.css) : undefined);
   }
 
   // ── taste (docs/29 TF5, decision 225): the static half, all warnings ─────────────────────────────
-  // The theme's own sheet for the CSS rules (a parent's was judged when the parent was), the resolved
-  // tokens for the face and the neutrals. A rule the brief names under `## Chosen` still reports.
-  const taste = staticTaste({ css: ownCss, cssFile: typeof yaml.css === "string" ? basename(yaml.css) : undefined, tokens: themeView(cfg), fontFamily: theme?.font?.family });
+  // The theme's own sheet and its pieces' for the CSS rules (a parent's was judged when the parent was),
+  // the resolved tokens for the face and the neutrals. A rule the brief names under `## Chosen` still
+  // reports. Each source is read on its own so a finding names its file; the rows are then folded, the
+  // worst verdict winning and every distinct finding kept.
+  const tokensView = themeView(cfg);
+  let taste = staticTaste({ css: ownCss, cssFile: typeof yaml.css === "string" ? basename(yaml.css) : undefined, tokens: tokensView, fontFamily: theme?.font?.family });
+  for (const src of pieceSources) {
+    const more = staticTaste({ css: src.css, cssFile: src.label, tokens: tokensView, fontFamily: theme?.font?.family });
+    taste = taste.map((row) => {
+      const o = more.find((m) => m.rule === row.rule);
+      if (!o || o.status !== "warn") return row;
+      if (row.status !== "warn") return o;
+      return row.detail === o.detail ? row : { ...row, detail: `${row.detail} · ${o.detail}` };
+    });
+  }
   for (const t of applyChosen(taste, chosenRules(design))) add(t.rule, t.status, t.detail);
 
   // ── contrast (docs/11 §5 item 4) ───────────────────────────────────────────────────────────────

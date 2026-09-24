@@ -199,7 +199,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // A `ref` to a rerouted item follows the filter, because the menu must point where the page is.
   const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
   if (rerouted.size) for (const links of Object.values(nav.nav)) for (const l of links) if (l.route && rerouted.has(l.route)) { const r = rerouted.get(l.route)!; l.href = r === "/" ? "/" : `${r}/`; l.route = r; }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? `/assets/theme.css?v=${sha1(css).slice(0, 10)}` : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings, preview };
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? `/assets/theme.css?v=${sha1(css).slice(0, 10)}` : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings, preview, pieces: theme.piecesCtx };
   // The plugin graph (P1, decision 95): every loaded plugin's bytes, hashed the way the theme chain is,
   // and the site's options beside them in the config hash — a transform that changes output must
   // invalidate the cache, and P3's transforms are plugin files. Both are absent from the key when no

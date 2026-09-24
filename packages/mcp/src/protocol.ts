@@ -7,7 +7,8 @@
 // Shapes mirror @modelcontextprotocol/sdk/types.js (2025-11-25). Not `import type`d from the SDK:
 // Bun still resolves the package at startup and that alone costs ~20 ms (measured S4).
 export interface Resource { uri: string; name: string; mimeType?: string; description?: string; title?: string }
-export interface ResourceContents { uri: string; mimeType?: string; text: string }
+/** A resource's body: `text`, or `blob` (base64) for a picture — `snypd://look/…` is the one binary resource. */
+export type ResourceContents = { uri: string; mimeType?: string; text: string } | { uri: string; mimeType?: string; blob: string };
 export interface ResourceTemplate { uriTemplate: string; name: string; mimeType?: string; description?: string }
 export interface Tool { name: string; description?: string; inputSchema: { type: "object"; properties?: Record<string, unknown>; required?: string[] }; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean } }
 export interface Prompt { name: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[] }
@@ -16,8 +17,18 @@ export interface PromptMessage { role: "user" | "assistant"; content: { type: "t
 export interface GetPromptResult { description?: string; messages: PromptMessage[] }
 /** Server → client notification. Used for `notifications/tools/list_changed` when `find_tools` unlocks one. */
 export type Notify = (method: string, params?: Record<string, unknown>) => void;
-/** tools/call result (2025-11-25). `structuredContent` mirrors the text for callers that parse. */
-export interface ToolResult { content: { type: "text"; text: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean }
+/**
+ * tools/call result (2025-11-25). `structuredContent` mirrors the text for callers that parse.
+ *
+ * Text, and since E1 (docs/36 §5a) two more kinds, both from `theme › look`: an `image` (base64, the crop
+ * the agent asked for — the one picture a call carries) and a `resource_link` (the full page, the before-
+ * shot), which costs nothing unless the agent reads it.
+ */
+export type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string }
+  | { type: "resource_link"; uri: string; name: string; mimeType?: string; description?: string };
+export interface ToolResult { content: ContentBlock[]; structuredContent?: Record<string, unknown>; isError?: boolean }
 export interface InitializeResult { protocolVersion: string; capabilities: Record<string, unknown>; serverInfo: { name: string; version: string }; instructions?: string }
 
 export const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"] as const;
