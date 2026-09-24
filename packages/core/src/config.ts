@@ -548,6 +548,9 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
   const untouched = (p: Path, v: unknown): { family: string; line?: number } | undefined => {
     if (allFrom(prov, p, v, "spec")) return { family: `<@snypd/spec default — ${pointer(p)}>` };
     const s = prov.get(pathKey(p));
+    // A piece's default (docs/36 §3) is one family whichever piece it came from: nine tokens from six
+    // pieces were nine lines with no provenance, and the shelf resource already says whose each is.
+    if (p[0] === "theme" && s?.layer === "theme" && s.from?.startsWith("piece ") && allFrom(prov, p, v, "theme")) return { family: "<the pieces' defaults — snypd://theme/pieces>" };
     if (p[0] === "theme" && s?.layer === "theme" && allFrom(prov, p, v, "theme")) return { family: `<theme ${s.from} default — ${s.file}>`, line: s.line };
     if (s?.layer === "inherited" && allFrom(prov, p, v, "inherited")) return { family: `<inherited from types.${s.from}>` };
     return undefined;

@@ -1,0 +1,20 @@
+/* notes/sidenotes — carved from editorial (docs/14 §4.1). Once the margin beside the column is wide
+   enough for a note, the card `base` shows on hover stands in the margin instead, always visible, beside
+   its line — a float pushed out of the column by a negative margin, which is how sidenotes were done
+   before there was a word for them. The list at the end is the printed version, and goes while the notes
+   are in the margin. */
+@media (min-width: 72rem) {
+  .snypd-fnref .snypd-fn-card, .snypd-fnref:is(:hover, :focus-within) .snypd-fn-card {
+    --sidenote: var(--measure-sidenote);
+    display: block; position: static; float: inline-end; clear: inline-end;
+    width: var(--sidenote); max-width: none; margin: 0.2em calc(-1 * var(--sidenote) - var(--space-3) * 1.5) var(--space-2) var(--space-3);
+    padding: 0; border: 0; background: none; box-shadow: none; transition: none;
+    font: var(--size-small) / 1.45 var(--font-ui); color: var(--color-muted); text-align: start;
+  }
+  .snypd-fnref a { text-decoration: none; }
+  .footnotes { display: none; }
+}
+@media print { .footnotes { display: block; } .snypd-fn-card { display: none !important; } }
+/* Here, not in `house`: prose's `ul, ol` comes after house and would take the list's indent. */
+.footnotes { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--color-border); font-size: var(--size-small); color: var(--color-muted); }
+.footnotes ol { padding-inline-start: 1.5em; }

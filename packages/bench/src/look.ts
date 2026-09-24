@@ -25,6 +25,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { createHash, randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { launch, browserCandidates, cacheSandboxBlocked, type Browser, type BrowserCandidate, type Page } from "./cdp";
+import { diffPictures } from "./pixels";
 import { TASTE_PROBE, tasteVerdicts, type TasteMeasure } from "@snypd/render/taste";
 
 /** x, y, width, height in document pixels. */
@@ -62,8 +63,6 @@ export const WHOLE_PAGE_SLOTS = new Set(["house", "motion", "backdrop"]);
 export const MAX_EDGE = 1568;
 /** A full page is cut here, like `shoot`'s. */
 export const MAX_FULL_HEIGHT = 8000;
-/** A channel moving by less than this is WebP noise, not a change. */
-const DIFF_THRESHOLD = 24;
 export const IDLE_MS = 3 * 60_000;
 /** How many looks' files are kept under `.snypd/look/`; the oldest go first. */
 const KEEP = 24;
@@ -230,6 +229,9 @@ const SETTLE = `(async () => {
   document.head.appendChild(still);
   await Promise.all([...document.querySelectorAll('link[rel="stylesheet"]')].map(l => l.sheet ? 0 : new Promise(r => { l.onload = l.onerror = r; })));
   for (const i of document.images) i.loading = "eager";
+  // Every declared face loaded, not just the ones layout had asked for when fonts.ready resolved: under
+  // font-display: swap a shot taken in between drew the fallback, and one run in two differed (P3).
+  await document.fonts.ready; await Promise.all([...document.fonts].map(f => f.load().catch(() => {}))); await document.fonts.ready;
   await Promise.all([document.fonts.ready, ...[...document.images].map(i => Promise.race([i.decode().catch(() => {}), new Promise(r => setTimeout(r, 8000))]))]);
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   const nav = performance.getEntriesByType("navigation")[0];
@@ -443,21 +445,6 @@ function outline(slots: Record<string, string[]>): string {
   return lines.slice(0, 60).join("\n") + (lines.length > 60 ? `\n… ${lines.length - 60} more` : "");
 }
 
-/** Compare two pictures in the browser already running: share of changed pixels, and where. */
-const DIFF = `(async (a, b, thr) => {
-  const load = (s) => new Promise((r, j) => { const i = new Image(); i.onload = () => r(i); i.onerror = () => j(new Error("undecodable")); i.src = s; });
-  const [x, y] = await Promise.all([load(a), load(b)]);
-  const w = Math.min(x.naturalWidth, y.naturalWidth), h = Math.min(x.naturalHeight, y.naturalHeight);
-  const px = (img) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d"); g.drawImage(img, 0, 0); return g.getImageData(0, 0, w, h).data; };
-  const p = px(x), q = px(y);
-  let n = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
-  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-    const k = (j * w + i) * 4;
-    if (Math.abs(p[k] - q[k]) > thr || Math.abs(p[k + 1] - q[k + 1]) > thr || Math.abs(p[k + 2] - q[k + 2]) > thr) { n++; if (i < x0) x0 = i; if (j < y0) y0 = j; if (i > x1) x1 = i; if (j > y1) y1 = j; }
-  }
-  return { n, total: w * h, box: n ? [x0, y0, x1 - x0 + 1, y1 - y0 + 1] : null, a: [x.naturalWidth, x.naturalHeight], b: [y.naturalWidth, y.naturalHeight] };
-})`;
-
 // ── the look ────────────────────────────────────────────────────────────────────────────────────────
 
 const call = (fn: (...a: never[]) => unknown, ...args: unknown[]) => `(${fn.toString()})(${args.map((a) => JSON.stringify(a ?? null)).join(", ")})`;
@@ -629,8 +616,7 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
       let prev: { taste?: number; clip?: Box } = {};
       try { prev = JSON.parse(readFileSync(lastJson, "utf8")); } catch { /* no record: the picture still compares */ }
       s.scratch ??= await s.browser.page();
-      const d = await evaluate<{ n: number; total: number; box: number[] | null; a: number[]; b: number[] }>(s.scratch,
-        `${DIFF}(${JSON.stringify(`data:image/webp;base64,${before.toString("base64")}`)}, ${JSON.stringify(`data:image/webp;base64,${clean}`)}, ${DIFF_THRESHOLD})`);
+      const d = await diffPictures(s.scratch, before, Buffer.from(clean, "base64"), { mime: "image/webp" });
       const size = d.a[0] !== d.b[0] || d.a[1] !== d.b[1] ? `${d.a[0]}×${d.a[1]} → ${d.b[0]}×${d.b[1]}` : undefined;
       const inv = 1 / scale;
       delta = { share: d.total ? d.n / d.total : 0, box: d.box ? [Math.round(clip[0] + d.box[0]! * inv), Math.round(clip[1] + d.box[1]! * inv), Math.round(d.box[2]! * inv), Math.round(d.box[3]! * inv)] : undefined, size, tasteBefore: prev.taste ?? 0, tasteAfter: tasteNow };

@@ -48,7 +48,7 @@ describe("stdio", () => {
       req(3, "resources/read", { uri: "snypd://lint/post/post-00005" }),
       req(4, "resources/read", { uri: "snypd://lint/post/nope" }),
     ]);
-    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}", "snypd://look/{id}/{picture}", "snypd://{plugin}/last"]);
+    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}", "snypd://theme/pieces/{slot}", "snypd://look/{id}/{picture}", "snypd://{plugin}/last"]);
     const lintRes = JSON.parse(lintOk.result.contents[0].text);
     expect(lintRes.file).toBe("content/posts/post-00005.md");
     expect(lintRes.errors).toBe(0); expect(lintRes.diagnostics).toEqual([]); expect(lintRes.words).toBeGreaterThan(100);
@@ -1056,15 +1056,29 @@ describe("find_tools + the catalogue", () => {
   });
 
   test("snypd://theme/pieces is the shelf: every slot, every piece on one line, the active theme's marked — under 1,200 tokens (docs/36 §5)", async () => {
-    const [, list, shelf] = await session([req(1, "initialize"), req(2, "resources/list"), req(3, "resources/read", { uri: "snypd://theme/pieces" })], "corpora/theme");
+    const [, list, shelf, masthead, nope, templates] = await session([req(1, "initialize"), req(2, "resources/list"), req(3, "resources/read", { uri: "snypd://theme/pieces" }),
+      req(4, "resources/read", { uri: "snypd://theme/pieces/masthead" }), req(5, "resources/read", { uri: "snypd://theme/pieces/nope" }), req(6, "resources/templates/list")], "corpora/theme");
     expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/pieces");
+    expect(templates.result.resourceTemplates.map((r: any) => r.uriTemplate)).toContain("snypd://theme/pieces/{slot}");
     const text: string = shelf.result.contents[0].text;
-    expect(text).toContain("`editorial` is on no pieces");
-    expect(text).toContain("  house:   # always on");
-    expect(text).toMatch(/^    block: ".*# from technical · [\d.]+ KB · settings tocDepth$/m);
-    expect(text).not.toContain("IN USE");
+    // The index: one gist per piece; editorial is built from pieces since P3, and its are marked.
+    expect(text).toContain("  house:   # always on — ");
+    expect(text).toMatch(/^    block: "A contents list at the top of a post, in flow"   # [\d.]+ KB$/m);
+    expect(text).toMatch(/^    nameplate: "A quiet nameplate"   # [\d.]+ KB · IN USE$/m);
+    expect(text).not.toMatch(/^    title-bar: ".*IN USE$/m);
+    expect(text).not.toContain("is on no pieces");
+    // A slot, whole: the line, where it came from, what a switch does, the tokens it needs, what it ships.
+    const m: string = masthead.result.contents[0].text;
+    expect(m).toContain("  nameplate:   # IN USE");
+    expect(m).toContain("    from: technical");
+    expect(m).toContain("      measure.logo: \"12rem\"");
+    expect(m).toContain("    ships: [part header]");
+    expect(m).toContain("    settings: [tagline, repo]");
+    expect(nope.error.message).toContain("no slot \"nope\"");
     const { countTokens } = await import("../../bench/src/tokens");
-    expect(countTokens(text)).toBeLessThanOrEqual(1200);
+    const n = countTokens(text);
+    console.log(`snypd://theme/pieces: ${n} tokens`);
+    expect(n).toBeLessThanOrEqual(1200);
   });
 
   test("theme, tokens and coverage are resources, and prompts are scripts an agent can run", async () => {

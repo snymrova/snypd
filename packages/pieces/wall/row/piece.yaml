@@ -1,0 +1,6 @@
+piece: wall/row
+from: technical
+line: Marks in a row under a hairline — a `marquee` wall is the same row, still.
+reads: [font.ui, size.small, space.1, space.2, space.3, space.4, color.muted, color.border, size.mark]
+needs:
+  size.mark: 2rem

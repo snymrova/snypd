@@ -71,7 +71,7 @@
     "house/house": {
       "piece": "house/house",
       "from": "house",
-      "line": "The nineteen rules editorial, technical, studio and folio all carry, verbatim — box sizing, the rhythm reset, hairlines, footnotes, and the drawn size of charts, diagrams and flows.",
+      "line": "The fifteen rules editorial, technical, studio and folio all carry, verbatim — box sizing, the rhythm reset, hairlines, and the drawn size of charts, diagrams and flows.",
       "reads": [
         "space.2",
         "space.3",
@@ -92,7 +92,712 @@
       "pairs": {},
       "slot": "house",
       "name": "house",
-      "kb": 1.3,
+      "kb": 1.02,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "column/three-track": {
+      "piece": "column/three-track",
+      "from": "technical",
+      "line": "One grid, three tracks — text, breakout, full. Prose in the text track; charts, diagrams and wide figures break out by `measure.breakout`.",
+      "reads": [
+        "space.3",
+        "space.4",
+        "space.5",
+        "space.6",
+        "measure",
+        "measure.breakout"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {
+        "rhythm": {
+          "default": "loose",
+          "of": [
+            "loose",
+            "tight"
+          ],
+          "description": "The gap between two blocks: `loose` is space.4, four fifths of a line; `tight` is space.3, for reference that is scanned."
+        },
+        "data": {
+          "default": false,
+          "description": "Code blocks and tables take the breakout track too — where data is the content rather than an illustration of it."
+        }
+      },
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "column",
+      "name": "three-track",
+      "kb": 0.65,
+      "switchKb": {
+        "data": 0.05,
+        "rhythm-tight": 0.03
+      },
+      "files": [
+        "data.css",
+        "piece.css",
+        "piece.yaml",
+        "rhythm-tight.css"
+      ]
+    },
+    "prose/book": {
+      "piece": "prose/book",
+      "from": "editorial",
+      "line": "Long-form prose — hyphenated and pretty-wrapped, links underlined at a third of their colour until pointed at, an italic ruled quote.",
+      "reads": [
+        "color.scheme",
+        "color.bg",
+        "color.text",
+        "color.accent",
+        "color.border",
+        "font.body",
+        "font.heading",
+        "size.body",
+        "size.h1",
+        "size.h2",
+        "size.h3",
+        "leading.body",
+        "leading.tight",
+        "space.4",
+        "space.5",
+        "radius"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "prose",
+      "name": "book",
+      "kb": 1.19,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "prose/docs": {
+      "piece": "prose/docs",
+      "from": "technical",
+      "line": "Reference prose — headings in the heading face tracked in, quiet deep-link marks on hover, links underlined from the font, no hyphenation.",
+      "reads": [
+        "color.scheme",
+        "color.bg",
+        "color.text",
+        "color.muted",
+        "color.accent",
+        "color.border",
+        "font.body",
+        "font.heading",
+        "size.body",
+        "size.h1",
+        "size.h2",
+        "size.h3",
+        "leading.body",
+        "leading.tight",
+        "space.4",
+        "space.5",
+        "radius"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "prose",
+      "name": "docs",
+      "kb": 1.1,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "code/first-class": {
+      "piece": "code/first-class",
+      "from": "technical",
+      "line": "Code and tables as the content, not an aside — inline code bordered like a token, blocks as slabs, tables ruled with tabular figures and zebra rows.",
+      "reads": [
+        "font.mono",
+        "font.ui",
+        "size.small",
+        "size.code",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.surface",
+        "color.border",
+        "color.text",
+        "radius"
+      ],
+      "needs": {
+        "size.code": "0.85rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "code",
+      "name": "first-class",
+      "kb": 1.15,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "code/quiet": {
+      "piece": "code/quiet",
+      "from": "editorial",
+      "line": "Code and tables that defer to the prose — inline code on a tint, blocks as a bordered slab, full-width tables in the UI face with small-caps headers.",
+      "reads": [
+        "font.mono",
+        "font.ui",
+        "size.small",
+        "space.2",
+        "space.3",
+        "color.surface",
+        "color.border",
+        "color.muted",
+        "radius"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "code",
+      "name": "quiet",
+      "kb": 0.63,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "blocks/ruled": {
+      "piece": "blocks/ruled",
+      "from": "technical",
+      "line": "The fourteen primitives as reference — bordered surfaces with an accent rule, mono figures, numbered steps underlined, questions as a folded tree.",
+      "reads": [
+        "font.ui",
+        "font.mono",
+        "size.small",
+        "size.h2",
+        "size.h3",
+        "leading.tight",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.surface",
+        "color.border",
+        "color.accent",
+        "color.on-accent",
+        "color.text",
+        "color.muted",
+        "color.bg",
+        "color.viz.1",
+        "color.viz.2",
+        "color.viz.4",
+        "radius",
+        "motion.quick",
+        "size.question",
+        "measure.stat",
+        "space.step"
+      ],
+      "needs": {
+        "measure.stat": "9rem",
+        "size.question": "1rem",
+        "space.step": "2.6rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "blocks",
+      "name": "ruled",
+      "kb": 3.66,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "blocks/surface": {
+      "piece": "blocks/surface",
+      "from": "editorial",
+      "line": "The fourteen primitives as a magazine sets them — tinted surfaces with an accent rule, italic pull quotes, round numbered steps, a centred call to action, questions that open with a `+`.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "size.h2",
+        "size.h3",
+        "leading.tight",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.surface",
+        "color.border",
+        "color.accent",
+        "color.on-accent",
+        "color.text",
+        "color.muted",
+        "color.bg",
+        "color.viz.1",
+        "color.viz.2",
+        "color.viz.5",
+        "radius",
+        "motion.quick",
+        "measure.stat",
+        "space.step",
+        "size.step-mark"
+      ],
+      "needs": {
+        "measure.stat": "9rem",
+        "space.step": "2.4rem",
+        "size.step-mark": "1.7rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "blocks",
+      "name": "surface",
+      "kb": 3.72,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "cover/path": {
+      "piece": "cover/path",
+      "from": "technical",
+      "line": "The top of a reference page — a tracked accent eyebrow, a muted deck, the cover image in the column, a ruled byline.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "size.h3",
+        "space.2",
+        "space.4",
+        "color.accent",
+        "color.muted",
+        "color.surface",
+        "color.border",
+        "radius",
+        "measure.deck"
+      ],
+      "needs": {
+        "measure.deck": "34rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "cover",
+      "name": "path",
+      "kb": 0.69,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "cover/quiet": {
+      "piece": "cover/quiet",
+      "from": "editorial",
+      "line": "The one place a reading theme raises its voice — a tracked accent eyebrow, a muted deck, the cover image in the column, a ruled byline.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "size.h3",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.accent",
+        "color.muted",
+        "color.surface",
+        "color.border",
+        "radius",
+        "measure.deck"
+      ],
+      "needs": {
+        "measure.deck": "30rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "cover",
+      "name": "quiet",
+      "kb": 0.69,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "masthead/nameplate": {
+      "piece": "masthead/nameplate",
+      "from": "editorial",
+      "line": "A quiet nameplate — the name in the heading face, a muted tagline under it, the menu right; sentence case, hairline, small.",
+      "reads": [
+        "font.ui",
+        "font.heading",
+        "size.small",
+        "size.h3",
+        "size.body",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.border",
+        "color.text",
+        "color.muted",
+        "color.accent",
+        "color.bg",
+        "measure.logo"
+      ],
+      "needs": {
+        "measure.logo": "12rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [
+        {
+          "id": "tagline",
+          "type": "text",
+          "label": "Tagline",
+          "group": "Identity",
+          "info": "One line under the name. Defaults to the site's own description."
+        }
+      ],
+      "parts": {
+        "header": "./part.tsx"
+      },
+      "layouts": {},
+      "pairs": {},
+      "slot": "masthead",
+      "name": "nameplate",
+      "kb": 1.43,
+      "switchKb": {},
+      "files": [
+        "part.tsx",
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "masthead/title-bar": {
+      "piece": "masthead/title-bar",
+      "from": "technical",
+      "line": "A one-line title bar — name, rule, tagline, menu; a path, not a nameplate, and a `src` link to the repository last in the menu.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "size.body",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.border",
+        "color.text",
+        "color.muted",
+        "color.accent",
+        "color.bg",
+        "radius",
+        "measure.logo"
+      ],
+      "needs": {
+        "measure.logo": "12rem"
+      },
+      "emits": [
+        "snypd-repo"
+      ],
+      "switches": {},
+      "settings": [
+        {
+          "id": "tagline",
+          "type": "text",
+          "label": "Tagline",
+          "group": "Identity",
+          "info": "One line beside the name. Defaults to the site's own description."
+        },
+        {
+          "id": "repo",
+          "type": "url",
+          "label": "Source repository",
+          "group": "Identity",
+          "info": "Linked from the masthead as `src`. A documentation site whose source is not one click away is documentation nobody corrects."
+        }
+      ],
+      "parts": {
+        "header": "./part.tsx"
+      },
+      "layouts": {},
+      "pairs": {},
+      "slot": "masthead",
+      "name": "title-bar",
+      "kb": 1.55,
+      "switchKb": {},
+      "files": [
+        "part.tsx",
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "entries/list": {
+      "piece": "entries/list",
+      "from": "editorial",
+      "line": "A list of posts read by title — the title in the heading face and balanced, the date under it, the excerpt a step down from the prose.",
+      "reads": [
+        "font.heading",
+        "size.h3",
+        "size.body",
+        "leading.tight",
+        "space.2",
+        "space.4",
+        "color.border",
+        "color.text",
+        "color.accent",
+        "color.muted",
+        "measure.excerpt"
+      ],
+      "needs": {
+        "measure.excerpt": "34rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "entries",
+      "name": "list",
+      "kb": 0.64,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "entries/rows": {
+      "piece": "entries/rows",
+      "from": "technical",
+      "line": "A list of posts as ruled rows — the date, the title in the heading face, the excerpt muted under it.",
+      "reads": [
+        "font.heading",
+        "size.h3",
+        "space.1",
+        "space.2",
+        "space.3",
+        "color.border",
+        "color.text",
+        "color.accent",
+        "color.muted"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "entries",
+      "name": "rows",
+      "kb": 0.51,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "post-foot/band": {
+      "piece": "post-foot/band",
+      "from": "editorial",
+      "line": "The end of a post as one band under a rule — terms as pills, the markdown twin as `↓ source`, both in the UI face.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "color.border",
+        "color.muted",
+        "color.accent"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "post-foot",
+      "name": "band",
+      "kb": 0.77,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "post-foot/ruled": {
+      "piece": "post-foot/ruled",
+      "from": "technical",
+      "line": "The end of a post as one ruled band — terms as bordered `#tags`, the markdown twin as `↓ source`.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "color.border",
+        "color.muted",
+        "color.accent",
+        "radius"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "post-foot",
+      "name": "ruled",
+      "kb": 0.76,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "footer/line": {
+      "piece": "footer/line",
+      "from": "technical, editorial",
+      "line": "A hairline and one quiet band — the footer menu, the social row, a note, the site's name. Muted until pointed at.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.6",
+        "color.border",
+        "color.muted",
+        "color.text"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {
+        "roomy": {
+          "default": false,
+          "description": "A step more padding and a shorter line; the menu's items a space further apart."
+        },
+        "quiet-links": {
+          "default": false,
+          "description": "Every link in the footer plain and inheriting its colour — the note's and a plugin's, not only the menu's."
+        }
+      },
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "footer",
+      "name": "line",
+      "kb": 0.86,
+      "switchKb": {
+        "quiet-links": 0.05,
+        "roomy": 0.13
+      },
+      "files": [
+        "piece.css",
+        "piece.yaml",
+        "quiet-links.css",
+        "roomy.css"
+      ]
+    },
+    "notes/cards": {
+      "piece": "notes/cards",
+      "from": "technical",
+      "line": "Footnotes as base shows them — a card on hover or focus, in the theme's surface — and the ruled list at the end.",
+      "reads": [
+        "font.body",
+        "size.small",
+        "space.3",
+        "space.5",
+        "color.text",
+        "color.muted",
+        "color.surface",
+        "color.border",
+        "radius"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "notes",
+      "name": "cards",
+      "kb": 0.38,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "notes/sidenotes": {
+      "piece": "notes/sidenotes",
+      "from": "editorial",
+      "line": "Footnotes in the margin — once there is room beside the column, each note stands next to its line, always visible; the list at the end is the printed version.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.5",
+        "color.muted",
+        "color.border",
+        "measure.sidenote"
+      ],
+      "needs": {
+        "measure.sidenote": "clamp(9rem, calc((100vw - var(--measure)) / 2 - 3rem), 14rem)"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "notes",
+      "name": "sidenotes",
+      "kb": 0.83,
       "switchKb": {},
       "files": [
         "piece.css",
@@ -144,10 +849,67 @@
       "pairs": {},
       "slot": "toc",
       "name": "block",
-      "kb": 1.12,
+      "kb": 1.26,
       "switchKb": {},
       "files": [
         "part.tsx",
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "wall/row": {
+      "piece": "wall/row",
+      "from": "technical",
+      "line": "Marks in a row under a hairline — a `marquee` wall is the same row, still.",
+      "reads": [
+        "font.ui",
+        "size.small",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.muted",
+        "color.border",
+        "size.mark"
+      ],
+      "needs": {
+        "size.mark": "2rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "wall",
+      "name": "row",
+      "kb": 0.66,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ]
+    },
+    "motion/glide": {
+      "piece": "motion/glide",
+      "from": "technical",
+      "line": "Pages swap at once and only the title glides into place (a cross-document view transition); a thin reading-progress line on posts.",
+      "reads": [
+        "color.accent",
+        "motion.duration"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "motion",
+      "name": "glide",
+      "kb": 0.63,
+      "switchKb": {},
+      "files": [
         "piece.css",
         "piece.yaml"
       ]

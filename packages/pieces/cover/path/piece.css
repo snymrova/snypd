@@ -1,0 +1,22 @@
+/* cover/path — carved from technical. One treatment, because there is one cover (S14): the author's
+   `::cover` or the one the layout builds from frontmatter, never both. */
+.snypd-eyebrow {
+  font: 650 var(--size-small) / 1.2 var(--font-ui);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-accent); margin-bottom: var(--space-2);
+}
+.snypd-subtitle {
+  font-size: var(--size-h3); line-height: 1.4; color: var(--color-muted);
+  margin-top: var(--space-2); max-width: var(--measure-deck); text-wrap: pretty;
+}
+.snypd-cover img, .snypd-cover-media {
+  display: block; width: 100%; margin-top: var(--space-4);
+  border-radius: var(--radius); background: var(--color-surface);
+}
+.snypd-byline {
+  font: var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border);
+}
+/* Here and not in `house`: prose's `a` comes after house and would win. */
+.snypd-byline a { color: inherit; }

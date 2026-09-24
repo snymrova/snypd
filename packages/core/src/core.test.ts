@@ -137,13 +137,16 @@ describe("layering", () => {
     try {
       const y = loadConfig(R).render();
       expect(y).toContain('    color.accent: "#2f5d62" # ← snypd.yaml:6, overrides editorial/theme.yaml:');
-      expect(y).toMatch(/    font\.body: Georgia # ← snypd\.yaml:7, overrides editorial\/theme\.yaml:\d+ \(theme editorial\)\n    # 38 more untouched: <theme editorial default — editorial\/theme\.yaml:\d+–\d+>\n/);
+      // 40, not 38: editorial is on pieces (P3) and declares the two tokens where it is not their default.
+      expect(y).toMatch(/    font\.body: Georgia # ← snypd\.yaml:7, overrides editorial\/theme\.yaml:\d+ \(theme editorial\)\n    # 40 more untouched: <theme editorial default — editorial\/theme\.yaml:\d+–\d+>\n/);
+      // The tokens its pieces supply are one line too, whichever piece each came from.
+      expect(y).toMatch(/    # \d+ more untouched: <the pieces' defaults — snypd:\/\/theme\/pieces>\n/);
       expect(y).not.toContain("color.viz.1:");
       expect(y).toContain("      # 13 more untouched: <inherited from types.post>");
       // The rule only counts; a family with one member keeps its line, and it says the same thing it did.
       expect(y).not.toContain("1 more untouched");
       const lines = y.split("\n");
-      expect(lines.filter((l) => l.includes("more untouched")).length).toBe(3);   // tokens, release.fields, release
+      expect(lines.filter((l) => l.includes("more untouched")).length).toBe(4);   // tokens, the pieces', release.fields, release
       expect(lines.length).toBeLessThan(90);
     } finally { rmSync(R, { recursive: true, force: true }); }
   });

@@ -1,0 +1,4 @@
+piece: motion/glide
+from: technical
+line: Pages swap at once and only the title glides into place (a cross-document view transition); a thin reading-progress line on posts.
+reads: [color.accent, motion.duration]

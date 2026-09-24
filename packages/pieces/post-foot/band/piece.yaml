@@ -1,0 +1,4 @@
+piece: post-foot/band
+from: editorial
+line: The end of a post as one band under a rule — terms as pills, the markdown twin as `↓ source`, both in the UI face.
+reads: [font.ui, size.small, space.2, space.3, space.4, space.5, color.border, color.muted, color.accent]

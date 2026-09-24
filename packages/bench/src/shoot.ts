@@ -18,6 +18,7 @@ import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadConfig, installedThemes } from "@snypd/core";
 import { launch, findChrome, type Browser, type Page } from "./cdp";
+import { diffPictures } from "./pixels";
 import { buildAndServe } from "./gallery";
 import { pickRoutes } from "./page";
 import { applyChosen, chosenRules, foldRendered, judgedAt, RENDERED_RULES, TASTE_PROBE, tasteVerdicts, type TasteHit, type TasteMeasure, type TasteRow } from "@snypd/render/taste";
@@ -28,8 +29,11 @@ export const SPECIMEN_ROUTES = [
   "/posts/four-words-only/", "/posts/a-sixty-character-title-that-wraps-at-phone-width-badly/",
 ] as const;
 export const SHOOT_WIDTHS = [390, 768, 1280, 1440] as const;
-/** A page taller than this is cut here and marked `truncated`, rather than written as a giant PNG. */
-export const MAX_SHOT_HEIGHT = 8000;
+/**
+ * A page taller than this is cut here and marked `truncated`. Chrome captures up to 16,384 px; 8,000 cut the
+ * long read at 390 px, and a carve (docs/36 §6) has to be proved on the whole page, not its top.
+ */
+export const MAX_SHOT_HEIGHT = 16_000;
 
 export type Scheme = "light" | "dark";
 
@@ -42,9 +46,38 @@ export interface ShootOptions {
   widths?: number[];
   scheme?: Scheme | "both";
   out?: string;
-  /** Pages photographed at once. */
+  /** Pages photographed at once; 6, or 1 when `exact`. */
   concurrency?: number;
+  /**
+   * The same pixels every time: one page at a time. With two or more pages rendering in one browser — or in
+   * two browsers on one machine — `captureBeyondViewport`'s resize races, and a page came back with its
+   * `vw` type sizes resolved against another width (P3 measured 83 of 216 shots differing between two
+   * shoots of an unchanged theme). On by default with `diff`, since a baseline and an after must both be exact.
+   */
+  exact?: boolean;
   onCandidate?: (c: Candidate, i: number, n: number) => void;
+  /**
+   * An earlier shoot's directory: every shot is compared with the shot of the same name there (docs/36 §6),
+   * and the ones that moved get a marked picture under `<out>/diff/`. Its shots must be at the same widths.
+   */
+  diff?: string;
+}
+
+export interface ShotDiff {
+  /** The shot, relative to `out`; the same name in the earlier shoot. */
+  file: string;
+  /** Share of the overlapping pixels that moved; 0 is the same picture. */
+  share: number;
+  /** Where, in page pixels. */
+  box?: number[];
+  /** `1280×5120 → 1280×5184` when the page changed height. */
+  size?: string;
+  /** The marked picture, relative to `out`. */
+  drawn?: string;
+  /** No shot of this name in the earlier shoot. */
+  missing?: true;
+  /** It moved once and matched on a second shot: a capture that raced, not the theme. */
+  reshot?: true;
 }
 
 export interface Candidate {
@@ -83,6 +116,8 @@ export interface ShootResult {
   sheets: string[];
   ms: number;
   skipped?: string;
+  /** With `diff`: one row per shot, and the earlier shoot compared with. */
+  diff?: { against: string; shots: ShotDiff[] };
 }
 
 export const routeSlug = (route: string): string => route.replace(/^\/|\/$/g, "").replace(/[^a-zA-Z0-9-]+/g, "-") || "home";
@@ -113,9 +148,11 @@ function candidates(root: string, names: string[]): (Omit<Candidate, "fontKb"> &
 }
 
 /** Settle, then photograph the whole page: styles, fonts, every image (lazy ones made eager), two frames. */
-async function photograph(page: Page, url: string, width: number, scheme: Scheme, measure = false): Promise<{ png: Buffer; height: number; truncated: boolean; cls: number; status: number; taste?: TasteMeasure }> {
+async function photograph(page: Page, url: string, width: number, scheme: Scheme, measure = false, exact = false): Promise<{ png: Buffer; height: number; truncated: boolean; cls: number; status: number; taste?: TasteMeasure }> {
   const height = width < 600 ? 844 : 900;
   await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 });
+  // A scrollbar that comes and goes with the capture's resize changes the layout width by 15 px; none at all is exact.
+  await page.send("Emulation.setScrollbarsHidden", { hidden: true });
   await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] });
   await page.send("Page.enable");
   await page.send("Network.enable");
@@ -129,6 +166,9 @@ async function photograph(page: Page, url: string, width: number, scheme: Scheme
     try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) cls += e.value; }).observe({ type: "layout-shift", buffered: true }); } catch {}
     await Promise.all([...document.querySelectorAll('link[rel="stylesheet"]')].map(l => l.sheet ? 0 : new Promise(r => { l.onload = l.onerror = r; })));
     for (const i of document.images) i.loading = "eager";
+    // Every declared face loaded, not just the ones layout had asked for when fonts.ready resolved: under
+    // font-display: swap a shot taken in between drew the fallback, and one run in two differed (P3).
+    await document.fonts.ready; await Promise.all([...document.fonts].map(f => f.load().catch(() => {}))); await document.fonts.ready;
     // decode(), not complete/onload: under six pages at once a loaded cover was photographed unpainted.
     await Promise.all([document.fonts.ready, ...[...document.images].map(i => Promise.race([i.decode().catch(() => {}), new Promise(r => setTimeout(r, 8000))]))]);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -140,7 +180,11 @@ async function photograph(page: Page, url: string, width: number, scheme: Scheme
     : undefined;
   const full = Math.max(height, result.value.h);
   const h = Math.min(full, MAX_SHOT_HEIGHT);
-  const { data } = await page.send<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: h, scale: 1 } });
+  const capture = async () => (await page.send<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: h, scale: 1 } })).data;
+  let data = await capture();
+  // Exact: captured until two in a row agree. On a loaded machine one page at a time still raced one shot in
+  // ten; two that agree have not (P3).
+  for (let i = 0; exact && i < 4; i++) { const next = await capture(); if (next === data) break; data = next; }
   return { png: Buffer.from(data, "base64"), height: h, truncated: full > MAX_SHOT_HEIGHT, cls: result.value.cls, status, taste };
 }
 
@@ -150,7 +194,9 @@ async function pool<T>(browser: Browser, jobs: T[], n: number, run: (page: Page,
   await Promise.all(Array.from({ length: Math.min(n, jobs.length) }, async () => {
     while (next < jobs.length) {
       const job = jobs[next++]!;
-      const page = await browser.page();
+      // A context of its own per page: a shared one turns the nav's links `:visited` in whatever order the
+      // pool ran, and two shoots of the same theme would not draw the same pixels (E1 found it in `look`).
+      const page = await browser.page({ isolated: true });
       try { await run(page, job); } finally { await page.close(); }
     }
   }));
@@ -161,6 +207,7 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
   const root = resolve(opts.root ?? "corpora/specimen");
   const out = resolve(opts.out ?? "shots");
   const schemes: Scheme[] = (opts.scheme ?? "both") === "both" ? ["light", "dark"] : [opts.scheme as Scheme];
+  const exact = opts.exact ?? !!opts.diff;
   const widths = opts.widths?.length ? opts.widths : [...SHOOT_WIDTHS];
   const names = opts.themes?.length ? opts.themes : [loadConfig(root).config.theme.use];
   const chosen = candidates(root, names);
@@ -168,6 +215,10 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
   if (!findChrome()) return { ...empty, skipped: "no Chrome on this machine — install Chrome or Chromium, or set SNYPD_CHROME to one; `snypd shoot` photographs the theme in a real browser" };
 
   // `out` is cleared, so it must be empty or a previous shoot's: a directory of anything else is refused.
+  const against = opts.diff ? resolve(opts.diff) : undefined;
+  if (against && !existsSync(join(against, "shoot.json")))
+    throw Object.assign(new Error(`shoot: ${opts.diff} is not a shoot's directory (no shoot.json)`), { hint: "shoot the baseline first: snypd shoot --out=<dir>" });
+  if (against === out) throw Object.assign(new Error("shoot: --diff and --out are the same directory, and shoot clears its --out"), { hint: "shoot the after into a new --out" });
   if (existsSync(out) && readdirSync(out).length && !existsSync(join(out, "shoot.json")))
     throw Object.assign(new Error(`shoot: ${relative(process.cwd(), out) || out}/ holds files that are not a previous shoot's, and shoot clears its --out`), { hint: "pass --out=<a new or empty directory>" });
   rmSync(out, { recursive: true, force: true });
@@ -175,6 +226,7 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
   const browser = await launch();
   const cands: Candidate[] = [];
   const shots: ShootShot[] = [];
+  const diffRows: ShotDiff[] = [];
   let routes: string[] = [];
   try {
     let i = 0;
@@ -195,15 +247,22 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
         }
         mkdirSync(join(out, c.slug), { recursive: true });
         const jobs = routes.flatMap((route) => widths.flatMap((width) => schemes.map((scheme) => ({ route, width, scheme }))));
-        await pool(browser, jobs, opts.concurrency ?? 6, async (page, j) => {
+        const mine: ShootShot[] = [];
+        await pool(browser, jobs, opts.concurrency ?? (exact ? 1 : 6), async (page, j) => {
           // Layout does not change with the scheme, so the rules are judged once per route and width.
           const measure = j.scheme === schemes[0] && RENDERED_RULES.some((r) => judgedAt(r, j.width));
-          const shot = await photograph(page, `${s.url}${j.route}`, j.width, j.scheme, measure);
+          const shot = await photograph(page, `${s.url}${j.route}`, j.width, j.scheme, measure, exact);
           if (shot.taste && j.route !== "/404") judged.push({ route: j.route, width: j.width, hits: tasteVerdicts(shot.taste, j.width) });
           const file = join(c.slug, `${routeSlug(j.route)}-${j.width}-${j.scheme}.png`);
           writeFileSync(join(out, file), shot.png);
-          shots.push({ candidate: c.slug, route: j.route, width: j.width, scheme: j.scheme, file, height: shot.height, truncated: shot.truncated, cls: shot.cls, status: shot.status });
+          mine.push({ candidate: c.slug, route: j.route, width: j.width, scheme: j.scheme, file, height: shot.height, truncated: shot.truncated, cls: shot.cls, status: shot.status });
         });
+        shots.push(...mine);
+        // Compared while this candidate's build is still served, so a shot that moved can be taken again.
+        if (against) diffRows.push(...await diffShots(browser, mine, against, out, async (x) => {
+          const page = await browser.page({ isolated: true });
+          try { return (await photograph(page, `${s.url}${x.route}`, x.width, x.scheme, false, true)).png; } finally { await page.close(); }
+        }));
         judged.sort((a, b) => routes.indexOf(a.route) - routes.indexOf(b.route) || a.width - b.width);
         const design = dir && existsSync(join(dir, "DESIGN.md")) ? readFileSync(join(dir, "DESIGN.md"), "utf8") : undefined;
         cands.push({ ...cand, fontKb: s.fontKb, taste: applyChosen(foldRendered(judged), chosenRules(design)) });
@@ -226,11 +285,51 @@ export async function shoot(opts: ShootOptions = {}): Promise<ShootResult> {
     });
     sheets.sort();
     writeFileSync(join(out, "contact.html"), contactHtml(cands, shots, routes, schemes, widths));
-    const result: ShootResult = { out, candidates: cands, shots, contact: "contact.html", sheets, ms: Math.round(performance.now() - t0) };
-    writeFileSync(join(out, "shoot.json"), JSON.stringify({ ...result, root: relative(process.cwd(), root) || ".", browser: browser.version, sheets: sheets.map((p) => relative(out, p)) }, null, 2));
+    const diff = against ? { against, shots: diffRows.sort((a, b) => a.file.localeCompare(b.file)) } : undefined;
+    const result: ShootResult = { out, candidates: cands, shots, contact: "contact.html", sheets, ms: Math.round(performance.now() - t0), diff };
+    writeFileSync(join(out, "shoot.json"), JSON.stringify({ ...result, root: relative(process.cwd(), root) || ".", browser: browser.version, sheets: sheets.map((p) => relative(out, p)), diff: diff && { ...diff, against: relative(process.cwd(), diff.against) } }, null, 2));
     return result;
   } finally { browser.close(); }
 }
+
+/**
+ * Every shot against the same name in `against`, in one blank tab; the moved ones drawn to `diff/`. A shot
+ * that moved is taken once more, and if the second matches the baseline the first was a capture that raced
+ * (`reshot`), and the second is kept.
+ */
+async function diffShots(browser: Browser, shots: ShootShot[], against: string, out: string, again: (s: ShootShot) => Promise<Buffer>): Promise<ShotDiff[]> {
+  const page = await browser.page();
+  const rows: ShotDiff[] = [];
+  try {
+    for (const s of shots) {
+      const before = join(against, s.file);
+      if (!existsSync(before)) { rows.push({ file: s.file, share: 1, missing: true }); continue; }
+      const was = readFileSync(before);
+      let d = await diffPictures(page, was, readFileSync(join(out, s.file)), { draw: true });
+      let reshot = false;
+      if (d.n || d.a[0] !== d.b[0] || d.a[1] !== d.b[1]) {
+        const png = await again(s);
+        const e = await diffPictures(page, was, png, { draw: true });
+        if (!e.n && e.a[0] === e.b[0] && e.a[1] === e.b[1]) { writeFileSync(join(out, s.file), png); reshot = true; }
+        d = reshot ? e : d;
+      }
+      const row: ShotDiff = { file: s.file, share: d.total ? d.n / d.total : 0 };
+      if (reshot) row.reshot = true;
+      if (d.box) row.box = d.box;
+      if (d.a[0] !== d.b[0] || d.a[1] !== d.b[1]) row.size = `${d.a[0]}×${d.a[1]} → ${d.b[0]}×${d.b[1]}`;
+      if (d.drawn) {
+        row.drawn = join("diff", s.file);
+        mkdirSync(join(out, "diff", s.candidate), { recursive: true });
+        writeFileSync(join(out, row.drawn), Buffer.from(d.drawn.slice(d.drawn.indexOf(",") + 1), "base64"));
+      }
+      rows.push(row);
+    }
+  } finally { await page.close(); }
+  return rows;
+}
+
+/** A shot moved when any pixel did, or the page changed height. */
+export const moved = (d: ShotDiff) => d.missing || d.share > 0 || d.size !== undefined;
 
 const SHEET_CSS = `
 :root { color-scheme: light; --ink: #16181d; --muted: #5b6068; --rule: #dfe2e7; --paper: #f4f5f7; }
@@ -295,6 +394,17 @@ export function formatShoot(r: ShootResult): string {
       const warns = (c.taste ?? []).filter((t) => t.status === "warn");
       return warns.length ? [`taste, ${c.slug} (${warns.length}):`, ...warns.map((t) => `  ⚠️  ${t.rule}  ${t.detail}`)] : c.taste ? [`taste, ${c.slug}: ${c.taste.length} rendered rules pass`] : [];
     }),
+    ...(r.diff ? formatDiff(r.diff.shots, r.out, r.diff.against) : []),
     ...(flagged.length ? [`to look at (${flagged.length}):`, ...flagged.map((s) => `  ${s.file}${s.truncated ? " truncated" : ""}${s.cls > 0.05 ? ` CLS ${s.cls}` : ""}${s.status >= 400 && s.route !== "/404" ? ` HTTP ${s.status}` : ""}`)] : []),
   ].join("\n");
+}
+
+/** The diff's lines: the count that held, then every shot that moved, largest first. */
+export function formatDiff(rows: ShotDiff[], out: string, against: string): string[] {
+  const m = rows.filter(moved).sort((a, b) => Number(!!b.size) - Number(!!a.size) || b.share - a.share);
+  const raced = rows.filter((d) => d.reshot).length;
+  const head = `diff against ${relative(process.cwd(), against) || "."}: ${rows.length - m.length} of ${rows.length} shots identical${raced ? ` (${raced} after a second shot)` : ""}`;
+  if (!m.length) return [head];
+  return [head + `, ${m.length} moved:`, ...m.map((d) => d.missing ? `  ${d.file}  not in the earlier shoot`
+    : `  ${d.file}  ${(d.share * 100).toFixed(d.share < 0.001 ? 3 : 2)} %${d.box ? `  at ${d.box.join(",")}` : ""}${d.size ? `  ${d.size}` : ""}${d.drawn ? `  → ${relative(process.cwd(), join(out, d.drawn))}` : ""}`)];
 }

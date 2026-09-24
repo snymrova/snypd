@@ -33,3 +33,9 @@
   .snypd-toc ol { scroll-target-group: auto; }
   .snypd-toc a:target-current { color: var(--color-accent); text-decoration: underline; }
 }
+
+/* An anchor jump — from this list, or a heading's own `#` — lands under the masthead rather than against
+   the top of the window, and scrolls there unless the reader asked for no motion. */
+:target { scroll-margin-top: var(--space-4); }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

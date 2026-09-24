@@ -1,0 +1,7 @@
+piece: footer/line
+from: technical, editorial
+line: A hairline and one quiet band — the footer menu, the social row, a note, the site's name. Muted until pointed at.
+reads: [font.ui, size.small, space.2, space.3, space.4, space.6, color.border, color.muted, color.text]
+switches:
+  roomy:       { default: false, description: "A step more padding and a shorter line; the menu's items a space further apart." }
+  quiet-links: { default: false, description: "Every link in the footer plain and inheriting its colour — the note's and a plugin's, not only the menu's." }

@@ -59,6 +59,19 @@ switch (verb) {
       if (rows.some((r) => r.regressed)) process.exit(1);
       break;
     }
+    if (args[0] === "carve") {   // docs/36 §6, P3: a theme rewritten as pieces renders the page it rendered before
+      const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
+      const list = (n: string) => opt(n)?.split(",").map((x) => x.trim()).filter(Boolean);
+      const themes = list("theme"), out = opt("out");
+      if (!themes?.length || !out) { console.error("usage: snypd bench carve [root] --theme=a,b --out=<dir> [--diff=<earlier dir>] [--route=/x/,…] [--width=390,…] [--scheme=both|light|dark]"); process.exit(2); }
+      try {
+        const r = await bench.carve({ root: args[1], themes, out, diff: opt("diff"), routes: list("route"), widths: list("width")?.map(Number), scheme: opt("scheme") as "light" | "dark" | "both" | undefined,
+          onTheme: (t, i, n) => console.error(`${i}/${n} ${t}`) });
+        console.log(bench.formatCarve(r));
+        if (r.skipped || r.diff?.changed.length) process.exit(1);
+      } catch (e) { const err = e as Error & { hint?: string }; console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`); process.exit(1); }
+      break;
+    }
     if (args[0] === "page") {    // S13: the built site in a real browser — 0 KB JS, 0 axe violations
       const r = await bench.page({ root: args[1] });
       console.log(bench.toMarkdown(r));
@@ -503,8 +516,8 @@ switch (verb) {
     const { shoot, formatShoot } = await import("@snypd/bench");
     // A flag it does not know is refused before anything runs: `shoot` clears its `--out`, and a
     // `--help` read as "no options" once photographed a whole site into the default directory.
-    const SHOOT_USAGE = "usage: snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots]";
-    const unknown = [...flags].filter((f) => !/^--(theme|route|width|scheme|out)=/.test(f));
+    const SHOOT_USAGE = "usage: snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots] [--diff=<earlier shoot>] [--exact]";
+    const unknown = [...flags].filter((f) => !/^--(theme|route|width|scheme|out|diff)=/.test(f) && f !== "--exact");
     if (unknown.length) { console.error(unknown.some((f) => f === "--help" || f === "-h") ? SHOOT_USAGE : `${unknown.join(" ")}: not a shoot option\n${SHOOT_USAGE}`); process.exit(unknown.every((f) => f === "--help") ? 0 : 2); }
     const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
     const list = (n: string) => opt(n)?.split(",").map((x) => x.trim()).filter(Boolean);
@@ -514,7 +527,7 @@ switch (verb) {
     if (widths?.some((w) => !Number.isInteger(w) || w < 200 || w > 3000)) { console.error(`--width=${opt("width")}: whole pixels, 200–3000`); process.exit(2); }
     let r;
     try {
-      r = await shoot({ root: args[0], themes: list("theme"), routes: list("route"), widths, scheme: scheme as "light" | "dark" | "both" | undefined, out: opt("out"),
+      r = await shoot({ root: args[0], themes: list("theme"), routes: list("route"), widths, scheme: scheme as "light" | "dark" | "both" | undefined, out: opt("out"), diff: opt("diff"), exact: flags.has("--exact") || undefined,
         onCandidate: (c, i, n) => console.error(`${i}/${n} ${c.slug}`) });
     } catch (e) {
       const err = e as Error & { hint?: string };
@@ -575,7 +588,7 @@ switch (verb) {
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
       "  snypd serve [root]                                                    MCP on stdio — what your harness spawns, not what you type",
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
-      "  snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots]   photograph themes on every route; contact sheet (needs Chrome)",
+      "  snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots] [--diff=<earlier shoot>] [--exact]   photograph themes on every route; contact sheet; --diff marks what moved, --exact shoots a baseline for it (needs Chrome)",
       "  snypd eyes [install]                                                  which browser theme › look uses; `install` fetches chrome-headless-shell once",
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",

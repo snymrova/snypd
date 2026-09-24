@@ -82,17 +82,28 @@ a { color: red; }
     expect(rs[1]!.line).toBe(4);
   });
 
-  test("the four sheets share twenty rules — the `house` piece (docs/36 §2)", () => {
-    // Measured before the reduced-motion rule moved to base (P1), which is why editorial, technical and
-    // studio are read with it put back; folio still carries its own copy.
-    const MOTION = "@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }";
-    const sheets = [
-      ...["editorial", "technical", "studio"].map((t) => readFileSync(join(REPO, "themes", t, "theme.css"), "utf8") + MOTION),
-      readFileSync(join(REPO, "sites/snypd.rocks/themes/folio/theme.css"), "utf8"),
-    ];
-    const counts = new Map<string, number>();
-    for (const s of sheets) for (const k of new Set(cssRules(s).map(ruleKey))) counts.set(k, (counts.get(k) ?? 0) + 1);
-    expect([...counts.values()].filter((n) => n === 4).length).toBe(20);
+  test("the `house` piece: fifteen of the twenty rules the four sheets shared, each still verbatim in the sheets not yet carved (docs/36 §2, P3)", () => {
+    // P1 measured twenty rules in all four sheets. The reduced-motion reset went to base (P1); P3's carve
+    // moved four more out, because a rule in the first sublayer loses to every later slot whatever its
+    // specificity — the byline's link colour (cover), the full-width figure (column), the footnote list
+    // (notes, twice). What is left is the floor, and it is still in studio's and folio's own sheets word
+    // for word until they are carved.
+    const house = cssRules(readFileSync(join(REPO, "packages/pieces/house/house/piece.css"), "utf8")).map(ruleKey);
+    expect(house.length).toBe(15);
+    for (const f of ["themes/studio/theme.css", "sites/snypd.rocks/themes/folio/theme.css"]) {
+      const keys = new Set(cssRules(readFileSync(join(REPO, f), "utf8")).map(ruleKey));
+      expect(house.filter((k) => !keys.has(k)), f).toEqual([]);
+    }
+    const moved = [
+      [".snypd-byline a { color: inherit }", "cover"], ['.snypd-figure[data-width="full"] { grid-column: full }', "column"],
+      [".footnotes ol { padding-inline-start: 1.5em }", "notes"],
+    ] as const;
+    for (const [rule, slot] of moved) expect(house, rule).not.toContain(rule);
+    for (const [rule, slot] of moved) {
+      const dir = join(REPO, "packages/pieces", slot);
+      const holders = readdirSync(dir).filter((v) => cssRules(readFileSync(join(dir, v, "piece.css"), "utf8")).map(ruleKey).includes(rule));
+      expect(holders.length, `${rule} in ${slot}/*`).toBeGreaterThan(0);
+    }
   });
 });
 

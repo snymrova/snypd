@@ -1,6 +1,12 @@
 /* house — the rules all four sheets carry verbatim (docs/36 §1: twenty measured, P1). The twentieth, the
    reduced-motion reset, moved to base in P1, where a lower layer's `!important` is the precedence it wants.
-   Nothing here is a choice a theme makes; it is the floor every theme on pieces stands on. */
+   Nothing here is a choice a theme makes; it is the floor every theme on pieces stands on.
+
+   **Only rules that no later slot must lose to.** `house` is the first sublayer, and a layer beats any
+   specificity: P3's carve found two of the twenty that were verbatim in every sheet and still wrong here —
+   `.snypd-byline a { color: inherit }` lost to prose's `a`, `.snypd-figure[data-width="full"]` to the
+   column's `main > *`, and `.footnotes ol` to prose's `ul, ol`. They went to `cover`, `column` and
+   `notes`, which sit after the rules they beat. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -10,9 +16,7 @@ li + li { margin-top: var(--space-2); }
 small, time, figcaption { font-family: var(--font-ui); font-size: var(--size-small); color: var(--color-muted); }
 hr { border: 0; border-top: 1px solid var(--color-border); margin-block: var(--space-5); }
 
-.snypd-figure[data-width="full"] { grid-column: full; }
 .snypd-cover { margin-bottom: var(--space-3); }
-.snypd-byline a { color: inherit; }
 .snypd-callout[data-kind="warning"] { --kind: var(--color-viz-3); }
 .snypd-logo-wall { margin-block: var(--space-4); }
 
@@ -24,8 +28,6 @@ hr { border: 0; border-top: 1px solid var(--color-border); margin-block: var(--s
 .snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }
 .snypd-chart figcaption:empty, .snypd-diagram figcaption:empty, .snypd-flow figcaption:empty { display: none; }
 
-.footnotes { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--color-border); font-size: var(--size-small); color: var(--color-muted); }
-.footnotes ol { padding-inline-start: 1.5em; }
 
 .snypd-faq-item:last-child { border-bottom: 1px solid var(--color-border); }
 .snypd-faq-item summary::-webkit-details-marker { display: none; }

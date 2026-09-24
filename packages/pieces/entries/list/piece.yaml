@@ -1,0 +1,6 @@
+piece: entries/list
+from: editorial
+line: A list of posts read by title — the title in the heading face and balanced, the date under it, the excerpt a step down from the prose.
+reads: [font.heading, size.h3, size.body, leading.tight, space.2, space.4, color.border, color.text, color.accent, color.muted, measure.excerpt]
+needs:
+  measure.excerpt: 34rem

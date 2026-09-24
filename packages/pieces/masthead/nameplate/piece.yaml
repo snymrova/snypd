@@ -1,0 +1,10 @@
+piece: masthead/nameplate
+from: editorial
+line: A quiet nameplate — the name in the heading face, a muted tagline under it, the menu right; sentence case, hairline, small.
+reads: [font.ui, font.heading, size.small, size.h3, size.body, space.1, space.2, space.3, space.4, color.border, color.text, color.muted, color.accent, color.bg, measure.logo]
+needs:
+  measure.logo: 12rem
+settings:
+  - { id: tagline, type: text, label: Tagline, group: Identity, info: "One line under the name. Defaults to the site's own description." }
+parts:
+  header: ./part.tsx

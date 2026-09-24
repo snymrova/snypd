@@ -1,8 +1,10 @@
 /**
- * The masthead: the site's name — or its logo, when the site sets one (U3) — and under it a tagline;
- * beside them the `header` menu when the site has one (U2). One file, no layouts — this is the override
- * docs/09 U1 exists to make possible. The menu is `content/nav/header.yaml`; `menu()` resolves it and
- * marks the current page.
+ * The header of `masthead/nameplate`, carved from editorial (docs/36 §2): the site's name — or its logo
+ * (U3) — and under it a tagline that falls back to the site's description; beside them the `header` menu
+ * when the site has one (U2).
+ *
+ * A part of its own rather than base's header: base shows a tagline only when the site sets one, and a
+ * nameplate always carries a line under the name.
  */
 import { menu, settingText, type Html, type PartProps } from "@snypd/render";
 

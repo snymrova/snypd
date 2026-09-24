@@ -675,6 +675,7 @@ export async function suggest(opts: { root?: string } = {}): Promise<Report> {
   writeFileSync("bench/suggest.md", `${toMarkdown(report)}\n\n\`\`\`\n${formatSuggestScore(scoreSuggest(root))}\n\`\`\`\n`);
   return report;
 }
+export { carve, compareCarves, formatCarve, normalHtml, type CarveResult, type CarveFile, type CarveChange } from "./carve";
 export { scoreSuggest, formatSuggestScore, suggestMetrics, factsReport, SUGGEST_CORPUS } from "./suggest";
 
 /**

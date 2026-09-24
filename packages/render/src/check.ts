@@ -38,7 +38,7 @@ import {
 } from "@snypd/core";
 import { themeContract } from "@snypd/spec";
 import { loadTheme, pieceCss, type Theme, LAYOUT_NAMES } from "./theme";
-import { literalHits, selectorHits } from "./contract";
+import { cssRules, literalHits, selectorClasses, selectorHits } from "./contract";
 import { applyChosen, chosenRules, designVerdict, plainCss, staticTaste } from "./taste";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
@@ -302,6 +302,18 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     ]);
     add("pieces.contract", hits.length ? "fail" : "pass",
       hits.length ? `${hits.length} outside the contract: ${hits.slice(0, 6).join("; ")}${hits.length > 6 ? `; +${hits.length - 6} more` : ""}` : `${pieceSources.length} sheet${pieceSources.length === 1 ? "" : "s"}, every literal in the vocabulary and every class one base or the piece emits`);
+    // Residue beats pieces (docs/36 §6a): a rule in `snypd.theme.<name>` wins over every piece whatever its
+    // specificity, so a theme's own sheet that styles a class one of its pieces styles has quietly taken
+    // that part of the piece over. A warning, because a bold move may mean it; the four carved themes hold none.
+    const own = typeof yaml.css === "string" ? themeFile(self.dir, yaml.css) : undefined;
+    if (own !== undefined) {
+      const styled = new Map<string, string>();
+      for (const { css, piece } of pieceSources) for (const r of cssRules(css)) for (const c of selectorClasses(r.selector)) if (!styled.has(c)) styled.set(c, piece.id);
+      const over = cssRules(own).flatMap((r) => selectorClasses(r.selector).filter((c) => styled.has(c)).map((c) => `${basename(String(yaml.css))}:${r.line} .${c} (${styled.get(c)})`));
+      add("pieces.residue", over.length ? "warn" : "pass",
+        over.length ? `${over.length} rule${over.length === 1 ? "" : "s"} in the theme's own sheet style a class its pieces style, and win over them whatever the specificity: ${over.slice(0, 6).join("; ")}${over.length > 6 ? `; +${over.length - 6} more` : ""} — move the rule into the piece, or take the slot off the theme and keep the rule`
+          : "the theme's own sheet styles no class its pieces style", String(yaml.css));
+    }
   }
 
   // ── the tier rule (U7, docs/14 §7 call 1) ──────────────────────────────────────────────────────

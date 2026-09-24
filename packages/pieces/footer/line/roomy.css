@@ -1,0 +1,3 @@
+/* roomy — editorial's band: a step more padding, a shorter line, and the menu's items further apart. */
+body > footer { line-height: 1.4; padding: var(--space-3) var(--space-4); }
+body > footer nav ul, .snypd-social { column-gap: var(--space-4); }

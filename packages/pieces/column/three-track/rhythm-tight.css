@@ -1,0 +1,2 @@
+/* rhythm: tight — a gap of space.3 between blocks: a page that is scanned, not read in one sitting. */
+main { row-gap: var(--space-3); }

@@ -586,7 +586,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(cfg.diagnostics.map((d) => d.message).join(" ")).toContain("extends cycle");
     expect(cfg.layers.find((l) => l.name === "theme")!.chain!.map((c) => c.name)).toEqual(["a", "b"]);
   });
-  test("editorial: the shipped child theme covers all 14 primitives with no primitive .tsx of its own, and overrides one part", async () => {
+  test("editorial: the shipped child theme covers all 14 primitives with no primitive .tsx of its own, and takes its masthead from a piece", async () => {
     const root = "corpora/_test/theme-editorial";
     rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "content/posts"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: E, url: https://e.example }\ntheme: { use: editorial }\n");
@@ -602,9 +602,10 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.css).toContain(".snypd-diagram .snypd-scroll, .snypd-flow .snypd-scroll { --viz-max-width: 100%; }");
     expect(t.css).toContain(".snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }");
     expect(t.css).not.toContain(".snypd-chart .snypd-scroll { --viz-max-width: 100%");
-    // U1: the header is editorial's one file; shell, footer and entries are base's. No layout was forked.
+    // U1, then P3: the header is the `nameplate` piece's (carved from editorial's one file); shell, footer
+    // and entries are base's. No layout was forked, and the theme has no part of its own left.
     const pc = (n: string) => t.partCoverage.find((c) => c.name === n)!;
-    expect(pc("header").status).toBe("own");
+    expect(pc("header")).toMatchObject({ status: "piece", via: "masthead/nameplate" });
     expect(pc("shell")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("footer")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("entries")).toMatchObject({ status: "inherited", via: "base" });
@@ -2652,7 +2653,7 @@ The second heading with this text, which is what makes the id de-duplication wor
   });
 
   /** D8: `technical` is built from the contract — parts and settings and variations — with no forked layout. */
-  test("D8: every layout and every primitive is inherited; two parts are its own and three are not", async () => {
+  test("D8: every layout and every primitive is inherited; two parts come from pieces and the rest from base", async () => {
     configure("technical");
     const t = await loadTheme(loadConfig(root));
     expect(t.name).toBe("technical");
@@ -2667,10 +2668,10 @@ The second heading with this text, which is what makes the id de-duplication wor
     expect(t.coverage.every((c) => c.status === "inherited" && c.via === "base")).toBe(true);
     expect(t.partCoverage).toEqual([
       { name: "shell", status: "inherited", via: "base" },
-      { name: "header", status: "own" },
+      { name: "header", status: "piece", via: "masthead/title-bar" },
       { name: "footer", status: "inherited", via: "base" },
       { name: "entries", status: "inherited", via: "base" },
-      { name: "toc", status: "own" },
+      { name: "toc", status: "piece", via: "toc/block" },
       { name: "motion", status: "inherited", via: "base" },
     ]);
   });
@@ -2697,14 +2698,16 @@ The second heading with this text, which is what makes the id de-duplication wor
    * this the obvious next worry. It is not the same: `@view-transition` parses as a `CSSViewTransitionRule`
    * inside `@layer` and inside `@media`, and a real cross-document navigation between two layered pages
    * fires `pagereveal` carrying a `viewTransition` — measured in Chrome, not assumed. What this test
-   * holds is the half a unit test can: the declaration reaches the wire, inside the theme's own layer.
+   * holds is the half a unit test can: the declaration reaches the wire, inside the theme's own layer —
+   * or, for a theme on pieces (P3), inside the `motion` piece's.
    */
   test("@view-transition survives the layer the theme's sheet is wrapped in", async () => {
     for (const theme of ["editorial", "technical", "studio"]) {
       configure(theme);
       await build(root);
       const css = page("assets/theme.css");
-      const layer = css.slice(css.indexOf(`@layer snypd.theme.${theme}{`));
+      const at = css.indexOf("@layer snypd.pieces.motion{");
+      const layer = css.slice(at >= 0 ? at : css.indexOf(`@layer snypd.theme.${theme}{`));
       expect(layer, theme).toContain("@view-transition{navigation: auto}");
       // And off for a reader who asked for that, which is the pair and not the declaration.
       expect(layer, theme).toContain("@view-transition{navigation: none}");

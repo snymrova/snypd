@@ -1,10 +1,10 @@
 /**
- * The masthead: the site's name — or its logo (U3) — a tagline beside it rather than under it, the
- * `header` menu (U2), and a `src` link to the repository when the site sets one.
+ * The header of `masthead/title-bar`, carved from technical (docs/36 §2): the site's name — or its logo
+ * (U3) — a tagline beside it rather than under it, the `header` menu (U2), and a `src` link to the
+ * repository when the site sets one.
  *
- * The name is set in mono and the tagline follows it on the same line, separated by a rule: a
- * documentation header is a title bar, not a nameplate, and the vertical space editorial spends on a
- * masthead is space this theme spends on the first heading.
+ * A part of its own, not base's header with switches, because three things differ in markup: the tagline
+ * is a `<span>` that falls back to the site's description, and the menu carries the `repo` item.
  */
 import { menu, settingText, type Html, type PartProps } from "@snypd/render";
 

@@ -1,0 +1,4 @@
+piece: code/quiet
+from: editorial
+line: Code and tables that defer to the prose — inline code on a tint, blocks as a bordered slab, full-width tables in the UI face with small-caps headers.
+reads: [font.mono, font.ui, size.small, space.2, space.3, color.surface, color.border, color.muted, radius]

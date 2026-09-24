@@ -1,0 +1,87 @@
+/* blocks/surface — carved from editorial. Each primitive is `base`'s semantic element, given one idea
+   and nothing more: a tinted surface, and an accent rule on the ones that speak. */
+.snypd-tldr {
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-surface);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.snypd-tldr > p:first-child strong {
+  font: 650 var(--size-small) / 1.2 var(--font-ui);
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-accent);
+}
+.snypd-callout {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--kind, var(--color-muted));
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: var(--space-3) var(--space-4);
+}
+.snypd-callout[data-kind="note"]    { --kind: var(--color-viz-2); }
+.snypd-callout[data-kind="tip"]     { --kind: var(--color-viz-5); }
+.snypd-callout[data-kind="danger"]  { --kind: var(--color-viz-1); }
+
+.snypd-pullquote {
+  border: 0; padding: 0;
+  margin-block: var(--space-4);
+  font-size: var(--size-h3); line-height: 1.4; font-style: italic;
+  color: var(--color-text);
+  border-left: 3px solid var(--color-border); padding-left: var(--space-4);
+}
+.snypd-pullquote footer { font: normal var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted); margin-top: var(--space-2); }
+
+.snypd-stat-row { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(var(--measure-stat), 1fr)); }
+.snypd-stat-value { font-size: var(--size-h2); line-height: var(--leading-tight); font-variant-numeric: tabular-nums; }
+.snypd-stat-value strong { font-weight: 600; }
+.snypd-stat-value small { font-size: var(--size-small); color: var(--color-muted); }
+.snypd-stat-label { font-family: var(--font-ui); font-size: var(--size-small); color: var(--color-muted); }
+
+.snypd-cta {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  text-align: center;
+}
+.snypd-button {
+  display: inline-block;
+  background: var(--color-accent); color: var(--color-on-accent);
+  font: 600 var(--size-small) / 1 var(--font-ui);
+  letter-spacing: 0.05em; text-transform: uppercase; text-decoration: none;
+  padding: 0.8em 1.4em; border-radius: var(--radius);
+}
+.snypd-button:hover { filter: brightness(1.1); }
+
+.snypd-faq > :is(h2, h3, h4), .snypd-steps > :is(h2, h3, h4) { margin-top: 0; }
+/* A source link — a stat's, a chart's — as the parenthesis it was before it became a named link (docs/18, docs/19 §2 · 8). */
+.snypd-source::before { content: "("; } .snypd-source::after { content: ")"; }
+/* A question in an accordion is a sub-heading, so it is the sub-heading token. */
+.snypd-faq h3 { font-family: var(--font-ui); font-size: var(--size-h3); }
+.snypd-steps ol { counter-reset: step; list-style: none; padding: 0; }
+.snypd-steps ol > li { counter-increment: step; padding-left: var(--space-step); position: relative; margin-top: var(--space-3); }
+.snypd-steps ol > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0.05em;
+  width: var(--size-step-mark); height: var(--size-step-mark); border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--color-accent); color: var(--color-on-accent);
+  font: 600 var(--size-small) / 1 var(--font-ui);
+}
+
+/* Every block gets the same breath as a figure (S22). */
+.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow, .snypd-tldr, .snypd-callout, .snypd-stat-row, .snypd-steps, .snypd-faq { margin-block: var(--space-4); }
+.snypd-figure img { display: block; width: 100%; }
+.snypd-scroll:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+figcaption { margin-top: var(--space-2); text-align: center; }
+
+/* The lightbox's close button and the accordion's marker, in the theme's voice. */
+.snypd-lightbox-close { font: 500 var(--size-small) / 1 var(--font-ui); color: var(--color-text); background: var(--color-bg); }
+.snypd-faq-item { border-top: 1px solid var(--color-border); padding-block: var(--space-2); }
+.snypd-faq-item summary { list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.snypd-faq-item summary::after { content: "+"; font: 400 var(--size-h3) / 1 var(--font-ui); color: var(--color-accent); transition: rotate var(--motion-quick) ease-out; }
+.snypd-faq-item[open] summary::after { rotate: 45deg; }
+.snypd-faq-item h3 { margin: 0; }
+.snypd-faq-answer { padding-block: var(--space-2) var(--space-1); }
+
+/* A number sits on the baseline the designer meant, once the browser can trim the half-leading. */
+@supports (text-box: trim-both cap alphabetic) { .snypd-stat-value { text-box: trim-both cap alphabetic; } }
