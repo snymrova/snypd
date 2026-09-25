@@ -105,7 +105,7 @@ describe.skipIf(!seeing)("the eyes, in a real browser", () => {
     .cut { width: 80px; white-space: nowrap; overflow: hidden; }
     .cover { position: absolute; left: 0; top: 0; width: 200px; height: 60px; background: #eee; }
     ${css}
-  </style><body><header class="snypd-masthead"><a href="/a">A</a><button popovertarget="m">Menu</button><ul id="m" popover><li>One</li></ul></header>
+  </style><body><header class="snypd-masthead"><a href="/a">Ferrule</a><button popovertarget="m">Menu</button><ul id="m" popover><li>One</li></ul></header>
   <main><h1>Title</h1><div class="wide"></div><p class="faint">This grey sentence is too faint to read against white.</p>
   <p class="cut">A line that will never fit in eighty pixels</p><img src="/missing.png" alt="" width="40" height="40">
   <details><summary>More</summary><p>Hidden until opened.</p></details></main></body></html>`;
@@ -150,6 +150,25 @@ describe.skipIf(!seeing)("the eyes, in a real browser", () => {
     expect(det.notes).toEqual([]);
     const none = await look({ url, cacheDir: cache, slot: "toc", since: "none" });
     expect(none.notes[0]).toContain("not on /");
+  });
+
+  test("a light bar over a dark band, and a title over its own picture, are the design — not faults", async () => {
+    // Studio's front page, reduced: the masthead is transparent until it sticks, so what is behind "Ferrule"
+    // is the dark hero it overlaps — a sibling, not an ancestor. And the hero's title sits on its photograph.
+    css = `header.snypd-masthead { position: absolute; inset: 0 0 auto; z-index: 2; color: #fafafa; }
+      header.snypd-masthead a { font-size: 18px; color: inherit; }
+      main { position: relative; background: #1a1a1a; color: #fafafa; padding-top: 60px; }
+      main h1 { position: absolute; inset: 60px 0 auto; height: 120px; margin: 0; z-index: 1; }
+      main img { position: absolute; inset: 60px 0 auto; display: block; width: 390px; height: 120px; }
+      main .wide, main .cut, main details { display: none; }
+      main .faint { color: #3a3a3a; }`;
+    const r = await look({ url, cacheDir: cache, width: 390, since: "none" });
+    css = "";
+    expect(r.problems.filter((p) => p.rule === "contrast.rendered" && p.where.includes("header"))).toEqual([]);
+    expect(r.problems.filter((p) => p.rule === "layout.occlusion" && p.where.includes("img"))).toEqual([]);
+    // …and it still sees what is behind: a dark-grey sentence on that dark band is a fault, where on the
+    // page's white `body` — all an ancestor walk would have found — it would have passed.
+    expect(r.problems.some((p) => p.rule === "contrast.rendered" && p.where.includes("faint"))).toBe(true);
   });
 
   test("the outline names landmarks, headings and slots, with no picture", async () => {

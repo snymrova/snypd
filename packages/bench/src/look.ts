@@ -329,6 +329,9 @@ function detect(width: number): { problems: { rule: string; where: string; detai
     const top = doc.elementFromPoint(x, y);
     // An open menu or dialog covers the page on purpose: that is what opening it means.
     if (!top || top === e || e.contains(top) || top.contains(e) || top.closest("#__snypd_look, :popover-open, dialog[open]")) continue;
+    // A picture under its own title is a cover, not a collision: text set over an image in the same block
+    // (a hero, a card's caption on its photo) is the design. Something from elsewhere on top of it is not.
+    if (e.tagName === "IMG" && e.parentElement && e.parentElement.contains(top)) continue;
     covered++;
     problems.push({ rule: "layout.occlusion", where: name(e), detail: `its centre is under ${name(top)}`, box: box(e) });
   }
@@ -357,9 +360,20 @@ function detect(width: number): { problems: { rule: string; where: string; detai
   const rgba = (c: string) => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1]!.split(/[\s,/]+/).filter(Boolean).map(Number); return [p[0]!, p[1]!, p[2]!, p[3] ?? 1]; };
   const over2 = (a: number[], b: number[]) => { const al = a[3]!; return [a[0]! * al + b[0]! * (1 - al), a[1]! * al + b[1]! * (1 - al), a[2]! * al + b[2]! * (1 - al), 1]; };
   const lum = (c: number[]) => { const f = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]!) + 0.7152 * f(c[1]!) + 0.0722 * f(c[2]!); };
+  // What is behind a text is what is *painted* under it, not only its ancestors: a transparent sticky bar
+  // over a dark band has the band behind it, and the band is its sibling. So in the viewport the stack comes
+  // from `elementsFromPoint` (paint order, top first — everything from the text down); below the fold, where
+  // that cannot see, it falls back to the ancestors.
+  const MEDIA = /^(IMG|VIDEO|CANVAS|PICTURE|svg|IFRAME)$/;
   const backdrop = (e: El): number[] | null => {
     const layers: number[][] = [];
-    for (let p = e; p; p = p.parentElement) {
+    const r = e.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const stack: El[] = x >= 0 && y >= 0 && x < W && y < g.innerHeight ? [...doc.elementsFromPoint(x, y)] : [];
+    const at = stack.indexOf(e);
+    const under: El[] = at >= 0 ? stack.slice(at) : [];
+    if (at < 0) for (let p = e; p; p = p.parentElement) under.push(p);
+    for (const p of under) {
+      if (p !== e && MEDIA.test(p.tagName)) return null;
       const s = cs(p);
       if (s.backgroundImage && s.backgroundImage !== "none") return null;
       const c = rgba(s.backgroundColor);
