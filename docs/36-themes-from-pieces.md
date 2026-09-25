@@ -1,0 +1,406 @@
+# 36 — Themes from pieces: the bricks are in the four sheets, the studs are the tokens, and the sockets need work
+
+**Owner:** PM · **Engineer:** Claude Code · **Decider:** Sunny · **Written:** 23 Sep 2026 · **Launch:** Tue 6 Oct 2026 — unchanged by this document
+**Asked for:** *"completely focus on theme generation like lego, by building reusable components structure and then audit again."*
+**Replaces, for the theme track:** docs/32 V3 (the chrome shelf), docs/33 G1–G3 (the backdrop), docs/34 K1–K5 (the genome), and docs/35's order for all of them. The rest of docs/32 (Z, T1–T2, V1–V2) is **parked**, not withdrawn (§10).
+**Scope:** what a reusable theme piece is, measured against the five sheets in the tree; the contract that lets a piece sit on any theme, and the three places the tree does not yet honour it; how pieces compose at build time, down to precedence; how an agent assembles a theme in a few hundred tokens; the agent's eyes on what it builds (§5a); the extraction that proves it; sessions. Two audits: §8 checks docs/32–35 against the code, §9 records the independent audit of this document's first draft and what changed because of it. Decisions from **266** (docs/35 claims 260–265).
+**Status:** proposed; second draft, after audit.
+
+---
+
+## 1. What the tree says, measured on 23 Sep
+
+Five sheets: `base` (behaviour only, U7), `editorial`, `technical`, `studio`, and `folio` (site-local, `sites/snypd.rocks/themes/folio`). Comments stripped, split into leaf rules; measured twice, independently, agreeing within three rules:
+
+| Theme | Sheet (raw) | Rules | Copied verbatim from another sheet | Copied, as share of the raw file | Comment share |
+|---|---|---|---|---|---|
+| editorial | 26.3 KB | 141 | 84–85 | ~28 % | 42 % |
+| technical | 22.1 KB | 158 | 85 | ~30 % | 25 % |
+| studio | 42.3 KB | 248 | 65–68 | **~14 %** | 34 % |
+| folio | 33.3 KB | 219 | 60 | **~17 %** | 28 % |
+
+Only **20 rules** are in all four; 16 in three; 83 in exactly two, and the pair that shares most is editorial ↔ technical (67). So copying is real for the two reading themes and modest for the two expressive ones. The case for pieces is not mainly de-duplication — it is that **each sheet's own sections are the variants a stranger's theme should be able to pick**, and today they can only be had by forking the whole sheet.
+
+What holds the design up:
+
+1. **The studs exist.** All four declare the same **40 tokens** (21 colour, 4 font, 5 size, 2 leading, `measure`, `space.1–6`, `radius`); studio adds `font.display`, `size.display`; folio those and `size.number`, `measure.wide`. `expandSeed` (`packages/core/src/seed.ts:236-263`) writes **35** of the 40 from one colour; `writeSeed` adds the `font.*` when given a shelf face; nothing writes `radius`.
+2. **The sockets mostly exist.** All four style the same **35 `snypd-*` classes**; 34 are emitted by `base`'s primitives, parts or the renderer. But **48 further classes** the themes style are emitted by no `base` file — `snypd-masthead`, `snypd-brand`, `snypd-tagline`, `snypd-logo`, `snypd-card*`, `snypd-ledger*`, `snypd-hero`, `snypd-band`, `snypd-close`, `snypd-toc-label`, `snypd-repo`, `snypd-work*` — they come from theme-owned parts and layouts. §3 deals with this.
+3. **The baseplate exists.** Every sheet is wrapped in a cascade layer — `@layer snypd.tokens, snypd.base, snypd.theme, snypd.site` (`packages/render/src/tokens.ts:40`), each theme in the chain a sublayer of `snypd.theme` (`theme.ts:509-515`). `snypd.site` is declared but nothing emits into it yet (`tokens.ts:34`).
+
+**The mastheads differ mostly in CSS — and in markup in four places.** The five `parts/header.tsx` are 1.5–2.0 KB and share their shape, but: header class (none in base/folio, `.snypd-masthead` in the other three); brand wrapper (none; `div.snypd-brand > a`; `a.snypd-brand`); tagline element (`<p>` under in editorial, `<span>` beside in technical, none in studio/folio); logo (absent in base); technical's `repo` item and its `items.length || repo` condition. One part with switches is achievable, **after `base`'s header adopts the masthead classes** — an HTML change to base, folio and (in wrapper shape) studio. It is a small change, and it is a change.
+
+## 2. The brick — a piece
+
+A piece is one answer to one question a theme must answer:
+
+```
+packages/pieces/masthead/title-bar/
+  piece.yaml     # what it is, what it reads, emits, switches and offers
+  piece.css      # rules over the class contract, reading tokens
+  sticky.css     # a switch: included when `sticky: true`
+  still.png      # base + the default seed, 1280 light — how it is picked
+```
+
+```yaml
+piece: masthead/title-bar
+from: technical                    # provenance (decision 267)
+line: One line — name, rule, tagline, menu. A path, not a nameplate.
+reads: [font.mono, color.border, color.muted, space.2, space.3, size.small]
+needs: {}                          # tokens beyond the contract, with derived defaults (§3)
+emits: []                          # classes this piece's own part/layout emits (§3)
+switches:                          # build-time; reach CSS as files, markup as ctx.pieces (§4)
+  sticky:  { default: false }
+  tagline: { default: beside, of: [beside, under, none] }
+settings:                          # site-facing choices, merged into the chain's declarations (§4)
+  - { id: repo, type: url, description: "A `src` link to the repository, last in the menu." }
+part: null                         # base's header; a piece ships a .tsx only when markup must differ
+pairs: {}                          # constraints on other slots, for the sampler (§5)
+kb: 1.1                            # minified, counted into the theme's cssKb
+```
+
+**Slots**, with each first variant carved from a sheet already judged on sight. Where the audit found a variant tangled with another slot, the coupling is written as a `pairs:` constraint now rather than discovered later:
+
+| Slot | Variants (carved from) | Kind | Coupling |
+|---|---|---|---|
+| `column` | `three-track` — every sheet; breakout width (`+12rem` technical, `+24rem` studio) becomes a token `measure.breakout` | CSS | — |
+| `masthead` | `plain` (base/folio) · `nameplate` (editorial) · `title-bar` (technical) · `bar` (studio) | CSS + switches on base's header | `bar` reads `--masthead` and `.snypd-hero[data-tone]` → **pairs `home: bands`** |
+| `prose` | `book` (editorial) · `docs` (technical) · `display` (folio) | CSS | — |
+| `code` | `quiet` (editorial) · `first-class` (technical: bordered inline code, ruled tables) | CSS | — (missing from draft 1) |
+| `cover` | `quiet` (editorial) · `path` (technical) · `reel` (studio §1) | CSS | `reel` lives in studio's bands section → **pairs `home: bands`** |
+| `blocks` | `surface` (editorial) · `ruled` (technical) · `hairline` (studio, folio) | CSS over the 14 primitives | — |
+| `entries` | `list` (base) · `rows` (technical) · `cards` (studio) · `ledger` (folio) | part + CSS | `cards` renames `.snypd-card` → `.snypd-entry-card` (collides with `bench/cards.ts:62`) |
+| `post-foot` | `band` (editorial) · `pills` (studio) · `ruled` (technical) · `facts` (folio) | CSS | — |
+| `footer` | `line` (base) · `colophon` (studio) · `close` (folio) | part + CSS | `close` needs `.snypd-close` from folio's home → **pairs `home: split`** |
+| `home` | `stream` (base) · `bands` (studio) · `split` (folio) | layout + CSS + settings (`bands`, `heroLabel`, `heroHref`) | carries the banding the draft wrongly put in `column` |
+| `notes` | `cards` (base) · `sidenotes` (editorial) | CSS | — |
+| `toc` | `none` (base) · `block` (technical) | part + CSS + setting `tocDepth` | — |
+| `motion` | `still` (folio) · `glide` (editorial, studio 280 ms; technical 240 ms → a token `motion.duration`) · `reveal` (studio tier B) · `count` (folio tier B) | CSS | — |
+| `wall` | `row` (editorial, technical) · `marquee` (studio) | CSS | — |
+| `house` | the **20** rules in all four sheets — viz keeps its drawn size, block breath, source-link idiom … (list in P1). Reduced motion moves to `base`'s sheet, where the other behaviour already is (`themes/base/theme.css:99`) | CSS, always on | — |
+| `backdrop` | `none` · `wash paper air silk bars mist` — docs/33, as a drawn piece | generated SVG + tokens | P7 |
+
+**Sixteen slots, 48 variants** with `backdrop`; fifteen and 41 without. **Not pieces, and staying theme residue:** layouts for a site's own types — studio's `work` / `work-index`, folio's `log` / `log-index` / `release`. They answer a content model, not a look; a theme for a site with those types keeps them as files, exactly as today.
+
+## 3. The contract — and the three places the tree does not honour it yet
+
+A piece **reads** contract tokens and **styles** contract classes. Written down in **`spec/theme-contract.yaml`** (new), generated and tested:
+
+- **Tokens:** the 40, plus optional ones with defaults derived from the 40 — `font.display: var(--font-heading)`, `size.display: calc(var(--size-h1) * 1.6)`, `size.number: var(--size-h2)`, `measure.wide: calc(var(--measure) * 1.5)`, `measure.breakout`, `motion.duration: 280ms`. A piece's `needs:` adds to this list for itself.
+- **Classes:** `base`'s emitted classes **plus the classes a piece's own part or layout emits** (its `emits:`). A test fails when a class is emitted and not listed, or listed and not emitted.
+
+Where the tree does not honour it yet, and the session that fixes each:
+
+1. **The masthead classes** — `base`'s header adopts `.snypd-masthead`, `.snypd-brand`, `.snypd-tagline`, `.snypd-logo` and the logo setting (P1). An HTML change to base and folio; editorial and technical keep their markup and drop their header files.
+2. **`.snypd-card`** — renamed in studio's entries before it becomes a piece (P3).
+3. **Literals.** A strict `piece.literal` (no colour, no length but `0`/`1px`, no font name) would reject **7–10 %** of all declarations (editorial 32/401, technical 29/427, studio 66/688, folio 54/629) — `blur(14px)`, `border-radius: 100px`, `outline: 2px`, `border-left: 3px`, `minmax(9rem, 1fr)` vs `11rem`, `280ms`. So the lint has a vocabulary: lengths in `em`/`ch`/`%`, `0`, `1px`, `2px` (focus and rules) and `100vmax`-style pills pass; a colour or a font name never does; anything else becomes a switch, a token (`motion.duration`, `measure.breakout`) or stays in the theme's residue. Each exception is listed in P1, not decided in a hurry during P3.
+
+`piece.selector` fails a selector naming a class outside `base`'s list plus the piece's own `emits:`.
+
+## 4. Assembly — `pieces:` in `theme.yaml`, and exactly how it resolves
+
+```yaml
+theme: marginalia
+extends: base
+pieces:
+  masthead: { use: title-bar, sticky: true, tagline: under }
+  prose: book
+  code: first-class
+  blocks: ruled
+  entries: ledger
+  footer: line
+  home: stream
+  motion: glide
+  backdrop: { use: paper, grain: 6 }
+tokens: { … }                      # from the seed, as today
+font: { … }                        # from the shelf, as today
+css: ./theme.css                   # the bold move, and only that
+```
+
+**Where each step lives** — split between core (config, validation, gates) and render (CSS, parts), because the tree already splits them that way:
+
+1. **Core config** (`packages/core/src/config.ts`): `pieces:` joins `ThemeYamlSchema` (`.strict()`, schema.ts:227) and **`withoutDecls`**, so it neither merges into `config.theme.*` (config.ts:288) nor lands in `snypd://config` and costs `tokens.learn`. It map-merges up `extends:` — a child names only the slots it changes. Pieces' `needs:` tokens and `settings:` are added **here**, before the `cssValue` gate (config.ts:448-453) and the settings validation (config.ts:455-457), so `check theme`'s contrast pairs and `snypd://theme/settings` see them. Core reads piece manifests (`pieces.json`, like `shelf.json`) and nothing else from the package.
+2. **Render, CSS** (`theme.ts`): pieces are concatenated into **`@layer snypd.pieces`**, one sublayer per slot in a fixed canonical order — `snypd.pieces.house, .column, .prose, .code, .blocks, .cover, .masthead, .entries, .post-foot, .footer, .home, .notes, .toc, .wall, .motion, .backdrop` — so the order between slots is a stated fact, not an accident of concatenation. Switch files go inside their slot's sublayer. The layer statement becomes `@layer snypd.tokens, snypd.base, snypd.pieces, snypd.theme, snypd.site` (decision 270).
+3. **Render, parts:** the chain walk (`declarer`, theme.ts:465) becomes: at each link, nearest first — **that theme's own part file, then the piece its own `pieces:` names for that slot** — then the next ancestor. So a theme that `extends: studio` and sets `entries: ledger` gets the ledger, because its own `pieces:` is nearer than studio's `parts/entries.tsx`.
+4. **Render, layouts:** layouts are found by file presence up the chain (theme.ts:453-456), not through `declarer`, and `layouts:` REPLACES up the chain (theme.ts:431; studio theme.yaml:39-43). The same per-link step is added there: a `home` piece's layout counts as that link's `layouts/home.tsx`. `layouts:` keeps its replace semantics; a piece that ships a layout adds its name to the effective list.
+5. **Switches reach markup through `ctx.pieces`** — a new, read-only field on the render context (`{ masthead: { use, sticky, tagline }, … }`), set from the merged `pieces:`. A part reads `ctx.pieces.masthead?.tagline`. Settings stay what they are: the site's choices, not the theme's build switches.
+6. **Plumbing that must know:** `themeSignature` / the theme hash (theme.ts:294-305) includes the resolved pieces and their bytes, or incremental builds go stale; `partCoverage` gains a `piece` status; `check theme` runs `staticTaste` and `css.enhancement-guarded` over the **expanded** CSS with `piece/<slot>/<name>/piece.css:line` in its locations (check.ts:284-298 reads only the theme's own file today); the `cssKb` budget (`spec/defaults/budgets.yaml:13`) counts pieces; `bundled.gen.ts`'s generator embeds `packages/pieces` beside the four themes.
+7. **Variations cannot swap pieces** in v1 — decision 127's line (values, never new declarations) holds. A variation retunes the tokens the pieces read.
+
+**Live, not copied** (decision 268): the theme names pieces, it does not contain them. A fix to `blocks/ruled` reaches every theme on it with the next release, with before/after stills in the changelog. `snypd theme eject <slot>` writes the piece into the theme's own sheet (and part, if any); the slot then reads `own`.
+
+## 5. The agent's path — a few hundred tokens, not a stylesheet
+
+Through the existing `theme` tool — in the deferred catalogue, never in `tools/list` (`packages/mcp/src/catalog.ts:1-20`, `mcp.test.ts:476`) — and one resource:
+
+- **`snypd://theme/pieces`** — every slot, its variants, one line, `pairs:`, the still's path; generated from the manifests. ≤ 1,200 tokens, gated. Replaces docs/34's `theme/genes` and docs/33's `theme/backdrops` (decision 262 carried).
+- **`explore { n, lock, prefer, avoid }`** — docs/34 §3.1's mechanism over slots + seed inputs + face: sample (honouring `pairs:`) → express (tokens + concatenation, pure) → static gate (`staticTaste`, contrast, `piece.*`) → farthest-point spread → `n` genome lines. ≤ 600 tokens for six. `avoid` defaults from the site's root `DESIGN.md › ## Taste` (the only `## Taste` in the tree) and, where a theme has one, its `## The rut`.
+- **`vary`**, **`cross`** — docs/34 §3.2–3.3, over slots.
+- **`compose { id | genome, name, bold? }`** — writes `theme.yaml` (`pieces:`, the seed's tokens, the shelf face, `radius` from a genome gene — the seed does not write it), the genome under `## Genome` in `DESIGN.md`, and `bold` as `theme.css`.
+- **`eject { slot }`** — §4.
+- **Pictures:** `shoot` already writes a composite per route × scheme (`packages/bench/src/shoot.ts:220-222`) at four widths. `explore { shoot: true }` renders survivors through it.
+
+**Combinations are proven pairwise** (decision 271): a covering array over the slots — every pair of variants in some tested theme, ~25–35 themes after `pairs:` — built on the specimen corpus in CI with `staticTaste`, contrast, axe and `page.cls`. A failing pair becomes a `pairs:` line.
+
+## 5a. Eyes — the agent sees the brick it just placed
+
+**Asked for:** *"can we give ability to the agent to have eyes on the theme it is producing, how gstack and other such skills and mcp do this?"* — then *"add latest, memory efficient and less or zero friction."*
+
+**How others do it (read on 23 Sep from the installed skills).** gstack's `browse` keeps one Playwright Chromium alive behind a localhost daemon (~100 ms a command), writes PNGs the agent then `Read`s, crops to an element, shoots 375/768/1280 in one call, draws labelled boxes over the elements it is talking about, and diffs an accessibility-tree snapshot before/after an action; `design-review` adds an ~80-item checklist, an 11-pattern slop list, letter grades, one commit per fix and a re-shoot that reverts on regression, and sends images to GPT-4o to judge a match. impeccable injects ~50 measured detectors into the page (text overflow, occlusion, first-viewport overflow, rendered contrast, broken images) drawn as overlays, and rations looking: *one batched pass, at most one more*. The Playwright and Chrome MCPs return an image content block and a text accessibility tree with refs.
+
+**What snypd has and lacks.** It has its own CDP client (`packages/bench/src/cdp.ts`), `shoot`'s contact sheets with taste badges (`shoot.ts:217-273`), five in-page taste probes (`taste.ts:257-295`), axe and CLS in `bench page`. It lacks: an image in a tool result (`ToolResult.content` is text-only, `packages/mcp/src/protocol.ts:20` — so an MCP client with no filesystem sees nothing); a warm browser (every `shoot` relaunches Chrome and re-shoots everything); a crop; any state but rest (no hover, focus, open menu); a before/after; taste hits with a place on the page; and layout detectors beyond the five.
+
+**The design — one action, `theme › look`,** in the deferred catalogue (zero tokens per turn):
+
+```jsonc
+theme { action: "look", route: "/", slot: "masthead", width: 390, scheme: "dark",
+        state: "menu-open", since: "last" }
+```
+
+→ **facts first as text, one picture second, the rest as links:**
+
+```
+masthead/title-bar · 390 dark · menu-open · 212 ms
+✗ layout.overflow-x   nav > ul          +38 px past the viewport        box 1
+✗ taste.tiny-text     .snypd-tagline    11.2 px                         box 2
+✓ contrast 7.1:1 · tap targets ≥ 44 px · CLS 0 · no console errors
+Δ since last: 3.2 % of pixels, all inside the masthead; taste 2 → 2
+[image: the masthead crop, 390×140, boxes 1–2 drawn]
+[link: snypd://look/7f3a/full.webp — the whole page, fetched only if read]
+```
+
+1. **Latest, and already negotiated.** snypd speaks MCP **2025-11-25** (`protocol.ts:7,23`). The result carries an `image` content block (base64 WebP), `structuredContent` for the facts (the field exists at `protocol.ts:20`, unused for this), and a `resource_link` for the full page and the before-shot, which costs nothing unless the agent reads it. The only protocol change is widening `content` to `text | image | resource_link`.
+2. **Crops by slot — the lego pays for the eyes.** A piece owns known classes (`emits:` and the contract), so `slot: "masthead"` resolves to a selector, `Runtime.evaluate` returns its box, and `Page.captureScreenshot { clip, format: "webp", captureBeyondViewport: true }` shoots that and nothing else. Image tokens follow pixels (≈ w × h ⁄ 750): a 1280×800 page is ~1,370 tokens, a 1280×140 masthead ~240. The long edge is capped at 1,568 px and the width defaults to the slot's natural size. **The agent sees the brick it changed, not the wall.**
+3. **States without a mouse.** `CSS.forcePseudoState` (`:hover`, `:focus-visible`), `showPopover()` for the phone menu, `open` on a `<details>`, `Emulation.setEmulatedMedia` for scheme and `prefers-reduced-motion`, animations paused. Deterministic: the same call draws the same pixels.
+4. **Problems drawn where they are.** Every taste row and detector returns `getBoundingClientRect()`; the boxes are drawn onto the crop in-page (one absolutely positioned overlay, removed after the shot), numbered to match the text lines. New detectors, carved from impeccable's list where snypd has no equivalent: `layout.overflow-x` at 390, `layout.text-overflow`, `layout.occlusion`, `layout.broken-image`, `layout.tap-target`, and **rendered** contrast (the solver proves the tokens; this proves the page).
+5. **Before/after without a library.** The last look per (route, slot, width, scheme, state) is kept in the artefact cache. `since: "last"` loads both images into a canvas **in the Chrome already running** and compares `getImageData` — changed-pixel share, the changed region's box, and the taste delta. No decoder, no dependency. P3's carving diff is this, run over every route.
+6. **A text view, cheaper than a picture.** `look { view: "outline" }` returns `Accessibility.getFullAXTree` folded to landmarks and slot names — ~150 tokens — for "what is on this page and in what order" without an image at all.
+7. **Rationed looking** (impeccable's rule, docs/29's rubric): facts come before the image; one image per call; `explore` and `vary` take at most two look passes before `compose`. The factory prompt says so.
+
+**Memory.** One browser for the whole MCP session, started on the **first** `look` and never on `initialize` (the cold-start floor: `packages/bench` is reached by dynamic `import()`), one tab reused across looks, the site served from the preview server already running, and the process killed after **3 minutes idle**. `chrome-headless-shell` is preferred when present — the old headless build, without the full browser's UI layers. No Playwright (its install is a browser download plus a package tree), no second MCP server, no vision API: the agent is the eyes, and snypd only has to put the picture in front of it.
+
+**Friction — zero steps on a machine that has any Chromium.** `findChrome` (`cdp.ts:14-21`) looks in five paths today. It grows to: `SNYPD_CHROME`; Chrome, Chromium, Edge and Brave in their usual places on Linux, macOS and Windows; and the browsers other tools already downloaded — `~/.cache/ms-playwright/*/chrome-linux/chrome`, `~/.cache/puppeteer/chrome*`, the macOS and Windows equivalents. **None found:** `look` still answers, with every fact that needs no browser (the static taste rules, token contrast, `check theme`), and one line: *"no browser on this machine — `snypd eyes install` fetches chrome-headless-shell (~90 MB) to ~/.cache/snypd once."* Opt-in, never silent. `snypd doctor` reports which browser `look` will use.
+
+## 6. The proof — extraction, with a diff tool that does not exist yet
+
+The first shelf is carved from the four sheets, and the four come back:
+
+- editorial, technical, studio and folio rewritten as `pieces:` + tokens + a residue `theme.css`.
+- **A shoot diff (new, P3):** before/after at all four widths, both schemes, per-pixel with a threshold, over the specimen plus the routes it lacks today (folio's `log`, `release`, `log-index`; studio's `work`). `shoot` has no diff mode and cuts at 8,000 px; both change.
+- **Expected differences, named in advance rather than explained after:** (a) *residue beats pieces* — any rule left in `snypd.theme.X` wins over every piece regardless of specificity, so a generic residue rule (`main > * { grid-column: text }`) can override a piece's `figure.snypd-chart { grid-column: wide }`. Carving rule: **residue may not select a class a piece in the same theme styles**; a lint in P3 enforces it. (b) *order between slots* — fixed by §4.2's canonical sublayer order; a sheet whose later section overrode an earlier one (folio's "9. The fold", the runtime passes) has that rule moved into the later slot's piece. (c) *`!important` inverts across layers* — the reduced-motion rule moves to `base`, where its inversion is already the intended one. (d) *the base header's HTML change* (§3.1). (e) *view transitions and animation* are not in a still; they are checked by reading the expanded CSS, not the picture.
+- **Residue targets:** editorial and technical ≤ 25 % of today's comment-stripped bytes; studio and folio ≤ 40 %. Over target means a slot is cut in the wrong place, and it is found before P4.
+- **Folio is snypd.rocks' live theme.** Its carve lands on a branch; the site redeploys on the carved theme only after the diff is approved on sight.
+
+## 7. Sessions
+
+| # | Session | Lands | Days |
+|---|---|---|---|
+| P0 | **The baseline** | `theme.authoring.tokens` from `shoot`; one `build-theme` run split into *CSS written* and *pictures read* (docs/35 T3a, decision 260) | ½ |
+| P1 | **The contract** | `spec/theme-contract.yaml` + its test against `base`; the optional tokens; the literal vocabulary; `piece.literal`, `piece.selector`; base's header adopts the masthead classes + logo; reduced motion into `base`; the list of the 20 `house` rules | 1½ |
+| P2 | **The brick and the plate** | `packages/pieces` + `pieces.json`; `piece.yaml` schema; `pieces:` in the schema and `withoutDecls`, map-merged; `needs:`/`settings:` in core config; `snypd.pieces` sublayers; parts and layouts precedence per link; `ctx.pieces`; theme hash; `partCoverage: piece`; `check theme` over expanded CSS; `cssKb` counts pieces; the bundled generator; `house` as the first piece; `snypd://theme/pieces` | 3 |
+| E1 | **Eyes** | `theme › look` (§5a): MCP `image` + `resource_link` + `structuredContent`; slot crops; forced states; boxes drawn in-page; the six layout detectors and rendered contrast; before/after in the running Chrome; the outline view; one warm lazily-started browser with a 3-minute idle kill; `findChrome` widened to Edge, Brave, Windows and the Playwright/Puppeteer caches; `snypd eyes install` as the opt-in fallback; `doctor` names the browser | 2½ |
+| P3 | **Carving** | the diff over every route (E1's before/after); the missing specimen routes; the residue lint; the 41 variants out of the four sheets; the four themes rewritten; residue measured; folio on a branch | 4 |
+| P4 | **The genome over slots** | `core/src/genome.ts` (docs/34 K1, genes = slots + seed + face + radius); `compose`, `eject`; `snypd seed` routed through `express` (docs/35 C8) | 1½ |
+| P5 | **The search** | `explore`; `tokens.theme.explore`, `tokens.theme.pieces` gated; the pairwise suite in CI | 2 |
+| P6 | **Vary, cross, one picture** | `vary`, `cross`, `explore { shoot }` — survivors seen through `look` | 1 |
+| P8 | **The factory runs on pieces** | `build-theme`: brief → `explore` → sheet → `vary`/`cross` → `compose` + bold → `check` → contact sheet; P0 re-measured; target ≤ 20 % of the baseline | 1 |
+| | **0.2.0 — themes from pieces** | | **17 days: Wed 7 Oct → Thu 29 Oct** |
+| P7 | **The backdrop, as a drawn piece** | docs/33 G1–G3: `viz/src/backdrop.ts` and the SVG helpers, ramp from tokens, ink pairs, raster via `cards.ts`; a `backdrop` slot whose CSS reads the `--backdrop` the build draws | 3½ |
+| | **0.2.1** | | **Wed 4 Nov** |
+
+## 8. Audit one — docs/32–35 against the tree
+
+| # | Claim | Where | Found | Consequence |
+|---|---|---|---|---|
+| A1 | Four themes rewrote the same masthead; it wants four patterns as parts | 32 §6.1, 34 §2 | The difference is mostly CSS; markup differs in four small places (§1) | One part with switches after base adopts the classes; four CSS variants. V3 would have shipped four near-copies of one file |
+| A2 | `chrome:` its own key (247); `backdrop:` beside `font:` (249) | 32:227, 33:128 | Both are slots of one question | **One key, `pieces:`** (266); their substance carries |
+| A3 | A run writes 15k–60k tokens of CSS | 34 §1 | 25–42 % of each sheet is comment | Plausible only if agents write comments as the sheets do; P0 measures it |
+| A4 | K3 builds a composite sheet | 34 §6, 35 C5 | `shoot` already writes one per route × scheme; `--sheet <axis>` is not built | P6 is a day |
+| A5 | ~12 genes, 4 of them chrome | 34 §2 | 15 slots in the sheets (16 with backdrop) | Genes = slots + seed + face + radius |
+| A6 | `patterns:` reserved, deferred | schema.ts:264-268 | still reserved; `variants:` reserved too | New key `pieces:`; this document says *variant* only in prose, never as a key |
+| A7 | Layer order fixed by decision 119 | tokens.ts:40; render.test.ts:299, :1984; bench/cards.ts:62; docs/11 | one constant, two exact test strings, one bench file, the decision log | 270 amends 119 |
+| A8 | The contract is 40 tokens; the seed writes them | seed.ts:236-263 | the seed writes 35; no `radius` anywhere | `radius` becomes a genome gene; the optional tokens are P1 |
+| A9 | Seed `measure: 66ch` | seed.ts:262 | editorial's is `37rem` (theme.yaml:178) | `measure` stays a theme's number; no piece sets it |
+| A10 | New `theme` actions cost every turn | 32 §4.1 | `theme` is deferred (mcp.test.ts:476) | They cost `tokens.tools.full` only |
+| A11 | `## Taste` feeds `avoid` | 34 §4 | root `DESIGN.md` only; folio has no `DESIGN.md` | `avoid` reads the site's; P3 gives folio one |
+| A12 | docs/35's order around K | 35 §4 | the ask is now the theme track | Superseded for the theme track (272) |
+
+## 9. Audit two — this document's first draft, independently checked
+
+The first draft was audited by a second agent with no stake in it, re-measuring every number and reading every cited line. What it found, and what changed:
+
+| Draft 1 said | Audit found | Now |
+|---|---|---|
+| a theme is "~⅓ copied, ~⅓ comments, ~⅓ its own" | true only for editorial/technical; studio ~14 %, folio ~17 % copied; 20 rules in all four | §1 restated; the case rests on variants, not de-duplication |
+| `expandSeed` writes the 40 | writes 35; nothing writes `radius` | §1, A8, `radius` a gene |
+| the 35 classes come from `base` | 34 of 35; **48 more** styled classes come from theme parts/layouts | §3: contract = base's + a piece's `emits:`; base's header adopts the masthead classes |
+| the masthead is "one part with three switches", no new part | markup differs in four places | §1; P1 changes base's header HTML, named |
+| switches reach markup via `settingText(ctx,"tagline")` | that is the tagline's *text*; parts get no switch channel; settings must be declared | `ctx.pieces` (§4.5); `settings:` in `piece.yaml` |
+| `column: banded` | studio and folio reading pages are three-track; banding is the home's | `column` has one variant; banding in `home` |
+| `motion: glide` in four sheets | three, at two durations | `motion.duration` token |
+| `house` = shared rules incl. number trim, scrollbar gutter | those two differ per sheet | `house` = the 20 verbatim rules; reduced motion to `base` |
+| slots are clean sections | `masthead: bar`, `cover: reel`, `footer: close` lean on the home; technical's code/tables had no slot | `pairs:` written now; `code` slot added; type layouts stay residue |
+| `needs:` tokens added in render | tokens are gated in core config | §4.1 |
+| theme file > piece part > base | ignores middle parents; layouts are not in `declarer`; `layouts:` replaces | §4.3–4.4, per link |
+| `pieces:` inherits "like tokens" | two merges (render, config) would disagree; key would leak into `snypd://config` | `withoutDecls`, map-merged in both |
+| "pixel-identical" | layer precedence, `!important` inversion, header HTML, no diff tool, 8,000 px cut, missing routes | §6: a diff tool, differences named in advance, a residue lint |
+| `piece.literal`: no length but 0/1px | would reject 7–10 % of declarations | a literal vocabulary, decided in P1 |
+| — | theme hash, `check theme`, `cssKb`, bundling, `partCoverage`, variations, `.snypd-card` collision | §4.6–4.7, the `entries` row |
+| "one line" to add a layer | constant + push + two test strings + bench + docs/11 | A7 |
+| 12½ days | the above | **14½ days**; 0.2.0 moves from 23 to 27 Oct |
+
+One thing the audit could not check, because it is a policy: that live pieces are safe to change. That is decision 268's to carry, with stills in every changelog entry and `eject` as the way out.
+
+## 10. What waits
+
+Parked, in docs/35's order, to resume after 0.2.1: V1 (aliases — half a day, could ride any week), Z3, T1, Z2, T2, V2, Z1. Decisions 240–246 and 248 stand as proposed. `site › domain` (docs/31 §7 · 1) is Sunny's call; three days ahead of this track if it goes first.
+
+## 11. Decisions asked
+
+- **266. A theme is pieces + seed + face + one bold sheet.** `pieces:` in `theme.yaml`, one slot per question; supersedes `chrome:` (247) and `backdrop:` beside `font:` (249's placement). Recommendation: yes.
+- **267. The first shelf is carved, not invented.** Every v1 piece has a `from:`; the four themes re-expressed on pieces pass the shoot diff with every difference named. Recommendation: yes.
+- **268. Pieces are live, versioned with the binary, ejectable.** Recommendation: yes.
+- **269. The contract is written and linted:** contract tokens plus derived optionals; `base`'s classes plus a piece's own `emits:`; a stated literal vocabulary. Recommendation: yes.
+- **270. `@layer snypd.tokens, snypd.base, snypd.pieces, snypd.theme, snypd.site`, pieces in canonical per-slot sublayers.** Amends 119. Recommendation: yes.
+- **271. Combinations are proven pairwise.** Recommendation: yes.
+- **272. The theme track goes first and alone.** Replaces docs/35's order for V3, G and K. Recommendation: yes, as asked.
+- **273. `base`'s header adopts the masthead classes and the logo.** An HTML change to base and folio, landed in P1 with its own stills. Recommendation: yes — without it `masthead` cannot be a piece.
+- **274. The agent's eyes are one action that returns facts, one crop and links.** `theme › look` in the deferred catalogue; MCP `image` + `resource_link` + `structuredContent`; crops by slot; forced states; problems boxed where they are; before/after computed in the browser already running; one lazily-started, idle-killed browser found on the machine, text-only facts when there is none, `snypd eyes install` opt-in. No Playwright, no vision API. Recommendation: yes.
+
+## 12. What would make this wrong
+
+Residue over target means the slots are cut in the wrong places — find the missing one before P4. More than a handful of failing pairs means pieces lean on each other's rules and the contract leaks. P0 showing the factory's tokens are mostly pictures moves E1 and P6 to the front — and if `look`'s crops do not cut those picture tokens by more than half against today's full sheets, the crop is the wrong unit. And if Sunny looks at the first `explore` sheet and sees six templates, the shelf is too thin: the answer is another variant carved from a sheet someone judged, not a return to writing the whole sheet by hand.
+
+---
+
+## 13. P1 as built — 23 Sep 2026
+
+**Asked for:** *"our complete focus should be on giving the agent capability to generate themes like people use lego pieces to build amazing stuff."* Decision **272** is taken on that word — the theme track goes first and alone, launch chores included where they compete. 266–271, 273 and 274 are proceeding as recommended and stay open to reversal until 0.2.0.
+
+**Landed** (branch `pieces-p0-p1`, stacked on `s39-editorial-scale` because the carve needs the editorial scale):
+
+- **`packages/spec/defaults/theme-contract.yaml`** — the 40 tokens, seven optional tokens with derived defaults (`font.display`, `size.display`, `size.number`, `measure.wide`, `measure.breakout`, `motion.duration`, `motion.quick` — the last three are new, found as literals in more than one sheet), 60 classes, the `language-` prefix, and the literal vocabulary. Read through `themeContract()` in `@snypd/spec`; not merged into site config, so it costs `snypd://config` nothing. The optional tokens are *not emitted yet* — P2 emits one when a piece reads it, so a theme on no pieces ships no extra bytes.
+- **`packages/render/src/contract.ts`** — `cssRules` (leaf rules with their at-rule context and nesting, strings kept in selectors), `ruleKey`, `literalHits` (`piece.literal`), `selectorClasses`, `selectorHits` (`piece.selector`). Unwired to `check theme` until there is a piece to check (P2).
+- **`contract.test.ts`** — the class list is held to exactly what `base`'s TSX, the renderer and viz emit (both directions, read statically so every branch counts); the tokens to what the three bundled themes declare; the house count to **20**, the same number §1 measured by hand.
+- **`base`'s header adopts the masthead** (decision 273): `header.snypd-masthead > div.snypd-brand > a (img.snypd-logo | name) + p.snypd-tagline?`. `base` now declares `logo` and `tagline`; the tagline is shown only when set. Editorial, technical, studio and folio keep their own header files until P3 — their markup is unchanged. **Studio now inherits a `tagline` setting its header ignores** until the masthead piece lands.
+- **Reduced motion moves to `base`**: the `*, *::before, *::after { … 0.01ms !important }` rule every sheet carried is in `base`'s sheet, where a lower layer's `!important` is the precedence it wants. Each theme keeps `@view-transition { navigation: none }` next to its own `navigation: auto` — that at-rule is decided by order in the sheet, not by layer, so it cannot move under the theme's. Folio keeps its copy (the site repo moves in P3).
+- Two tests moved with the change: the MCP settings test switches to `base` and now finds two settings where it found none; a render test reads `<header class="snypd-masthead">`. **The "declares no settings" branch** (`catalog.ts:300`, `resources.ts:93`) is now reachable only by a theme that does not extend `base`, and no test reaches it.
+
+**Measured:** 601 pass / 0 fail (595 + 6 new), typecheck clean.
+
+**The literal vocabulary, and where every exception goes.** With `em ch % fr lh cqi vmax`, `0`, `1px 2px 3px` (either sign) and alpha-only masks passing, the four sheets hold **134** literals (editorial 21, technical 13, studio 55, folio 45 — counted with the reduced-motion rule still in place). Each has a destination, decided now so that P3 carves without deciding:
+
+| Literal, sheets | Goes to |
+|---|---|
+| `0.01ms` reduced motion — e t s f | `base` (done) |
+| `240ms` / `280ms` title transition — e t s | `motion.duration` |
+| `150ms` / `200ms` transitions — e t s f | `motion.quick` (the 200 ms ones move 50 ms; not in a still — named as expected difference (e)) |
+| `400ms` — s | `motion.duration` |
+| `28s` marquee — s | `wall/marquee` `needs: motion.marquee: 28s` |
+| `--breakout` 12 / 14 / 19 / 24rem — t e f s | `measure.breakout`, the theme's value |
+| `--sidenote` 3rem / 9rem / 14rem / 100vw — e | `notes/sidenotes` `needs: measure.sidenote` |
+| `max-width` / `width` 30–38rem — e t s f (10 uses) | `measure` (they are prose-width boxes) |
+| `max-width` 10–12rem — e t s f | `em` (a logo, an avatar — it scales with the type) |
+| `grid-template-columns` 9–34rem — e t s f | the owning piece's `needs:` with the sheet's value as default (`entries`, `footer`, `home`) |
+| rem `font-size` / `font` 0.75–4rem — t s f | the nearest `size.*`; where none is near, the piece's `needs:` |
+| `vw` in a font clamp — s f | `size.display` |
+| rem padding / gap / margin — e t f (mostly folio) | `space.*`, or `em` where it sits on a control |
+| heights 1.7–3.875rem — e t s f | `em` |
+| `--masthead: 4rem` — s | `masthead/bar` `needs: size.masthead` |
+| `border-radius: 100px` — e s f (7) | `100vmax` — the same pill |
+| `border-radius` 3–5px — s f | `radius` |
+| `blur(14px)` — s | `em` |
+| `72vh` / `78vh` hero — s | `home/bands`, a switch |
+| `translate: 0 1.25rem` reveal — s | `em` |
+
+**Next: P2** — `packages/pieces`, `piece.yaml`, `pieces:` through config and render, the `snypd.pieces` layer, `house` as the first piece, `snypd://theme/pieces`.
+
+---
+
+## 14. P2 as built — 23 Sep 2026
+
+**Landed** (branch `pieces-p2`, on `pieces-p0-p1`):
+
+- **`packages/pieces`** — `slots.yaml` (the sixteen slots in canonical order, one line each, `house` marked `always`), one directory per piece (`<slot>/<name>/piece.yaml` + `piece.css` + switch files + an optional part or layout), and `pieces.json`, generated by `src/gen.ts` and held in sync by a test. Core reads the manifest and nothing else; render reads a piece's files through `themefs.ts` — `packages/pieces/<slot>/<name>/` in a checkout, a third bundled prefix `snypd:piece/<slot>/<name>` in the binary (`bundled.gen.ts` walks the package). No new workspace dependency: the manifest is imported by relative path, the way `bundled.ts` imports `themes/`.
+- **The generator is the shelf's gate.** It refuses a piece whose `piece.yaml` fails `PieceYamlSchema`, whose name is not its directory, whose `pairs:` names no slot, whose `parts:`/`layouts:` name a missing file, whose switch file no switch includes — and **`piece.literal` and `piece.selector` are errors here**, not warnings, because a shelf piece sits on every theme. `reads:` is held to what the CSS actually names, both ways, because `reads:` is what decides which optional tokens a theme emits.
+- **`pieces:` in `ThemeYamlSchema`**, a declaration like `settings:` — dropped by `withoutDecls`, so `snypd://config` does not carry it. `resolvePieces` (`core/src/pieces.ts`) map-merges it up `extends:` a slot at a time and refuses, with the file and line, a slot, a variant or a switch the shelf does not have. A theme that declares `pieces:` at all — `pieces: {}` included — gets the `always` slots. A theme that does not declare it gets nothing, so **the four sheets in the tree render byte for byte as before**, less the layer statement (below).
+- **Tokens and settings beneath the theme's.** A piece's `needs:` default and an optional contract token it `reads:` (with its derived value) are merged as their own `theme` layer after the variation and before the site — only where the theme is silent, and before the `cssValue` gate. A piece's `settings:` are laid down before the chain's, so a theme redeclaring the `id` replaces it.
+- **Render.** `CSS_LAYERS` is `@layer snypd.tokens, snypd.base, snypd.pieces, snypd.theme, snypd.site` (decision 270 — every emitted sheet gains 13 bytes; two tests pinned the old statement). Each piece is one `@layer snypd.pieces.<slot> { piece.css + switch files }` block, concatenated in slot order right after base's sheet, which is what fixes the sublayer order — no separate order statement, since a layer's place is its first appearance. Parts and layouts resolve per link exactly as §4.3–4.4 say: at each link, that theme's own file, then the piece *its* `pieces:` names, then the next ancestor. `Coverage` gains `piece` (with `via: <slot>/<name>`), and `Theme` gains `layoutCoverage`. `ctx.pieces` is `{ slot: { use, …switches } }`. The piece directories join the chain's in the theme hash and stamp.
+- **`check theme`** gains `pieces.used` (the pieces, their non-default switches, their KB), `pieces.tokens` (**fails** on a contract token a piece reads and the theme does not declare — a `var()` with nothing behind it), and `pieces.contract` (the two lints again, over the files this theme's switches include, located `piece/<slot>/<name>/<file>:line`). `css.enhancement-guarded` and the static taste rules now run over the theme's own sheet *and* its pieces' — the expanded CSS less the ancestors', each finding naming its file.
+- **`snypd://theme/pieces`** — the shelf: every slot with its question, each piece on one line with provenance, KB, switches, pairs and settings, the active theme's marked `IN USE`, empty slots folded into one comment. Listed in `resources/list`; gated at ≤ 1,200 tokens in `mcp.test.ts`. `snypd://theme` gains one `pieces:` line for a theme on some; the deferred `theme` tool's description names the resource.
+- **Two pieces on the shelf.** `house/house` — the **nineteen** of §1's twenty shared rules (the reduced-motion reset went to base in P1), 1.3 KB. And `toc/block`, carved from technical ahead of P3 because P2 needed a real piece with a part and a setting to prove per-link precedence against: the contents list, its CSS, `emits: [snypd-toc, snypd-toc-label]`, `settings: [tocDepth]`, 1.1 KB. Technical keeps its own `toc` until P3 rewrites it.
+
+**Where the build differs from §2's sketch.** `part:` became **`parts:` and `layouts:`**, maps shaped like `theme.yaml`'s own, because a `home` piece ships a layout and an `entries` piece a part, and one key per kind reads the same in both files. **`kb:` is measured by the generator**, not written — a declared size that can drift from the file is the thing decision 118's budget exists to refuse. A switch may not be called `use`.
+
+**Measured:** 620 pass / 0 fail (601 + 19), typecheck clean. A compiled binary builds a site whose theme is `extends: editorial` + `pieces: { toc: block }` — editorial's look with technical's contents list, the part loaded from the bundled barrel — and `check theme` passes it. That is the first theme on the tree built from pieces.
+
+**Not yet tested:** a piece that ships a *layout* — the code path is the parts path, and the first piece to exercise it is `home/*` in P3. `cssKb` counts pieces because they are in the one emitted sheet the budget already measures; no separate lane was added.
+
+**Next:** E1 (the eyes) or P3 (carving), in §7's order E1 first — P3's shoot diff is E1's before/after.
+
+## 15. E1 as built — 24 Sep 2026
+
+**Landed** (branch `pieces-p2`, uncommitted, on top of P2's uncommitted tree):
+
+- **`theme › look`** — a seventh action on the deferred `theme` tool (`catalog.ts` `lookAt`). Arguments: `route`, `slot` or `selector`, `width`, `scheme` (`light`|`dark`; `both` refused — one picture per call), `state` (`rest`, `hover`, `focus`, `menu-open`, `open`), `target`, `since` (`last`|`none`), `view` (`picture`|`outline`). It looks at the preview this session already shares with `content.render_preview` (a person's `snypd dev` first, else the session's own), so an edit is rebuilt on the request that asks for it.
+- **The result, in §5a's order:** a text block (the label and ms, then `✗ rule  where  detail  box N` per problem inside the crop, one `✓` line of what passed, a count of problems outside the crop, the `Δ since last` line, the links), then one `image` block (WebP, the crop with the boxes drawn), then `resource_link`s to `full.webp` (the page, every problem boxed) and `before.webp`. `structuredContent` carries the same facts. `protocol.ts` widens `ToolResult.content` to `text | image | resource_link` and `ResourceContents` to `text | blob`; `snypd://look/{id}/{picture}` reads a picture back as a blob and is listed as a template. The last 24 looks are kept under `.snypd/look/`.
+- **`packages/bench/src/look.ts`** — the session (one browser, started on the first look, killed after 3 idle minutes or when the MCP session closes — `dispose` → `disposeCatalog` → `closeEyes`), slot crops (`SLOT_SELECTORS`, with the slot's piece's `emits:` classes tried first; `house`/`motion`/`backdrop` crop to the first viewport; a crop is padded 8 px and cut at 1,568 px), forced states (`CSS.forcePseudoState` for hover/focus, `showPopover()` with the sheet unioned into the crop, `details.open`), animation stilled and reduced motion emulated, the detectors, the overlay, and the compare. Exported as `@snypd/bench/look`, so a look does not load the rest of the bench.
+- **The detectors** (in-page, each with a box): `layout.overflow-x`, `layout.text-overflow`, `layout.broken-image`, `layout.occlusion` (in the viewport; an open popover or dialog is never the culprit), `layout.tap-target`, `contrast.rendered` (the text colour composited over the backgrounds actually behind it; text over an image or gradient is not judged), plus `page.console`, `page.status`, `page.cls`, and the five rendered taste rules — the taste probe now returns boxes for eyebrows and body copy, so `taste.eyebrow` and `taste.tiny-text` are drawn where they fire.
+- **Before/after** runs in a blank tab of the same browser: both WebPs into a canvas, a channel moving by more than 24 counts as changed, and the result is the share of pixels and the changed box in page coordinates. It compares the *clean* crop (no boxes), so the next look measures the theme and not the annotations.
+- **The outline view** — landmarks (by element and `role`), headings and link/image counts, each landmark tagged with the slot it matches: `banner [masthead] · 5 links`. ~150 tokens, no picture.
+- **Finding a browser** (`cdp.ts` `browserCandidates`, pure and tested per platform): `SNYPD_CHROME`; Chrome, Chromium, Edge, Brave where Linux, macOS and Windows put them; then `~/.cache/snypd`, Playwright's and Puppeteer's caches, newest version first. `SNYPD_CHROME=none` is no browser. The bench lanes keep the order they had (full Chrome first); `look` prefers a headless shell.
+- **No browser:** `look` answers with `check theme`'s failures and warnings (token contrast, the static taste rules, the CSS lints) and one line naming `snypd eyes install`. **`snypd eyes`** says which browser `look` will use and what it falls back on; **`snypd eyes install`** fetches Stable chrome-headless-shell from Chrome for Testing to `~/.cache/snypd/chrome-headless-shell/<version>/` — typed by a person, never run by the server. `site › doctor` gains an `eyes:` line.
+
+**Where the build differs from §5a:**
+
+1. **A fresh tab per look, in a browser context of its own** — not one tab reused. The first build reused the tab, and an unchanged masthead reported 1.3 % of its pixels changed: the look before had visited `/posts/`, and the nav link had gone `:visited`. A throwaway context has no history and costs milliseconds; the same call now draws the same pixels (the test proves `share: 0`).
+2. **Tap targets are graded at 24, not 44.** Under 24 px either way fails WCAG 2.2 AA (2.5.8) and is a boxed problem; 24–44 is counted on the `✓` line (`tap targets ≥ 24 px (10 under 44)`). At 44 the base masthead's 28 px links drew fourteen boxes on every phone look, and the one that mattered was lost among them. Sunny may want 44 back — it is one constant.
+3. **The outline reads the DOM, not `Accessibility.getFullAXTree`.** Folding the AX tree loses which slot a landmark is; the DOM walk names it, and costs one evaluate.
+4. **Downloaded browsers cannot sandbox on this machine.** Ubuntu 23.10+ restricts unprivileged user namespaces through AppArmor (`/proc/sys/kernel/apparmor_restrict_unprivileged_userns` = 1), so every Chromium in a cache — Playwright's, Puppeteer's, and the one `eyes install` fetches — dies with *"No usable sandbox"*. Playwright passes `--no-sandbox` by default; snypd does not, because that flag is the person's (`SNYPD_CHROME_FLAGS`, as for `docker/`). Where the restriction is on, cached browsers go to the back of the list, a browser that refuses to start is skipped for the next, and the error names both ways out. `snypd eyes install` warns about it. **On such a machine `eyes install` alone does not give eyes** without that flag — the one friction left, and Sunny's call.
+5. **The layout viewport is `documentElement.clientWidth`, not `innerWidth`.** Under mobile emulation a page wider than the phone widens `innerWidth` to fit it (390 read as 600), which hid exactly the overflow `layout.overflow-x` exists to find.
+
+**Measured** on this box (load ≈ 3): first look 1.7 s (the browser starting), then 0.6–1.2 s each; a 1280 masthead is a 1280×107 crop of 8 KB (~180 image tokens at w×h⁄750), a 390 dark masthead with the menu open 390×860 and 15 KB (~450). 633 pass / 0 fail (620 + 13), typecheck clean. The compiled binary answers `theme › look` over stdio with `text`, `image`, `resource_link`, and leaves no Chrome behind when stdin closes.
+
+**Not yet tested:** `snypd eyes install` against the real download (the platform names and the fallbacks are tested; the 90 MB fetch was not made on Sunny's machine); the macOS and Windows browser paths on those machines; `look` against a person's running `snypd dev` (the preview's live-reload `<script>` is on that page and caused no console error on the session preview, which injects the same).
+
+**Next:** P3 (carving) — its shoot diff over every route is this compare run route by route.
+
+## 16. P3 as built, first half — 24 Sep 2026: technical and editorial are pieces
+
+**Landed** (branch `pieces-p2`, on `0d38b4b`):
+
+- **Technical and editorial have no stylesheet and no parts of their own.** Each is `theme.yaml`: `pieces:` (13 slots), tokens, settings, variations. Technical is `three-track {rhythm: tight, data: true}`, `docs`, `first-class`, `ruled`, `path`, `title-bar`, `rows`, `ruled`, `line {quiet-links}`, `cards`, `block`, `row`, `glide`, and declares `motion.duration: 240ms`. Editorial is `three-track`, `book`, `quiet`, `surface`, `quiet`, `nameplate`, `list`, `band`, `line {roomy}`, `sidenotes`, `row`, `glide`, and declares `measure.breakout` (+14rem) and `motion.quick` (200 ms). **Residue: 0 % for both** against §6's 25 % target, because neither had a rule the shelf could not hold.
+- **The shelf: 22 pieces over 13 slots.** Carved from technical: `column/three-track`, `prose/docs`, `code/first-class`, `blocks/ruled`, `cover/path`, `masthead/title-bar` (ships technical's header), `entries/rows`, `post-foot/ruled`, `footer/line`, `notes/cards`, `motion/glide`, `wall/row`. Carved from editorial: `prose/book`, `code/quiet`, `blocks/surface`, `cover/quiet`, `masthead/nameplate` (ships editorial's header), `entries/list`, `post-foot/band`, `notes/sidenotes`. Where the two sheets differed by a value or two, the piece is shared and the difference is a switch: `column` (`rhythm`, `data`) and `footer/line` (`roomy`, `quiet-links`). `motion/glide` is shared through `motion.duration`.
+- **Literals, where §13's table would have moved a pixel:** a piece `needs:` token defaulting to the sheet's own value — `size.code`, `measure.deck` (34 / 30rem), `measure.stat`, `size.question`, `space.step`, `size.step-mark`, `measure.excerpt`, `measure.logo`, `size.mark`, `measure.sidenote`. The one §13 destination taken as written is `border-radius: 100px → 100vmax` on editorial's pills (the same pill). A needs token is a knob the next theme can turn, not a literal the piece hides.
+- **`house` is fifteen rules, not nineteen.** A rule in the first sublayer loses to every later slot *whatever its specificity*, and four of the rules verbatim in every sheet were ones a later slot must not beat: `.snypd-byline a` (lost to prose's `a`), `.snypd-figure[data-width="full"]` (to the column's `main > *`), `.footnotes` / `.footnotes ol` (to prose's `ul, ol`). They moved to `cover`, `column` and `notes`. **The carving rule this adds to §6: a rule goes in `house` only if nothing after it may override it.**
+- **`snypd bench carve` — the proof, and why it is not the shoot diff §6 planned.** `shoot --diff` was built first (it stays: `--diff`, `--exact`, a marked picture per moved shot under `diff/`, and a second shot before a move is reported). Two shoots of an *unchanged* theme differed on 83 of 216 shots. `captureBeyondViewport` resizes the page to shoot it; under concurrency, and under this box's load even one page at a time, a capture laid out against another page's width (technical's contents list in one column at 768, `vw` type at the phone's size), and a scroll-driven progress bar drew wherever the resize left it. Hidden scrollbars, one page at a time, and captures that must agree brought it to 12 of 216 and never to zero. So the proof reads what a carve claims: on every route × width × scheme, **the built HTML is the same, and every element and drawn pseudo-element computes the same style and has the same box** (`getComputedStyle`, `getBoundingClientRect`, custom properties left out). No screenshot, so no race: two reads of an unchanged theme agree on 216 of 216 pages once a 150 ms settle lets studio's scroll-state masthead resolve. `snypd bench carve [root] --theme=a,b/var --out=<dir> [--diff=<earlier>]`. What it cannot see is named: `:hover`/`:focus`, an open popover, view transitions, keyframes (§6(e)).
+- **`check theme` › `pieces.residue`** (§6a's lint): a warning for each rule in a theme's own sheet that styles a class one of its pieces styles.
+- **The shelf resource split in two.** `snypd://theme/pieces` is an index: each slot's question, one gist per piece (its line up to the first " — "), its KB, switches, pairs, and whether it is in use. It is **944 tokens** at 22 pieces, where the one-line-in-full form was 1,566. `snypd://theme/pieces/{slot}` (a resource template) holds the whole of each piece in a slot: line, provenance, switches with what each does, `needs:`, settings, pairs, parts and layouts shipped.
+- **`snypd://config` folds the pieces' token defaults into one line** (`# 9 more untouched: <the pieces' defaults — snypd://theme/pieces>`) rather than one unattributed line per token.
+- **`look` and `shoot` load every declared font face** before shooting. `document.fonts.ready` resolved before layout had asked for a `swap` webfont, and one shot in two drew the fallback.
+
+**Measured.** `bench carve` over editorial (paper, ink, broadsheet) and technical (graphite, phosphor) against the pre-carve tree (`0d38b4b`): 360 pages, 48,192 elements. The HTML is identical on every page, and 192 changes are all the pill's `border-*-radius: 100px → <viewport>px`. 633 pass / 0 fail, typecheck clean. The compiled binary builds the specimen under both themes, with the nameplate's and title bar's parts loaded from the bundled barrel.
+
+**Left in P3:** studio (bands, the sticky bar masthead, cards with `.snypd-card` renamed, the colophon footer, the marquee, the tier-B reveal; its `work` layouts stay residue), then folio on a branch of the site, then residue measured for both. The shelf index will pass 1,200 tokens somewhere past 30 pieces: the gists will need to get shorter, or the index will need to fold slots nobody is deciding.
+
+## 17. P3 as built, second half — 24 Sep 2026: studio is pieces
+
+**Landed** (branch `pieces-p2`, on `a21477c`):
+
+- **Studio is thirteen pieces, `house`, and a residue.** `theme.yaml` names `column {three-track, rhythm: tight, fit: true}`, `prose/display`, `code {quiet, display-heads: true}`, `blocks/hairline`, `cover/display`, `masthead/bar`, `entries/cards`, `post-foot/pills`, `footer/colophon`, `home/bands`, `notes/plain`, `wall/marquee`, `motion {glide, progress: false, reveal: true}`, and declares three tokens it had written as literals: `measure.breakout` (+24rem), `size.number` (the stat figure's clamp) and `radius.small` (4px). Its `parts/` is gone and `layouts/` holds only `work` and `work-index`. **Residue: 10.8 %** of the sheet's comment-stripped bytes against §6's 40 %, and all of it is the case layouts' rules, which answer a content model and not a look (§2).
+- **Ten new pieces, 32 on the shelf.** From studio: `prose/display`, `blocks/hairline`, `cover/display`, `masthead/bar` (ships studio's header), `entries/cards` (ships the cards), `post-foot/pills`, `footer/colophon` (ships the colophon), `home/bands` (ships the banded front page and the `bands` setting — **the first piece to ship a layout**, so P2's untested layout path is exercised now), `notes/plain`, `wall/marquee`. Three shared pieces grew switches instead of forking: `column/three-track` gains `fit` (a drawing shrinks to itself, its caption contained under it) and exports its tracks as `--tracks`; `code/quiet` gains `display-heads` and reads `radius.small` for inline code (defaulting to `var(--radius)`, so editorial is unchanged); `motion/glide`'s reading-progress line became the `progress` switch (on by default, so technical and editorial are unchanged) and it gains `reveal`.
+- **Where the build differs from §2's table.** The cover is `cover/display`, not `reel`: the showreel rules name `.snypd-hero`, which `home/bands` emits, so they live there, and what is left is a cover any page can have. `reveal` is a switch on `glide`, not a `motion` piece of its own: a slot holds one piece, and studio needs the title's glide *and* the entrances. The reveal selects `.snypd-entries > li` rather than the card class, so it stays inside the contract and works over any `entries` piece. `prose/display` is studio's; §2 gave the name to folio, which will share it or add a switch. `notes/plain` is new — studio leaves the footnote card to `base`, and `notes/cards` would have painted it.
+- **`.snypd-card` is `.snypd-entry-card`** (§3·2), with `-image`, `-meta`, `-title` and `-text` renamed too: `bench/cards.ts` uses `snypd-card-title` as well as `snypd-card`. The one HTML change in the carve.
+- **A page made of bands is found by its structure,** `main:has(> .snypd-page > .snypd-band)`, not by a list of layout classes. The sheet's `main:not(.snypd-home, .snypd-work)` needed every banded layout's class added by hand (memory has the gotcha); `home/bands` now resets `main` for the front page, for studio's case, and for any site layout built the same way.
+- **The `needs:` count is climbing.** Studio's literals became eighteen piece tokens at the sheet's own values (`size.masthead`, `size.blur`, `size.brand`, `size.brand-stuck`, `size.hero`, `size.footer-lede`, `size.wordmark`, `size.mark`, `measure.deck`, `measure.stat`, `measure.card`, `measure.step`, `measure.logo`, `measure.footer-lede`, `measure.footer-list`, `motion.marquee`, `space.rise`, `radius.small`). Each is a knob the next theme can turn, which is the point, but P4 should decide which of them are genes and which stay defaults nobody sets.
+
+**Carving rules this half adds to §6:**
+
+1. **A residue rule that never won must not start winning.** Residue sits in `snypd.theme`, above every piece, so a rule that used to lose on specificity now wins. Three of studio's did: `.snypd-work-cta > p:first-child` (every declaration was overridden by `.snypd-band .snypd-cta > p:first-child`), `.snypd-work-cta > p + p` (the button's `space-4`, beaten by `.snypd-cta > p:nth-child(2)`), and `.snypd-lede`'s `max-width` (beaten by the list page's measure). The carve found all three; they are removed, and the case renders as before. **The case's button was meant to have `space-4` above it and has always had `space-3`** — a latent bug the carve surfaced, left as rendered; Sunny's call.
+2. **Layer beats specificity in a later slot too.** `home/bands`' `.snypd-band > * { max-width: var(--measure) }` now beats `blocks/hairline`'s `.snypd-tldr { max-width: var(--measure-deck) }`, where in one sheet the tldr's later rule won. Restated as `.snypd-band > .snypd-tldr`.
+3. **A piece that lays something on the page's grid names the column's `--tracks`,** and says so with `pairs: { column: three-track }` (`home/bands`, `footer/colophon`).
+
+**Named differences** (§6(e): not in the carve, which emulates reduced motion, and read instead in the expanded CSS): four pill rules' `border-radius: 100px → 100vmax` (the menu button, the terms, the button, the lightbox's close); the FAQ's `+` turning and the wall's marks brightening at `motion.quick`, 150 ms where they were 200 ms; the card picture's scale at `motion.duration`, 280 ms where it was 400 ms. All three are §13's destinations as decided in P1.
+
+**Measured.** `bench carve --theme=studio` against `a21477c`, on the specimen (72 pages, 11,632 elements) and on Ferrule, `examples/studio` (80 pages, 11,296 elements, including `/work/`, `/work/stem/` and `/work/mares/`): the HTML is identical on every page once the card rename is read back, and the only style change is the pill radius. A declaration-by-declaration diff of the old sheet against the expanded pieces finds nothing else, including under `:hover`, in the reveal and in the marquee. Because three shared pieces changed, editorial (paper, ink, broadsheet) and technical (graphite, phosphor) were re-carved against `a21477c`: 360 pages, identical HTML and styles. One footnote marker's box moved on broadsheet's long read, and re-reading the old tree put it where the new one does — a flake in the baseline, not a change. The emitted sheet is 31,314 → 33,029 bytes (6,969 → 7,245 gzipped): the thirteen sublayer wrappers, the `needs:` tokens, and the band reset. **`cssKb: 30` (`budgets.yaml:13`) is declared and measured nowhere**; the built studio sheet is 32.3 KB raw. `check theme` passes; its four `pieces.residue` warnings are the case layout's own overrides of `.snypd-cover` and `.snypd-entries`, which is what residue is for. The shelf index is **1,145 tokens** at 32 pieces, after shortening four gists (a line with no " — " printed whole) and printing an on/off switch as its bare name. 633 pass / 0 fail, typecheck clean. The compiled binary, in a directory with no checkout, builds Ferrule with the banded front page, the cards and the colophon loaded from the bundled barrel.
+
+**Left in P3:** folio, on a branch of the site, then its residue. The shelf index will pass 1,200 tokens with folio's pieces: the next saving is folding the slots nobody is deciding, not shorter gists.

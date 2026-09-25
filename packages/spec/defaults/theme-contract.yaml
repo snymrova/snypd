@@ -1,0 +1,147 @@
+# The theme contract (docs/36 §3, decision 269): the studs every piece may read and the sockets every
+# piece may style. A piece that keeps to it sits on any theme; a theme that keeps to it takes any piece.
+#
+# Written down rather than inferred, and tested both ways (packages/render/src/contract.test.ts):
+#   - every token below is declared by editorial, technical and studio (folio is the site's, and is held
+#     to it in the site's own check);
+#   - every class below is emitted by `base`'s markup or the renderer, and every class they emit is below.
+# A piece adds to either list for itself only — `needs:` for tokens, `emits:` for classes its own part or
+# layout writes. Nothing here is a value: values are the theme's, from the seed and the shelf.
+themeContract:
+  # ── The studs. The 40 tokens all four sheets declare, measured 23 Sep 2026 (docs/36 §1). `expandSeed`
+  # writes 35 of them from one colour; `font.*` come from the shelf; `radius` from the genome (P4).
+  tokens:
+    - color.scheme
+    - color.bg
+    - color.surface
+    - color.text
+    - color.muted
+    - color.accent
+    - color.on-accent
+    - color.border
+    - color.viz.1
+    - color.viz.2
+    - color.viz.3
+    - color.viz.4
+    - color.viz.5
+    - color.viz.6
+    - color.viz.axis
+    - color.viz.grid
+    - color.viz.tick
+    - color.viz.label
+    - color.viz.edge
+    - color.viz.node
+    - color.viz.node-stroke
+    - font.body
+    - font.ui
+    - font.mono
+    - font.heading
+    - size.body
+    - size.h1
+    - size.h2
+    - size.h3
+    - size.small
+    - leading.body
+    - leading.tight
+    - measure
+    - space.1
+    - space.2
+    - space.3
+    - space.4
+    - space.5
+    - space.6
+    - radius
+
+  # ── Optional studs: a theme may declare them, and when it does not, the value is derived from the 40.
+  # studio and folio already declare the first four; the last three are named here because the carving
+  # found them as literals in more than one sheet (docs/36 §3·3). Emitted only when a piece reads them
+  # (P2), so a theme on no pieces ships no extra bytes.
+  optional:
+    font.display:     { derive: "var(--font-heading)",               description: "The face for display sizes — a hero, a front-page number." }
+    size.display:     { derive: "calc(var(--size-h1) * 1.6)",        description: "The hero's size. Studio and folio set a clamp()." }
+    size.number:      { derive: "var(--size-h2)",                    description: "A stat's figure." }
+    measure.wide:     { derive: "calc(var(--measure) * 1.5)",        description: "A band's column, wider than prose." }
+    measure.breakout: { derive: "calc(var(--measure) + 12rem)",      description: "How far a figure, chart or table may leave the column. 12rem technical, 14rem editorial, 24rem studio, 19rem folio." }
+    motion.duration:  { derive: "280ms",                             description: "A view transition or an entrance. 240ms technical, 280ms editorial and studio." }
+    motion.quick:     { derive: "150ms",                             description: "A hover or a menu: the transition a reader barely sees. 150–200ms across the four sheets." }
+
+  # ── The sockets. Every class `base`'s markup and the renderer emit (P1 adds the four masthead classes to
+  # base's header, decision 273). `footnotes` is GFM's own name for the notes section; `language-*` is the
+  # prefix a fenced code block's class takes. The menu's `#snypd-menu` and the motion box's `#snypd-motion`
+  # are ids, not classes, and are left out: a piece that styles them does it by id, as base does.
+  classes:
+    # base's layouts and parts
+    - snypd-author
+    - snypd-brand
+    - snypd-byline
+    - snypd-entries
+    - snypd-footer-note
+    - snypd-home
+    - snypd-home-entries
+    - snypd-logo
+    - snypd-masthead
+    - snypd-menu-button
+    - snypd-motion
+    - snypd-page
+    - snypd-post
+    - snypd-post-footer
+    - snypd-social
+    - snypd-source
+    - snypd-subtitle
+    - snypd-tagline
+    - snypd-terms
+    - snypd-twin
+    # base's primitives
+    - snypd-button
+    - snypd-callout
+    - snypd-chart
+    - snypd-cover
+    - snypd-cover-media
+    - snypd-cta
+    - snypd-diagram
+    - snypd-diagram-edges
+    - snypd-diagram-nodes
+    - snypd-eyebrow
+    - snypd-faq
+    - snypd-faq-answer
+    - snypd-faq-item
+    - snypd-figure
+    - snypd-figure-open
+    - snypd-flow
+    - snypd-lightbox
+    - snypd-lightbox-close
+    - snypd-logo-wall
+    - snypd-logo-wall-title
+    - snypd-marquee
+    - snypd-pullquote
+    - snypd-scroll
+    - snypd-stat
+    - snypd-stat-label
+    - snypd-stat-row
+    - snypd-stat-value
+    - snypd-steps
+    - snypd-still
+    - snypd-tldr
+    # the view-transition class every page title carries — `::view-transition-group(.snypd-title)`
+    - snypd-title
+    # the renderer
+    - snypd-block
+    - snypd-chart-svg
+    - snypd-diagram-svg
+    - snypd-flow-svg
+    - snypd-fn-card
+    - snypd-fnref
+    - footnotes
+  classPrefixes: [language-]
+
+  # ── The literal vocabulary (`piece.literal`). A length in these units passes — it scales with the type
+  # or the box it sits in; so do the three hairline weights, and `0`. A colour never does, a font name
+  # never does, and a time never does: those are tokens. Everything else is a switch, a `needs:` token
+  # with a default, or the theme's residue — and which one, for every literal the four sheets hold, is
+  # docs/36 §13, decided in P1 rather than in a hurry during P3.
+  literals:
+    units: [em, ch, "%", fr, lh, cqi, vmax]
+    lengths: [1px, 2px, 3px]
+    # Properties whose colour is only an alpha channel: `mask-image: linear-gradient(#000, transparent)`
+    # is a shape, not a colour a theme chose.
+    alphaOnly: [mask-image, -webkit-mask-image, mask]

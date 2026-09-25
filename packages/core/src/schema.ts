@@ -224,6 +224,62 @@ export const ThemeFontSchema = z.object({
 }).strict();
 export type ThemeFont = z.infer<typeof ThemeFontSchema>;
 
+// ── Pieces (docs/36 §2–§4, decisions 266–270) ────────────────────────────────────────────────────
+/** A slot or a variant name: lowercase, digits, dashes — it is a directory, a layer name and a YAML key. */
+const PIECE_NAME_RE = /^[a-z][a-z0-9-]*$/;
+const pieceName = z.string().regex(PIECE_NAME_RE, "lowercase letters, digits, dashes");
+/**
+ * A build-time switch a piece offers (docs/36 §2). A boolean switch includes `<id>.css` when on; one with
+ * `of:` includes `<id>-<value>.css` when that file exists. Both reach markup as `ctx.pieces.<slot>.<id>`.
+ */
+export const PieceSwitchSchema = z.object({
+  default: z.union([z.boolean(), pieceName]),
+  of: z.array(pieceName).min(2).optional(),
+  description: z.string().optional(),
+}).strict().superRefine((s, ctx) => {
+  if (s.of && (typeof s.default !== "string" || !s.of.includes(s.default))) ctx.addIssue({ code: "custom", message: `default must be one of ${s.of.join(", ")}` });
+  if (!s.of && typeof s.default !== "boolean") ctx.addIssue({ code: "custom", message: "a switch without `of:` is a boolean — default: true or false" });
+});
+export type PieceSwitch = z.infer<typeof PieceSwitchSchema>;
+/**
+ * `piece.yaml` — one answer to one question a theme must answer (docs/36 §2). What it reads, what it
+ * adds to the contract for itself, and what it offers; the CSS is `piece.css` beside it. `kb` is not
+ * written here: the manifest generator measures it, so it cannot drift from the file.
+ */
+export const PieceYamlSchema = z.object({
+  /** `<slot>/<variant>` — the directory it lives in, so a copied piece that was not renamed is caught. */
+  piece: z.string().regex(/^[a-z][a-z0-9-]*\/[a-z][a-z0-9-]*$/, "piece: `<slot>/<variant>`"),
+  /** Provenance (decision 267): the sheet it was carved from, or `house` for the rules every sheet shares. */
+  from: z.string().min(1),
+  /** One line — what `snypd://theme/pieces` prints and an agent picks on. */
+  line: z.string().min(1),
+  /** Contract tokens the CSS reads. An optional contract token named here is emitted with its derived default. */
+  reads: z.array(z.string().min(1)).default([]),
+  /** Tokens beyond the contract, each with the default the sheet it came from used (docs/36 §3). */
+  needs: z.record(z.string().min(1), z.union([z.string(), z.number()])).default({}),
+  /** Classes this piece's own part or layout emits — added to the contract for its own CSS only. */
+  emits: z.array(z.string().min(1)).default([]),
+  switches: z.record(pieceName, PieceSwitchSchema).default({}),
+  /** Site-facing choices, merged into the chain's declarations beneath the theme's own (docs/36 §4.1). */
+  settings: z.array(SettingDeclSchema).default([]),
+  /** Part name → piece-relative file, when the markup must differ from base's (docs/36 §4.3). */
+  parts: z.record(z.string().min(1), z.string().min(1)).default({}),
+  /** Layout name → piece-relative file (docs/36 §4.4): counts as that link's `layouts/<name>.tsx`. */
+  layouts: z.record(z.string().min(1), z.string().min(1)).default({}),
+  /** Constraints on other slots, for the sampler: `home: bands` or `home: [bands, split]`. */
+  pairs: z.record(pieceName, z.union([pieceName, z.array(pieceName).min(1)])).default({}),
+}).strict();
+export type PieceYaml = z.infer<typeof PieceYamlSchema>;
+/**
+ * One slot in a theme's `pieces:` — the variant's name, or `{ use, …switches }`. Switch values are checked
+ * against the piece's own declaration at config load, where the manifest is known; the shape is checked here.
+ */
+export const ThemePieceSchema = z.union([
+  pieceName,
+  z.object({ use: pieceName }).catchall(z.union([z.boolean(), pieceName])),
+]);
+export type ThemePiece = z.infer<typeof ThemePieceSchema>;
+
 export const ThemeYamlSchema = z.object({
   theme: z.string().min(1).optional(),
   version: z.string().optional(),
@@ -257,6 +313,12 @@ export const ThemeYamlSchema = z.object({
   css: z.string().min(1).optional(),
   /** One webfont, theme-relative, declared and budgeted (B1, decision 118). See `ThemeFontSchema`. */
   font: ThemeFontSchema.optional(),
+  /**
+   * The pieces this theme is built from, one per slot (docs/36 §4, decision 266). A declaration like
+   * `settings:` — read by the loader and never merged into `config.theme` — and map-merged up `extends:`
+   * a slot at a time, so a child names only the slots it changes.
+   */
+  pieces: z.record(pieceName, ThemePieceSchema).optional(),
   personality: z.string().optional(),
 }).strict();
 export type ThemeYaml = z.infer<typeof ThemeYamlSchema>;

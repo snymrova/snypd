@@ -23,6 +23,11 @@ parts:
 # The menus a site can give this theme, one `content/nav/<location>.yaml` each (docs/09 §4.3, U2). The
 # header and footer parts render them; a file for a location not listed here is a lint warning.
 locations: [header, footer]
+# The two the header reads (decision 273). A child that declares the same id replaces the declaration in
+# place — editorial's tagline defaults to the site's description, studio's logo sets the display face.
+settings:
+  - { id: logo,    type: image, label: Logo,    group: Identity, info: "Site-relative url of an image — put the file in content/media/. Without one the header sets the site's name." }
+  - { id: tagline, type: text,  label: Tagline, group: Identity, info: "One line with the name. Without one, none is shown." }
 primitives:
   callout:   ./primitives/callout.tsx
   chart:     ./primitives/chart.tsx

@@ -1,0 +1,2 @@
+/* display-heads — the table's header row in the display face, tracked a little wider (studio). */
+th { font-family: var(--font-display); letter-spacing: 0.08em; }

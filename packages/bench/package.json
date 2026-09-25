@@ -3,6 +3,12 @@
   "version": "0.1.7",
   "type": "module",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./look": "./src/look.ts",
+    "./cdp": "./src/cdp.ts",
+    "./eyes": "./src/eyes.ts"
+  },
   "license": "MIT",
   "dependencies": {
     "gpt-tokenizer": "^4.0.0",

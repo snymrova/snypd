@@ -1,0 +1,9 @@
+/* wall/row — carved from technical and editorial, verbatim in both. No marquee: the duplicate row `base`
+   renders for one is hidden, and a `marquee` wall is the grid. */
+.snypd-logo-wall-title { font: 600 var(--size-small) / 1.2 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-muted); margin-bottom: var(--space-2); }
+.snypd-logo-wall ul { list-style: none; margin: 0; padding: var(--space-3) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); border-top: 1px solid var(--color-border); }
+.snypd-logo-wall li { margin: 0; display: grid; gap: var(--space-1); justify-items: start; }
+/* The mark's width cap is five of its own heights — the 10rem it was, at a 2rem mark. */
+.snypd-logo-wall img { display: block; height: var(--size-mark); width: auto; max-width: calc(var(--size-mark) * 5); object-fit: contain; }
+.snypd-marquee { display: contents; }
+.snypd-marquee ul[aria-hidden] { display: none; }

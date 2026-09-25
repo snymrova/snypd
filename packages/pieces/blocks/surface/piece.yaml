@@ -1,0 +1,8 @@
+piece: blocks/surface
+from: editorial
+line: The fourteen primitives as a magazine sets them — tinted surfaces with an accent rule, italic pull quotes, round numbered steps, a centred call to action, questions that open with a `+`.
+reads: [font.ui, size.small, size.h2, size.h3, leading.tight, space.1, space.2, space.3, space.4, color.surface, color.border, color.accent, color.on-accent, color.text, color.muted, color.bg, color.viz.1, color.viz.2, color.viz.5, radius, motion.quick, measure.stat, space.step, size.step-mark]
+needs:
+  measure.stat: 9rem
+  space.step: 2.4rem
+  size.step-mark: 1.7rem

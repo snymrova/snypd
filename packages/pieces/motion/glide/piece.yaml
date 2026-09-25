@@ -1,0 +1,9 @@
+piece: motion/glide
+from: technical, editorial, studio
+line: The title glides between pages — the page swaps at once and only the title moves (a cross-document view transition); a reading-progress line and scroll entrances are switches.
+reads: [color.accent, color.bg, motion.duration, space.rise]
+needs:
+  space.rise: 1.25rem
+switches:
+  progress: { default: true,  description: "A thin line in the accent across the top of a post, filling as it is read (scroll-driven; none in Firefox)." }
+  reveal:   { default: false, description: "Listed entries, stats, the front page's steps and the wall's marks rise into place as they scroll in, and numbers count up to their value. Translate only, never opacity; still under reduced motion." }

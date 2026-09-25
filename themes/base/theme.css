@@ -99,6 +99,13 @@ img, svg, video { max-width: 100%; height: auto; }
 /* ── Reduced motion: nothing above animates for a reader who asked for that — and an autoplaying clip
    is its poster, which is what the still is for. */
 @media (prefers-reduced-motion: reduce) {
+  /* Every animation and transition, a theme's included — the one rule all four sheets carried word for word
+     until it moved here (docs/36 §2, `house`). Important in the lowest layer that has it, which is exactly
+     the precedence it wants: a lower layer's `!important` beats a higher layer's, so no theme's own
+     transition can outrank a reader who asked for stillness. A theme keeps its own
+     `@view-transition { navigation: none }` beside its `navigation: auto`, because that at-rule is decided
+     by order in the sheet, not by layer. */
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   .snypd-lightbox, #snypd-menu:popover-open, .snypd-faq-item::details-content, .snypd-fn-card { transition: none; }
   video[autoplay] { display: none; }
   .snypd-still { display: block; }

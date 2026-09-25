@@ -1,0 +1,4 @@
+piece: prose/book
+from: editorial
+line: Long-form prose — hyphenated and pretty-wrapped, links underlined at a third of their colour until pointed at, an italic ruled quote.
+reads: [color.scheme, color.bg, color.text, color.accent, color.border, font.body, font.heading, size.body, size.h1, size.h2, size.h3, leading.body, leading.tight, space.4, space.5, radius]

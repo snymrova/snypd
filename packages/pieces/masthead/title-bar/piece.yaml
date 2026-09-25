@@ -1,0 +1,12 @@
+piece: masthead/title-bar
+from: technical
+line: A one-line title bar — name, rule, tagline, menu; a path, not a nameplate, and a `src` link to the repository last in the menu.
+reads: [font.ui, size.small, size.body, space.2, space.3, space.4, color.border, color.text, color.muted, color.accent, color.bg, radius, measure.logo]
+needs:
+  measure.logo: 12rem
+emits: [snypd-repo]
+settings:
+  - { id: tagline, type: text, label: Tagline, group: Identity, info: "One line beside the name. Defaults to the site's own description." }
+  - { id: repo,    type: url,  label: "Source repository", group: Identity, info: "Linked from the masthead as `src`. A documentation site whose source is not one click away is documentation nobody corrects." }
+parts:
+  header: ./part.tsx

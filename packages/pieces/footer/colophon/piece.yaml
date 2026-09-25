@@ -1,0 +1,16 @@
+piece: footer/colophon
+from: studio
+line: A last band ending on the name set huge — the site's description large beside the menu, social and office lists, then the wordmark, then the note under a hairline.
+reads: [font.display, font.ui, size.body, size.small, space.2, space.3, space.4, space.5, space.6, color.border, color.bg, color.text, color.accent, color.muted, measure.footer-lede, measure.footer-list, size.footer-lede, size.wordmark]
+needs:
+  measure.footer-lede: 26rem
+  measure.footer-list: 6rem
+  size.footer-lede: clamp(1.5rem, 1.1rem + 1.6vw, 2.4rem)
+  size.wordmark: clamp(3.5rem, 1rem + 10vw, 12rem)
+emits: [snypd-colophon, snypd-footer-top, snypd-footer-lede, snypd-footer-lists, snypd-offices, snypd-wordmark, snypd-footer-end]
+settings:
+  - { id: offices, type: link_list, label: Offices, group: Footer, info: "[{ label, url }] in the footer: where the studio is. A city and a map link, or an address and a mailto." }
+pairs:
+  column: three-track
+parts:
+  footer: ./part.tsx

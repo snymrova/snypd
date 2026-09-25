@@ -1,0 +1,78 @@
+/* blocks/hairline — carved from studio. Nothing here is a box: a block is a rule above it and the space
+   under, a number is set in the display face at a size that competes with the heading, a button is a pill
+   with an arrow. */
+.snypd-tldr { border-top: 1px solid var(--color-border); padding-top: var(--space-3); font-size: var(--size-h3); line-height: 1.4; max-width: var(--measure-deck); }
+.snypd-tldr > p:first-child strong { display: block; font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent); margin-bottom: var(--space-2); }
+.snypd-callout { border-top: 1px solid var(--color-border); border-left: 3px solid var(--kind, var(--color-border)); padding: var(--space-3) var(--space-4); background: var(--color-surface); border-radius: 0 var(--radius) var(--radius) 0; }
+.snypd-callout[data-kind="note"]    { --kind: var(--color-viz-2); }
+.snypd-callout[data-kind="tip"]     { --kind: var(--color-viz-5); }
+.snypd-callout[data-kind="danger"]  { --kind: var(--color-viz-1); }
+.snypd-pullquote { border: 0; padding: 0; margin-block: var(--space-4); font: 500 var(--size-h2) / 1.1 var(--font-display); letter-spacing: -0.02em; color: var(--color-text); text-wrap: balance; }
+.snypd-pullquote p::before { content: "“"; color: var(--color-accent); }
+.snypd-pullquote p::after { content: "”"; color: var(--color-accent); }
+.snypd-pullquote footer { font: 400 var(--size-small) / 1.4 var(--font-ui); letter-spacing: 0; color: var(--color-muted); margin-top: var(--space-3); }
+
+/* The numbers: hairline columns, the figure in the display face, the label small under it. */
+.snypd-stat-row { grid-column: wide; display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(var(--measure-stat), 1fr)); }
+/* No orphans (docs/18 §2 · 5): a row of three is three across, then one — never two and a widow; a row of
+   four is four, then two, then one. `data-count` is the renderer's (stat-row.tsx). */
+.snypd-stat-row[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.snypd-stat-row[data-count="4"] { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 48rem) { .snypd-stat-row[data-count="4"] { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 30rem) { .snypd-stat-row[data-count="3"], .snypd-stat-row[data-count="4"] { grid-template-columns: 1fr; } }
+.snypd-stat { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+.snypd-stat-value { font: 600 var(--size-number) / 1 var(--font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.snypd-stat-value strong { font-weight: inherit; }
+.snypd-stat-value small { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-muted); margin-left: 0.4em; }
+.snypd-stat-label { font-family: var(--font-ui); font-size: var(--size-small); color: var(--color-muted); margin-top: var(--space-2); }
+/* A number sits on the baseline the designer meant, once the browser can trim the half-leading. */
+@supports (text-box: trim-both cap alphabetic) { .snypd-stat-value { text-box: trim-both cap alphabetic; } }
+/* One idiom for every source link — a stat's, a chart's (docs/19 §2 · 8): the label's colour under a dotted
+   rule, a link a reader finds when they look for it. */
+.snypd-source { color: inherit; text-decoration: underline dotted; text-underline-offset: 0.2em; margin-left: 0.35em; }
+.snypd-source:hover { color: var(--color-text); text-decoration-style: solid; }
+
+/* Numbered hairline cards: `steps` is an `<ol>` with a counter already; set as `01`, ruled, not boxed. A
+   block's title is a heading one level under the section's (decision 189) and is set as a sub-heading. */
+.snypd-steps > :is(h2, h3, h4), .snypd-faq > :is(h2, h3, h4) { margin-top: 0; }
+/* A `faq` renders a title only when the author gives one (docs/19 §2 · 3); given, it gets one token of air
+   before the first question's hairline instead of sitting flush on it. */
+.snypd-faq > :is(h2, h3, h4, h5, h6) { margin-bottom: var(--space-3); }
+.snypd-steps ol { counter-reset: step; list-style: none; padding: 0; margin-top: var(--space-4); }
+.snypd-steps ol > li { counter-increment: step; border-top: 1px solid var(--color-border); padding-top: var(--space-3); margin-top: 0; padding-bottom: var(--space-3); }
+.snypd-steps ol > li::before {
+  content: counter(step, decimal-leading-zero) / "";
+  display: block; margin-bottom: var(--space-2);
+  font: 500 var(--size-h3) / 1 var(--font-display); letter-spacing: -0.02em; color: var(--color-accent);
+}
+.snypd-faq h2 { margin-top: 0; }
+.snypd-faq-item { border-top: 1px solid var(--color-border); padding-block: var(--space-3); }
+.snypd-faq-item summary { list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.snypd-faq-item summary::after { content: "+"; font: 400 var(--size-h2) / 1 var(--font-display); color: var(--color-accent); transition: rotate var(--motion-quick) ease-out; }
+.snypd-faq-item[open] summary::after { rotate: 45deg; }
+.snypd-faq-item h3 { margin: 0; font-size: var(--size-h3); }
+.snypd-faq-answer { padding-block: var(--space-2) var(--space-1); max-width: var(--measure-deck); }
+
+/* Pill buttons with an arrow. The arrow is `content` with empty alt, so a screen reader hears the label. */
+.snypd-cta { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+.snypd-cta > p:first-child { font: 600 var(--size-h2) / var(--leading-tight) var(--font-display); letter-spacing: -0.025em; text-wrap: balance; max-width: 18ch; }
+.snypd-cta > p:first-child strong { font-weight: inherit; }
+.snypd-cta > p:nth-child(2) { color: var(--color-muted); max-width: var(--measure-deck); margin-top: var(--space-3); }
+.snypd-button {
+  display: inline-flex; align-items: center; gap: 0.6em;
+  background: var(--color-text); color: var(--color-bg);
+  font: 600 var(--size-body) / 1 var(--font-display); letter-spacing: -0.01em; text-decoration: none;
+  padding: 0.9em 1.5em; border-radius: 100vmax; margin-top: var(--space-3);
+  transition: background var(--motion-quick) ease-out, gap var(--motion-quick) ease-out;
+}
+.snypd-button::after { content: "→" / ""; }
+.snypd-button:hover { background: var(--color-accent); color: var(--color-on-accent); gap: 0.9em; }
+
+/* Every block gets the same breath as a figure. */
+.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow, .snypd-tldr, .snypd-callout, .snypd-stat-row, .snypd-steps, .snypd-faq, .snypd-cta { margin-block: var(--space-4); }
+.snypd-figure img, .snypd-figure video { display: block; width: 100%; border-radius: var(--radius); }
+.snypd-scroll:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+figcaption { margin-top: var(--space-2); }
+
+/* The lightbox's close button, in the theme's voice (base draws the dialog). */
+.snypd-lightbox-close { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-text); background: var(--color-bg); border-radius: 100vmax; padding: 0.5em 1em; }

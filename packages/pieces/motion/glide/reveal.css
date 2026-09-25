@@ -1,0 +1,36 @@
+/* reveal — the tier-B entrances (studio, docs/17 §3, §6 item 4): under `@supports`, never load-bearing; the
+   page without them is the page a browser without the engine gets.
+
+   Reveals on scroll. U7's finding stands: an opacity reveal starts text at a fraction of its opacity and axe
+   reads it as a contrast failure — so only `translate` moves, opacity never leaves 1, and the range ends
+   before the element reaches the middle of the viewport, so axe's load-time pass sees settled text. Listed
+   entries, stats, the front page's steps and the wall's marks; never prose. */
+@supports (animation-timeline: view()) {
+  .snypd-entries > li, .snypd-stat, .snypd-home .snypd-steps ol > li, .snypd-logo-wall li {
+    animation: snypd-rise linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 35%;
+  }
+  @keyframes snypd-rise { from { translate: 0 var(--space-rise); } to { translate: 0 0; } }
+  /* The counters: `@property` makes `--n` an integer the timeline can drive — the renderer sets it inline
+     from the stat's own value (stat.tsx) and it inherits into a `::before` that counts from 0 up to it,
+     `counter-reset` reading the number and painting it in the page's own background over the real one,
+     which stays in the DOM as text. Once the count has run, the overlay steps aside (`visibility`, a second
+     keyframe on the same timeline) and the real text is what a reader selects. */
+  @property --n { syntax: "<integer>"; initial-value: 0; inherits: true; }
+  .snypd-stat-value[data-n] { position: relative; }
+  .snypd-stat-value[data-n]::before {
+    content: counter(n) attr(data-unit) / "";
+    counter-reset: n var(--n);
+    position: absolute; inset: 0; background: var(--color-bg); pointer-events: none;
+    animation: snypd-count linear both, snypd-uncover linear both;
+    animation-timeline: view(); animation-range: entry 0% entry 45%, entry 45% entry 46%;
+  }
+  @keyframes snypd-count { from { --n: 0; } }
+  @keyframes snypd-uncover { to { visibility: hidden; } }
+}
+/* A reader who asked for reduced motion: no rise, no count — the numbers as written. */
+@media (prefers-reduced-motion: reduce) {
+  .snypd-entries > li, .snypd-stat, .snypd-home .snypd-steps ol > li, .snypd-logo-wall li, .snypd-stat-value[data-n]::before { animation: none; }
+  .snypd-stat-value[data-n]::before { content: none; }
+}

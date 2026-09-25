@@ -1,0 +1,9 @@
+piece: toc/block
+from: technical
+line: A contents list at the top of a post, in flow — two columns once there is room, one on a phone; it marks where the reader is in Chrome 140+.
+reads: [space.1, space.2, space.3, space.4, color.border, color.accent, color.surface, color.muted, radius, size.small, font.ui]
+emits: [snypd-toc, snypd-toc-label]
+settings:
+  - { id: tocDepth, type: select, label: "Contents depth", group: Posts, default: "3", options: ["2", "3", "0"], info: "How deep the contents list on a post goes: 2 is section headings only, 3 includes their sub-headings, 0 turns it off." }
+parts:
+  toc: ./part.tsx

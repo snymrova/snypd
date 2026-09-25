@@ -1,0 +1,6 @@
+/* fit — a chart, a diagram or a flow shrinks to its drawing and centres itself on the track (docs/19 §2 · 2),
+   so its caption starts under its own left edge rather than the track's: one edge per figure, not two. The
+   caption must not set the figure's width — a long sentence's max-content is the whole track — so it is
+   taken out of the figure's intrinsic size with inline-size containment and wraps under the drawing. */
+figure:is(.snypd-chart, .snypd-diagram, .snypd-flow) { justify-self: center; width: fit-content; max-width: 100%; }
+figure:is(.snypd-chart, .snypd-diagram, .snypd-flow) > figcaption { contain: inline-size; }

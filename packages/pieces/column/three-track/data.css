@@ -1,0 +1,2 @@
+/* data — a code block and a table are the content here, and the width they need is the width they get. */
+.snypd-post > pre, .snypd-post > table { grid-column: wide; }

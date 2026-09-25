@@ -1,0 +1,7 @@
+piece: wall/marquee
+from: studio
+line: Marks that scroll — on one baseline under a hairline, softened until pointed at; a `marquee` wall runs, pauses under the pointer, and stands still on a phone or under reduced motion.
+reads: [font.display, size.small, space.2, space.3, space.4, space.5, color.muted, color.border, motion.quick, size.mark, motion.marquee]
+needs:
+  size.mark: 2.5rem
+  motion.marquee: 28s

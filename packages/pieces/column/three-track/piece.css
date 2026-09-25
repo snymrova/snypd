@@ -1,0 +1,29 @@
+/* column/three-track — carved from technical and editorial, which agree on everything but the gap and on
+   whether code and tables break out (the two switches). Everything a layout emits lands in `text` unless
+   it is a figure, which is the only thing in the vocabulary that earns more width. */
+:root {
+  --content: min(100% - var(--space-4) * 2, var(--measure));
+  --breakout: min(100% - var(--space-4) * 2, var(--measure-breakout));
+  /* The three tracks as one value, so a piece that lays something else on the page's grid — a band, a
+     footer — names the same tracks instead of restating them. */
+  --tracks:
+    [full-start] 1fr
+    [wide-start] calc((var(--breakout) - var(--content)) / 2)
+    [text-start] var(--content) [text-end]
+    calc((var(--breakout) - var(--content)) / 2) [wide-end]
+    1fr [full-end];
+}
+main {
+  display: grid;
+  grid-template-columns: var(--tracks);
+  padding-block: var(--space-5) var(--space-6);
+  /* `p` has no margin, so every break in the column is this one number. */
+  row-gap: var(--space-4);
+}
+main > *, .snypd-post > * { grid-column: text; }
+.snypd-post { display: contents; }
+
+figure.snypd-chart, figure.snypd-diagram, figure.snypd-flow,
+.snypd-figure[data-width="wide"] { grid-column: wide; }
+/* Here and not in `house`: it has to come after `main > *` to beat it, and house is the first sublayer. */
+.snypd-figure[data-width="full"] { grid-column: full; }

@@ -16,7 +16,8 @@ import { generate, generateTheme } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
 import { loadConfig, lintSite, MdastCache, SiteIndex, renderThemeSummary, INDEX_DIR } from "@snypd/core";
-import { pageSuite } from "./page";
+import { pageSuite, pickRoutes } from "./page";
+import { buildAndServe } from "./gallery";
 import { suggestMetrics, scoreSuggest, formatSuggestScore, SUGGEST_CORPUS } from "./suggest";
 import { renderChart, renderDiagram, renderFlow, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
 import pkg from "../package.json";
@@ -565,6 +566,30 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
 }
 
 /**
+ * The page suite over a *site* (W0, docs/37 §1): `bench` › run `page` from an agent building a theme.
+ *
+ * `page` above is the product's harness — the theme fixture, a second theme's lane, the Desk, a scratch
+ * first run — and it writes `bench/page.json` where it runs. Asked from a site, it built the site's
+ * `dist/`, measured the Desk and a fresh scaffold, and said nothing about the candidate: the trial's
+ * agents read a green gate that had never seen their theme. This measures one theme on this site's own
+ * pages, out of band (the switch `look` and `shoot` make), drafts included as the preview shows them,
+ * against this site's budgets and the theme's own font budget — and writes nothing but a scratch build
+ * it removes.
+ */
+export async function sitePage(opts: { root: string; theme?: string; variation?: string }): Promise<Report & { theme: string; routes: string[] }> {
+  ACTIVE = budgetsFor(opts.root);
+  const live = loadConfig(opts.root).config.theme;
+  const theme = opts.theme ?? live.use, variation = opts.theme ? opts.variation : (opts.variation ?? live.variation);
+  const who = `${theme}${variation ? ` › ${variation}` : ""}`;
+  const s = await buildAndServe(opts.root, { theme, variation, slug: `${theme}${variation ? `-${variation}` : ""}` }, "page", { drafts: true });
+  try {
+    const routes = pickRoutes(s.dist);
+    const { metrics } = await pageSuite({ root: opts.root, url: s.url, routes, label: who, jsKb: ACTIVE.jsKb, fontKb: s.fontKb });
+    return { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics, theme: who, routes };
+  } finally { s.stop(); }
+}
+
+/**
  * The second theme, over the same fixture, at the same two widths (U6b) — the design pass, kept.
  *
  * **A prefix and not more routes on `page.*`.** The editorial lane's worst-of has been comparable session
@@ -675,6 +700,7 @@ export async function suggest(opts: { root?: string } = {}): Promise<Report> {
   writeFileSync("bench/suggest.md", `${toMarkdown(report)}\n\n\`\`\`\n${formatSuggestScore(scoreSuggest(root))}\n\`\`\`\n`);
   return report;
 }
+export { carve, compareCarves, formatCarve, normalHtml, type CarveResult, type CarveFile, type CarveChange } from "./carve";
 export { scoreSuggest, formatSuggestScore, suggestMetrics, factsReport, SUGGEST_CORPUS } from "./suggest";
 
 /**

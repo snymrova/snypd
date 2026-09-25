@@ -1,0 +1,6 @@
+piece: notes/sidenotes
+from: editorial
+line: Footnotes in the margin — once there is room beside the column, each note stands next to its line, always visible; the list at the end is the printed version.
+reads: [font.ui, size.small, space.2, space.3, space.5, color.muted, color.border, measure.sidenote]
+needs:
+  measure.sidenote: "clamp(9rem, calc((100vw - var(--measure)) / 2 - 3rem), 14rem)"

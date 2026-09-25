@@ -1,0 +1,8 @@
+piece: blocks/ruled
+from: technical
+line: The fourteen primitives as reference — bordered surfaces with an accent rule, mono figures, numbered steps underlined, questions as a folded tree.
+reads: [font.ui, font.mono, size.small, size.h2, size.h3, leading.tight, space.1, space.2, space.3, space.4, color.surface, color.border, color.accent, color.on-accent, color.text, color.muted, color.bg, color.viz.1, color.viz.2, color.viz.4, radius, motion.quick, size.question, measure.stat, space.step]
+needs:
+  measure.stat: 9rem
+  size.question: 1rem
+  space.step: 2.6rem

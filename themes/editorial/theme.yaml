@@ -1,12 +1,12 @@
 # The editorial theme: a reading-first typographic skin over `base`.
 #
-# It declares no layouts and no primitives of its own. Every one of the 14 primitives and all 6 layouts
-# resolve up the `extends:` chain to `base`, whose markup is semantic and carries one `snypd-<name>` class
-# per primitive — which is exactly what `base`'s personality promises. So this theme is tokens plus one
-# stylesheet plus one part — the masthead — and the *only* way it can drift from the vocabulary is if
-# `base` does.
+# It declares no layouts, no primitives, no parts and no stylesheet of its own (P3, docs/36 §6). Every one
+# of the 14 primitives and all 6 layouts resolve up the `extends:` chain to `base`, whose markup is semantic
+# and carries one `snypd-<name>` class per primitive. The look is pieces — the shelf in `packages/pieces`,
+# half of it carved from this very sheet — and a token set; `snypd bench carve` proved the pieces render
+# every page the sheet rendered, element by element.
 #
-# Dark mode costs nothing here: every colour token is a `light-dark()` pair and `theme.css` sets
+# Dark mode costs nothing here: every colour token is a `light-dark()` pair and `prose/book` sets
 # `color-scheme: var(--color-scheme)`, which defaults to `light dark`, so the browser picks — and a
 # variation that wants to commit sets the one token instead of restating the palette (U6a). That also
 # settles viz — `@snypd/viz` paints its label halo in `Canvas` (docs/07 decision 18), the page's own
@@ -15,7 +15,6 @@ theme: editorial
 version: 0.1.0
 spec: ^1
 extends: base
-css: ./theme.css
 # ── The one webfont this theme ships (B1, decision 118). Source Serif 4, Adobe's text serif, OFL 1.1 —
 # subsetted to Latin, `opsz` pinned, `wght` left as a 400–700 range so body, headings and `strong` all
 # come out of one file. 30.33 KB on the wire against a 40 KB lane; `scripts/vendor-font.sh` is what made
@@ -31,7 +30,7 @@ css: ./theme.css
 # something real — roman and italic as single weights is 38.95 KB with no bold at all, which is a
 # synthesised heading on every page against a synthesised `<em>` in some paragraphs. Emphasis is the
 # cheaper thing to lose, and if the lane ever moves, the italic is the first thing to buy with it. Note
-# that `theme.css` turns off synthesised *weight* and not synthesised *style*: 400–700 is real, so faux
+# that `prose/book` turns off synthesised *weight* and not synthesised *style*: 400–700 is real, so faux
 # bold would only ever be worse than the axis, while a slanted roman is the only emphasis `<em>` has.
 font:
   family: Source Serif 4
@@ -46,9 +45,21 @@ font:
     ascent-override: 97.6%
     descent-override: 31.6%
     line-gap-override: 0%
-# One part overridden, three inherited (U1). The shell, footer and entry list are `base`'s.
-parts:
-  header: ./parts/header.tsx
+# One piece per question (docs/36 §2). `nameplate` ships the masthead part; the rest is CSS over base's
+# markup. The footer is technical's band, a step roomier; the notes stand in the margin once there is room.
+pieces:
+  column:    three-track
+  prose:     book
+  code:      quiet
+  blocks:    surface
+  cover:     quiet
+  masthead:  nameplate
+  entries:   list
+  post-foot: band
+  footer:    { use: line, roomy: true }
+  notes:     sidenotes
+  wall:      row
+  motion:    glide
 # No `locations:` of its own: `header` and `footer` are inherited from `base`, and the masthead renders
 # the header menu beside the brand (U2).
 # What this theme lets a site choose without writing CSS (U3, docs/09 §4.2). Declared here, answered in
@@ -111,7 +122,7 @@ personality: >-
   sparingly. Figures, charts, diagrams and flows break out of the column; nothing else does. Zero JS.
 
 tokens:
-  # ── Colour. Every value is a light-dark() pair; `color-scheme: var(--color-scheme)` in theme.css does the rest.
+  # ── Colour. Every value is a light-dark() pair; `color-scheme: var(--color-scheme)` in `prose/book` does the rest.
   color.scheme:    { default: "light dark", customisable: true, kind: keyword, description: "What `color-scheme` this theme asks the browser for, and therefore which side of every light-dark() pair resolves. `light dark` follows the reader; `dark` or `light` commits." }
   color.bg:        { default: "light-dark(#fdfcfa, #12110f)", customisable: true, kind: color, description: "Page background." }
   color.surface:   { default: "light-dark(#f4f1ea, #1c1a17)", customisable: true, kind: color, description: "Raised blocks — callout, cta, tldr." }
@@ -177,7 +188,7 @@ tokens:
   # a 55-character line, and a line that short makes the eye return more often than it reads.
   measure:      { default: "37rem", customisable: true, kind: size, description: "Width of the reading column — the theme's single most opinionated number." }
 
-  # ── Space. One ratio, six steps; every gap in theme.css is one of these.
+  # ── Space. One ratio, six steps; every gap in its pieces is one of these.
   space.1: { default: "0.25rem", customisable: true, kind: size, description: "Hairline gap." }
   space.2: { default: "0.5rem",  customisable: true, kind: size, description: "Inside a line." }
   space.3: { default: "1rem",    customisable: true, kind: size, description: "Between paragraphs." }
@@ -185,3 +196,7 @@ tokens:
   space.5: { default: "3rem",    customisable: true, kind: size, description: "Between sections." }
   space.6: { default: "5rem",    customisable: true, kind: size, description: "Page top and bottom." }
   radius:  { default: "4px",     customisable: true, kind: size, description: "Corner radius; small on purpose." }
+
+  # ── The column's breakout and the motion: the two values where this theme is not the pieces' default.
+  measure.breakout: { default: "calc(var(--measure) + 14rem)", description: "How far a chart, diagram or wide figure may leave the column — two rems more than technical's." }
+  motion.quick:     { default: "200ms", description: "The accordion's `+` turning. A beat slower than the pieces' 150 ms; nobody reading a magazine is in a hurry." }

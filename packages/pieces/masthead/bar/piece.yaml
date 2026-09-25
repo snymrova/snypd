@@ -1,0 +1,12 @@
+piece: masthead/bar
+from: studio
+line: A sticky translucent bar — the name or logo in the display face and the menu, blurring what scrolls under it, opaque once stuck. No tagline.
+reads: [font.display, size.small, size.body, space.2, space.4, space.5, color.text, color.bg, color.border, color.accent, motion.quick, size.masthead, size.blur, size.brand, size.brand-stuck, measure.logo]
+needs:
+  size.masthead: 4rem
+  size.blur: 14px
+  size.brand: 1.15rem
+  size.brand-stuck: 1rem
+  measure.logo: 12rem
+parts:
+  header: ./part.tsx

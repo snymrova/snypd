@@ -1,0 +1,18 @@
+/* cover/display — carved from studio. The eyebrow in the display face above, the subtitle at a size that
+   reads from across the room under, and the picture under both. */
+.snypd-eyebrow {
+  font: 500 var(--size-small) / 1.2 var(--font-display);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--color-accent); margin-bottom: var(--space-3);
+}
+.snypd-subtitle { font-size: var(--size-h3); line-height: 1.35; color: var(--color-muted); margin-top: var(--space-4); max-width: var(--measure-deck); text-wrap: pretty; }
+/* The cover's *image* — not its media and never the still beside a clip, whose `display` is `base`'s to
+   decide: a `display: block` here reached the still and it covered the reel on every load (docs/18). */
+.snypd-cover > img:not(.snypd-cover-media) { display: block; width: 100%; margin-top: var(--space-4); border-radius: var(--radius); background: var(--color-surface); }
+/* A cover's media is a picture under the title, like its image. No `display` here: which of the clip and
+   its still is shown is `base`'s sheet's decision (reduced motion, the motion control), in a lower layer,
+   and a `display: block` in this one would override it both ways. */
+.snypd-cover-media { vertical-align: top; width: 100%; margin-top: var(--space-4); border-radius: var(--radius); background: var(--color-surface); }
+.snypd-byline { font: var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted); margin-bottom: var(--space-5); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border); }
+/* Here and not in `house`: prose's `a` comes after house and would win. */
+.snypd-byline a { color: inherit; }

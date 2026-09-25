@@ -1,0 +1,4 @@
+piece: notes/cards
+from: technical
+line: Footnotes as base shows them — a card on hover or focus, in the theme's surface — and the ruled list at the end.
+reads: [font.body, size.small, space.3, space.5, color.text, color.muted, color.surface, color.border, radius]

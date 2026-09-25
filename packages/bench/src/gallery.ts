@@ -90,7 +90,7 @@ export interface GalleryOptions {
  * One look, built into its own `dist-<purpose>-<slug>-<pid>` with its own index and served on a free port — the
  * loop `gallery` and `shoot` (docs/29 TF2) share, so the out-of-band theme switch lives in one place.
  */
-export async function buildAndServe(root: string, look: Pick<Look, "theme" | "variation" | "slug">, purpose: string):
+export async function buildAndServe(root: string, look: Pick<Look, "theme" | "variation" | "slug">, purpose: string, opts: { drafts?: boolean } = {}):
   Promise<{ url: string; dist: string; fontKb: number; stop: () => void }> {
   const cfg = loadConfig(root, { theme: look.theme, variation: look.variation });
   const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
@@ -101,7 +101,8 @@ export async function buildAndServe(root: string, look: Pick<Look, "theme" | "va
   const dist = join(root, `dist-${tag}`);
   const indexFile = join(root, INDEX_DIR, `index.${tag}.sqlite`);
   const index = await SiteIndex.open(root, indexFile);
-  try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
+  // `drafts` for `theme` › look (W0): the preview it stands in for shows drafts, so a candidate is seen on the same pages.
+  try { await build(root, { out: dist, cfg, index, drafts: opts.drafts }); } finally { index.close(); }
   const s = serve(root, { dist });
   return { url: s.url, dist, fontKb, stop: () => { s.stop(); for (const f of [dist, indexFile, `${indexFile}-wal`, `${indexFile}-shm`]) rmSync(f, { recursive: true, force: true }); } };
 }
