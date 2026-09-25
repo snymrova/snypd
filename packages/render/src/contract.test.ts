@@ -7,7 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { themeContract } from "@snypd/spec";
-import { cssRules, literalHits, ruleKey, selectorClasses, selectorHits } from "./contract";
+import { bareElements, cssRules, literalHits, ruleKey, selectorClasses, selectorHits } from "./contract";
 
 const REPO = join(import.meta.dir, "../../..");
 const contract = themeContract();
@@ -128,5 +128,14 @@ describe("piece.selector", () => {
     const css = `.snypd-masthead .snypd-brand { gap: 1em } .snypd-card { margin: 0 } pre.language-ts { tab-size: 2 } .snypd-ledger-row { margin: 0 }`;
     const hits = selectorHits(css, [...contract.classes, "snypd-ledger-row"], contract.classPrefixes);
     expect(hits.map((h) => h.cls)).toEqual(["snypd-card"]);
+  });
+});
+
+describe("residue.bare (W0, docs/37 §1.4)", () => {
+  test("an element named by its tag alone is found, with the classes above it; a classed last compound is not", () => {
+    expect(bareElements("a")).toEqual([{ tag: "a", classes: [] }]);
+    expect(bareElements("main a:hover, .snypd-cta > a")).toEqual([{ tag: "a", classes: [] }, { tag: "a", classes: ["snypd-cta"] }]);
+    expect(bareElements(".snypd-button, a.snypd-button, a[href], #x, body, html, *, ::selection")).toEqual([]);
+    expect(bareElements("main :is(h2, h3)")).toEqual([]);
   });
 });

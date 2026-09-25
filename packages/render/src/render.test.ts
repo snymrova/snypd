@@ -6,6 +6,7 @@ import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loa
 import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, expandSeed, writeSeed, LIVE_ROUTE, SiteIndex } from "@snypd/core";
 import { preview } from "./preview";
 import { checkTheme, checkPlugin, formatCheck, unguardedCss } from "./check";
+import { cssRules } from "./contract";
 import { staticTaste, tasteVerdicts, foldRendered, chosenRules, designVerdict, judgedAt, leadFamily, type TasteMeasure } from "./taste";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
@@ -2874,6 +2875,31 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     const y = join(root, "themes/fresh/theme.yaml");
     writeFileSync(y, readFileSync(y, "utf8").replace(/personality: >-[\s\S]*?\n\ntokens:/, "personality: Quiet, narrow, and grey.\n\ntokens:"));
     expect((await checkTheme(root, "fresh")).ok).toBe(true);
+  });
+
+  test("W0: a scaffold over a parent on pieces gets a sheet with no rules — nothing in the theme layer to beat the pieces", async () => {
+    const r = scaffoldTheme(root, { name: "over-pieces", extends: "editorial" });
+    expect(r.pieces).toContain("blocks: surface");
+    const css = readFileSync(join(root, "themes/over-pieces/theme.css"), "utf8");
+    expect(cssRules(css)).toEqual([]);
+    expect(css).toContain("one bold move");
+    const c = await checkTheme(root, "over-pieces");
+    expect(rule(c, "pieces.residue").status).toBe("pass");
+    expect(c.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["meta.personality"]);
+    // Over `base` (no pieces) the starter still carries the rules a sheet on its own needs.
+    expect(scaffoldTheme(root, { name: "over-base" }).pieces).toEqual([]);
+    expect(readFileSync(join(root, "themes/over-base/theme.css"), "utf8")).toContain("a { color: var(--color-accent); }");
+  });
+
+  test("W0: a bare element in the theme's own sheet is residue over its pieces; one under a class of the theme's own is not", async () => {
+    scaffoldTheme(root, { name: "bare", extends: "editorial" });
+    writeFileSync(join(root, "themes/bare/theme.css"), "a { color: var(--color-accent); }\n.snypd-cta a:hover { text-decoration: none; }\n.snypd-own dd a { color: inherit; }\nmain p { text-wrap: pretty; }\n");
+    const d = rule(await checkTheme(root, "bare"), "pieces.residue");
+    expect(d.status).toBe("warn");
+    expect(d.detail).toContain("theme.css:1 a (bare — over every piece's <a>");
+    expect(d.detail).toContain("theme.css:2 a (bare — over every piece's <a> in .snypd-cta");
+    expect(d.detail).not.toContain("theme.css:3");
+    expect(d.detail).not.toContain("theme.css:4");
   });
 
   test("TF3: three seeded scaffolds pass every contrast rule of the real gate, on every side and look", async () => {

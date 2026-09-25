@@ -87,6 +87,8 @@ export interface LookOptions {
   since?: "last" | "none";
   /** `outline` returns landmarks and headings as text, and no picture. */
   view?: "picture" | "outline";
+  /** The theme (or `theme › variation`) at `url` when it is not the live one (W0): in the label, and in the key, so `since` compares a candidate with itself. */
+  theme?: string;
 }
 
 export interface LookFact {
@@ -472,8 +474,8 @@ async function evaluate<T>(page: Page, expression: string): Promise<T> {
 const intersects = (a: Box | number[], b: Box) => a[0]! < b[0] + b[2] && a[0]! + a[2]! > b[0] && a[1]! < b[1] + b[3] && a[1]! + a[3]! > b[1];
 
 /** The look's key for before/after: everything that decides what the crop should look like. */
-export const lookKey = (o: { route: string; slot?: string; selector?: string; width: number; scheme: string; state: string }) =>
-  createHash("sha1").update(JSON.stringify([o.route, o.slot ?? "", o.selector ?? "", o.width, o.scheme, o.state])).digest("hex").slice(0, 12);
+export const lookKey = (o: { route: string; slot?: string; selector?: string; width: number; scheme: string; state: string; theme?: string }) =>
+  createHash("sha1").update(JSON.stringify([o.route, o.slot ?? "", o.selector ?? "", o.width, o.scheme, o.state, ...(o.theme ? [o.theme] : [])])).digest("hex").slice(0, 12);
 
 /** Keep the newest `KEEP` looks' directories and drop the rest. */
 function prune(dir: string): void {
@@ -557,7 +559,7 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
   const dir = join(opts.cacheDir, id);
   mkdirSync(dir, { recursive: true });
   const status = settled.status;
-  const label = `${opts.selector ?? opts.slot ?? "page"} · ${route} · ${width} ${scheme}${state === "rest" ? "" : ` · ${state}`}`;
+  const label = `${opts.theme ? `${opts.theme} · ` : ""}${opts.selector ?? opts.slot ?? "page"} · ${route} · ${width} ${scheme}${state === "rest" ? "" : ` · ${state}`}`;
 
   if (view === "outline") {
     const text = await evaluate<string>(page, call(outline, SLOT_SELECTORS));
@@ -618,7 +620,7 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
   writeFileSync(files.full!, Buffer.from(full, "base64"));
 
   // Before/after: the last clean crop at this key, compared in a blank tab of the same browser.
-  const key = lookKey({ route, slot: opts.slot, selector: opts.selector, width, scheme, state });
+  const key = lookKey({ route, slot: opts.slot, selector: opts.selector, width, scheme, state, theme: opts.theme });
   const lastPng = join(opts.cacheDir, `last-${key}.webp`), lastJson = join(opts.cacheDir, `last-${key}.json`);
   const tasteNow = problems.filter((p) => p.rule.startsWith("taste.") && !p.outside).length;
   let delta: LookResult["delta"];

@@ -189,3 +189,24 @@ If W7's pieces path is cheap and still loses to A on sight, the shelf is too car
 1. **Launch chores stay parked?** Decision 272 put themes first and alone; L7 and the TF proof sitting are still waiting behind this plan.
 2. **The board sitting in W4** — about an hour, on the boards, to pass or park each drawn piece.
 3. **275–280.**
+
+---
+
+## 12. W0 — built 25 Sep 2026
+
+**The agent's path now leads to the shelf.** Seven of W0's items, plus docs/38's prefix measurement, in one session. 
+
+| Item | What changed | Where |
+|---|---|---|
+| `build-theme` pieces-first | Nine steps instead of ten. Step 1 reads `snypd://theme/pieces` first. A card is a parent, the slots it changes, a seed, a face and one bold move. Each candidate extends the nearest shipped theme on pieces (`editorial` · `technical` · `studio`) unless `extends` is given. Step 5 looks before any CSS, and the first fix is another piece. The picture and the pick stay the owner's. 3,851 → **3,233 tokens** (the rubric is 1,002 of them) | `packages/mcp/src/prompts.ts` |
+| `look` takes a theme | `name` (and `variation`) render a theme that is not live, built out of band with drafts through `buildAndServe`, the switch `shoot` and `check theme` already make. The site is not switched, the scratch build is removed, and the label and `since` key carry the theme, so a candidate is compared with itself. A wrong name or variation is refused with the list. ~3.3 s on Ferrule, build included | `packages/mcp/src/catalog.ts` `lookAt`, `bench/src/look.ts`, `gallery.ts` |
+| `bench page` on the site's theme | `bench` › run `suite: "page"` from a session is now `sitePage`: one theme (`themes: ["x"]`, or the live one) on this site's own routes (`pickRoutes`, up to 8) at 1280 + 390, against this site's budgets and the theme's own font budget. It writes nothing but a scratch build. `snypd bench page` in the repo is still the product harness. ~42 s on Ferrule | `bench/src/index.ts` `sitePage` |
+| `seed` arguments | `name`'s description now says `seed` fills the scaffolded theme it names (and `look` sees it). The prompt's step 4 spells out every argument | catalog schema |
+| The layer note | Step 6 of the prompt, 324 tokens: the five layers in order; a later layer wins whatever the specificity; a bare `a {}` or `main {}` in `theme.css` beats every piece; base's behaviour rules sit in `snypd.base`; `needs:`; `pieces.residue` | prompt §6 |
+| `cover/quiet` | The still no longer shows under the reel: the `display: block` on `.snypd-cover-media` is gone (the fix cover/display got in docs/18). The plain cover image keeps it | `pieces/cover/quiet/piece.css` |
+| hairline × book | **Not a shelf bug.** The pair renders correctly at rest and on hover, light and dark (carve + look on Ferrule, 2 schemes: pill = `color.text`, label = `color.bg`). The trial's accent-on-black pill came from **the scaffold**. `starterCss` writes `a { color: var(--color-accent) }` and `main { width; margin-inline }`, both in `snypd.theme`, above every piece. Fixed in two places: (1) a scaffold over a parent on pieces now gets a `theme.css` with **no rules**, only what the sheet is for, and the result names the pieces it inherits; (2) `pieces.residue` now also names a **bare element** rule that paints or lays out (`color`, `background`, `display`, `border`, `font`, `padding`, `margin`, `text-decoration`) where the selector names no class, or only classes a piece styles. `.snypd-facts dd a` (studio's own layout) passes; studio's count is unchanged at 4 | `core/src/scaffold.ts`, `render/src/check.ts`, `contract.ts` `bareElements` |
+| The prefix (docs/38 §9) | snypd's own: `initialize` 162 tokens; `tools/list` before `find_tools` **2,237** (11 tools); the whole catalogue 3,224 (`theme` 1,433). docs/32's "~67k per session" is the **harness's** whole tool list, not snypd's. So §6's 50k gate depends on the harness deferring its own tools, and W7 has to run on one that does | measured o200k, Ferrule |
+
+**Tests:** `contract.test.ts` (bare elements), `render.test.ts` (scaffold over pieces has no rules and checks clean; bare residue caught, scoped residue not), `mcp.test.ts` (`look { name }` refuses a wrong name or look, renders `technical` without touching `snypd.yaml`, leaves no `dist-look-*`; the prompt names the shelf, `look { name }`, the site page gate and the layer note, and no longer names `snypd bench page`).
+
+**Not done in W0:** re-running the trial (§8 says after W0; it needs a fresh subagent run, ~130k tokens, and belongs in the session that starts W1 so the number is on the same shelf). The `look` reporting findings outside `slot` and the `contrast.rendered` 1.07:1 flag on Ferrule's brand (25 Sep) are still open. `scaffold` still writes no `pieces:` block of its own; a candidate names the slots it changes by hand until `compose` (W5).

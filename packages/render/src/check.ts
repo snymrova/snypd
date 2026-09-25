@@ -38,7 +38,7 @@ import {
 } from "@snypd/core";
 import { themeContract } from "@snypd/spec";
 import { loadTheme, pieceCss, type Theme, LAYOUT_NAMES } from "./theme";
-import { cssRules, literalHits, selectorClasses, selectorHits } from "./contract";
+import { bareElements, cssRules, literalHits, selectorClasses, selectorHits } from "./contract";
 import { applyChosen, chosenRules, designVerdict, plainCss, staticTaste } from "./taste";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
@@ -309,9 +309,18 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     if (own !== undefined) {
       const styled = new Map<string, string>();
       for (const { css, piece } of pieceSources) for (const r of cssRules(css)) for (const c of selectorClasses(r.selector)) if (!styled.has(c)) styled.set(c, piece.id);
-      const over = cssRules(own).flatMap((r) => selectorClasses(r.selector).filter((c) => styled.has(c)).map((c) => `${basename(String(yaml.css))}:${r.line} .${c} (${styled.get(c)})`));
+      const over = cssRules(own).flatMap((r) => [
+        ...selectorClasses(r.selector).filter((c) => styled.has(c)).map((c) => `${basename(String(yaml.css))}:${r.line} .${c} (${styled.get(c)})`),
+        // A bare `a { color }` is the same takeover without naming a class: it beats blocks/hairline's
+        // `.snypd-button` on every <a> it is (the trial's accent-on-black pill, docs/37 §1.4). Only rules
+        // that paint or lay out, and only where the element is not scoped under a class of the theme's own
+        // (`.snypd-facts dd a` is studio's layout, which no piece draws).
+        ...(r.decls.some(([p]) => /^(color$|background|display$|border|font|padding|margin|text-decoration)/.test(p))
+          ? bareElements(r.selector).filter((b) => !b.classes.length || b.classes.some((c) => styled.has(c)))
+            .map((b) => `${basename(String(yaml.css))}:${r.line} ${b.tag} (bare — over every piece's <${b.tag}>${b.classes.length ? ` in .${b.classes[0]}` : ""}, classed or not)`) : []),
+      ]);
       add("pieces.residue", over.length ? "warn" : "pass",
-        over.length ? `${over.length} rule${over.length === 1 ? "" : "s"} in the theme's own sheet style a class its pieces style, and win over them whatever the specificity: ${over.slice(0, 6).join("; ")}${over.length > 6 ? `; +${over.length - 6} more` : ""} — move the rule into the piece, or take the slot off the theme and keep the rule`
+        over.length ? `${over.length} rule${over.length === 1 ? "" : "s"} in the theme's own sheet style what its pieces style, and win over them whatever the specificity: ${over.slice(0, 6).join("; ")}${over.length > 6 ? `; +${over.length - 6} more` : ""} — move the rule into the piece, or take the slot off the theme and keep the rule`
           : "the theme's own sheet styles no class its pieces style", String(yaml.css));
     }
   }

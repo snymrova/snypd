@@ -159,6 +159,24 @@ export function selectorClasses(selector: string): string[] {
 }
 
 /**
+ * The elements a selector styles by their tag alone — `a`, `main a:hover`, `.snypd-cta a` → `a` — one per
+ * comma part, with the classes that part names above it. A part whose last compound carries a class, an id
+ * or an attribute gives none: the last compound is what gets the declarations, so `.snypd-cta a` styles
+ * every link in a cta whatever class the link has. `html`, `body` and `*` are left out: what they set
+ * reaches a piece's element by inheritance, which any rule on the element itself beats.
+ */
+export function bareElements(selector: string): { tag: string; classes: string[] }[] {
+  const out: { tag: string; classes: string[] }[] = [];
+  for (const part of selector.replace(/\([^()]*\)/g, "()").split(",")) {
+    const last = part.trim().split(/\s*[\s>+~]\s*/).pop() ?? "";
+    if (/[.#[]/.test(last)) continue;
+    const tag = last.split(":")[0]!.toLowerCase();
+    if (tag && !["html", "body", "*"].includes(tag)) out.push({ tag, classes: selectorClasses(part) });
+  }
+  return out;
+}
+
+/**
  * Every class a piece's CSS styles that is not in `allowed` — base's contract plus the piece's own
  * `emits:` — and matches none of `prefixes` (`language-`, the class a fenced code block carries).
  */

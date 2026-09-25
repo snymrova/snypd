@@ -416,7 +416,9 @@ switch (verb) {
       const committed = Repo.open(root)?.commit(r.files, `${kind}: scaffold ${r.name}${r.extends ? ` extends ${r.extends}` : ""}`);
       if (committed?.committed) say.push(`committed ${committed.sha!.slice(0, 8)} on ${committed.branch}`);
       say.push("", kind === "theme"
-        ? `Fill DESIGN.md, then write theme.css. Everything else already renders — all 14 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
+        ? r.pieces?.length
+          ? `Fill DESIGN.md, then change the pieces you want different (\`pieces:\` in theme.yaml, snypd://theme/pieces) \u2014 \`${r.extends}\`'s draw the rest: ${r.pieces.join(" \u00b7 ")}. theme.css has no rules; keep it for the one bold move.`
+          : `Fill DESIGN.md, then write theme.css. Everything else already renders — all 14 primitives and all 6 layouts come from \`${r.extends}\`${r.inheritedTokens ? `, and ${r.inheritedTokens} tokens come with them` : `, which declares no tokens, so theme.yaml starts with the twelve this stylesheet names`}.`
         : `Write slots/note.tsx, then add \`${r.name}\` to \`plugins:\` in snypd.yaml. The manifest lists the other four tiers as one commented line each.`,
         `\`snypd check ${kind} ${r.name}\` says whether it is shelf-ready; \`snypd dev\` shows it.`);
       console.log(say.join("\n"));

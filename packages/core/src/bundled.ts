@@ -334,7 +334,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "cover/quiet": {
-    hash: "6d72547544d6bdf6011b5cd038afff86c8d1e381",
+    hash: "a057ef39ba9bffba9aad9f1b2f3680f02278de70",
     files: {
       "piece.css": _piece_cover_quiet_piece_css,
       "piece.yaml": _piece_cover_quiet_piece_yaml,

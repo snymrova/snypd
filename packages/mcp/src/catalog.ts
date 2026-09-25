@@ -45,9 +45,9 @@ export const CATALOG: Tool[] = [
   { name: "theme",
     description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, scaffold a new one, or seed a scaffold's palette and type scale from one colour. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), snypd://theme/coverage for which primitives the active theme actually implements, and snypd://theme/pieces for the pieces a theme can be assembled from (`pieces:` in theme.yaml). `look` is how you see what you changed: one route, one width, one scheme, cropped to one slot, with what is wrong listed first and boxed on the picture — call it after every change to a theme, not only at the end.",
     inputSchema: S({
-      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale · `look` at the site as it renders now — facts as text, one cropped picture, the full page as a link; `view: outline` for landmarks and headings as text, no picture", { enum: ["set", "set_tokens", "set_settings", "scaffold", "seed", "look"] }),
-      name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`: the name of the new theme (also its directory under themes/)"),
-      variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call"),
+      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale · `look` at the site as it renders now, or with `name` as a theme that is not live would render it — facts as text, one cropped picture, the full page as a link; `view: outline` for landmarks and headings as text, no picture", { enum: ["set", "set_tokens", "set_settings", "scaffold", "seed", "look"] }),
+      name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`: the name of the new theme (also its directory under themes/). `seed`: the scaffolded theme to fill. `look`: a theme to see instead of the live one — built on its own, nothing is switched"),
+      variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call. `look`: see that look, with or without `name`"),
       tokens: { type: "object", description: "`set_tokens`: token name → value, e.g. {\"color.accent\": \"#8a3324\"}. A token set to null goes back to the theme's default. Only tokens declared `customisable` can be set — snypd://theme/tokens lists them" },
       settings: { type: "object", description: "`set_settings`: setting id → value, e.g. {\"showDates\": false, \"tagline\": \"Notes on building\"}. A setting set to null goes back to the theme's default. Each is checked against the type the theme declared — snypd://theme/settings lists them with their types and what they mean" },
       extends: str("`scaffold`: the theme the new one inherits every layout, primitive and token from. Default `base`"),
@@ -92,10 +92,10 @@ export const CATALOG: Tool[] = [
     description: "Run snypd's own benchmark suite and read the result. Every speed claim in this project is a number from here with a budget next to it, so this is how you check that a change — a theme, a token, a hundred new posts — did not cost something. `run` takes minutes at full size; `quick` is the same metrics at fewer repetitions. snypd://bench/latest is the last full report and costs nothing to read.",
     inputSchema: S({
       action: str("`run` the suite · `compare` two saved reports · `shoot` themes on every route, width and scheme, into a contact sheet whose per-route PNGs you then read", { enum: ["run", "compare", "shoot"] }),
-      suite: str("`run`: `full` (default) · `quick` · `page` (a real browser: 0 KB JS, axe, CLS) · `visual` (per-primitive render cost) · `suggest` (suggest_blocks precision)", { enum: ["full", "quick", "page", "visual", "suggest"] }),
+      suite: str("`run`: `full` (default) · `quick` · `page` (this site's pages under one theme, in a real browser: 0 KB JS, axe, CLS, the font budget) · `visual` (per-primitive render cost) · `suggest` (suggest_blocks precision)", { enum: ["full", "quick", "page", "visual", "suggest"] }),
       a: str("`compare`: path to the baseline report JSON"),
       b: str("`compare`: path to the new report JSON"),
-      themes: { type: "array", items: { type: "string" }, description: "`shoot`: themes to photograph side by side, `theme` or `theme/variation`; the active theme by default" },
+      themes: { type: "array", items: { type: "string" }, description: "`shoot`: themes to photograph side by side, `theme` or `theme/variation`; the active theme by default. `run` `page`: the one theme to measure on this site's pages — a candidate need not be live" },
       routes: { type: "array", items: { type: "string" }, description: "`shoot`: routes to photograph; the specimen's nine by default, or those of them this site has" },
       scheme: str("`shoot`: `both` (default) · `light` · `dark`", { enum: ["both", "light", "dark"] }),
     }, ["action"]),
@@ -345,10 +345,12 @@ export async function call(root: string, name: string, args: Record<string, unkn
             `scaffolded ${r.dir}/ extending ${r.extends}`,
             `  theme.yaml   tokens and metadata; ${r.inheritedTokens} tokens inherited, none redeclared yet`,
             `  DESIGN.md    the brief \u2014 use scene, visitor mode, the rut, where the boldness goes; fill it before the stylesheet`,
-            `  theme.css    one stylesheet \u2014 the only file you have to write`,
+            r.pieces?.length
+              ? `  theme.css    no rules: \`${r.extends}\`'s pieces draw the site (${r.pieces.join(" \u00b7 ")}) \u2014 swap a slot with \`pieces:\` in theme.yaml; keep this sheet for the one bold move`
+              : `  theme.css    one stylesheet \u2014 the only file you have to write`,
             git,
             `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,
-          ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens });
+          ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens, pieces: r.pieces });
         }
         if (action === "seed") {
           // TF3 (docs/29 §4): the same `expandSeed` + `writeSeed` as `snypd seed`; this door adds the commit.
@@ -669,12 +671,17 @@ export async function call(root: string, name: string, args: Record<string, unkn
         }
         if (action === "run") {
           const suite = typeof args.suite === "string" ? args.suite : "full";
-          const report = suite === "page" ? await bench.page({ root })
+          // `page` from a session is this site's theme (W0) — `snypd bench page` in the repo is the product's harness.
+          const one = (v: unknown) => (Array.isArray(v) && typeof v[0] === "string" ? v[0] : undefined);
+          const [pt, pv] = (one(args.themes) ?? "").split("/");
+          const report = suite === "page" ? await bench.sitePage({ root, theme: pt || undefined, variation: pv || undefined })
             : suite === "visual" ? await bench.visual({})
             : suite === "suggest" ? await bench.suggest({ root })
             : await bench.run({ quick: suite === "quick" });
           const over = bench.breaches(report);
-          return text(`${bench.toMarkdown(report)}\n${over.length ? `❌ ${over.length} budget breach: ${over.join(", ")}` : "✅ every budget met"}`,
+          const site = suite === "page" ? (report as Awaited<ReturnType<typeof bench.sitePage>>) : undefined;
+          const measured = site ? `measured ${site.theme} on ${site.routes.length} of this site's routes (${site.routes.join(", ")}) at two widths\n` : "";
+          return text(`${measured}${bench.toMarkdown(report)}\n${over.length ? `❌ ${over.length} budget breach: ${over.join(", ")}` : "✅ every budget met"}`,
             { ok: true, suite, breaches: over, metrics: report.metrics });
         }
         if (action === "shoot") {
@@ -807,14 +814,28 @@ async function lookAt(root: string, args: Record<string, unknown>, cfgOf: () => 
   if (scheme && scheme !== "light" && scheme !== "dark") return fail(`look takes one scheme at a time: \`light\` or \`dark\`, not \`${scheme}\``, "One picture per call; look again for the other.");
   const state = opt("state");
   if (state && !(eyes.LOOK_STATES as readonly string[]).includes(state)) return fail(`no state "${state}"`, `states: ${eyes.LOOK_STATES.join(", ")}`);
-  const cfg = cfgOf();
+  const live = cfgOf();
   const slot = opt("slot");
+  // W0 (docs/37 §6): `name`/`variation` render a theme that is not live, out of band — `loadConfig(root,
+  // { theme, variation })` into its own build, the switch `bench` › shoot and `check theme` make — so a
+  // candidate is seen without `set` putting it in front of the site. Unset, or naming the live look, it
+  // is the session's preview as before.
+  const other = (opt("name") && opt("name") !== live.config.theme.use) || (opt("variation") && opt("variation") !== live.config.theme.variation);
+  const themeName = opt("name") ?? live.config.theme.use, variation = opt("variation") ?? (opt("name") ? undefined : live.config.theme.variation);
+  let cfg = live;
+  if (other) {
+    const c = await loadCore();
+    cfg = c.loadConfig(root, { theme: themeName, variation });
+    if (!cfg.ok) return fail(`theme "${themeName}"${variation ? ` › ${variation}` : ""} does not load`, c.formatDiagnostics(cfg.diagnostics));
+    const vs = c.themeVariations(cfg).map((v) => v.name);
+    if (variation && !vs.includes(variation)) return fail(`theme "${themeName}" ships no variation "${variation}"`, vs.length ? `It ships: ${vs.join(", ")}.` : "It ships none; look without `variation`.");
+  }
   const cacheDir = join((await import("@snypd/core/paths")).ensureDisposableDir(join(root, ".snypd")), "look");
   const uri = (f: string) => `snypd://look/${relative(cacheDir, f).split(/[\\/]/).join("/")}`;
 
   const blind = async (why: string, hint: string) => {
     const { checkTheme } = await import("@snypd/render/check");
-    const r = await checkTheme(root, cfg.config.theme.use);
+    const r = await checkTheme(root, themeName);
     const shown = r.rules.filter((x) => x.status === "fail" || x.status === "warn");
     return text([
       `no picture — ${why}`,
@@ -824,13 +845,16 @@ async function lookAt(root: string, args: Record<string, unknown>, cfgOf: () => 
     ].join("\n"), { ok: true, picture: false, reason: why, hint, check: { ok: r.ok, rules: shown } });
   };
   if (!eyes.eyesBrowser()) return await blind("no browser on this machine", "`snypd eyes install` fetches chrome-headless-shell (~90 MB) to ~/.cache/snypd once — a person runs it; or set SNYPD_CHROME to any Chromium.");
-  if (!ctx.preview) return fail("no preview server to look at", "`theme` › look runs inside `snypd serve`, which shares the session's preview with content.render_preview.");
+  if (!other && !ctx.preview) return fail("no preview server to look at", "`theme` › look runs inside `snypd serve`, which shares the session's preview with content.render_preview.");
 
-  const server = await ctx.preview();
+  let server: { url: string; stop?: () => void };
+  try { server = other ? await (await import("@snypd/bench")).buildAndServe(root, { theme: themeName, variation, slug: `${themeName}${variation ? `-${variation}` : ""}` }, "look", { drafts: true }) : await ctx.preview!(); }
+  catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
   let r;
   try {
     r = await eyes.look({
       url: server.url, cacheDir, route: opt("route"), slot, selector: opt("selector"),
+      theme: other ? `${themeName}${variation ? ` › ${variation}` : ""}` : undefined,
       // The piece in that slot says which classes it emits: those find the slot before any guess does.
       slotClasses: slot ? cfg.pieces.find((p) => p.slot === slot)?.entry.emits : undefined,
       width, scheme: scheme as "light" | "dark" | undefined, state: state as never, target: opt("target"),
@@ -840,7 +864,7 @@ async function lookAt(root: string, args: Record<string, unknown>, cfgOf: () => 
     const err = e as Error & { hint?: string };
     if (err instanceof eyes.NoBrowserError) return await blind(err.message, err.hint);
     return fail(err.message, err.hint);
-  }
+  } finally { if (other) server.stop?.(); }
   const content: ToolResult["content"] = [{ type: "text", text: eyes.formatLook(r, uri) }];
   if (r.image) content.push({ type: "image", data: r.image.data, mimeType: r.image.mimeType });
   if (r.files.full) content.push({ type: "resource_link", uri: uri(r.files.full), name: "full page", mimeType: "image/webp", description: `${r.route} at ${r.width} px, ${r.scheme}, every problem boxed` });

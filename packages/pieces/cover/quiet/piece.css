@@ -11,8 +11,15 @@
 }
 /* The cover image is the only thing on the page that may leave the reading column; a cover's `media`
    (S29) sits under the title the same way — there is no hero to put it behind. */
-.snypd-cover img, .snypd-cover-media {
+.snypd-cover img:not(.snypd-cover-media) {
   display: block; width: 100%; margin-top: var(--space-4);
+  border-radius: var(--radius); background: var(--color-surface);
+}
+/* No `display` on the media: which of a clip and its still shows is `base`'s decision (reduced motion,
+   the motion control), in a lower layer. A `display: block` here showed the still under the reel on
+   every load (docs/37 §1.4) — the bug cover/display was fixed for in docs/18 and this piece kept. */
+.snypd-cover-media {
+  vertical-align: top; width: 100%; margin-top: var(--space-4);
   border-radius: var(--radius); background: var(--color-surface);
 }
 .snypd-byline {

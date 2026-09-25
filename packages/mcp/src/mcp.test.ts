@@ -1130,6 +1130,13 @@ describe("find_tools + the catalogue", () => {
     // a favourite while it waits has already made the choice.
     expect(bt).toContain("theme` › seed");
     expect(bt).toContain("bench` › shoot");
+    // W0 (docs/37 §6): pieces first — the shelf is the first read, a candidate is seen before it is live,
+    // the page gate measures this site's theme, and the layer note says why a bare rule beats a piece.
+    expect(bt).toContain("`snypd://theme/pieces` — **the shelf.**");
+    expect(bt).toContain('`theme` › look with `name: "<name>-a"`');
+    expect(bt).toContain('`bench` › run `suite: "page"`, `themes: ["<name>"]`');
+    expect(bt).toContain("**6. How pieces combine");
+    expect(bt).not.toContain("snypd bench page");
     expect(bt).toContain("anti-sibling test");
     for (const cand of ["-a", "-b", "-c"]) expect(bt).toContain(`<name>${cand}`);
     expect(bt).toContain("**Wait.** Do not pick.");
@@ -1599,6 +1606,25 @@ describe("theme › look", () => {
       expect(eyes.eyesOpen()).toBe(true);
     } finally { await s.close(); }
     expect(eyes.eyesOpen()).toBe(false);
+  });
+
+  test("W0: `name` looks at a theme that is not live, built on its own — the site is not switched, and a wrong name or look is refused", async () => {
+    const eyes = await import("@snypd/bench/look");
+    const s = createServer(site);
+    try {
+      const nope = (await s.handle(call(1, "theme", { action: "look", name: "nope" }))) as any;
+      expect(nope.result.isError).toBe(true);
+      expect(nope.result.content[0].text).toContain('theme "nope" not found');
+      const noLook = (await s.handle(call(2, "theme", { action: "look", name: "editorial", variation: "nope" }))) as any;
+      expect(noLook.result.content[0].text).toContain('ships no variation "nope"');
+      if (!eyes.eyesBrowser()) return;
+      const live = readFileSync(join(site, "snypd.yaml"), "utf8");
+      const r = (await s.handle(call(3, "theme", { action: "look", name: "technical", view: "outline" }))) as any;
+      expect(r.result.isError).toBeUndefined();
+      expect(r.result.content[0].text).toMatch(/^technical · page · \/ · 1280 light/);
+      expect(readFileSync(join(site, "snypd.yaml"), "utf8")).toBe(live);
+      expect(readdirSync(site).filter((f) => f.startsWith("dist-look-"))).toEqual([]);   // the out-of-band build is gone
+    } finally { await s.close(); }
   });
 
   test("find_tools reaches it by what an agent would say; doctor names the browser; the template is listed", async () => {
