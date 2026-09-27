@@ -127,6 +127,20 @@
         ]
       }
     },
+    "cover/page": {
+      "inputs": "b22d05afb82d2f81",
+      "route": "/posts/every-primitive-once/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          250
+        ],
+        "still-390.webp": [
+          195,
+          202
+        ]
+      }
+    },
     "cover/path": {
       "inputs": "a9f188bd98180203",
       "route": "/posts/every-primitive-once/",

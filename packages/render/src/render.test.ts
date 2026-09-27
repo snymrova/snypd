@@ -3659,3 +3659,30 @@ describe("W4: `list/grid` — an archive as a wall of covers cropped to one fram
     expect(h.match(/<li class="snypd-tile">/g)!.length).toBe(4);
   });
 });
+
+describe("W4: `cover/page` — a page's first paragraph is its standfirst, so the markup must keep it next to the title", () => {
+  const root = "corpora/_test/cover-page";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/pages", "themes/c"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: C, url: https://c.example }\ntheme: { use: c }\n");
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\nWe make things slowly.\n\nThe rest.\n");
+    writeFileSync(join(root, "content/pages/studio.md"), "---\ntitle: Studio\nstatus: published\n---\n\n::cover{eyebrow=\"Since 2019\"}\n\nTwo rooms and a kiln.\n");
+    writeFileSync(join(root, "content/pages/work.md"), "---\ntitle: Work\nstatus: published\n---\n\n::cover{subtitle=\"What we made.\"}\n\nThe list.\n");
+    writeFileSync(join(root, "themes/c/theme.yaml"), "theme: c\nextends: base\npieces:\n  column: three-track\n  cover: page\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the three shapes the standfirst selectors read: h1 then p; a cover without a subtitle then p; a cover with one", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    expect(read("about")).toContain('<article class="snypd-page"><h1>About</h1><p>We make things slowly.</p>');
+    expect(read("studio")).toMatch(/<article class="snypd-page"><header class="snypd-cover"><p class="snypd-eyebrow">Since 2019<\/p><h1[^>]*>Studio<\/h1><\/header><p>Two rooms and a kiln.<\/p>/);
+    expect(read("work")).toContain('<p class="snypd-subtitle">What we made.</p></header><p>The list.</p>');
+    const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
+    expect(css).toContain(".snypd-page > h1:first-child + p");
+    expect(css).toContain(".snypd-page > .snypd-cover:first-child:not(:has(.snypd-subtitle)) + p");
+  });
+});

@@ -46,6 +46,8 @@ import _piece_column_three_track_rhythm_tight_css from "../../pieces/column/thre
 import _piece_column_three_track_shrink_css from "../../pieces/column/three-track/shrink.css" with { type: "text" };
 import _piece_cover_display_piece_css from "../../pieces/cover/display/piece.css" with { type: "text" };
 import _piece_cover_display_piece_yaml from "../../pieces/cover/display/piece.yaml" with { type: "text" };
+import _piece_cover_page_piece_css from "../../pieces/cover/page/piece.css" with { type: "text" };
+import _piece_cover_page_piece_yaml from "../../pieces/cover/page/piece.yaml" with { type: "text" };
 import _piece_cover_path_piece_css from "../../pieces/cover/path/piece.css" with { type: "text" };
 import _piece_cover_path_piece_yaml from "../../pieces/cover/path/piece.yaml" with { type: "text" };
 import _piece_cover_plain_piece_css from "../../pieces/cover/plain/piece.css" with { type: "text" };
@@ -379,6 +381,17 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     files: {
       "piece.css": _piece_cover_display_piece_css,
       "piece.yaml": _piece_cover_display_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+    },
+  },
+  "cover/page": {
+    hash: "3b4bbba5655abc4c47281831dc1fba50e994faff",
+    files: {
+      "piece.css": _piece_cover_page_piece_css,
+      "piece.yaml": _piece_cover_page_piece_yaml,
     },
     bytes: {
     },
