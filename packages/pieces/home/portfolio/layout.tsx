@@ -1,4 +1,4 @@
-import { nounOf, part, settingFlag, Slot, titleCase, transitionName, type LayoutProps, type Html } from "@snypd/render";
+import { coverFrame, coverOf, nounOf, part, settingFlag, Slot, termTitle, transitionName, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The layout of `home/portfolio`, drawn (W4, docs/37 §7): the front page is the work. Above the grid is a
@@ -26,11 +26,9 @@ export default function Home({ ctx, page, entries, archive, lists = [], route, t
   // The grid's own archive first, then every other list the site keeps — *Every work · Every note*.
   const archives = [...(archive ? [archive] : []), ...lists.filter((l) => l.route !== archive?.route)];
   const wayTo = (a: { type: string }) => `Every ${nounOf(ctx.config, a.type, 1)}`;
-  const coverOf = (e: Entry) => (e.frontmatter.cover as { image?: string } | undefined)?.image;
-  const shapes = entries.map((e) => ctx.media[coverOf(e) ?? ""]).filter((m) => m?.width && m.height).map((m) => m!.width / m!.height).sort((a, b) => a - b);
-  const frame = shapes.length ? Math.min(16 / 9, Math.max(3 / 4, shapes[Math.floor(shapes.length / 2)]!)) : 1;
+  const frame = coverFrame(ctx, entries);
   // The label's fact is the work's first term, a bare slug title-cased as `list/ruled` sets it — *Product*, not *product*.
-  const termOf = (e: Entry) => { const t = e.terms?.[0]; return t ? (t.title === t.term ? titleCase(t.term) : t.title) : undefined; };
+  const termOf = (e: Entry) => e.terms?.[0] && termTitle(e.terms[0]);
   const label = (e: Entry) => [dates ? e.date?.slice(0, 4) : undefined, termOf(e)].filter(Boolean).join(" · ");
   return (
     <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd} page={p}>
@@ -41,7 +39,7 @@ export default function Home({ ctx, page, entries, archive, lists = [], route, t
           <Slot name="before-content" ctx={ctx} route={route} title={title} page={p} />
         </header>
         {entries.length ? (
-          <ol class="snypd-portfolio-works" reversed aria-label={archive?.title} style={`--portfolio-frame: ${Number(frame.toFixed(3))}`}>
+          <ol class="snypd-portfolio-works" reversed aria-label={archive?.title} style={`--portfolio-frame: ${frame}`}>
             {entries.map((e, i) => {
               const src = coverOf(e);
               const size = src ? ctx.media[src] : undefined;

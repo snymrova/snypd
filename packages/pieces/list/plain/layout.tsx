@@ -1,4 +1,4 @@
-import { formatDate, isFeatureType, nounOf, part, settingText, typeDescription, Slot, type LayoutProps, type Html } from "@snypd/render";
+import { archiveCount, isFeatureType, part, typeDescription, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * An archive (W3, docs/37 §7): base's index — the title, the entries — and, when the archive is a feature
@@ -10,7 +10,7 @@ import { formatDate, isFeatureType, nounOf, part, settingText, typeDescription, 
 export default function Index({ ctx, entries, archive, route, title, jsonLd }: LayoutProps): Html {
   const Shell = part(ctx, "shell"), Entries = part(ctx, "entries");
   const type = archive?.type;
-  const lede = type && isFeatureType(ctx.config, type) && entries.length ? `${entries.length} ${nounOf(ctx.config, type, entries.length)}${span(entries.map((e) => e.date?.slice(0, 10)).filter((d): d is string => !!d), settingText(ctx, "dateFormat"))}.` : undefined;
+  const lede = type && isFeatureType(ctx.config, type) && entries.length ? archiveCount(ctx, entries, type) : undefined;
   const about = type ? typeDescription(ctx.config, type) : undefined;
   return (
     <Shell ctx={ctx} title={title} route={route} jsonLd={jsonLd}>
@@ -25,11 +25,3 @@ export default function Index({ ctx, entries, archive, route, title, jsonLd }: L
   );
 }
 
-/** `, 2025–2026` across years; `, 12 Sep 2026 to 25 Sep 2026` within one; `, on 25 Sep 2026` for one day. Newest first. */
-function span(days: string[], format?: string): string {
-  if (!days.length) return "";
-  const last = days[0]!, first = days[days.length - 1]!;
-  if (first.slice(0, 4) !== last.slice(0, 4)) return `, ${first.slice(0, 4)}–${last.slice(0, 4)}`;
-  const when = (d: string) => formatDate(d, !format || format === "iso" ? "short" : format);   // a sentence, not a table
-  return first === last ? `, on ${when(last)}` : `, ${when(first)} to ${when(last)}`;
-}

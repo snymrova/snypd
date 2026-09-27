@@ -10,7 +10,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, pieceTokens, type ResolvedPiece } from "@snypd/core";
 import { build, loadTheme } from "@snypd/render";
-import { generate, render } from "./gen";
+import { generate, render, stillRoute } from "./gen";
 import { loadPieces } from "./index";
 
 const REPO = join(import.meta.dir, "..", "..", "..");
@@ -93,7 +93,12 @@ describe("the manifest", () => {
     const m = loadPieces();
     expect(m.board.sets.map((s) => s.name)).toEqual(["light-serif", "dark-sans", "loud-accent", "committed", "pathological"]);
     for (const s of m.board.sets) expect(s.face && shelfFace(s.face), s.name).toBeTruthy();
-    expect(Object.keys(m.board.stills.routes).sort()).toEqual(m.slots.map((s) => s.slot).sort());
+    // A route per slot, and any piece's own (by id) is a piece on the shelf.
+    const routes = Object.keys(m.board.stills.routes);
+    expect(routes.filter((k) => !k.includes("/")).sort()).toEqual(m.slots.map((s) => s.slot).sort());
+    for (const k of routes.filter((k) => k.includes("/"))) expect(m.pieces[k], k).toBeTruthy();
+    expect(stillRoute("list/grid", m.board)).toBe("/posts/");
+    expect(stillRoute("list/ruled", m.board)).toBe(m.board.stills.routes.list!);
     // One committed scheme per set, so a board row is the same page whatever the viewer prefers.
     for (const s of m.board.sets) expect(["light", "dark"]).toContain(s.tokens["color.scheme"] as string);
   });

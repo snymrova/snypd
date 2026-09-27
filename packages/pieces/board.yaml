@@ -32,6 +32,8 @@ stills:
     wall:      /posts/every-primitive-once/
     motion:    /posts/long-read/
     backdrop:  /
+    # A piece's own route, by id, where its slot's cannot show it: the changelog has no covers.
+    list/grid: /posts/
 
 sets:
   - name: light-serif

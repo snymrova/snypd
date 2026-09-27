@@ -8,11 +8,7 @@
  * heading has already said: *09-12*, *12 Sep*. Everywhere else it is the whole date, in the site's format.
  * The order is the build's — newest first — and stands.
  */
-import { formatDate, settingFlag, settingText, transitionName, type EntriesProps, type Html } from "@snypd/render";
-
-/** The date without its year, when a heading above has said it: `2026-09-12` → `09-12`, `12 Sep 2026` → `12 Sep`. */
-const withoutYear = (label: string, year: string): string =>
-  label.startsWith(`${year}-`) ? label.slice(year.length + 1) : label.endsWith(` ${year}`) ? label.slice(0, -(year.length + 1)) : label;
+import { formatDate, settingFlag, settingText, transitionName, withoutYear, type EntriesProps, type Html } from "@snypd/render";
 
 export default function Index({ ctx, entries, year }: EntriesProps): Html {
   if (!entries.length) return <p class="snypd-entry-index-empty">Nothing yet.</p>;

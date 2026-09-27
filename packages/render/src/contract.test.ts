@@ -25,7 +25,7 @@ function emitted(src: string): Set<string> {
   const out = new Set<string>();
   const add = (v: string) => { for (const c of v.replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) if (/^[a-z][\w-]*[a-z0-9]$/i.test(c)) out.add(c); };
   for (const m of src.matchAll(/\bclass=\\?["'`]([^"'`\\]*)/g)) add(m[1]!);
-  for (const m of src.matchAll(/\bclassName:\s*["'`]([^"'`]*)/g)) add(m[1]!);
+  for (const m of src.matchAll(/\b(?:className|class):\s*["'`]([^"'`]*)/g)) add(m[1]!);
   for (const m of src.matchAll(/view-transition-class:\s*([\w-]+)/g)) add(m[1]!);
   return out;
 }
@@ -50,7 +50,8 @@ describe("the theme contract (docs/36 §3)", () => {
       ...tsx(join(REPO, "themes/base")),
       // the whole-site slots' layouts (W3): what a `list` writes around the entries, which `entries` styles
       ...tsx(join(REPO, "packages/pieces/list")),
-      ...["html.ts", "theme.ts", "media.ts"].map((f) => join(REPO, "packages/render/src", f)),
+      // `archive.ts` is the head the list pieces share (W4) — its filter row and lede, whatever list draws them
+      ...["html.ts", "theme.ts", "media.ts", "archive.ts"].map((f) => join(REPO, "packages/render/src", f)),
       ...readdirSync(join(REPO, "packages/viz/src")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).map((f) => join(REPO, "packages/viz/src", f)),
     ];
     const found = new Set<string>();

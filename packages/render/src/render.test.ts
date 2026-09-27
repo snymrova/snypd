@@ -3599,3 +3599,63 @@ describe("W4: `home/portfolio` — the front page is the work, each cover whole 
     expect(read("")).toContain('style="--portfolio-frame: 1"');
   });
 });
+
+describe("W4: `list/grid` — an archive as a wall of covers cropped to one frame, broken at each year by a rule that carries it", () => {
+  const root = "corpora/_test/list-grid";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const item = (i: number, date: string, cover?: string) =>
+    `---\ntitle: Work ${i}\ndate: ${date}\nstatus: published\ncategory: product\ntags: [${i === 4 ? "lamps" : "chairs"}]\n` +
+    (cover ? `cover: { image: /media/${cover}.png, alt: A cover }\n` : "") + `---\n\nBody ${i}.\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/media", "themes/g"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: G, url: https://g.example }\ntheme: { use: g }\n");
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: G\nstatus: published\nhome: true\n---\n\nHello.\n");   // so the list is at /posts/
+    writeFileSync(join(root, "content/media/wide.png"), png(300, 200, [1, 2, 3]));
+    writeFileSync(join(root, "content/media/tall.png"), png(200, 300, [4, 5, 6]));
+    writeFileSync(join(root, "content/posts/w1.md"), item(1, "2025-04-11", "tall"));
+    writeFileSync(join(root, "content/posts/w2.md"), item(2, "2025-11-20"));
+    writeFileSync(join(root, "content/posts/w3.md"), item(3, "2026-02-03", "wide"));
+    writeFileSync(join(root, "content/posts/w4.md"), item(4, "2026-03-27"));
+    writeFileSync(join(root, "content/posts/w5.md"), item(5, "2026-05-14", "wide"));
+    writeFileSync(join(root, "themes/g/theme.yaml"), "theme: g\nextends: base\npieces:\n  column: three-track\n  list: grid\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the archive: list/ruled's head, a year's rule over each year's tiles newest first, the frame the median shape, dates without the year the rule said", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("posts");
+    expect(h).toContain('<main class="snypd-list"><h1>Posts</h1><p class="snypd-lede">5 posts, 2025–2026.</p>');
+    expect(h).toContain('<a href="/posts/" aria-current="page">All <span class="snypd-list-count">5</span></a>');
+    expect(h).not.toContain("snypd-entries");                                  // it draws its own tiles
+    const y26 = h.indexOf('<section class="snypd-tiles-year" aria-labelledby="y2026"><h2 class="snypd-tiles-mark" id="y2026">2026</h2>');
+    const y25 = h.indexOf('<section class="snypd-tiles-year" aria-labelledby="y2025"><h2 class="snypd-tiles-mark" id="y2025">2025</h2>');
+    expect(y26).toBeGreaterThan(-1);
+    expect(y25).toBeGreaterThan(y26);
+    expect(h.indexOf("Work 5")).toBeLessThan(h.indexOf("Work 3"));
+    expect(h.indexOf("Work 2")).toBeGreaterThan(y25);
+    // One frame for the list — the median of 1.5, 1.5 and 0.667 — so 2025's tall cover stands in 2026's shape.
+    expect(h.match(/<ol class="snypd-tiles" style="--tile-frame: 1.5">/g)!.length).toBe(2);
+    expect(h).toContain('<span class="snypd-tile-frame"><img src="/media/wide.png" alt="" decoding="async" width="300" height="200"></span>');
+    expect(h).toContain('<span class="snypd-tile-frame" data-empty=""><span aria-hidden="true">Work 4</span></span>');
+    expect(h).toContain('<span class="snypd-tile-label"><time datetime="2026-05-14">05-14</time> · Product</span>');
+    // The fifth tile is past the first row: its cover waits.
+    expect(h).toMatch(/<img src="\/media\/tall\.png" alt="" loading="lazy"/);
+  });
+
+  test("a list inside one year is one grid, with no rule, and each date whole", async () => {
+    const h = read("tag/lamps");
+    expect(h).not.toContain("snypd-tiles-year");
+    expect(h).toContain('<time datetime="2026-03-27">2026-03-27</time> · Product');
+  });
+
+  test("a term's page: the taxonomy as the kicker, the term current, All back to the archive, the tiles", async () => {
+    const h = read("tag/chairs");
+    expect(h).toContain('<h1><small class="snypd-list-kicker">Tag</small>chairs</h1><p class="snypd-lede">4 posts, 2025–2026.</p>');   // a term with no page is titled by its slug, as on list/ruled
+    expect(h).toContain('<a href="/posts/">All</a>');
+    expect(h).toContain('<a href="/tag/chairs/" aria-current="page">Chairs <span class="snypd-list-count">4</span></a>');
+    expect(h.match(/<li class="snypd-tile">/g)!.length).toBe(4);
+  });
+});

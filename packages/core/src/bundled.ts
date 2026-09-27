@@ -86,6 +86,8 @@ import _piece_home_split_piece_css from "../../pieces/home/split/piece.css" with
 import _piece_home_split_piece_yaml from "../../pieces/home/split/piece.yaml" with { type: "text" };
 import _piece_house_house_piece_css from "../../pieces/house/house/piece.css" with { type: "text" };
 import _piece_house_house_piece_yaml from "../../pieces/house/house/piece.yaml" with { type: "text" };
+import _piece_list_grid_piece_css from "../../pieces/list/grid/piece.css" with { type: "text" };
+import _piece_list_grid_piece_yaml from "../../pieces/list/grid/piece.yaml" with { type: "text" };
 import _piece_list_plain_piece_css from "../../pieces/list/plain/piece.css" with { type: "text" };
 import _piece_list_plain_piece_yaml from "../../pieces/list/plain/piece.yaml" with { type: "text" };
 import _piece_list_ruled_piece_css from "../../pieces/list/ruled/piece.css" with { type: "text" };
@@ -429,7 +431,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "entries/index": {
-    hash: "c4c612f5a226f28f0d5204c607f946db742489ae",
+    hash: "20958cb9d85e4edd46248cba74e1f79a06c5d017",
     files: {
       "piece.css": _piece_entries_index_piece_css,
       "piece.yaml": _piece_entries_index_piece_yaml,
@@ -572,7 +574,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "home/portfolio": {
-    hash: "93efa9f67cc7aaf748fd821af04e08bf1845a8fb",
+    hash: "54bc3fd7515a2f314765f5053f1177773edb5ba9",
     files: {
       "piece.css": _piece_home_portfolio_piece_css,
       "piece.yaml": _piece_home_portfolio_piece_yaml,
@@ -606,8 +608,21 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     modules: {
     },
   },
+  "list/grid": {
+    hash: "cdfed8c85638c3ca85d5eba2028b12237e574677",
+    files: {
+      "piece.css": _piece_list_grid_piece_css,
+      "piece.yaml": _piece_list_grid_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+      "layout.tsx": () => import("../../pieces/list/grid/layout.tsx"),
+      "term.tsx": () => import("../../pieces/list/grid/term.tsx"),
+    },
+  },
   "list/plain": {
-    hash: "1c0c08d289781ac4272d0f513851aa41ad44fed3",
+    hash: "451c6c91b8d91022a346a838c59db287243dd794",
     files: {
       "piece.css": _piece_list_plain_piece_css,
       "piece.yaml": _piece_list_plain_piece_yaml,
@@ -619,7 +634,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "list/ruled": {
-    hash: "63e2b2059e1e0f2138e28c1fb35c1a12a70a33d2",
+    hash: "90431f9c99fdb3aa8c1c7097001276aef3a10b46",
     files: {
       "piece.css": _piece_list_ruled_piece_css,
       "piece.yaml": _piece_list_ruled_piece_yaml,

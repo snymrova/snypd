@@ -349,7 +349,7 @@ export async function stills(opts: StillsOptions = {}): Promise<{ written: strin
   const piecesDir = join(repo, "packages", "pieces");
   const gen = await import("../../pieces/src/gen");
   const m = loadPieces();
-  const { host, root: rel, routes } = m.board.stills;
+  const { host, root: rel } = m.board.stills;
   const root = join(repo, rel);
   const record: Record<string, StillRecord> = gen.readStills();
   const hostCfg = loadConfig(root, { theme: host });
@@ -370,7 +370,7 @@ export async function stills(opts: StillsOptions = {}): Promise<{ written: strin
       let s: Awaited<ReturnType<typeof buildAndServe>> | undefined;
       try {
         s = await buildAndServe(root, { theme: name, slug: name }, "stills", { searchPaths: [scratch] });
-        const route = routes[p.slot] ?? "/";
+        const route = gen.stillRoute(id, m.board);
         const sizes: Record<string, [number, number]> = {};
         for (const f of STILL_FILES) {
           const { width, frame } = STILL_FRAMES[f];

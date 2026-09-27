@@ -46,6 +46,8 @@ export function readBoard(slots: string[], known: Set<string>, errors: string[])
   const b = parse(readFileSync(join(PIECES, "board.yaml"), "utf8"), "board.yaml") as BoardDecl;
   if (!b?.stills?.host || !b.stills.root || !b.stills.routes) errors.push("board.yaml: stills needs host, root and routes");
   for (const s of slots) if (!b?.stills?.routes?.[s]?.startsWith("/")) errors.push(`board.yaml: stills.routes has no route for ${s}`);
+  for (const k of Object.keys(b?.stills?.routes ?? {})) if (k.includes("/") && !slots.includes(k.split("/")[0]!)) errors.push(`board.yaml: stills.routes names ${k}, whose slot is not a slot`);
+  for (const [k, r] of Object.entries(b?.stills?.routes ?? {})) if (!r?.startsWith("/")) errors.push(`board.yaml: stills.routes.${k} is not a route`);
   const seen = new Set<string>();
   for (const set of b?.sets ?? []) {
     if (!/^[a-z][a-z0-9-]*$/.test(set.name ?? "") || seen.has(set.name)) errors.push(`board.yaml: set name ${JSON.stringify(set.name)} — lowercase, dashes, once`);
@@ -68,9 +70,14 @@ export function stillInputs(id: string, board: BoardDecl): string {
   for (const f of walk(dir)) h.update(f).update(readFileSync(join(dir, f)));
   const host = join(PIECES, "..", "..", "themes", board.stills.host, "theme.yaml");
   if (existsSync(host)) h.update(readFileSync(host));
-  h.update(JSON.stringify(board.stills));
+  // Only what this piece's picture depends on: the host, the specimen, its own route — so a route added
+  // for one piece does not stale every still.
+  h.update(JSON.stringify({ host: board.stills.host, root: board.stills.root, route: stillRoute(id, board) }));
   return h.digest("hex").slice(0, 16);
 }
+
+/** The route a piece is photographed on: its own, by id, where the slot's route cannot show it (`list/grid` wants covers), else its slot's. */
+export const stillRoute = (id: string, board: BoardDecl): string => board.stills.routes[id] ?? board.stills.routes[id.split("/")[0]!] ?? "/";
 
 export const STILLS_JSON = join(PIECES, "stills.json");
 export const readStills = (): Record<string, StillRecord> => existsSync(STILLS_JSON) ? JSON.parse(readFileSync(STILLS_JSON, "utf8")).pieces ?? {} : {};
