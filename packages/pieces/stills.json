@@ -183,6 +183,20 @@
         ]
       }
     },
+    "entries/index": {
+      "inputs": "aa8a9b60fe528f00",
+      "route": "/posts/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          400
+        ],
+        "still-390.webp": [
+          195,
+          422
+        ]
+      }
+    },
     "entries/ledger": {
       "inputs": "98de6e9cba1d5981",
       "route": "/posts/",
@@ -324,7 +338,7 @@
       }
     },
     "home/index": {
-      "inputs": "5eb69efad054d24e",
+      "inputs": "879c619748a96a2e",
       "route": "/",
       "sizes": {
         "still-1280.webp": [

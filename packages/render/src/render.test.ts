@@ -3437,7 +3437,7 @@ describe("W4 (docs/37 §7): `home/index` — the front page is the ruled index, 
     expect(h.indexOf("Note 3")).toBeLessThan(h.indexOf("Post 7"));
     expect(h.indexOf("Post 7")).toBeLessThan(h.indexOf("Note 2"));
     expect(h.indexOf("Post 1")).toBeGreaterThan(y25);
-    expect(h).toContain('<p class="snypd-index-more"><a href="/posts/">Every post</a> · <a href="/notes/">The whole notes</a></p>');
+    expect(h).toContain('<p class="snypd-index-more"><a href="/posts/">Every post</a> · <a href="/notes/">Every note</a></p>');
     expect(h).toContain('<section class="snypd-index-after" aria-labelledby="colophon"><h2 id="colophon">Colophon</h2>');
     expect(h.indexOf("snypd-index-after")).toBeGreaterThan(h.indexOf("snypd-index-more"));
   });
@@ -3501,5 +3501,46 @@ describe("W4: `list/ruled` — an archive as a heading, an intro, and the terms 
     await build(root);
     expect(read("")).toContain('<a href="/" aria-current="page">All <span class="snypd-list-count">3</span></a>');
     expect(read("tag/notes")).not.toContain(">All");
+  });
+});
+
+describe("W4: `entries/index` — each entry one line, a leader to the date, the date without its year under a year's heading", () => {
+  const root = "corpora/_test/entries-index";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const yaml = (settings = "") => `snypd: 1\nsite: { name: I, url: https://i.example }\ntheme: { use: i${settings} }\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "themes/i"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    const item = (i: number, date: string) => `---\ntitle: Post ${i}\ndate: ${date}\nstatus: published\ndescription: About post ${i}.\ntags: [notes]\n---\n\nBody ${i}.\n`;
+    writeFileSync(join(root, "content/posts/p1.md"), item(1, "2025-11-03"));
+    writeFileSync(join(root, "content/posts/p2.md"), item(2, "2026-09-12"));
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: I\nstatus: published\nhome: true\n---\n\nAn index.\n");
+    writeFileSync(join(root, "themes/i/theme.yaml"), "theme: i\nextends: editorial\npieces:\n  entries: index\n  home: index\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("an archive: the title, a leader, the whole date in the site's format — and nothing under the line", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml());
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("posts");
+    expect(h).toContain('<ol class="snypd-entry-index" reversed>');
+    expect(h).toMatch(/<a class="snypd-entry-index-row" href="\/posts\/p2\/"><span class="snypd-entry-index-title"[^>]*>Post 2<\/span><span class="snypd-entry-index-leader" aria-hidden="true"><\/span><time class="snypd-entry-index-when" datetime="2026-09-12">2026-09-12<\/time><\/a>/);
+    expect(h).not.toContain("About post 2.");                      // an index is read down the titles
+    expect(h.indexOf("Post 2")).toBeLessThan(h.indexOf("Post 1")); // the build's order, newest first
+  });
+
+  test("under `home/index`'s year headings the date drops the year the heading said; `showDates: false` drops date and leader", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml(", settings: { dateFormat: short }"));
+    await build(root);
+    const h = read("");
+    expect(h).toContain('datetime="2026-09-12">12 Sep</time>');
+    expect(h).toContain('datetime="2025-11-03">3 Nov</time>');
+    expect(read("posts")).toContain('datetime="2026-09-12">12 Sep 2026</time>');   // no heading above it: the whole date
+    writeFileSync(join(root, "snypd.yaml"), yaml(", settings: { showDates: false }"));
+    await build(root);
+    expect(read("posts")).not.toContain("snypd-entry-index-leader");
+    expect(read("posts")).not.toContain("<time");
   });
 });

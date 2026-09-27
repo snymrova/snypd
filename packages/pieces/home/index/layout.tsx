@@ -1,4 +1,4 @@
-import { part, Slot, type LayoutProps, type Html } from "@snypd/render";
+import { nounOf, part, Slot, type LayoutProps, type Html } from "@snypd/render";
 
 /**
  * The layout of `home/index`, drawn (W4, docs/37 §7): the front page *is* the ruled index. What sits above
@@ -28,7 +28,9 @@ export default function Home({ ctx, page, entries, archive, lists = [], route, t
     if (last && last.year === year) last.entries.push(e); else years.push({ year, entries: [e] });
   }
   const archives = lists.length ? lists : archive ? [archive] : [];
-  const wayTo = (a: { type: string; title: string }) => a.type === "post" && a.title === "Posts" ? "Every post" : `The whole ${a.title.toLowerCase()}`;
+  // *Every post · Every release*: the type's own word for one of it (`noun:`, else its name), so the line
+  // reads right for any type — never *The whole releases*.
+  const wayTo = (a: { type: string }) => `Every ${nounOf(ctx.config, a.type, 1)}`;
   return (
     <Shell ctx={ctx} title={title} description={description} markdownUrl={p.markdownUrl} route={route} jsonLd={jsonLd} page={p}>
       <main class="snypd-home snypd-index">
@@ -40,7 +42,7 @@ export default function Home({ ctx, page, entries, archive, lists = [], route, t
         {years.map((g) => (
           <section class="snypd-index-year" aria-labelledby={`snypd-year-${g.year}`}>
             <h2 class="snypd-index-mark" id={`snypd-year-${g.year}`}>{g.year}</h2>
-            <Entries ctx={ctx} entries={g.entries} />
+            <Entries ctx={ctx} entries={g.entries} year={g.year === "Undated" ? undefined : g.year} />
           </section>
         ))}
         {archives.length ? (

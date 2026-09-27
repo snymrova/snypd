@@ -1456,6 +1456,73 @@
         "fresh": true
       }
     },
+    "entries/index": {
+      "piece": "entries/index",
+      "from": "drawn",
+      "line": "A list as an index — each entry one line, the title in the text face, a dotted leader carrying the eye to the date, which hangs in the column's right margin; under a year's heading the date drops the year.",
+      "reads": [
+        "font.body",
+        "font.ui",
+        "size.body",
+        "size.small",
+        "leading.tight",
+        "color.border",
+        "color.muted",
+        "color.accent",
+        "space.1",
+        "space.2",
+        "space.3"
+      ],
+      "needs": {},
+      "emits": [
+        "snypd-entry-index",
+        "snypd-entry-index-row",
+        "snypd-entry-index-title",
+        "snypd-entry-index-leader",
+        "snypd-entry-index-when",
+        "snypd-entry-index-empty"
+      ],
+      "switches": {},
+      "settings": [],
+      "parts": {
+        "entries": "./part.tsx"
+      },
+      "layouts": {},
+      "pairs": {
+        "column": "three-track"
+      },
+      "refs": [
+        {
+          "url": "https://sive.rs/blog",
+          "took": "every entry is one line — its date and its title, nothing under it"
+        },
+        {
+          "url": "https://www.w3.org/TR/css-content-3/#leaders",
+          "took": "the dot leader that carries the eye from a title across to its number"
+        },
+        {
+          "url": "https://edwardtufte.github.io/tufte-css/",
+          "took": "the right margin as the place for the small matter beside the line"
+        }
+      ],
+      "draft": true,
+      "slot": "entries",
+      "name": "index",
+      "kb": 1.02,
+      "switchKb": {},
+      "files": [
+        "part.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "entries/index/still-1280.webp",
+          "entries/index/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
     "entries/ledger": {
       "piece": "entries/ledger",
       "from": "folio",
@@ -2087,7 +2154,7 @@
       "draft": true,
       "slot": "home",
       "name": "index",
-      "kb": 1.33,
+      "kb": 1.3,
       "switchKb": {},
       "files": [
         "layout.tsx",

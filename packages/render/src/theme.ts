@@ -214,7 +214,11 @@ export type LayoutComponent = (p: LayoutProps) => Html;
 export interface ShellProps { ctx: SiteCtx; title: string; description?: string; route: string; markdownUrl?: string; jsonLd?: string; page?: Page; children: Html }
 /** `header` and `footer`: where in the site the document is, so a menu can mark the current item (U2). */
 export interface PartProps { ctx: SiteCtx; route: string; title: string; page?: Page }
-export interface EntriesProps { ctx: SiteCtx; entries: Entry[] }
+/**
+ * `year` is set when a heading above the list has already said the year every entry falls in — a front page
+ * grouped by year (`home/index`) — so a part may leave it out of each date. Parts that ignore it are right.
+ */
+export interface EntriesProps { ctx: SiteCtx; entries: Entry[]; year?: string }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type PartComponent = (p: any) => Html;
 /**

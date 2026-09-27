@@ -54,6 +54,8 @@ import _piece_cover_quiet_piece_css from "../../pieces/cover/quiet/piece.css" wi
 import _piece_cover_quiet_piece_yaml from "../../pieces/cover/quiet/piece.yaml" with { type: "text" };
 import _piece_entries_cards_piece_css from "../../pieces/entries/cards/piece.css" with { type: "text" };
 import _piece_entries_cards_piece_yaml from "../../pieces/entries/cards/piece.yaml" with { type: "text" };
+import _piece_entries_index_piece_css from "../../pieces/entries/index/piece.css" with { type: "text" };
+import _piece_entries_index_piece_yaml from "../../pieces/entries/index/piece.yaml" with { type: "text" };
 import _piece_entries_ledger_piece_css from "../../pieces/entries/ledger/piece.css" with { type: "text" };
 import _piece_entries_ledger_piece_yaml from "../../pieces/entries/ledger/piece.yaml" with { type: "text" };
 import _piece_entries_list_piece_css from "../../pieces/entries/list/piece.css" with { type: "text" };
@@ -424,6 +426,18 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
       "part.tsx": () => import("../../pieces/entries/cards/part.tsx"),
     },
   },
+  "entries/index": {
+    hash: "c4c612f5a226f28f0d5204c607f946db742489ae",
+    files: {
+      "piece.css": _piece_entries_index_piece_css,
+      "piece.yaml": _piece_entries_index_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+      "part.tsx": () => import("../../pieces/entries/index/part.tsx"),
+    },
+  },
   "entries/ledger": {
     hash: "58640ebf573fe7d88dc16b37a920fa2300c8488a",
     files: {
@@ -544,7 +558,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "home/index": {
-    hash: "9cd3d807dfcb4ec81ee5097fa294e7226b4c54fa",
+    hash: "434725daa14711485cd09aa622b243ef68b7d9a2",
     files: {
       "piece.css": _piece_home_index_piece_css,
       "piece.yaml": _piece_home_index_piece_yaml,

@@ -14,7 +14,7 @@
   letter-spacing: -0.01em; text-wrap: balance; margin: 0;
 }
 
-.snypd-index-year { grid-column: wide; display: grid; grid-template-columns: subgrid; align-items: start; }
+.snypd-index-year { grid-column: wide; display: grid; grid-template-columns: subgrid; align-items: baseline; }
 .snypd-index-year > * { grid-column: text; }
 .snypd-index-year:first-of-type { margin-top: var(--space-4); }
 /* Tight within a year, one breath between years: the group's rows are ruled, so the gap between groups is
@@ -25,10 +25,11 @@
   letter-spacing: 0.04em; font-variant-numeric: tabular-nums; text-transform: none;
 }
 /* Once the column has a margin (past the measure plus its breakout), the year moves out into it and
-   sticks: a reader scrolling 2024's entries sees 2024 beside them the whole way. Under that, the year
-   heads its rows on the text track. */
+   sticks: a reader scrolling 2024's entries sees 2024 beside them the whole way. The group aligns by
+   baseline, so the year sits on the first row's line whatever the `entries` piece draws — a ledger's
+   sub-heading or an index's one line. Under that, the year heads its rows on the text track. */
 @media (min-width: 52.5rem) {
-  .snypd-index-mark { grid-column: wide-start / text-start; justify-self: end; width: max-content; padding-inline-end: var(--space-4); position: sticky; top: var(--space-3); padding-top: var(--space-4); }
+  .snypd-index-mark { grid-column: wide-start / text-start; justify-self: end; width: max-content; padding-inline-end: var(--space-4); position: sticky; top: var(--space-3); }
 }
 @media (max-width: 52.49rem) {
   .snypd-index-mark { padding-bottom: var(--space-2); }

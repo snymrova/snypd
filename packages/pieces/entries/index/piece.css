@@ -1,0 +1,31 @@
+/* entries/index — drawn (W4, docs/37 §7; refs in piece.yaml). A list as an index: each entry one line, the
+   title in the text face, a dotted leader, the date. The leader is the one signature detail: it carries the
+   eye from a short title across to a date set at the column's edge, as a book's contents carry it to a page
+   number. Once the column has a margin, the date hangs in it — the text track holds only titles and their
+   leaders, and every date starts on one line just past the text's edge. Under that, the date ends the line. */
+.snypd-entry-index { list-style: none; padding: 0; margin: 0; }
+.snypd-entry-index > li { margin: 0; }
+.snypd-entry-index-row {
+  display: flex; align-items: last baseline; gap: var(--space-2);
+  padding-block: var(--space-1); color: inherit; text-decoration: none;
+}
+.snypd-entry-index-title {
+  font: 400 var(--size-body) / var(--leading-tight) var(--font-body);
+  text-wrap: pretty; min-width: 0; max-width: calc(100% - var(--space-3) * 3);
+}
+/* The leader and the date sit on the title's last line, as a book's contents set a long title's page
+   number: a title that wraps ends where its dots begin. An empty flex item's baseline is its bottom edge,
+   so the dots sit on that line's baseline. The title stops short of the edge by enough for a leader. */
+.snypd-entry-index-leader { flex: 1 1 var(--space-3); min-width: var(--space-3); border-bottom: 2px dotted var(--color-border); }
+.snypd-entry-index-when {
+  flex: none; font: 400 var(--size-small) / 1 var(--font-ui); color: var(--color-muted);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.snypd-entry-index-row:hover .snypd-entry-index-title { color: var(--color-accent); }
+.snypd-entry-index-row:hover .snypd-entry-index-leader { border-bottom-color: var(--color-accent); }
+.snypd-entry-index-empty { color: var(--color-muted); }
+/* The hang: the date's box is zero wide and its margins cancel, so the leader runs to the text's edge and
+   the date's text overflows into the margin, still on the title's baseline and still inside the link. */
+@media (min-width: 60rem) {
+  .snypd-entry-index-when { width: 0; margin-inline: var(--space-3) calc(var(--space-3) * -1); }
+}
