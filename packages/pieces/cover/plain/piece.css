@@ -1,0 +1,13 @@
+/* cover/plain — carved from folio. Nothing in the cover shouts: the eyebrow is a line of meta, not a
+   label — sentence case, muted, and a flex row so a badge (a release's *Breaking*) sits on its baseline. */
+.snypd-eyebrow { font: 500 var(--size-small) / 1.2 var(--font-display); color: var(--color-muted); margin-bottom: var(--space-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.snypd-subtitle { font-size: var(--size-h3); line-height: 1.4; color: var(--color-muted); margin-top: var(--space-3); max-width: var(--measure-deck); text-wrap: pretty; }
+.snypd-cover > img:not(.snypd-cover-media) { display: block; width: 100%; margin-top: var(--space-4); border-radius: calc(var(--radius) * 2); background: var(--color-surface); }
+/* No `display` on the media: which of a clip and its still shows is `base`'s decision, a layer down. */
+.snypd-cover-media { width: 100%; margin-top: var(--space-4); border-radius: calc(var(--radius) * 2); background: var(--color-surface); }
+.snypd-byline { font: var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted); margin-bottom: var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border); }
+/* Here and not in `house`: prose's `a` comes after house and would win. */
+.snypd-byline a { color: inherit; }
+/* Two rules doing one job: the byline closes with a hairline and a summary opens with one, so a post that
+   starts with a `tldr` drew both with nothing between them. The summary's rule carries a label; it stays. */
+.snypd-byline:has(+ .snypd-tldr) { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }

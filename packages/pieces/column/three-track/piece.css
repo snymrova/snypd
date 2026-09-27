@@ -12,11 +12,15 @@
     [text-start] var(--content) [text-end]
     calc((var(--breakout) - var(--content)) / 2) [wide-end]
     1fr [full-end];
+  /* The one left and right edge a full-width thing shares — a masthead, a band, a footer drawn edge to edge
+     with its content held to `measure.wide`: the container centred, a gutter inside it. The percentage
+     resolves where it is used, against the width of whatever reads it. */
+  --edge: max(var(--space-4), calc((100% - var(--measure-wide)) / 2 + var(--space-4)));
 }
 main {
   display: grid;
   grid-template-columns: var(--tracks);
-  padding-block: var(--space-5) var(--space-6);
+  padding-block: var(--space-page-top) var(--space-6);
   /* `p` has no margin, so every break in the column is this one number. */
   row-gap: var(--space-4);
 }

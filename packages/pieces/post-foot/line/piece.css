@@ -1,0 +1,9 @@
+/* post-foot/line — carved from folio. Where this post sits and where its source is: one line under a rule,
+   small, and quiet until pointed at. */
+.snypd-post-footer { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--color-border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); font-size: var(--size-small); }
+.snypd-terms { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.snypd-terms li { margin: 0; }
+.snypd-terms a, .snypd-twin a { text-decoration: none; color: var(--color-muted); }
+.snypd-terms a { border: 1px solid var(--color-border); border-radius: 100vmax; padding: 0.25em 0.75em; }
+.snypd-terms a:hover, .snypd-twin a:hover { color: var(--color-text); border-color: var(--color-text); }
+.snypd-twin a::before { content: "↓ " / ""; }

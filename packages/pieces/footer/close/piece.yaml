@@ -1,0 +1,13 @@
+piece: footer/close
+from: folio
+line: One line on a dark ground — the footer note at the left, the footer menu and social links in the middle, a status note at the right; the page's scheme flipped in one declaration.
+reads: [size.small, space.2, space.3, space.4, space.5, color.bg, color.text, color.muted, color.border, space.footer-menu]
+needs:
+  space.footer-menu: 1.25rem
+emits: [snypd-footer-close, snypd-footer-status]
+settings:
+  - { id: statusNote, type: richtext, label: "Status note", group: Footer, info: "The right end of the footer's line — `0 KB JS · 18 rules`. A claim the site makes, in its own words. Markdown." }
+pairs:
+  column: three-track
+parts:
+  footer: ./part.tsx

@@ -1,0 +1,4 @@
+piece: prose/grotesk
+from: folio
+line: Prose under a medium grotesk — headings at one weight, tracked in more as they grow, h4 a shade over the body; links underlined at a third of their colour; a ruled, muted quote.
+reads: [color.scheme, color.bg, color.text, color.muted, color.accent, color.border, font.body, font.heading, size.body, size.h1, size.h2, size.h3, leading.body, leading.tight, space.4, space.5]

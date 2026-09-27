@@ -1,0 +1,14 @@
+/* code/tint — carved from folio. No borders anywhere: a code block is one quiet surface, inline code the
+   same tint at a smaller radius, and a keycap the only thing with an edge.
+
+   A table keeps its role — no `display: block` to scroll it — and its cells wrap instead; it is as wide as
+   it needs and no wider, centred when that is less than the column. */
+code, kbd, samp, pre { font-family: var(--font-mono); }
+code { font-size: 0.88em; background: var(--color-surface); border-radius: var(--radius-small); padding: 0.12em 0.38em; }
+pre { background: var(--color-surface); border-radius: var(--radius); padding: var(--space-3) var(--space-4); overflow-x: auto; font-size: var(--size-code); line-height: 1.6; tab-size: 2; }
+pre code { background: none; padding: 0; font-size: inherit; }
+kbd { font-size: 0.85em; background: var(--color-surface); border: 1px solid var(--color-border); border-bottom-width: 2px; border-radius: var(--radius-small); padding: 0.1em 0.4em; }
+table { border-collapse: collapse; font-size: var(--size-small); line-height: 1.45; width: max-content; max-width: 100%; margin-inline: auto; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); vertical-align: top; overflow-wrap: anywhere; }
+th { font: 500 var(--size-small) / 1.45 var(--font-display); color: var(--color-text); border-bottom-color: var(--color-text); }
+tbody tr:last-child td { border-bottom: 0; }

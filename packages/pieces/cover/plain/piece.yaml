@@ -1,0 +1,6 @@
+piece: cover/plain
+from: folio
+line: A cover that stays quiet — the eyebrow a small line in the display face, sentence case and muted, room for a badge beside it; the subtitle muted under the title; the picture at twice the radius.
+reads: [font.display, font.ui, size.small, size.h3, space.2, space.3, space.4, color.muted, color.border, color.surface, radius, measure.deck]
+needs:
+  measure.deck: 36rem

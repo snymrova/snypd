@@ -1,0 +1,79 @@
+/* home/split — carved from folio (docs/25 §3–5). A page made of bands is not the reading column: `main` is
+   a plain block and every band is full width with the column's `--edge` as its padding, so the hairline
+   between two bands runs the width of the page. Found by its structure, as `home/bands` finds its own. */
+main:has(> .snypd-page > .snypd-band) { display: block; grid-template-columns: none; row-gap: normal; padding: 0; }
+main:has(> .snypd-page > .snypd-band) > .snypd-page { display: contents; }
+
+/* A band: **the heading beside its content**. Two equal columns; the `h2` in the first, held to the top,
+   spanning every row; everything else in the second, in source order. The rows have no gap, so the rows
+   the heading spans and nothing fills are no height; the air between blocks is a margin on every block
+   after the first. */
+.snypd-band {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--space-5);
+  padding: var(--space-6) var(--edge); border-top: 1px solid var(--color-border);
+}
+.snypd-band > * { grid-column: 2; margin-block: 0; min-width: 0; }
+.snypd-band > h2 { grid-column: 1; grid-row: 1 / span 40; align-self: start; max-width: 14ch; }
+.snypd-band > h2 a { color: inherit; text-decoration: none; }
+.snypd-band > h2 a:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.12em; }
+.snypd-band > :not(h2) ~ :not(h2) { margin-top: var(--space-4); }
+.snypd-band > p { max-width: 36em; }
+.snypd-band > .snypd-stat-row + p { margin-top: var(--space-5); color: var(--color-muted); }
+
+/* The hero: one centred column, paced as the visit is — the sentence, the film, the button, then the prose
+   and the window. The lead dissolves into the band's grid (`display: contents`) so its children are placed
+   among the cover and the button: the lead's `figure` spans the container under the sentence as the page's
+   one big picture, the button sits under it, and the prose and the code block follow in the same centred
+   column. No markup beyond the author's prose, a fence and a figure; the reading order stays the source's. */
+.snypd-hero { border-top: 0; }
+.snypd-hero > .snypd-cover { grid-column: 1 / -1; grid-row: 1; margin: 0; text-align: center; }
+.snypd-hero h1 { font-size: var(--size-display); line-height: 1.02; letter-spacing: -0.035em; max-width: 12.5em; margin-inline: auto; text-wrap: balance; }
+.snypd-hero > .snypd-lead { display: contents; }
+.snypd-lead > * { grid-column: 1 / -1; margin-block: 0; min-width: 0; }
+.snypd-lead > figure { grid-column: 1 / -1; grid-row: 2; margin-top: calc(var(--space-6) * 0.583); }
+.snypd-lead > figure :is(img, video) { aspect-ratio: 16 / 10; object-fit: cover; background: var(--color-text); }
+.snypd-lead > figure > figcaption { text-align: center; }
+.snypd-hero > .snypd-hero-action { grid-column: 1 / -1; grid-row: 3; justify-self: center; margin-top: var(--space-5); }
+/* Under the button the column stays centred: the lead's first paragraph set as a title — the display face,
+   a step under a section heading — and the code block, the window, centred under it on the dark half of the
+   same pairs. Prose after the first paragraph is quieter; what the author made strong is picked out. */
+.snypd-lead > :not(figure) { grid-column: 1 / -1; justify-self: center; margin-top: var(--space-3); max-width: 36em; }
+.snypd-lead > p { text-align: center; text-wrap: pretty; }
+.snypd-lead > p:first-of-type { margin-top: calc(var(--space-6) * 0.75); font: 500 var(--size-lede) / 1.18 var(--font-display); letter-spacing: -0.025em; text-wrap: balance; max-width: 25em; }
+.snypd-lead > p:not(:first-of-type) { color: var(--color-muted); }
+.snypd-lead > p:first-of-type + p { margin-top: var(--space-4); }
+.snypd-lead > p strong { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.005em; color: var(--color-text); }
+.snypd-lead > pre { width: min(100%, var(--measure-window)); max-width: none; color-scheme: dark; background: var(--color-bg); color: var(--color-text); margin-top: var(--space-5); padding: var(--space-4); border-radius: calc(var(--radius) * 2); font-size: var(--size-window); line-height: 1.8; }
+@media (max-width: 64rem) { .snypd-lead > pre { font-size: var(--size-window-narrow); padding: var(--space-3) var(--space-4); } }
+
+/* A ruled list in a band: each item a title and a line, and the link that ends it set where a row's date
+   sits. `:last-child` is the last *element*: a list written as **title.** sentence. [where]. */
+.snypd-band > ul { list-style: none; padding: 0; }
+.snypd-band > ul > li { position: relative; margin: 0; padding: var(--space-3) var(--space-row-link) var(--space-3) 0; border-top: 1px solid var(--color-border); font-size: var(--size-small); color: var(--color-muted); }
+.snypd-band > ul > li:last-child { border-bottom: 1px solid var(--color-border); }
+.snypd-band > ul > li > strong:first-child { display: block; font: 500 var(--size-body) / 1.4 var(--font-display); letter-spacing: -0.005em; color: var(--color-text); }
+.snypd-band > ul > li > a:last-child { position: absolute; right: 0; top: calc(var(--space-3) + 0.2em); color: inherit; white-space: nowrap; }
+.snypd-band > ul > li > a:last-child:hover { color: var(--color-text); }
+
+.snypd-home-more { font-size: var(--size-small); }
+
+/* The close: the last `##` section, drawn after the lists so the page ends on the ask. One declaration,
+   `color-scheme: dark` over the same pairs — the heading, the muted line, the button, which turns white. */
+.snypd-close { color-scheme: dark; background: var(--color-bg); color: var(--color-text); border-top: 0; }
+.snypd-close > h2 { max-width: 12ch; }
+.snypd-close > pre { background: none; padding: 0; border-radius: 0; font-size: var(--size-close-code); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.snypd-close .snypd-cta { border-top: 0; padding-top: 0; margin-block: var(--space-4) 0; }
+.snypd-close .snypd-cta > p:first-child { font: inherit; letter-spacing: 0; }
+.snypd-close .snypd-cta > p:first-child, .snypd-close .snypd-cta > p:nth-child(2) { color: var(--color-muted); margin-top: 0; }
+
+/* The fold: at 47.5 rem two columns are one, heading first. The refusal's link drops under its line. */
+@media (max-width: 47.5rem) {
+  .snypd-band { grid-template-columns: minmax(0, 1fr); }
+  .snypd-band > *, .snypd-band > h2 { grid-column: 1; grid-row: auto; }
+  .snypd-band > h2 { margin-bottom: var(--space-4); max-width: 18ch; }
+  .snypd-band > h2 + * { margin-top: 0; }
+  .snypd-lead > * { grid-column: 1; }
+  .snypd-lead > pre { padding: var(--space-3); white-space: pre-wrap; }
+  .snypd-band > ul > li { padding-right: 0; }
+  .snypd-band > ul > li > a:last-child { position: static; display: block; margin-top: var(--space-1); }
+}

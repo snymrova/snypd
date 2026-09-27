@@ -1,0 +1,33 @@
+/* masthead/plain — carved from folio, over `base`'s header and no part of its own: the name, the menu, the
+   motion control. Edge to edge, its content on the column's `--edge`, so it lines up with a band or a
+   footer drawn the same way. The brand's wrapper steps aside (`display: contents`) and the name, a tagline
+   when the site sets one, and the menu are the row. A link that leaves the site — the repository — is the
+   outlined button the row ends on, found by what it is (`rel="external"`), not where it sits. */
+.snypd-masthead {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--space-2) var(--space-4); min-height: var(--size-masthead);
+  padding: var(--space-2) var(--edge); border-bottom: 1px solid var(--color-border);
+}
+.snypd-brand { display: contents; }
+.snypd-brand > a[rel="home"] { font: 500 var(--size-brand) / 1 var(--font-display); letter-spacing: -0.02em; color: var(--color-text); text-decoration: none; }
+.snypd-masthead .snypd-logo { display: block; height: var(--size-logo); width: auto; }
+.snypd-tagline { font-size: var(--size-small); color: var(--color-muted); margin-inline-end: auto; }
+.snypd-masthead nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-menu); }
+.snypd-masthead nav li { margin: 0; }
+.snypd-masthead nav a { font-size: var(--size-small); color: var(--color-text); text-decoration: none; }
+.snypd-masthead nav a:hover { text-decoration: underline; text-underline-offset: 0.3em; }
+.snypd-masthead nav a[aria-current="page"] { box-shadow: inset 0 -1px 0 currentColor; }
+.snypd-masthead nav a[rel~="external"] {
+  display: inline-block; padding: var(--space-chip); border-radius: calc(var(--radius) - 1px);
+  border: 1px solid color-mix(in oklab, var(--color-text) 22%, var(--color-bg));
+  font: 500 var(--size-small) / 1.2 var(--font-display);
+}
+.snypd-masthead nav a[rel~="external"]:hover { text-decoration: none; border-color: var(--color-text); }
+.snypd-motion { font-size: var(--size-small); color: var(--color-muted); }
+
+/* The phone menu (U7): `base` makes it work; this is how it reads. */
+.snypd-menu-button { font: 500 var(--size-small) / 1.2 var(--font-display); color: var(--color-text); border-color: color-mix(in oklab, var(--color-text) 22%, var(--color-bg)); border-radius: calc(var(--radius) - 1px); padding: var(--space-chip); }
+#snypd-menu:popover-open { color: var(--color-text); background: var(--color-bg); font-size: var(--size-body); border-top: 1px solid var(--color-border); }
+#snypd-menu:popover-open a { font-size: var(--size-body); }
+#snypd-menu:popover-open a[rel~="external"] { justify-self: start; }
+@media (max-width: 47.5rem) { .snypd-masthead nav ul { gap: var(--space-2) var(--space-menu-narrow); } }

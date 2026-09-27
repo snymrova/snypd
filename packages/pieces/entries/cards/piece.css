@@ -15,3 +15,6 @@ main:has(> .snypd-entries) > .snypd-entries { max-width: none; }
 .snypd-entry-card-title { display: block; font: 600 var(--size-h3) / 1.15 var(--font-display); letter-spacing: -0.02em; text-wrap: balance; }
 .snypd-entry-card > a:hover .snypd-entry-card-title { color: var(--color-accent); }
 .snypd-entry-card-text { display: block; color: var(--color-muted); text-wrap: pretty; }
+/* The line under an archive's title (`list`): set a size up, at the cards' edge and held to the measure
+   like everything above them. */
+main:has(> .snypd-entries) > .snypd-lede { font-size: var(--size-h3); line-height: 1.35; text-wrap: pretty; }

@@ -1,0 +1,7 @@
+/* pages — a page is laid out like a post: its article is not one block in the text track but dissolves into
+   the column, so a wide figure on an about page breaks out as it would in a post, and a table takes the
+   breakout track. (Folio's; a page's code block stays in the text track, as it did there.) */
+main > .snypd-page { display: contents; }
+/* At an element's weight, under `main > *`'s: a chart or a wide figure on the page still wins its track. */
+main > :where(.snypd-page) > * { grid-column: text; }
+main > .snypd-page > table { grid-column: wide; }

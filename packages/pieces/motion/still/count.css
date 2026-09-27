@@ -1,0 +1,19 @@
+/* count — the count-up on a stat (studio's device, docs/17 §3), tier B. `@property` makes `--n` an integer
+   the view timeline can drive; the renderer sets it inline from the stat's own value (stat.tsx) and a
+   `::before` counts up to it, painted in the page's background over the real text, which stays in the DOM.
+   Once the count has run the overlay steps aside. Under reduced motion, the numbers as written. */
+@supports (animation-timeline: view()) {
+  @property --n { syntax: "<integer>"; initial-value: 0; inherits: true; }
+  .snypd-stat-value[data-n] { position: relative; }
+  .snypd-stat-value[data-n]::before {
+    content: counter(n) attr(data-unit) / "";
+    counter-reset: n var(--n);
+    position: absolute; inset: 0; background: var(--color-bg); pointer-events: none;
+    animation: snypd-count linear both, snypd-uncover linear both;
+    animation-timeline: view(); animation-range: entry 0% entry 45%, entry 45% entry 46%;
+  }
+  @keyframes snypd-count { from { --n: 0; } }
+  @keyframes snypd-uncover { to { visibility: hidden; } }
+}
+@supports (text-box: trim-both cap alphabetic) { .snypd-stat-value[data-n]::before { text-box: trim-both cap alphabetic; } }
+@media (prefers-reduced-motion: reduce) { .snypd-stat-value[data-n]::before { content: none; animation: none; } }

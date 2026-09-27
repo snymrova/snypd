@@ -1,0 +1,13 @@
+piece: entries/ledger
+from: folio
+line: A list as a ledger — ruled rows, the title at sub-heading size, a small muted line under it (the first term, and the entry's own mark — a session, a version), the date at the right.
+reads: [font.display, size.h3, size.small, size.body, space.1, space.2, space.3, space.4, color.border, color.muted, measure.excerpt, space.row, space.row-line]
+needs:
+  measure.excerpt: 38rem
+  space.row: 1.125rem
+  space.row-line: 0.2rem
+emits: [snypd-ledger, snypd-ledger-row, snypd-ledger-what, snypd-ledger-title, snypd-ledger-meta, snypd-ledger-text, snypd-ledger-when, snypd-ledger-empty]
+pairs:
+  column: three-track
+parts:
+  entries: ./part.tsx
