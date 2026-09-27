@@ -338,7 +338,21 @@
       }
     },
     "home/index": {
-      "inputs": "879c619748a96a2e",
+      "inputs": "a4abe077242eb258",
+      "route": "/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          400
+        ],
+        "still-390.webp": [
+          195,
+          422
+        ]
+      }
+    },
+    "home/portfolio": {
+      "inputs": "70dd1749bd609c07",
       "route": "/",
       "sizes": {
         "still-1280.webp": [

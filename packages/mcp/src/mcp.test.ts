@@ -1673,9 +1673,9 @@ describe("theme › look", () => {
       const r = (await s.handle(call(6, "theme", { action: "look", board: "home" }))) as any;
       expect(r.result.isError).toBeUndefined();
       expect(r.result.content.map((c: any) => c.type)).toEqual(["text", "image", "resource_link"]);
-      expect(r.result.content[0].text).toMatch(/^board · home · 3 × 1 on editorial · \/ at 1280/);   // W4: a draft is on its board — that is how it gets seen
+      expect(r.result.content[0].text).toMatch(/^board · home · 4 × 1 on editorial · \/ at 1280/);   // W4: a draft is on its board — that is how it gets seen
       // The front page is cropped by the slot's own container, not by the first band a piece emits.
-      expect(r.result.structuredContent.cells.map((c: any) => [c.variant, c.selector])).toEqual([["bands", "main.snypd-home"], ["index", "main.snypd-home"], ["split", "main.snypd-home"]]);
+      expect(r.result.structuredContent.cells.map((c: any) => [c.variant, c.selector])).toEqual([["bands", "main.snypd-home"], ["index", "main.snypd-home"], ["portfolio", "main.snypd-home"], ["split", "main.snypd-home"]]);
       const sheet = (await s.handle({ jsonrpc: "2.0", id: 7, method: "resources/read", params: { uri: r.result.content[2].uri } })) as any;
       expect(Buffer.from(sheet.result.contents[0].blob, "base64").subarray(8, 12).toString()).toBe("WEBP");
       const sets = (await s.handle(call(8, "theme", { action: "look", board: "wall", sets: 3 }))) as any;

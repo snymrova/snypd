@@ -3544,3 +3544,58 @@ describe("W4: `entries/index` — each entry one line, a leader to the date, the
     expect(read("posts")).not.toContain("<time");
   });
 });
+
+describe("W4: `home/portfolio` — the front page is the work, each cover whole in a frame shaped like the grid's typical cover", () => {
+  const root = "corpora/_test/home-portfolio";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const item = (i: number, cover?: string) =>
+    `---\ntitle: Work ${i}\ndate: ${i <= 2 ? "2025" : "2026"}-01-${String(i).padStart(2, "0")}\nstatus: published\ncategory: product\n` +
+    (cover ? `cover: { image: /media/${cover}.png, alt: A cover }\n` : "") + `---\n\nBody ${i}.\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/media", "themes/p"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: p }\n");
+    writeFileSync(join(root, "content/pages/home.md"), `---\ntitle: A studio\nstatus: published\nhome: true\n---\n\n::cover{subtitle="Under the title." media="/media/reel.mp4"}\n\nWe make things.\n\n## How we work\n\n:::stat-row\n::stat{value="31" label="products"}\n::stat{value="11" label="weeks"}\n:::\n`);
+    writeFileSync(join(root, "content/media/wide.png"), png(300, 200, [1, 2, 3]));
+    writeFileSync(join(root, "content/media/tall.png"), png(200, 300, [4, 5, 6]));
+    // Fourteen works, more than the twelve the piece asks for: the newest three carry two wide covers and a tall one, the rest none.
+    for (let i = 1; i <= 14; i++) writeFileSync(join(root, `content/posts/w${i}.md`), item(i, i === 14 ? "wide" : i === 13 ? "tall" : i === 12 ? "wide" : undefined));
+    writeFileSync(join(root, "themes/p/theme.yaml"), "theme: p\nextends: base\npieces:\n  column: three-track\n  home: portfolio\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the intro without the cover, twelve works newest first, the frame the median shape, a wall label, the way to the archive, the `##` sections after", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("");
+    expect(h).toContain('<main class="snypd-home snypd-portfolio">');
+    expect(h).toContain('<header class="snypd-portfolio-intro"><h1>A studio</h1><p>We make things.</p>');
+    expect(h).not.toContain("snypd-cover");
+    expect(h).not.toContain("Under the title.");
+    // Twelve, the piece's `homeEntries` default, over base's six.
+    expect(h.match(/<li class="snypd-portfolio-work">/g)!.length).toBe(12);
+    expect(h.indexOf("Work 14")).toBeLessThan(h.indexOf("Work 13"));
+    expect(h).not.toContain(">Work 2<");
+    // Shapes 1.5, 0.667, 1.5: the median is 1.5, so the landscape covers fill their frames and the tall one stands in its own.
+    expect(h).toContain('style="--portfolio-frame: 1.5"');
+    expect(h).toContain('<span class="snypd-portfolio-frame"><img src="/media/wide.png" alt="" decoding="async" width="300" height="200">');
+    // No cover: the work is its name in the frame, hidden from the tree because the label says it again.
+    expect(h).toContain('<span class="snypd-portfolio-frame" data-empty=""><span aria-hidden="true">Work 11</span></span>');
+    expect(h).toContain('<span class="snypd-portfolio-label">2026 · Product</span>');
+    expect(h).toContain('<p class="snypd-portfolio-more"><a href="/posts/">Every post</a></p>');
+    const after = h.indexOf('<section class="snypd-portfolio-after" aria-labelledby="how-we-work">');
+    expect(after).toBeGreaterThan(h.indexOf("snypd-portfolio-more"));
+    expect(h.indexOf("snypd-stat-row")).toBeGreaterThan(after);
+  });
+
+  test("the first row's covers load eagerly; with no sized cover the frame is square", async () => {
+    const h = read("");
+    const imgs = [...h.matchAll(/<img src="\/media\/[a-z]+\.png"[^>]*>/g)].map((m) => m[0]);
+    expect(imgs.every((t) => !t.includes('loading="lazy"'))).toBe(true);     // all three covers are in the first row
+    for (const i of [12, 13, 14]) writeFileSync(join(root, `content/posts/w${i}.md`), item(i));
+    for (const d of ["dist", ".snypd"]) rmSync(join(root, d), { recursive: true, force: true });
+    await build(root);
+    expect(read("")).toContain('style="--portfolio-frame: 1"');
+  });
+});

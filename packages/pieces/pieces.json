@@ -2154,7 +2154,7 @@
       "draft": true,
       "slot": "home",
       "name": "index",
-      "kb": 1.3,
+      "kb": 1.42,
       "switchKb": {},
       "files": [
         "layout.tsx",
@@ -2165,6 +2165,92 @@
         "files": [
           "home/index/still-1280.webp",
           "home/index/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "home/portfolio": {
+      "piece": "home/portfolio",
+      "from": "drawn",
+      "line": "The front page is the work — a line of intro, then a grid of the listed type's covers, each whole inside a frame they share and standing on one line over a wall label; the page's `##` sections follow as an afterword.",
+      "reads": [
+        "font.display",
+        "font.ui",
+        "size.h2",
+        "size.h3",
+        "size.small",
+        "leading.tight",
+        "color.muted",
+        "color.border",
+        "color.accent",
+        "color.surface",
+        "measure",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "measure.tile"
+      ],
+      "needs": {
+        "measure.tile": "15rem"
+      },
+      "emits": [
+        "snypd-portfolio",
+        "snypd-portfolio-intro",
+        "snypd-portfolio-works",
+        "snypd-portfolio-work",
+        "snypd-portfolio-frame",
+        "snypd-portfolio-name",
+        "snypd-portfolio-label",
+        "snypd-portfolio-more",
+        "snypd-portfolio-after"
+      ],
+      "switches": {},
+      "settings": [
+        {
+          "id": "homeEntries",
+          "type": "number",
+          "label": "Works on the front page",
+          "group": "Front page",
+          "info": "How many of the listed type the front page shows, newest first — the type the header menu names first. The way to the whole archive is under the grid either way.",
+          "default": 12
+        }
+      ],
+      "parts": {},
+      "layouts": {
+        "home": "./layout.tsx"
+      },
+      "pairs": {
+        "column": "three-track"
+      },
+      "refs": [
+        {
+          "url": "https://www.pentagram.com/",
+          "took": "the work is the front page; the studio's own words come after it"
+        },
+        {
+          "url": "https://www.are.na/",
+          "took": "every picture whole inside a cell every work shares, never cropped, so a tall one and a wide one sit as equals"
+        },
+        {
+          "url": "https://www.moma.org/collection/",
+          "took": "the caption as a wall label: the title, then the year and one fact, small, under the work"
+        }
+      ],
+      "draft": true,
+      "slot": "home",
+      "name": "portfolio",
+      "kb": 2.21,
+      "switchKb": {},
+      "files": [
+        "layout.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "home/portfolio/still-1280.webp",
+          "home/portfolio/still-390.webp"
         ],
         "fresh": true
       }
