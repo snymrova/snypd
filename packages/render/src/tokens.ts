@@ -86,16 +86,19 @@ export function atImport(css: string): number {
  * between the webfont and the rest of the stack. Derived rather than declared because it is not a choice:
  * it names a face this function invents, and a theme that had to spell it out could spell it wrong.
  */
-export function fontFaceCss(font: ThemeFont, url: string): string {
+export function fontFaceCss(font: ThemeFont, url: string, cuts: { url: string; weight?: string | number; style: string }[] = []): string {
   const f = font.fallback;
-  return `@font-face {
+  // The cuts (decision 281) are the same family at another style or weight, so the browser fetches one
+  // only when something on the page is set in it — the italic for the first `<em>`, never on a page with none.
+  const face = (u: string, weight: string | number | undefined, style: string) => `@font-face {
   font-family: ${JSON.stringify(font.family)};
-  src: url(${JSON.stringify(url)}) format("woff2");
-  font-weight: ${font.weight ?? 400};
-  font-style: ${font.style ?? "normal"};
+  src: url(${JSON.stringify(u)}) format("woff2");
+  font-weight: ${weight ?? 400};
+  font-style: ${style};
   font-display: swap;
 }
-@font-face {
+`;
+  return face(url, font.weight, font.style ?? "normal") + cuts.map((c) => face(c.url, c.weight, c.style)).join("") + `@font-face {
   font-family: ${JSON.stringify(fallbackFamily(font))};
   src: local(${JSON.stringify(f.local)});
   size-adjust: ${f["size-adjust"]};

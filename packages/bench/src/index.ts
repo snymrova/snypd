@@ -15,7 +15,7 @@ import { compile } from "./compile";
 import { generate, generateTheme } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
-import { loadConfig, lintSite, MdastCache, SiteIndex, renderThemeSummary, INDEX_DIR } from "@snypd/core";
+import { loadConfig, lintSite, MdastCache, SiteIndex, renderThemeSummary, INDEX_DIR, fontLaneKb } from "@snypd/core";
 import { pageSuite, pickRoutes } from "./page";
 import { buildAndServe } from "./gallery";
 import { suggestMetrics, scoreSuggest, formatSuggestScore, SUGGEST_CORPUS } from "./suggest";
@@ -553,7 +553,7 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   // script budget because it chose the plugins, and it affords its theme nothing because the theme is
   // what it chose. Loading the theme here rather than reading the YAML is what makes the number the same
   // one the build used — including whose theme in the chain declared it.
-  const fontKb = (await loadTheme(loadConfig(root))).font?.kb ?? 0;
+  const fontKb = fontLaneKb((await loadTheme(loadConfig(root))).font);
   const { metrics, browser } = await pageSuite({ root, label: "editorial", jsKb: ACTIVE.jsKb, fontKb });
   metrics.push(...(await themeLane(root)));
   metrics.push(...(await deskLane(root, fontKb)));
@@ -609,7 +609,7 @@ async function themeLane(root: string): Promise<Metric[]> {
   const dist = join(root, "dist-technical");
   const index = await SiteIndex.open(root, join(root, INDEX_DIR, "index.technical.sqlite"));
   try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
-  const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
+  const fontKb = fontLaneKb((await loadTheme(cfg)).font);
   return (await pageSuite({ root, dist, label: cfg.config.theme.use, prefix: "tech", jsKb: ACTIVE.jsKb, fontKb })).metrics;
 }
 
@@ -663,7 +663,7 @@ async function firstRunLane(): Promise<Metric[]> {
   // and a lane that inherited the fixture's budget would be checking one site's bytes against another's
   // declaration. Today they are the same theme and the same number, which is exactly when a bug like
   // that is invisible.
-  const fontKb = (await loadTheme(loadConfig(dir))).font?.kb ?? 0;
+  const fontKb = fontLaneKb((await loadTheme(loadConfig(dir))).font);
   const s = await preview(dir, { port: 0, watch: false, deskRefresh: 0, prompts: PROMPTS.map((p) => ({ ...p, description: p.description ?? "" })) });
   try {
     await s.settled();
@@ -835,7 +835,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   if (!opts.quick) {   // the browser suite costs ~10 s and a Chrome; --quick is the inner-loop run
     const fixture = themeFixture();
     await build(fixture);
-    const fontKb = (await loadTheme(loadConfig(fixture))).font?.kb ?? 0;   // B1: the theme's declaration, not a constant
+    const fontKb = fontLaneKb((await loadTheme(loadConfig(fixture))).font);   // B1: the theme's declaration, not a constant
     metrics.push(...(await pageSuite({ root: fixture, label: "editorial", fontKb })).metrics);
     metrics.push(...(await deskLane(fixture, fontKb)));   // S18b: the Desk under the same browser as the public routes
     metrics.push(...(await firstRunLane()));      // S18f: the two states every user meets exactly once

@@ -324,5 +324,5 @@ export function writeSeed(dir: string, name: string, r: SeedResult, face?: SeedF
     ? before.replace(/^## Seed\b[\s\S]*?(?=^## |(?![\s\S]))/m, `${block}\n`)
     : `${before.replace(/\n*$/, "\n\n")}${block}`;
   writeFileSync(design, after.replace(/\n+$/, "\n"));
-  return face ? [file, design, join(dir, face.font.file), join(dir, "fonts", "OFL.txt")] : [file, design];
+  return face ? [file, design, join(dir, face.font.file), ...(face.font.cuts ?? []).map((c) => join(dir, c.file)), join(dir, "fonts", "OFL.txt")] : [file, design];
 }

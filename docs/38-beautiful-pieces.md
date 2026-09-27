@@ -275,3 +275,28 @@ This adds ~1½ days (F0) and ~1 day across W4–W6, so **about 18 days plus one 
 2. **F0 before W2?** The recommendation is yes: it is cheap, and every still made before it would be made again.
 3. **Notebook stays the trial kit?** It sits in two AI clusters by design (the brief asked for it). Keep it as the benchmark, but don't make it the first kit an agent sees for an unrelated brief.
 4. **Which exemplars you love or hate** in §3.1. One line from you per slot is worth more than any of the research.
+
+---
+
+## 13. F0 — the face shelf carries its craft, built 25 Sep 2026
+
+**Decision 281 taken** (Sunny, 25 Sep), with two answers to the questions it raised:
+
+- **Optical size: two fixed instances, not the range.** Measured: keeping the opsz axis makes a face 2–3× heavier (Source Serif 4 30 → 94–101 KB even at a 12–32 range; Bricolage 34 → 65 KB). The text instance stays pinned and `shelf.json` records the pin (`pinned: { opsz: 16 }`). A display cut (Source Serif 4 at opsz 60 is 28 KB) waits until a theme can carry a display family beside its text family.
+- **48 KB per file, up from 40** (`MAX_FONT_KB`). Old-style figures and small caps put Source Serif 4 at 44 KB. Each cut has its own 48; only the roman is preloaded.
+
+**What it cost, measured on the pinned instances:** `tnum lnum` ≈ 0–1 KB; `onum pnum` ≈ 4.5 KB and `smcp c2sc` ≈ 7 KB on Source Serif 4; an italic is 10–39 KB, fetched only by a page that sets one.
+
+**Built:**
+
+| Where | What |
+|---|---|
+| `scripts/shelf-build.py` | Every face keeps `tnum lnum`; text serifs (and the slab) keep `onum pnum smcp c2sc`. 11 italics (every text face + Instrument Serif; Young Serif, Gloock, Bricolage, Big Shoulders and Barlow have none upstream) and Plex Serif 600, each its own file. `shelf.json` records per face `weights`, `italic`, `features` (read back from the cut file, never copied from the recipe), `digits` (what the figures do with no feature on: Plex and Source Sans are tabular by default and carry `pnum`, not `tnum`), `axes`, `pinned`, `cuts`. `--check`: no drift. |
+| `core` schema | `font.cuts` (≤ 3: `{ file, weight, style, kb }`), `font.features`, `font.digits`; `fontLaneKb()` = roman + cuts, which is now what `page.font.kb` and the gallery are budgeted against. |
+| `render` | `fontFaceCss` writes one `@font-face` per cut under the same family; `loadTheme` loads each cut, holds it to its own `kb`, versions its url; the build writes it to `dist/assets/fonts/`. The preload is still the roman alone. |
+| `check theme` | `font.budget` names the cuts; **`font.craft`** (warn) reads the resolved sheet against the face: a prose face with no italic, an italic the sheet sets with none to draw it, a weight more than 50 past the face's reach, `tabular-nums`/`oldstyle-nums`/`small-caps` the face cannot do. Feature questions are asked only of a face that recorded `features` (a hand-vendored face is not guessed at). |
+| `@snypd/shelf` | `installFace` copies the cuts, writes `cuts`/`features`/`digits`, and removes every earlier shelf file on a re-seed. |
+
+**Proof:** 677 pass / 0 fail. A scratch site over editorial seeded three ways: Plex Serif (italic + 600, `font.craft` passes), Young Serif (warns: no italic, weights 500–650 asked and the face stops at 400: true, and exactly what docs/38 meant), Source Serif 4 (roman preloaded, italic in the sheet only; shot at 768 shows a true italic, single-storey *a*).
+
+**Not in this session:** the 6–10 new faces (needs **282**); the seed writing `weight.*` tokens (needs **283**; no `weight.*` token exists yet); the shelf board at three sizes (W2's board tool is the right place, not a one-off page); the agent seeing the shelf as a resource (it still learns face ids only from an error; W5's taste brief is the place). Bundled themes (editorial, studio) vendor their own faces through `vendor-font.sh` and still have no italic. Moving them to shelf cuts is a small follow-up, and their stills change when it lands.

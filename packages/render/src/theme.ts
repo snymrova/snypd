@@ -297,8 +297,10 @@ export interface LoadedFont extends ThemeFont {
   bytes: Buffer;
   /** The licence text shipped beside it, when the theme ships one — copied into `dist/` with the font. */
   licence?: { name: string; text: string };
-  /** The `@font-face` pair, ready to sit above the layer statement. */
+  /** The `@font-face` rules, ready to sit above the layer statement. */
   css: string;
+  /** The italic and static weights beside the roman (decision 281), each with its url and bytes; never preloaded. */
+  loadedCuts: { file: string; weight?: string | number; style: "normal" | "italic"; kb: number; url: string; bytes: Buffer }[];
 }
 
 
@@ -573,20 +575,24 @@ export async function loadTheme(cfg: LoadedConfig, opts: LoadThemeOptions = {}):
   if (declares) {
     const f = declares.yaml.font!;
     const tn = declares.link.name;
-    const bytes = themeBinary(declares.link.dir, f.file);
-    if (!bytes) throw new Error(`theme ${tn}: font.file "${f.file}" is declared in theme.yaml but the file is missing`);
-    const kb = +(bytes.length / 1024).toFixed(2);
-    if (kb > f.kb) throw new Error(`theme ${tn}: ${f.file} is ${kb} KB but theme.yaml declares font.kb: ${f.kb} — re-subset it or raise the declaration (at most ${MAX_FONT_KB}, decision 118)`);
-    const base = f.file.split("/").pop()!;
-    // Versioned by its bytes (S36): `_headers` serves `/assets/*` as immutable, so the url has to change
-    // when the face does. The file on disk keeps its plain name — the build strips the query.
-    const url = `/assets/fonts/${base}?v=${createHash("sha1").update(bytes).digest("hex").slice(0, 10)}`;
+    // Each file is read, held to its own declared lane, and versioned by its bytes (S36): `_headers` serves
+    // `/assets/*` as immutable, so the url has to change when the face does. The file on disk keeps its
+    // plain name — the build strips the query.
+    const load = (file: string, declared: number, key: string) => {
+      const bytes = themeBinary(declares.link.dir, file);
+      if (!bytes) throw new Error(`theme ${tn}: ${key} "${file}" is declared in theme.yaml but the file is missing`);
+      const kb = +(bytes.length / 1024).toFixed(2);
+      if (kb > declared) throw new Error(`theme ${tn}: ${file} is ${kb} KB but theme.yaml declares ${key === "font.file" ? "font.kb" : `${key}.kb`}: ${declared} — re-subset it or raise the declaration (at most ${MAX_FONT_KB}, decisions 118 and 281)`);
+      return { bytes, url: `/assets/fonts/${file.split("/").pop()!}?v=${createHash("sha1").update(bytes).digest("hex").slice(0, 10)}` };
+    };
+    const { bytes, url } = load(f.file, f.kb, "font.file");
+    const loadedCuts = (f.cuts ?? []).map((c, i) => ({ ...c, ...load(c.file, c.kb, `font.cuts[${i}]`) }));
     // The licence travels with the font. The OFL requires it, and a site built from this theme
     // redistributes the font on every page it serves — so `dist/` carries the notice next to the bytes
     // it is the notice for, rather than leaving it behind in a themes directory nobody deployed.
     const dir0 = f.file.includes("/") ? f.file.slice(0, f.file.lastIndexOf("/") + 1) : "";
     const lic = ["OFL.txt", "LICENSE.txt", "LICENSE"].map((n) => ({ name: n, text: themeFile(declares.link.dir, `${dir0}${n}`) })).find((x) => x.text !== undefined);
-    font = { ...f, declaredBy: tn, url, bytes, css: fontFaceCss(f, url), licence: lic && { name: lic.name, text: lic.text! } };
+    font = { ...f, declaredBy: tn, url, bytes, css: fontFaceCss(f, url, loadedCuts), loadedCuts, licence: lic && { name: lic.name, text: lic.text! } };
   }
 
   const theme = { name, dir, chain, hash, yaml, css, font, layouts, primitives, coverage, parts, partCoverage, pieces, piecesCtx: piecesCtx(pieces), layoutCoverage, stamp };
