@@ -20,6 +20,10 @@ export interface PieceEntry {
   settings: PieceSettingDecl[];
   parts: Record<string, string>; layouts: Record<string, string>;
   pairs: Record<string, string | string[]>;
+  /** A drawn piece's sources (docs/37 §3·2): the page and the one idea taken from it. */
+  refs: { url: string; took: string }[];
+  /** Unseen (decision 278): kept out of the shelf index, marked in its slot's file, refused by `check theme`. */
+  draft: boolean;
   /** `piece.css`, minified, in KB — what the theme's `cssKb` is charged. */
   kb: number;
   /** Each switch file's KB, by stem (`sticky`, `tagline-under`). */

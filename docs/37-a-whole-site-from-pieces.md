@@ -293,3 +293,20 @@ pieces:
 **Tests:** render (a feature type through `feature/log` — kicker, badge, facts in declared order, a fact's link, a list fact's singular; a type without roles still a post; the archive's line on a feature type and not on `/posts/`; the fallback on a theme without `feature`, and a theme's own `work` still winning), mcp (coverage's `types` on Ferrule), contract (the class list reads the `list` layouts; the house test skips sheets that no longer exist). 688 pass / 0 fail; typecheck clean.
 
 **Not done in W3:** a `feature` still per board set (as W2, one set); `list/ruled` and `list/grid` (W4, drawn); a switch for which fact leads (the date leads on `log`, the year closes on `facts` — each piece's own idea, left so until a board says otherwise). The site's deploy still waits for a release that ships these pieces.
+
+---
+
+## 16. W4 — drawing pieces, begun 27 Sep 2026
+
+**The first drawn piece is `home/index`, and it is a draft.** The front page *is* the ruled index: the page's title at prose size and everything before its first `##` as the line of intro, then every dated type the build hands the page as one list, newest first, in groups by year with the year set in the column's margin — and staying there, sticky, while that year's entries scroll past, which is the piece's one signature detail (docs/38 §3.3). The rows are the `entries` piece's, so a ledger, plain rows or a card grid are all this front page. The way to each archive is one line under the list (*Every post · The whole log*), and the page's own `##` sections come after it, as an afterword. A `::cover` on the page is not drawn: reading first, and the film is `split`'s or `bands`' idea. Drawn from craigmod.com/essays (the archive is the front page; a sentence above it and nothing else), danluu.com (one list, every entry, no hero) and overreacted.io (the year as a running mark over its entries), named under `refs:`.
+
+**What the shelf needed to hold a drawn piece.**
+- `piece.yaml` gains `refs:` — a url and *the one idea taken*, never an adjective — and `draft:`. The generator refuses `from: drawn` with fewer than two refs. `snypd://theme/pieces/<slot>` prints both; `snypd://theme/pieces`, the index an agent chooses from, **leaves a draft out** (decision 278); `check theme` gains `pieces.draft`, a fail, so a theme on a draft can be built and looked at but not shipped. Stills and the board treat a draft like any piece — the board is how it gets seen.
+- `homeEntries`: the build handed every front page six of each list (S25). A front page that is the list needs more, so the count is now a setting the build reads when a theme declares it — `home/index` declares it, default 24 — and six otherwise, unchanged.
+- A layout that wraps its content in `display: contents` loses the column: three-track's `main > *` cannot see the wrapper's children and the grid drops them in the gutter. The intro and the afterword are ordinary items on the text track with the column's own rhythm inside them. A year's group is a subgrid over `wide`, so its mark takes the margin track and its rows the text track; under 52.5rem the mark heads its rows instead.
+
+**Seen.** `snypd pieces board home corpora/specimen --sets=5`: fifteen cells, no findings; on the light serif, the dark sans and the pathological set the index reads as drawn — the intro, one breath, the year beside the first rule, the rows. The specimen holds one year, so the two-year form is proved in the render test and not yet pictured; the sitting should see it on a site with two — snypd.rocks's log has both. Stills reshot.
+
+**Tests:** render (the intro without the cover, ten entries over base's six, two year groups in order, two types merged newest first, the archive line, the afterword after it; `homeEntries: 2` gives two of each list; `pieces.draft` fails on the theme), pieces (every drawn piece has two refs, none an adjective; nothing carved is a draft), mcp (the index omits the draft, the slot file marks it with its refs; the home board is three wide).
+
+**Next in W4:** `list/ruled`, `entries/index`, then the rest of §7's drawn column — each a draft on its board — and the sitting.

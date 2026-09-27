@@ -317,6 +317,17 @@ export const PieceYamlSchema = z.object({
   layouts: z.record(z.string().min(1), z.string().min(1)).default({}),
   /** Constraints on other slots, for the sampler: `home: bands` or `home: [bands, split]`. */
   pairs: z.record(pieceName, z.union([pieceName, z.array(pieceName).min(1)])).default({}),
+  /**
+   * Where a drawn piece's ideas came from (docs/37 §3·2, docs/38 §3.1): a real page and the one idea taken
+   * from it — *"the year in the margin"*, never an adjective. A piece with `from: drawn` names at least two.
+   */
+  refs: z.array(z.object({ url: z.string().url(), took: z.string().min(1) }).strict()).default([]),
+  /**
+   * Unseen (decision 278): in the manifest, on its board and in `snypd://theme/pieces/<slot>` marked as such,
+   * but not in the shelf index an agent chooses from, and a theme on it fails `check theme` until a sitting
+   * passes it. Set on every drawn piece until Sunny has looked at its board.
+   */
+  draft: z.boolean().default(false),
 }).strict();
 export type PieceYaml = z.infer<typeof PieceYamlSchema>;
 /**

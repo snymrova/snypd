@@ -1,0 +1,16 @@
+piece: home/index
+from: drawn
+draft: true
+line: The front page is the ruled index — a line of intro, then every entry newest first in groups by year, the year set in the margin; the page's `##` sections follow as an afterword.
+refs:
+  - { url: https://craigmod.com/essays/, took: "the archive is the front page; a sentence above it and nothing else" }
+  - { url: https://danluu.com/,          took: "one list, every entry, no hero" }
+  - { url: https://overreacted.io/,      took: "the year as a running mark over its entries" }
+reads: [font.display, font.ui, size.h2, size.h3, size.small, leading.tight, color.muted, color.border, color.accent, space.2, space.3, space.4, space.5]
+emits: [snypd-index, snypd-index-intro, snypd-index-year, snypd-index-mark, snypd-index-more, snypd-index-after]
+settings:
+  - { id: homeEntries, type: number, label: "Entries on the front page", group: "Front page", default: 24, info: "How many of each list the front page indexes, newest first. The way to the whole archive is under the list either way." }
+pairs:
+  column: three-track
+layouts:
+  home: ./layout.tsx

@@ -3397,3 +3397,57 @@ describe("font.craft: what the sheet asks of the face (decision 281)", () => {
     expect(fontCraft({ ...roman, features: [], digits: "tabular" }, ".t { font-variant-numeric: tabular-nums }", false)).toEqual([]);
   });
 });
+
+describe("W4 (docs/37 §7): `home/index` — the front page is the ruled index, and a drawn piece is a draft until a sitting passes it", () => {
+  const root = "corpora/_test/home-index";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const yaml = (settings = "") =>
+    `snypd: 1\nsite: { name: N, url: https://n.example }\ntheme: { use: n${settings} }\n` +
+    `types:\n  note:\n    extends: post\n    dir: content/notes\n    urlPattern: /notes/{slug}\n    layout: post\n`;
+  const item = (title: string, date: string) => `---\ntitle: ${title}\ndate: ${date}\nstatus: published\ndescription: About ${title}.\n---\n\nBody of ${title}.\n`;
+  const rule = (r: { rules: { rule: string; status: string; detail: string }[] }, name: string) => r.rules.find((x) => x.rule === name)!;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/notes", "content/pages", "themes/n"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    // Seven posts over two years and three notes, so the index has two year groups and merges two types.
+    for (let i = 1; i <= 7; i++) writeFileSync(join(root, `content/posts/p${i}.md`), item(`Post ${i}`, i <= 3 ? `2025-0${i}-10` : `2026-0${i}-10`));
+    for (let i = 1; i <= 3; i++) writeFileSync(join(root, `content/notes/n${i}.md`), item(`Note ${i}`, `2026-0${i + 4}-20`));
+    writeFileSync(join(root, "content/pages/home.md"), `---\ntitle: A notebook\nstatus: published\nhome: true\n---\n\n::cover{subtitle="Under the title." media="/media/reel.mp4"}\n\nThe one sentence above the index.\n\n## Colophon\n\nSet in the shelf's serif.\n`);
+    writeFileSync(join(root, "themes/n/theme.yaml"), "theme: n\nextends: base\npieces:\n  column: three-track\n  entries: list\n  home: index\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the intro, then every dated type as one list in year groups newest first, the way to each archive, the `##` sections after — and no cover media", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml());
+    const r = await build(root);
+    expect(r.fallbacks).toEqual([]);
+    const h = read("");
+    expect(h).toContain('<main class="snypd-home snypd-index">');
+    expect(h).toContain('<header class="snypd-index-intro"><h1>A notebook</h1><p>The one sentence above the index.</p>');
+    expect(h).not.toContain("snypd-cover");                       // the film is another piece's idea
+    expect(h).not.toContain("Under the title.");
+    // Ten entries, more than base's six: the piece's `homeEntries` setting (default 24) is what the build hands the page.
+    expect(h.match(/<li>/g)!.length).toBe(10);
+    const y26 = h.indexOf('<h2 class="snypd-index-mark" id="snypd-year-2026">2026</h2>'), y25 = h.indexOf('<h2 class="snypd-index-mark" id="snypd-year-2025">2025</h2>');
+    expect(y26).toBeGreaterThan(0);
+    expect(y25).toBeGreaterThan(y26);
+    // Newest first across both types: Note 3 (2026-07) leads, Post 7 (2026-07-10) after it, and 2025's posts close.
+    expect(h.indexOf("Note 3")).toBeLessThan(h.indexOf("Post 7"));
+    expect(h.indexOf("Post 7")).toBeLessThan(h.indexOf("Note 2"));
+    expect(h.indexOf("Post 1")).toBeGreaterThan(y25);
+    expect(h).toContain('<p class="snypd-index-more"><a href="/posts/">Every post</a> · <a href="/notes/">The whole notes</a></p>');
+    expect(h).toContain('<section class="snypd-index-after" aria-labelledby="colophon"><h2 id="colophon">Colophon</h2>');
+    expect(h.indexOf("snypd-index-after")).toBeGreaterThan(h.indexOf("snypd-index-more"));
+  });
+
+  test("`homeEntries` is the site's to set, per list; `check theme` fails a theme on a draft piece (decision 278)", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml(", settings: { homeEntries: 2 } "));
+    await build(root);
+    expect(read("").match(/<li>/g)!.length).toBe(4);              // two of each list
+    const d = rule(await checkTheme(root, "n"), "pieces.draft");
+    expect(d.status).toBe("fail");
+    expect(d.detail).toContain("home/index is a draft");
+  });
+});

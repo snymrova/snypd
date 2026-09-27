@@ -297,6 +297,10 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     add("pieces.used", "pass", `${pieces.map((p) => `${p.slot}: ${p.name}${Object.entries(p.switches).filter(([sw, v]) => v !== p.entry.switches[sw]!.default).map(([sw, v]) => ` ${sw}=${v}`).join("")}${p.always ? " (always)" : ""}`).join(" · ")} — ${kb.toFixed(1)} KB of CSS, counted in \`cssKb\``);
     const contract = themeContract();
     const view = themeView(cfg);
+    // W4 (decision 278): a drawn piece is a draft until Sunny's sitting passes it on its board. It can be
+    // built and looked at — that is how it gets seen — but a theme that ships is on shelf pieces only.
+    const drafts = pieces.filter((p) => p.entry.draft).map((p) => p.id);
+    if (drafts.length) add("pieces.draft", "fail", `${drafts.join(", ")} ${drafts.length === 1 ? "is a draft" : "are drafts"} — seen on the board, not yet passed at a sitting; \`theme\` › look { board } shows it, and the shelf's other ${drafts.length === 1 ? "piece" : "pieces"} in the slot ship`);
     const missing = [...new Set(pieces.flatMap((p) => p.entry.reads.filter((t) => contract.tokens.includes(t) && !(t in view)).map((t) => `${t} (${p.id})`)))];
     add("pieces.tokens", missing.length ? "fail" : "pass",
       missing.length ? `${missing.length} contract token${missing.length === 1 ? "" : "s"} a piece reads and this theme does not declare: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? "…" : ""} — each is a var() with nothing behind it; \`snypd theme seed\` writes all forty`

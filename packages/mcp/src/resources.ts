@@ -166,6 +166,9 @@ export function handlers(root: string): Handlers {
             ...(Object.keys(v.needs).length ? [`    needs:   # tokens beyond the contract, with this default; the theme may set them`, ...Object.entries(v.needs).map(([k, x]) => `      ${k}: ${JSON.stringify(x)}`)] : []),
             ...(v.settings.length ? [`    settings: [${v.settings.map((x) => x.id).join(", ")}]   # snypd://theme/settings once in use`] : []),
             ...(pairs(v).length ? [`    pairs: { ${pairs(v).join(", ")} }`] : []),
+            // W4: a drawn piece says where its ideas came from; a draft says it has not been passed on sight.
+            ...(v.refs.length ? [`    refs:   # drawn from — the page, and the one idea taken`, ...v.refs.map((r) => `      - { url: ${r.url}, took: ${JSON.stringify(r.took)} }`)] : []),
+            ...(v.draft ? [`    draft: true   # unseen — on its board, not on the shelf: a theme on it fails \`check theme\` until a sitting passes it (decision 278)`] : []),
             ...([...Object.keys(v.parts), ...Object.keys(v.layouts)].length ? [`    ships: [${[...Object.keys(v.parts).map((x) => `part ${x}`), ...Object.keys(v.layouts).map((x) => `layout ${x}`)].join(", ")}]`] : []),
             // W2: the picture, as a link — it costs nothing until it is opened (~350 tokens at 1280).
             ...(v.stills ? [`    still: snypd://theme/pieces/${v.piece}/still-1280.webp   # also still-390.webp${v.stills.fresh ? "" : " — older than the piece"}`] : []),
@@ -182,7 +185,8 @@ export function handlers(root: string): Handlers {
       const meta = (v: (typeof m.pieces)[string]) => [...(sw(v).length ? [sw(v).join(", ")] : []), ...(pairs(v).length ? [`pairs ${pairs(v).join(", ")}`] : []), ...(on.has(v.piece) ? ["IN USE"] : [])];
       for (const s of m.slots) {
         if (s.always) continue;
-        const vs = Object.values(m.pieces).filter((p) => p.slot === s.slot);
+        // A draft is not on the shelf an agent chooses from (decision 278); its slot's file still names it.
+        const vs = Object.values(m.pieces).filter((p) => p.slot === s.slot && !p.draft);
         if (!vs.length) { empty.push(s.slot); continue; }
         if (vs.length === 1) {
           const v = vs[0]!;

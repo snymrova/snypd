@@ -306,8 +306,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const dated = (t: string) => Boolean(c.types[t]?.fields?.date);
   const listed = published.filter((f) => layoutOf(f) && dated(f.type));
   const listEntries = listed.map(entryOf);
-  /** What the front page lists under its body (S25): the newest few, and the `home` layout links the rest at the archive. */
-  const HOME_ENTRIES = 6;
+  /**
+   * What the front page lists under its body (S25): the newest few, and the `home` layout links the rest at
+   * the archive. A front page that *is* the list (`home/index`, W4) declares a `homeEntries` setting and
+   * gets that many of each list; nothing else reads the setting, so a theme without it is unchanged.
+   */
+  const HOME_ENTRIES = typeof settings.homeEntries === "number" && settings.homeEntries > 0 ? Math.floor(settings.homeEntries) : 6;
   const webSite = () => ({ "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: `${site.url}/`, description: site.description });
   /**
    * The archives (R1, decision 194): one list per dated type at the directory of its url pattern —

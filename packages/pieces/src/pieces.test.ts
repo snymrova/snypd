@@ -68,6 +68,17 @@ describe("the manifest", () => {
     // its switches.
     for (const p of Object.values(m.pieces)) { expect(p.from.length).toBeGreaterThan(0); expect(p.kb + Object.values(p.switchKb).reduce((a, b) => a + b, 0), p.piece).toBeGreaterThan(0); }
   });
+  test("W4: a drawn piece names the pages its ideas came from, and is a draft until a sitting passes it (decision 278)", () => {
+    const m = loadPieces();
+    const drawn = Object.values(m.pieces).filter((p) => p.from === "drawn");
+    expect(drawn.map((p) => p.piece)).toContain("home/index");
+    for (const p of drawn) {
+      expect(p.refs.length).toBeGreaterThanOrEqual(2);
+      for (const r of p.refs) { expect(r.url).toMatch(/^https:\/\//); expect(r.took).not.toMatch(/^(beautiful|clean|modern|minimal)\b/i); }   // an idea, not an adjective
+    }
+    for (const p of Object.values(m.pieces).filter((p) => p.from !== "drawn")) expect(p.draft).toBe(false);
+  });
+
   test("W2: every piece has its two stills, and they picture the piece as it is now", () => {
     // Stale or missing: `snypd pieces stills --stale` (needs a browser) reshoots exactly those.
     const m = loadPieces();

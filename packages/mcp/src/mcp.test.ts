@@ -1055,6 +1055,16 @@ describe("find_tools + the catalogue", () => {
     expect(switched.result.content[0].text).toContain("base does not declare");
   });
 
+  test("W4: a draft is not on the shelf an agent chooses from; its slot's file names it, marked, with the pages it was drawn from", async () => {
+    const [, shelf, home] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://theme/pieces" }), req(3, "resources/read", { uri: "snypd://theme/pieces/home" })], "corpora/theme");
+    const index: string = shelf.result.contents[0].text, slot: string = home.result.contents[0].text;
+    expect(index).toMatch(/^    bands: /m);
+    expect(index).not.toMatch(/^    index: /m);
+    expect(slot).toMatch(/^  index:\n    line: "The front page is the ruled index/m);
+    expect(slot).toContain("    draft: true   # unseen — on its board, not on the shelf");
+    expect(slot).toContain("      - { url: https://craigmod.com/essays/, took: ");
+  });
+
   test("snypd://theme/pieces is the shelf: every slot, every piece on one line, the active theme's marked — under 1,200 tokens (docs/36 §5)", async () => {
     const [, list, shelf, masthead, nope, templates] = await session([req(1, "initialize"), req(2, "resources/list"), req(3, "resources/read", { uri: "snypd://theme/pieces" }),
       req(4, "resources/read", { uri: "snypd://theme/pieces/masthead" }), req(5, "resources/read", { uri: "snypd://theme/pieces/nope" }), req(6, "resources/templates/list")], "corpora/theme");
@@ -1663,9 +1673,9 @@ describe("theme › look", () => {
       const r = (await s.handle(call(6, "theme", { action: "look", board: "home" }))) as any;
       expect(r.result.isError).toBeUndefined();
       expect(r.result.content.map((c: any) => c.type)).toEqual(["text", "image", "resource_link"]);
-      expect(r.result.content[0].text).toMatch(/^board · home · 2 × 1 on editorial · \/ at 1280/);
+      expect(r.result.content[0].text).toMatch(/^board · home · 3 × 1 on editorial · \/ at 1280/);   // W4: a draft is on its board — that is how it gets seen
       // The front page is cropped by the slot's own container, not by the first band a piece emits.
-      expect(r.result.structuredContent.cells.map((c: any) => [c.variant, c.selector])).toEqual([["bands", "main.snypd-home"], ["split", "main.snypd-home"]]);
+      expect(r.result.structuredContent.cells.map((c: any) => [c.variant, c.selector])).toEqual([["bands", "main.snypd-home"], ["index", "main.snypd-home"], ["split", "main.snypd-home"]]);
       const sheet = (await s.handle({ jsonrpc: "2.0", id: 7, method: "resources/read", params: { uri: r.result.content[2].uri } })) as any;
       expect(Buffer.from(sheet.result.contents[0].blob, "base64").subarray(8, 12).toString()).toBe("WEBP");
       const sets = (await s.handle(call(8, "theme", { action: "look", board: "wall", sets: 3 }))) as any;

@@ -98,6 +98,8 @@ export function generate(): PieceManifest {
       if (!r.success) { errors.push(`${id}/piece.yaml: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`); continue; }
       const y = r.data;
       if (y.piece !== id) errors.push(`${id}/piece.yaml: \`piece: ${y.piece}\` but it lives in ${id}`);
+      // A drawn piece is designed from references (docs/37 §3·2): two or three real pages and the idea taken from each.
+      if (y.from === "drawn" && y.refs.length < 2) errors.push(`${id}/piece.yaml: \`from: drawn\` and ${y.refs.length ? "one ref" : "no refs"} — a drawn piece names at least two under \`refs:\` (url + took)`);
       for (const other of Object.keys(y.pairs)) if (!names.has(other)) errors.push(`${id}/piece.yaml: pairs names no slot "${other}"`);
       for (const [n, f] of [...Object.entries(y.parts), ...Object.entries(y.layouts)]) if (!existsSync(join(dir, f))) errors.push(`${id}/piece.yaml: ${n} → ${f}, which is missing`);
       const files = walk(dir);

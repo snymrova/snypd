@@ -323,6 +323,20 @@
         ]
       }
     },
+    "home/index": {
+      "inputs": "5eb69efad054d24e",
+      "route": "/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          400
+        ],
+        "still-390.webp": [
+          195,
+          422
+        ]
+      }
+    },
     "home/split": {
       "inputs": "f92c00e414e990d5",
       "route": "/",
