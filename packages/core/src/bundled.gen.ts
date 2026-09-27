@@ -50,7 +50,8 @@ export function generate(): string {
   const pack = (kind: "themes" | "plugins" | "pieces", name: string, into: string[]) => {
     const dir = join(kind === "themes" ? THEMES : kind === "plugins" ? PLUGINS : PIECES, name);
     const up = kind === "pieces" ? "../../pieces" : `../../../${kind}`;
-    const files = walk(dir);
+    // A piece's stills (W2) are pictures for the agent and the board, read from a checkout; a render never needs them.
+    const files = walk(dir).filter((f) => kind !== "pieces" || !/^still-\d+\.webp$/.test(f));
     const h = createHash("sha1");
     for (const f of files) h.update(f).update(readFileSync(join(dir, f)));
     const text: string[] = [], mods: string[] = [], bin: string[] = [];

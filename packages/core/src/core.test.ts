@@ -726,14 +726,14 @@ describe("the webfont declaration (B1)", () => {
 `;
   beforeEach(() => rmSync(R, { recursive: true, force: true }));
 
-  test("a face over decision 118's ceiling is an error, named and placed", () => {
+  test("a face over the ceiling (decisions 118, 281) is an error, named and placed", () => {
     theme("f", `theme: f\n${FONT("kb: 64")}`);
     site("f");
     const c = loadConfig(R);
     expect(c.ok).toBe(false);
-    expect(errors(c).join("\n")).toMatch(/theme\.font\.kb: at most 40/);
+    expect(errors(c).join("\n")).toMatch(/theme\.font\.kb: at most 48/);
     // MAX_FONT_KB is the one place the ceiling is written, so the message and the loader cannot disagree.
-    expect(MAX_FONT_KB).toBe(40);
+    expect(MAX_FONT_KB).toBe(48);
   });
 
   test("one format, and it is the one every browser has read since 2020", () => {

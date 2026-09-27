@@ -1,0 +1,6 @@
+/* feature/release — a release, carved from folio's `release` (W3). The facts run in the byline, so the
+   piece's own rules are the badge beside the version and the releases around it under the body. */
+.snypd-badge { font: 500 var(--size-badge) / 1 var(--font-display); color: var(--color-text); border: 1px solid currentColor; border-radius: 100vmax; padding: 0.3em 0.7em; }
+.snypd-byline .snypd-fact-items > * + *::before { content: ", " / ""; }
+.snypd-around { grid-column: wide; margin-top: var(--space-5); }
+.snypd-around > h2 { margin: 0 0 var(--space-3); font-size: var(--size-small); letter-spacing: 0; color: var(--color-muted); }

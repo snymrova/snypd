@@ -18,6 +18,7 @@ import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type Author
 import { Html } from "./jsx-runtime";
 import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
+import { typeLayout } from "./feature";
 import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic, type HookRun } from "./hooks";
 import { assertClientBudget } from "./budget";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, headersFile, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
@@ -267,16 +268,9 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const layoutForType = new Map<string, string | null>();
   const layoutFor = (type: string): string | null => {
     if (layoutForType.has(type)) return layoutForType.get(type)!;
-    const wanted = c.types[type]?.layout ?? null;
-    let used = wanted;
-    if (wanted && !theme.layouts[wanted]) {
-      const tried = [wanted];
-      for (const t of typeLineage(c.types, type).slice(1)) { const l = c.types[t]?.layout; if (l && !tried.includes(l)) tried.push(l); }
-      if (!tried.includes("post")) tried.push("post");
-      used = tried.find((l) => theme.layouts[l]) ?? null;
-      if (!used) throw new Error(`theme ${theme.name} has no layout "${wanted}" for type ${type}, and none of ${tried.slice(1).map((l) => `"${l}"`).join(", ")} to render it through instead`);
-      fallbacks.push({ type, wanted, used });
-    }
+    const { wanted, used, tried } = typeLayout(c, theme.layouts, type);
+    if (wanted && !used) throw new Error(`theme ${theme.name} has no layout "${wanted}" for type ${type}, and none of ${tried.slice(1).map((l) => `"${l}"`).join(", ")} to render it through instead`);
+    if (wanted && used !== wanted && used !== "feature") fallbacks.push({ type, wanted, used: used! });
     layoutForType.set(type, used);
     return used;
   };
@@ -480,8 +474,10 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
    */
   if (theme.font) {
     const f = theme.font;
-    const into = `assets/fonts/${f.url.split("/").pop()!.split("?")[0]}`;
-    plan.push({ route: f.url, key: sha1(`${base}:font:${into}`), kind: "artefact", outputs: [into], render: () => ({ [into]: f.bytes }) });
+    for (const { url, bytes } of [f, ...f.loadedCuts]) {
+      const into = `assets/fonts/${url.split("/").pop()!.split("?")[0]}`;
+      plan.push({ route: url, key: sha1(`${base}:font:${into}`), kind: "artefact", outputs: [into], render: () => ({ [into]: bytes }) });
+    }
     if (f.licence) artefact(`assets/fonts/${f.licence.name}`, () => f.licence!.text, base);
   }
 

@@ -5,7 +5,7 @@ import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
 import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, expandSeed, writeSeed, LIVE_ROUTE, SiteIndex } from "@snypd/core";
 import { preview } from "./preview";
-import { checkTheme, checkPlugin, formatCheck, unguardedCss } from "./check";
+import { checkTheme, checkPlugin, formatCheck, unguardedCss, fontCraft } from "./check";
 import { cssRules } from "./contract";
 import { staticTaste, tasteVerdicts, foldRendered, chosenRules, designVerdict, judgedAt, leadFamily, type TasteMeasure } from "./taste";
 import { deskPage, type DeskOnboarding } from "./desk";
@@ -522,6 +522,28 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
       // And a file the theme names and does not have says so, rather than emitting a broken url.
       const gone = site("corpora/_test/font-missing", "f", `theme: f\nextends: base\n${decl()}`, null);
       expect(loadTheme(loadConfig(gone))).rejects.toThrow(/font\.file "\.\/fonts\/t\.woff2" is declared/);
+    });
+
+    test("decision 281: the cuts are the same family, land in dist, and are never preloaded", async () => {
+      const cuts = "  cuts:\n    - { file: ./fonts/t-italic.woff2, weight: 400 700, style: italic, kb: 1 }\n    - { file: ./fonts/t-600.woff2, weight: 600, style: normal, kb: 1 }\n";
+      const root = site("corpora/_test/font-cuts", "f", `theme: f\nextends: base\n${decl(cuts)}`);
+      writeFileSync(join(root, "themes/f/fonts/t-italic.woff2"), Buffer.from("italic"));
+      writeFileSync(join(root, "themes/f/fonts/t-600.woff2"), Buffer.from("semibold"));
+      const t = await loadTheme(loadConfig(root));
+      expect(t.font!.loadedCuts.map((c) => c.url)).toEqual([expect.stringMatching(/^\/assets\/fonts\/t-italic\.woff2\?v=/), expect.stringMatching(/^\/assets\/fonts\/t-600\.woff2\?v=/)]);
+      // Three faces of one family, then the fallback: the browser picks a cut by style and weight.
+      expect(t.font!.css.match(/font-family: "Test Serif";/g)!.length).toBe(3);
+      expect(t.font!.css).toContain("font-style: italic");
+      expect(t.font!.css).toContain("font-weight: 600;");
+      await build(root);
+      expect(readFileSync(join(root, "dist/assets/fonts/t-italic.woff2"), "utf8")).toBe("italic");
+      expect(readFileSync(join(root, "dist/assets/fonts/t-600.woff2"), "utf8")).toBe("semibold");
+      const html = readFileSync(join(root, "dist/a/index.html"), "utf8");
+      expect(html).toContain(`rel="preload" href="${t.font!.url}"`);
+      expect(html).not.toContain("t-italic.woff2");                    // fetched by the first `em`, not before
+      // A cut is held to its own declaration, as the roman is.
+      writeFileSync(join(root, "themes/f/fonts/t-600.woff2"), Buffer.alloc(2048));
+      expect(loadTheme(loadConfig(root))).rejects.toThrow(/t-600\.woff2 is 2 KB but theme\.yaml declares font\.cuts\[1\]\.kb: 1/);
     });
 
     test("decision 131: `font:` is a declaration, so it never merges into the config", async () => {
@@ -3293,5 +3315,85 @@ describe("R1 (docs/20): a type of the site's own — archives, the front page's 
     expect(existsSync(join(blog, "dist/posts/index.html"))).toBe(false);
     expect(readFileSync(join(blog, "dist/index.html"), "utf8")).toContain('href="/posts/one/"');
     rmSync(blog, { recursive: true, force: true });
+  });
+});
+
+describe("W3 (docs/37 §2, §7): a type whose fields carry roles is drawn by the `feature` piece, and its archive counts it", () => {
+  const root = "corpora/_test/feature";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const yaml = (theme: string, own = "") =>
+    `snypd: 1\nsite: { name: F, url: https://f.example }\ntheme: { use: ${theme} }\n` +
+    `types:\n  work:\n    extends: post\n    dir: content/work\n    urlPattern: /work/{slug}\n    layout: work\n    noun: case\n    description: Cases, newest first.\n    fields:\n` +
+    `      client: { type: string, required: true, role: [kicker, fact] }\n` +
+    `      pr: { type: string, role: fact, label: Pull request, href: "https://example.com/pull/{value}" }\n` +
+    `      decisions: { type: list, of: { type: number }, role: fact, href: "https://example.com/decisions" }\n` +
+    `      shipped: { type: boolean, role: flag }\n` + own;
+  const item = (title: string, date: string, extra = "") => `---\ntitle: ${title}\ndate: ${date}\nstatus: published\n${extra}---\n\nBody of ${title}.\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/work", "themes/f", "themes/o/layouts"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "content/work/kiln.md"), item("Kiln", "2026-09-02", 'client: Bitácora\npr: "#34"\ndecisions: [212]\nshipped: true\n'));
+    writeFileSync(join(root, "content/work/stem.md"), item("Stem", "2026-09-01", "client: Lumo\ndecisions: [7, 8]\n"));
+    writeFileSync(join(root, "content/posts/grog.md"), item("A note on grog", "2026-09-03"));
+    // `f` is on pieces and names a feature piece; `o` also draws `work` by its own name.
+    writeFileSync(join(root, "themes/f/theme.yaml"), "theme: f\nextends: base\npieces:\n  list: plain\n  feature: log\n");
+    writeFileSync(join(root, "themes/o/theme.yaml"), "theme: o\nextends: base\nlayouts: [post, page, index, term, author, work]\npieces:\n  feature: log\n");
+    writeFileSync(join(root, "themes/o/layouts/work.tsx"), 'export default ({ page }) => ({ html: `<!doctype html><title>${page.title}</title><p>OWN-WORK</p>` });');
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("on a theme with `feature`, the type renders through it: the kicker, a flag's badge, the facts in declared order, a fact's link", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml("f"));
+    const r = await build(root);
+    expect(r.fallbacks).toEqual([]);
+    const k = read("work/kiln");
+    expect(k).toContain('<p class="snypd-eyebrow">Bitácora <span class="snypd-badge">Shipped</span></p>');
+    expect(k).toContain('<dl class="snypd-facts" data-count="4">');
+    expect(k.indexOf("<dt>Date</dt>")).toBeLessThan(k.indexOf("<dt>Client</dt>"));
+    expect(k.indexOf("<dt>Client</dt>")).toBeLessThan(k.indexOf("<dt>Pull request</dt>"));
+    expect(k).toContain('<dt>Pull request</dt><dd><a href="https://example.com/pull/34" rel="external">#34</a></dd>');
+    // a list fact with one value takes the singular of its name; its items link where the field says
+    expect(k).toContain('<dt>Decision</dt><dd><span class="snypd-fact-items"><a href="https://example.com/decisions" rel="external">212</a></span></dd>');
+    const st = read("work/stem");
+    expect(st).toContain("<dt>Decisions</dt>");
+    expect(st).not.toContain("snypd-badge");                     // a flag that is not true draws nothing
+    expect(st).not.toContain("<dt>Pull request</dt>");           // a fact with no value draws no cell
+    expect(read("posts/grog")).not.toContain("snypd-facts");     // a type with no roles is still a post
+    // the archive of a feature type says what it holds; `/posts/` does not
+    expect(read("work")).toContain('<p class="snypd-lede">2 cases, 1 Sep 2026 to 2 Sep 2026. Cases, newest first.</p>');
+    expect(read("posts")).not.toContain("snypd-lede");
+  });
+
+  test("on a theme without `feature`, the type falls back as before; a theme that draws the type by name keeps its own", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml("base"));
+    expect((await build(root)).fallbacks).toEqual([{ type: "work", wanted: "work", used: "post" }]);
+    expect(read("work/kiln")).not.toContain("snypd-facts");
+    writeFileSync(join(root, "snypd.yaml"), yaml("o"));
+    expect((await build(root)).fallbacks).toEqual([]);
+    expect(read("work/kiln")).toContain("<p>OWN-WORK</p>");
+  });
+});
+
+describe("font.craft: what the sheet asks of the face (decision 281)", () => {
+  const roman = { weight: "400 700", style: "normal" as const, features: ["tnum", "lnum"], digits: "proportional" as const };
+  test("a prose face with no italic is a slanted roman in every `em`", () => {
+    expect(fontCraft(roman, "", true)[0]).toMatch(/no italic/);
+    expect(fontCraft({ ...roman, cuts: [{ file: "i.woff2", style: "italic", kb: 1 }] }, "", true)).toEqual([]);
+    // A display face nothing sets prose in is only asked when the sheet itself sets italic.
+    expect(fontCraft(roman, "h1 { color: red }", false)).toEqual([]);
+    expect(fontCraft(roman, "h1 { font-style: italic }", false)[0]).toMatch(/sets `font-style: italic`/);
+  });
+  test("a weight past the face's reach is named; within 50 the browser rounds; a cut extends the reach", () => {
+    const plex = { weight: "400", style: "normal" as const };
+    expect(fontCraft(plex, "h2 { font-weight: 600 } b { font-weight: 450 }", false)).toEqual(["asks for weight 600 and the face stops at 400"]);
+    expect(fontCraft({ ...plex, cuts: [{ file: "s.woff2", weight: "600", style: "normal", kb: 1 }] }, "h2 { font: 600 1rem/1 serif }", false)).toEqual([]);
+  });
+  test("figure styles and small caps are asked only of a face that recorded its features", () => {
+    const css = ".n { font-variant-numeric: oldstyle-nums } .c { font-variant-caps: all-small-caps }";
+    expect(fontCraft(roman, css, false)).toEqual(["`oldstyle-nums` asked, and the face has none", "`small-caps` asked, and the face has none: the browser scales capitals"]);
+    expect(fontCraft({ weight: "400 700" }, css, false)).toEqual([]);                  // hand-vendored: not guessed
+    expect(fontCraft({ ...roman, features: [], digits: "tabular" }, ".t { font-variant-numeric: tabular-nums }", false)).toEqual([]);
   });
 });

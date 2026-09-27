@@ -31,6 +31,10 @@
       "line": "The site header — name, logo, tagline, menu."
     },
     {
+      "slot": "list",
+      "line": "An archive's page: its heading and the line under it. The rows are `entries`."
+    },
+    {
       "slot": "entries",
       "line": "A list of posts — on the index, a term, an author."
     },
@@ -45,6 +49,10 @@
     {
       "slot": "home",
       "line": "The front page's layout."
+    },
+    {
+      "slot": "feature",
+      "line": "The page of a site's own type, drawn from the fields it marks `role:` fact, kicker, flag."
     },
     {
       "slot": "notes",
@@ -67,6 +75,117 @@
       "line": "A drawn background behind the page."
     }
   ],
+  "board": {
+    "stills": {
+      "host": "editorial",
+      "root": "corpora/specimen",
+      "routes": {
+        "house": "/posts/long-read/",
+        "column": "/posts/every-primitive-once/",
+        "prose": "/posts/long-read/",
+        "code": "/posts/long-read/",
+        "blocks": "/posts/every-primitive-once/",
+        "cover": "/posts/every-primitive-once/",
+        "masthead": "/",
+        "list": "/changelog/",
+        "entries": "/posts/",
+        "post-foot": "/posts/every-primitive-once/",
+        "footer": "/",
+        "home": "/",
+        "feature": "/changelog/1-0-0/",
+        "notes": "/posts/long-read/",
+        "toc": "/posts/long-read/",
+        "wall": "/posts/every-primitive-once/",
+        "motion": "/posts/long-read/",
+        "backdrop": "/"
+      }
+    },
+    "sets": [
+      {
+        "name": "light-serif",
+        "line": "A warm paper, a text serif, an oxblood link — the reading page.",
+        "face": "source-serif-4",
+        "tokens": {
+          "color.scheme": "light",
+          "color.bg": "#f7f4ec",
+          "color.surface": "#eee9dd",
+          "color.text": "#1f1b16",
+          "color.muted": "#665e54",
+          "color.accent": "#8c2f1b",
+          "color.on-accent": "#ffffff",
+          "color.border": "#d8d0c1"
+        }
+      },
+      {
+        "name": "dark-sans",
+        "line": "A near-black, a grotesk, one cool blue — the tool at night.",
+        "face": "instrument-sans",
+        "tokens": {
+          "color.scheme": "dark",
+          "color.bg": "#111317",
+          "color.surface": "#1a1d23",
+          "color.text": "#e7e8eb",
+          "color.muted": "#9aa0aa",
+          "color.accent": "#7fb8ff",
+          "color.on-accent": "#0b0d10",
+          "color.border": "#2c3038"
+        }
+      },
+      {
+        "name": "loud-accent",
+        "line": "White, a wide display grotesk, one hot red that has to carry the page.",
+        "face": "bricolage-grotesque",
+        "tokens": {
+          "color.scheme": "light",
+          "color.bg": "#ffffff",
+          "color.surface": "#f3f3f1",
+          "color.text": "#111111",
+          "color.muted": "#595959",
+          "color.accent": "#d40028",
+          "color.on-accent": "#ffffff",
+          "color.border": "#e0e0e0"
+        }
+      },
+      {
+        "name": "committed",
+        "line": "The page drenched in one saturated cobalt, a display serif, a yellow that answers it.",
+        "face": "young-serif",
+        "tokens": {
+          "color.scheme": "dark",
+          "color.bg": "#1f2a8c",
+          "color.surface": "#2934a0",
+          "color.text": "#f7f1e1",
+          "color.muted": "#c6c9ee",
+          "color.accent": "#ffd447",
+          "color.on-accent": "#1f2a8c",
+          "color.border": "#4450bb"
+        }
+      },
+      {
+        "name": "pathological",
+        "line": "Everything a piece might assume, broken — big body, huge condensed heads, a narrow column, square corners, tight leading.",
+        "face": "barlow-condensed",
+        "tokens": {
+          "color.scheme": "light",
+          "color.bg": "#fffdf8",
+          "color.surface": "#efece3",
+          "color.text": "#22201c",
+          "color.muted": "#67625a",
+          "color.accent": "#0b6e4f",
+          "color.on-accent": "#ffffff",
+          "color.border": "#cdc7b9",
+          "size.body": "1.3rem",
+          "size.h1": "clamp(3rem, 2rem + 6vw, 6.5rem)",
+          "size.h2": "clamp(2rem, 1.5rem + 3vw, 3.4rem)",
+          "size.h3": "1.9rem",
+          "measure": "30rem",
+          "radius": "0",
+          "leading.body": "1.35",
+          "leading.tight": "0.95"
+        }
+      }
+    ]
+  },
   "pieces": {
     "house/house": {
       "piece": "house/house",
@@ -97,21 +216,31 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "house/house/still-1280.webp",
+          "house/house/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "column/three-track": {
       "piece": "column/three-track",
-      "from": "technical, editorial, studio",
+      "from": "technical, editorial, studio, folio",
       "line": "One grid, three tracks — text, breakout, full. Prose in the text track; charts, diagrams and wide figures break out by `measure.breakout`.",
       "reads": [
         "space.3",
         "space.4",
-        "space.5",
         "space.6",
+        "space.page-top",
         "measure",
+        "measure.wide",
         "measure.breakout"
       ],
-      "needs": {},
+      "needs": {
+        "space.page-top": "var(--space-5)"
+      },
       "emits": [],
       "switches": {
         "rhythm": {
@@ -129,6 +258,14 @@
         "fit": {
           "default": false,
           "description": "A chart, diagram or flow shrinks to its drawing and centres on the track, its caption wrapping under the drawing — one left edge per figure."
+        },
+        "pages": {
+          "default": false,
+          "description": "A page's article dissolves into the column as a post's does, so its figures and tables break out of the text track too."
+        },
+        "shrink": {
+          "default": false,
+          "description": "Every block in the column may shrink below its content's width — a long unbroken line scrolls or wraps inside its block instead of widening the track."
         }
       },
       "settings": [],
@@ -137,19 +274,30 @@
       "pairs": {},
       "slot": "column",
       "name": "three-track",
-      "kb": 0.67,
+      "kb": 0.76,
       "switchKb": {
         "data": 0.05,
         "fit": 0.19,
-        "rhythm-tight": 0.03
+        "pages": 0.13,
+        "rhythm-tight": 0.03,
+        "shrink": 0.07
       },
       "files": [
         "data.css",
         "fit.css",
+        "pages.css",
         "piece.css",
         "piece.yaml",
-        "rhythm-tight.css"
-      ]
+        "rhythm-tight.css",
+        "shrink.css"
+      ],
+      "stills": {
+        "files": [
+          "column/three-track/still-1280.webp",
+          "column/three-track/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "prose/book": {
       "piece": "prose/book",
@@ -187,7 +335,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "prose/book/still-1280.webp",
+          "prose/book/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "prose/display": {
       "piece": "prose/display",
@@ -228,7 +383,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "prose/display/still-1280.webp",
+          "prose/display/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "prose/docs": {
       "piece": "prose/docs",
@@ -267,7 +429,59 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "prose/docs/still-1280.webp",
+          "prose/docs/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "prose/grotesk": {
+      "piece": "prose/grotesk",
+      "from": "folio",
+      "line": "Prose under a medium grotesk — headings at one weight, tracked in more as they grow, h4 a shade over the body; links underlined at a third of their colour; a ruled, muted quote.",
+      "reads": [
+        "color.scheme",
+        "color.bg",
+        "color.text",
+        "color.muted",
+        "color.accent",
+        "color.border",
+        "font.body",
+        "font.heading",
+        "size.body",
+        "size.h1",
+        "size.h2",
+        "size.h3",
+        "leading.body",
+        "leading.tight",
+        "space.4",
+        "space.5"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "prose",
+      "name": "grotesk",
+      "kb": 1.41,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "prose/grotesk/still-1280.webp",
+          "prose/grotesk/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "code/first-class": {
       "piece": "code/first-class",
@@ -302,7 +516,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "code/first-class/still-1280.webp",
+          "code/first-class/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "code/quiet": {
       "piece": "code/quiet",
@@ -345,7 +566,58 @@
         "display-heads.css",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "code/quiet/still-1280.webp",
+          "code/quiet/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "code/tint": {
+      "piece": "code/tint",
+      "from": "folio",
+      "line": "Code on a tint with no borders — inline code and blocks on the surface colour; tables ruled, tabular figures, the header in the display face over a rule in the text colour.",
+      "reads": [
+        "font.mono",
+        "font.display",
+        "size.small",
+        "size.code",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.surface",
+        "color.border",
+        "color.text",
+        "radius",
+        "radius.small"
+      ],
+      "needs": {
+        "size.code": "0.875rem",
+        "radius.small": "var(--radius)"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "code",
+      "name": "tint",
+      "kb": 1.03,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "code/tint/still-1280.webp",
+          "code/tint/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "blocks/hairline": {
       "piece": "blocks/hairline",
@@ -396,7 +668,79 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "blocks/hairline/still-1280.webp",
+          "blocks/hairline/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "blocks/rows": {
+      "piece": "blocks/rows",
+      "from": "folio",
+      "line": "The fourteen primitives as ruled rows — no box inside a box, only a hairline above a block or one quiet surface, numbers in the display face, steps and questions as rows under hairlines, one solid button.",
+      "reads": [
+        "font.display",
+        "font.ui",
+        "font.mono",
+        "size.body",
+        "size.small",
+        "size.h2",
+        "size.h3",
+        "size.number",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "color.surface",
+        "color.border",
+        "color.accent",
+        "color.on-accent",
+        "color.text",
+        "color.muted",
+        "color.bg",
+        "color.viz.1",
+        "color.viz.2",
+        "color.viz.4",
+        "radius",
+        "motion.quick",
+        "measure.deck",
+        "measure.stat",
+        "space.step",
+        "space.step-row",
+        "space.button"
+      ],
+      "needs": {
+        "measure.deck": "36rem",
+        "measure.stat": "10rem",
+        "space.step": "3.5rem",
+        "space.step-row": "1.25rem",
+        "space.button": "0.875rem 1.25rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "blocks",
+      "name": "rows",
+      "kb": 4.86,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "blocks/rows/still-1280.webp",
+          "blocks/rows/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "blocks/ruled": {
       "piece": "blocks/ruled",
@@ -447,7 +791,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "blocks/ruled/still-1280.webp",
+          "blocks/ruled/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "blocks/surface": {
       "piece": "blocks/surface",
@@ -497,7 +848,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "blocks/surface/still-1280.webp",
+          "blocks/surface/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "cover/display": {
       "piece": "cover/display",
@@ -534,7 +892,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "cover/display/still-1280.webp",
+          "cover/display/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "cover/path": {
       "piece": "cover/path",
@@ -569,7 +934,57 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "cover/path/still-1280.webp",
+          "cover/path/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "cover/plain": {
+      "piece": "cover/plain",
+      "from": "folio",
+      "line": "A cover that stays quiet — the eyebrow a small line in the display face, sentence case and muted, room for a badge beside it; the subtitle muted under the title; the picture at twice the radius.",
+      "reads": [
+        "font.display",
+        "font.ui",
+        "size.small",
+        "size.h3",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.muted",
+        "color.border",
+        "color.surface",
+        "radius",
+        "measure.deck"
+      ],
+      "needs": {
+        "measure.deck": "36rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "cover",
+      "name": "plain",
+      "kb": 0.94,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "cover/plain/still-1280.webp",
+          "cover/plain/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "cover/quiet": {
       "piece": "cover/quiet",
@@ -605,7 +1020,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "cover/quiet/still-1280.webp",
+          "cover/quiet/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "masthead/bar": {
       "piece": "masthead/bar",
@@ -652,7 +1074,14 @@
         "part.tsx",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "masthead/bar/still-1280.webp",
+          "masthead/bar/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "masthead/nameplate": {
       "piece": "masthead/nameplate",
@@ -702,7 +1131,68 @@
         "part.tsx",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "masthead/nameplate/still-1280.webp",
+          "masthead/nameplate/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "masthead/plain": {
+      "piece": "masthead/plain",
+      "from": "folio",
+      "line": "Base's header as it comes — the name or logo in the display face at the left, the menu small at the right, one hairline under; a link that leaves the site is drawn as an outlined button.",
+      "reads": [
+        "font.display",
+        "size.small",
+        "size.body",
+        "space.2",
+        "space.4",
+        "color.text",
+        "color.muted",
+        "color.bg",
+        "color.border",
+        "radius",
+        "size.masthead",
+        "size.brand",
+        "size.logo",
+        "space.menu",
+        "space.menu-narrow",
+        "space.chip"
+      ],
+      "needs": {
+        "size.masthead": "3.875rem",
+        "size.brand": "1.375rem",
+        "size.logo": "1.75rem",
+        "space.menu": "1.75rem",
+        "space.menu-narrow": "1.125rem",
+        "space.chip": "0.5rem 0.875rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {
+        "column": "three-track"
+      },
+      "slot": "masthead",
+      "name": "plain",
+      "kb": 2.03,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "masthead/plain/still-1280.webp",
+          "masthead/plain/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "masthead/title-bar": {
       "piece": "masthead/title-bar",
@@ -759,7 +1249,48 @@
         "part.tsx",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "masthead/title-bar/still-1280.webp",
+          "masthead/title-bar/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "list/plain": {
+      "piece": "list/plain",
+      "from": "base",
+      "line": "An archive as a heading and its entries — and, for a type the site declares, one line under the heading that says what the list holds, counted and dated from the entries, then the type's own sentence.",
+      "reads": [
+        "color.muted",
+        "measure"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {
+        "index": "./layout.tsx"
+      },
+      "pairs": {},
+      "slot": "list",
+      "name": "plain",
+      "kb": 0.06,
+      "switchKb": {},
+      "files": [
+        "layout.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "list/plain/still-1280.webp",
+          "list/plain/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "entries/cards": {
       "piece": "entries/cards",
@@ -800,13 +1331,80 @@
       "pairs": {},
       "slot": "entries",
       "name": "cards",
-      "kb": 1.71,
+      "kb": 1.81,
       "switchKb": {},
       "files": [
         "part.tsx",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "entries/cards/still-1280.webp",
+          "entries/cards/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "entries/ledger": {
+      "piece": "entries/ledger",
+      "from": "folio",
+      "line": "A list as a ledger — ruled rows, the title at sub-heading size, a small muted line under it (the first term, and the entry's own mark — a session, a version), the date at the right.",
+      "reads": [
+        "font.display",
+        "size.h3",
+        "size.small",
+        "size.body",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "color.border",
+        "color.muted",
+        "measure.excerpt",
+        "space.row",
+        "space.row-line"
+      ],
+      "needs": {
+        "measure.excerpt": "38rem",
+        "space.row": "1.125rem",
+        "space.row-line": "0.2rem"
+      },
+      "emits": [
+        "snypd-ledger",
+        "snypd-ledger-row",
+        "snypd-ledger-what",
+        "snypd-ledger-title",
+        "snypd-ledger-meta",
+        "snypd-ledger-text",
+        "snypd-ledger-when",
+        "snypd-ledger-empty"
+      ],
+      "switches": {},
+      "settings": [],
+      "parts": {
+        "entries": "./part.tsx"
+      },
+      "layouts": {},
+      "pairs": {
+        "column": "three-track"
+      },
+      "slot": "entries",
+      "name": "ledger",
+      "kb": 1.51,
+      "switchKb": {},
+      "files": [
+        "part.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "entries/ledger/still-1280.webp",
+          "entries/ledger/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "entries/list": {
       "piece": "entries/list",
@@ -841,7 +1439,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "entries/list/still-1280.webp",
+          "entries/list/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "entries/rows": {
       "piece": "entries/rows",
@@ -872,7 +1477,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "entries/rows/still-1280.webp",
+          "entries/rows/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "post-foot/band": {
       "piece": "post-foot/band",
@@ -903,7 +1515,51 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "post-foot/band/still-1280.webp",
+          "post-foot/band/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "post-foot/line": {
+      "piece": "post-foot/line",
+      "from": "folio",
+      "line": "One small line under a rule — the terms as muted outline pills, the Markdown twin with a down arrow, both brightening to the text colour on hover.",
+      "reads": [
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "color.border",
+        "color.muted",
+        "color.text"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "post-foot",
+      "name": "line",
+      "kb": 0.71,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "post-foot/line/still-1280.webp",
+          "post-foot/line/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "post-foot/pills": {
       "piece": "post-foot/pills",
@@ -934,7 +1590,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "post-foot/pills/still-1280.webp",
+          "post-foot/pills/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "post-foot/ruled": {
       "piece": "post-foot/ruled",
@@ -966,7 +1629,71 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "post-foot/ruled/still-1280.webp",
+          "post-foot/ruled/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "footer/close": {
+      "piece": "footer/close",
+      "from": "folio",
+      "line": "One line on a dark ground — the footer note at the left, the footer menu and social links in the middle, a status note at the right; the page's scheme flipped in one declaration.",
+      "reads": [
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "color.bg",
+        "color.text",
+        "color.muted",
+        "color.border",
+        "space.footer-menu"
+      ],
+      "needs": {
+        "space.footer-menu": "1.25rem"
+      },
+      "emits": [
+        "snypd-footer-close",
+        "snypd-footer-status"
+      ],
+      "switches": {},
+      "settings": [
+        {
+          "id": "statusNote",
+          "type": "richtext",
+          "label": "Status note",
+          "group": "Footer",
+          "info": "The right end of the footer's line — `0 KB JS · 18 rules`. A claim the site makes, in its own words. Markdown."
+        }
+      ],
+      "parts": {
+        "footer": "./part.tsx"
+      },
+      "layouts": {},
+      "pairs": {
+        "column": "three-track"
+      },
+      "slot": "footer",
+      "name": "close",
+      "kb": 0.85,
+      "switchKb": {},
+      "files": [
+        "part.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "footer/close/still-1280.webp",
+          "footer/close/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "footer/colophon": {
       "piece": "footer/colophon",
@@ -1032,7 +1759,14 @@
         "part.tsx",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "footer/colophon/still-1280.webp",
+          "footer/colophon/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "footer/line": {
       "piece": "footer/line",
@@ -1077,7 +1811,14 @@
         "piece.yaml",
         "quiet-links.css",
         "roomy.css"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "footer/line/still-1280.webp",
+          "footer/line/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "home/bands": {
       "piece": "home/bands",
@@ -1142,11 +1883,297 @@
         "layout.tsx",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "home/bands/still-1280.webp",
+          "home/bands/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "home/split": {
+      "piece": "home/split",
+      "from": "folio",
+      "line": "A product page — one big centred sentence, the film under it, a button; then every `##` section a band with its heading beside its content; the site's lists as bands; the last section a dark close.",
+      "reads": [
+        "font.display",
+        "size.small",
+        "size.body",
+        "size.display",
+        "space.1",
+        "space.3",
+        "space.4",
+        "space.5",
+        "space.6",
+        "color.bg",
+        "color.text",
+        "color.muted",
+        "color.border",
+        "radius",
+        "size.lede",
+        "size.window",
+        "size.window-narrow",
+        "size.close-code",
+        "measure.window",
+        "space.row-link"
+      ],
+      "needs": {
+        "size.lede": "clamp(1.5rem, 1.05rem + 1.25vw, 2.125rem)",
+        "size.window": "0.9375rem",
+        "size.window-narrow": "0.8125rem",
+        "size.close-code": "1rem",
+        "measure.window": "34rem",
+        "space.row-link": "9rem"
+      },
+      "emits": [
+        "snypd-band",
+        "snypd-hero",
+        "snypd-lead",
+        "snypd-hero-action",
+        "snypd-close",
+        "snypd-home-list",
+        "snypd-home-more"
+      ],
+      "switches": {},
+      "settings": [
+        {
+          "id": "heroLabel",
+          "type": "text",
+          "label": "Hero button",
+          "group": "Front page",
+          "info": "The word on the button under the front page's headline. With no link below, no button is drawn.",
+          "default": "Start"
+        },
+        {
+          "id": "heroHref",
+          "type": "text",
+          "label": "Hero button link",
+          "group": "Front page",
+          "info": "Where that button goes — a Start page, the docs, an install guide. Site-relative or absolute; empty draws no button.",
+          "default": "/start/"
+        }
+      ],
+      "parts": {},
+      "layouts": {
+        "home": "./layout.tsx"
+      },
+      "pairs": {
+        "column": "three-track"
+      },
+      "slot": "home",
+      "name": "split",
+      "kb": 4.28,
+      "switchKb": {},
+      "files": [
+        "layout.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "home/split/still-1280.webp",
+          "home/split/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "feature/facts": {
+      "piece": "feature/facts",
+      "from": "studio",
+      "line": "A case as three bands — the cover with a facts strip under it (every `role: fact` field, then the year), the body with its sections numbered, and a close with the call to action beside the next one.",
+      "reads": [
+        "color.accent",
+        "color.border",
+        "color.muted",
+        "color.text",
+        "font.display",
+        "font.ui",
+        "size.h3",
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "space.6",
+        "size.cover-cap",
+        "measure.close",
+        "measure.deck"
+      ],
+      "needs": {
+        "size.cover-cap": "72vh",
+        "measure.close": "22rem",
+        "measure.deck": "34rem"
+      },
+      "emits": [
+        "snypd-band",
+        "snypd-hero",
+        "snypd-feature",
+        "snypd-feature-hero",
+        "snypd-feature-body",
+        "snypd-feature-close",
+        "snypd-feature-end",
+        "snypd-feature-cta",
+        "snypd-feature-next",
+        "snypd-feature-meta",
+        "snypd-facts",
+        "snypd-fact-items",
+        "snypd-badge",
+        "snypd-twin-link"
+      ],
+      "switches": {},
+      "settings": [
+        {
+          "id": "caseCtaTitle",
+          "type": "text",
+          "label": "Call to action",
+          "group": "Feature pages",
+          "info": "The line at the end of every feature page — \"Have something to make?\" With no link below, nothing is shown."
+        },
+        {
+          "id": "caseCtaHref",
+          "type": "text",
+          "label": "Call to action link",
+          "group": "Feature pages",
+          "info": "Where the button under it goes — a contact page, a mailto:, a form. Site-relative or absolute."
+        },
+        {
+          "id": "caseCtaLabel",
+          "type": "text",
+          "label": "Call to action button",
+          "group": "Feature pages",
+          "info": "The word on the button.",
+          "default": "Get in touch"
+        }
+      ],
+      "parts": {},
+      "layouts": {
+        "feature": "./layout.tsx"
+      },
+      "pairs": {
+        "home": "bands",
+        "column": "three-track"
+      },
+      "slot": "feature",
+      "name": "facts",
+      "kb": 2.93,
+      "switchKb": {},
+      "files": [
+        "layout.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "feature/facts/still-1280.webp",
+          "feature/facts/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "feature/log": {
+      "piece": "feature/log",
+      "from": "folio",
+      "line": "A dated entry as a reading page — the kicker above the title, the date and every `role: fact` field as one ruled strip under it, and the entry after it as one row at the end.",
+      "reads": [
+        "color.border",
+        "color.muted",
+        "color.text",
+        "font.display",
+        "size.small",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "size.badge"
+      ],
+      "needs": {
+        "size.badge": "0.75rem"
+      },
+      "emits": [
+        "snypd-feature",
+        "snypd-facts",
+        "snypd-fact-items",
+        "snypd-badge",
+        "snypd-around"
+      ],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {
+        "feature": "./layout.tsx"
+      },
+      "pairs": {
+        "column": "three-track"
+      },
+      "slot": "feature",
+      "name": "log",
+      "kb": 0.88,
+      "switchKb": {},
+      "files": [
+        "layout.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "feature/log/still-1280.webp",
+          "feature/log/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "feature/release": {
+      "piece": "feature/release",
+      "from": "folio",
+      "line": "A release as a reading page — the version above the title with a badge when it breaks, the date and the facts as one byline, and the releases either side of it at the end.",
+      "reads": [
+        "color.muted",
+        "color.text",
+        "font.display",
+        "size.small",
+        "space.3",
+        "space.5",
+        "size.badge"
+      ],
+      "needs": {
+        "size.badge": "0.75rem"
+      },
+      "emits": [
+        "snypd-feature",
+        "snypd-fact-items",
+        "snypd-badge",
+        "snypd-around"
+      ],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {
+        "feature": "./layout.tsx"
+      },
+      "pairs": {
+        "column": "three-track"
+      },
+      "slot": "feature",
+      "name": "release",
+      "kb": 0.4,
+      "switchKb": {},
+      "files": [
+        "layout.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "feature/release/still-1280.webp",
+          "feature/release/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "notes/cards": {
       "piece": "notes/cards",
-      "from": "technical",
+      "from": "technical, folio",
       "line": "Footnotes as base shows them — a card on hover or focus, in the theme's surface — and the ruled list at the end.",
       "reads": [
         "font.body",
@@ -1156,12 +2183,18 @@
         "color.text",
         "color.muted",
         "color.surface",
+        "color.bg",
         "color.border",
         "radius"
       ],
       "needs": {},
       "emits": [],
-      "switches": {},
+      "switches": {
+        "on-page": {
+          "default": false,
+          "description": "The card on the page's own background rather than the surface colour — a theme whose surface is for code."
+        }
+      },
       "settings": [],
       "parts": {},
       "layouts": {},
@@ -1169,11 +2202,21 @@
       "slot": "notes",
       "name": "cards",
       "kb": 0.38,
-      "switchKb": {},
+      "switchKb": {
+        "on-page": 0.05
+      },
       "files": [
+        "on-page.css",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "notes/cards/still-1280.webp",
+          "notes/cards/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "notes/plain": {
       "piece": "notes/plain",
@@ -1200,7 +2243,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "notes/plain/still-1280.webp",
+          "notes/plain/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "notes/sidenotes": {
       "piece": "notes/sidenotes",
@@ -1232,7 +2282,14 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "notes/sidenotes/still-1280.webp",
+          "notes/sidenotes/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "toc/block": {
       "piece": "toc/block",
@@ -1285,7 +2342,14 @@
         "part.tsx",
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "toc/block/still-1280.webp",
+          "toc/block/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "wall/marquee": {
       "piece": "wall/marquee",
@@ -1321,14 +2385,22 @@
       "files": [
         "piece.css",
         "piece.yaml"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "wall/marquee/still-1280.webp",
+          "wall/marquee/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "wall/row": {
       "piece": "wall/row",
-      "from": "technical",
+      "from": "technical, folio",
       "line": "Marks in a row under a hairline — a `marquee` wall is the same row, still.",
       "reads": [
         "font.ui",
+        "font.display",
         "size.small",
         "space.1",
         "space.2",
@@ -1342,7 +2414,12 @@
         "size.mark": "2rem"
       },
       "emits": [],
-      "switches": {},
+      "switches": {
+        "plain-title": {
+          "default": false,
+          "description": "The wall's title as written, in the display face — not tracked capitals in the UI face."
+        }
+      },
       "settings": [],
       "parts": {},
       "layouts": {},
@@ -1350,11 +2427,21 @@
       "slot": "wall",
       "name": "row",
       "kb": 0.66,
-      "switchKb": {},
+      "switchKb": {
+        "plain-title": 0.12
+      },
       "files": [
         "piece.css",
-        "piece.yaml"
-      ]
+        "piece.yaml",
+        "plain-title.css"
+      ],
+      "stills": {
+        "files": [
+          "wall/row/still-1280.webp",
+          "wall/row/still-390.webp"
+        ],
+        "fresh": true
+      }
     },
     "motion/glide": {
       "piece": "motion/glide",
@@ -1396,7 +2483,52 @@
         "piece.yaml",
         "progress.css",
         "reveal.css"
-      ]
+      ],
+      "stills": {
+        "files": [
+          "motion/glide/still-1280.webp",
+          "motion/glide/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
+    "motion/still": {
+      "piece": "motion/still",
+      "from": "folio",
+      "line": "Nothing moves between pages — the next page is swapped in, never held for a transition; numbers counting up as they scroll in is a switch.",
+      "reads": [
+        "color.bg"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {
+        "count": {
+          "default": false,
+          "description": "A stat's figure counts up from zero as it scrolls in, painted over the real text, which stays in the page. Under `@supports`; still under reduced motion."
+        }
+      },
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "slot": "motion",
+      "name": "still",
+      "kb": 0,
+      "switchKb": {
+        "count": 0.76
+      },
+      "files": [
+        "count.css",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "motion/still/still-1280.webp",
+          "motion/still/still-390.webp"
+        ],
+        "fresh": true
+      }
     }
   }
 }

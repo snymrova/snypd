@@ -4,10 +4,10 @@
  * piece cannot use, and a class the contract names that nothing emits is a socket a piece styles in vain.
  */
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { themeContract } from "@snypd/spec";
-import { bareElements, cssRules, literalHits, ruleKey, selectorClasses, selectorHits } from "./contract";
+import { bareElements, cssRules, literalHits, ruleKey, selectorClasses, selectorHits, styledClasses } from "./contract";
 
 const REPO = join(import.meta.dir, "../../..");
 const contract = themeContract();
@@ -48,6 +48,8 @@ describe("the theme contract (docs/36 §3)", () => {
   test("the class list is exactly what base's markup and the renderer emit", () => {
     const sources = [
       ...tsx(join(REPO, "themes/base")),
+      // the whole-site slots' layouts (W3): what a `list` writes around the entries, which `entries` styles
+      ...tsx(join(REPO, "packages/pieces/list")),
       ...["html.ts", "theme.ts", "media.ts"].map((f) => join(REPO, "packages/render/src", f)),
       ...readdirSync(join(REPO, "packages/viz/src")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).map((f) => join(REPO, "packages/viz/src", f)),
     ];
@@ -82,17 +84,19 @@ a { color: red; }
     expect(rs[1]!.line).toBe(4);
   });
 
-  test("the `house` piece: fifteen of the twenty rules the four sheets shared, each still verbatim in the sheets not yet carved (docs/36 §2, P3)", () => {
+  test("the `house` piece: fifteen of the twenty rules the four sheets shared, and no theme's own sheet repeats one now all four are carved (docs/36 §2, P3; docs/37 W1)", () => {
     // P1 measured twenty rules in all four sheets. The reduced-motion reset went to base (P1); P3's carve
     // moved four more out, because a rule in the first sublayer loses to every later slot whatever its
     // specificity — the byline's link colour (cover), the full-width figure (column), the footnote list
-    // (notes, twice). What is left is the floor, and it is still in folio's own sheet word for word until
-    // it is carved (studio was, in P3's second half).
+    // (notes, twice). What is left is the floor. Folio was the last sheet to carry it word for word, until
+    // W1 carved it; a residue that restates a house rule is a carve that missed one.
     const house = cssRules(readFileSync(join(REPO, "packages/pieces/house/house/piece.css"), "utf8")).map(ruleKey);
     expect(house.length).toBe(15);
-    for (const f of ["sites/snypd.rocks/themes/folio/theme.css"]) {
+    // W3 carved the last residue: studio and folio have no sheet of their own left to repeat one in.
+    for (const f of ["themes/studio/theme.css", "sites/snypd.rocks/themes/folio/theme.css"]) {
+      if (!existsSync(join(REPO, f))) continue;
       const keys = new Set(cssRules(readFileSync(join(REPO, f), "utf8")).map(ruleKey));
-      expect(house.filter((k) => !keys.has(k)), f).toEqual([]);
+      expect(house.filter((k) => keys.has(k)), f).toEqual([]);
     }
     const moved = [
       [".snypd-byline a { color: inherit }", "cover"], ['.snypd-figure[data-width="full"] { grid-column: full }', "column"],
@@ -125,6 +129,9 @@ describe("piece.literal", () => {
 describe("piece.selector", () => {
   test("a class outside the contract and the piece's own emits is reported; a prefix and an attribute are not", () => {
     expect(selectorClasses('.snypd-card:hover > .snypd-card-title, a[class~=".x"]')).toEqual(["snypd-card", "snypd-card-title"]);
+    // A class the selector only tests — inside `:has()` or `:not()` — is not a class it styles.
+    expect(styledClasses("main:has(> .snypd-ledger) > .snypd-lede")).toEqual(["snypd-lede"]);
+    expect(styledClasses(".a:not(.b, :has(.c)) .d, :is(.e, .f)")).toEqual(["a", "d", "e", "f"]);
     const css = `.snypd-masthead .snypd-brand { gap: 1em } .snypd-card { margin: 0 } pre.language-ts { tab-size: 2 } .snypd-ledger-row { margin: 0 }`;
     const hits = selectorHits(css, [...contract.classes, "snypd-ledger-row"], contract.classPrefixes);
     expect(hits.map((h) => h.cls)).toEqual(["snypd-card"]);

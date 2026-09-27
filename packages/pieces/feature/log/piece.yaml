@@ -1,0 +1,11 @@
+piece: feature/log
+from: folio
+line: "A dated entry as a reading page — the kicker above the title, the date and every `role: fact` field as one ruled strip under it, and the entry after it as one row at the end."
+reads: [color.border, color.muted, color.text, font.display, size.small, space.2, space.3, space.4, space.5, size.badge]
+needs:
+  size.badge: 0.75rem
+emits: [snypd-feature, snypd-facts, snypd-fact-items, snypd-badge, snypd-around]
+pairs:
+  column: three-track
+layouts:
+  feature: ./layout.tsx

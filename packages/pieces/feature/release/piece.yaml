@@ -1,0 +1,11 @@
+piece: feature/release
+from: folio
+line: "A release as a reading page — the version above the title with a badge when it breaks, the date and the facts as one byline, and the releases either side of it at the end."
+reads: [color.muted, color.text, font.display, size.small, space.3, space.5, size.badge]
+needs:
+  size.badge: 0.75rem
+emits: [snypd-feature, snypd-fact-items, snypd-badge, snypd-around]
+pairs:
+  column: three-track
+layouts:
+  feature: ./layout.tsx

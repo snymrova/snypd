@@ -56,7 +56,7 @@ export const CATALOG: Tool[] = [
       scheme: str("`seed`: which modes to design. Default `both`, as light-dark() pairs. `look`: `light` (default) or `dark`", { enum: ["both", "light", "dark"] }),
       ratio: str("`seed`: type-scale ratio at phone:desktop width, e.g. `1.2:1.25`"),
       base: str("`seed`: body size in px at phone:desktop width, e.g. `17:19`"),
-      face: str("`seed`: one web font from the shelf, copied into the theme with its licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
+      face: str("`seed`: one web font from the shelf, copied into the theme with its italic, extra weights and licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
       route: str("`look`: the page, e.g. `/` (default) or `/posts/long-read/`"),
       slot: str("`look`: crop to one slot — `masthead`, `cover`, `prose`, `code`, `blocks`, `entries`, `post-foot`, `footer`, `home`, `notes`, `toc`, `wall`, `column`; none for the first screen. snypd://theme/pieces lists the slots"),
       selector: str("`look`: crop to a CSS selector instead of a slot, e.g. `.snypd-stat-row`"),
@@ -65,6 +65,8 @@ export const CATALOG: Tool[] = [
       target: str("`look`: what `state` acts on, as a selector, when the first one in the crop is not the one you mean"),
       since: str("`look`: `last` (default) says what changed since the previous look at the same route, crop, width, scheme and state; `none` skips it", { enum: ["last", "none"] }),
       view: str("`look`: `picture` (default) or `outline` — landmarks and headings, ~150 tokens, no image", { enum: ["picture", "outline"] }),
+      board: str("`look`: every piece that can fill one slot (`home`, `masthead`, `entries`…), each on this site's own content, side by side in one picture — how to choose a piece before writing `pieces:`. With `name`, swapped into that theme instead of the live one"),
+      sets: { type: "number", description: "`look` with `board`: 1 (default) on the theme's own tokens; 3 or 5 draws each piece on the board's token sets too (light serif, dark sans, loud accent, committed, pathological) — does it hold on any palette?" },
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
@@ -845,6 +847,8 @@ async function lookAt(root: string, args: Record<string, unknown>, cfgOf: () => 
     ].join("\n"), { ok: true, picture: false, reason: why, hint, check: { ok: r.ok, rules: shown } });
   };
   if (!eyes.eyesBrowser()) return await blind("no browser on this machine", "`snypd eyes install` fetches chrome-headless-shell (~90 MB) to ~/.cache/snypd once — a person runs it; or set SNYPD_CHROME to any Chromium.");
+  const boardSlot = opt("board");
+  if (boardSlot) return await boardAt(root, boardSlot, args, { other: !!other, themeName, variation, width, cacheDir, uri, fail });
   if (!other && !ctx.preview) return fail("no preview server to look at", "`theme` › look runs inside `snypd serve`, which shares the session's preview with content.render_preview.");
 
   let server: { url: string; stop?: () => void };
@@ -871,6 +875,38 @@ async function lookAt(root: string, args: Record<string, unknown>, cfgOf: () => 
   if (r.files.before) content.push({ type: "resource_link", uri: uri(r.files.before), name: "before", mimeType: "image/webp", description: "the previous look at this crop, without boxes" });
   const { image, files, ...facts } = r;
   return { content, structuredContent: { ok: true, ...facts, image: image ? { width: image.width, height: image.height, mimeType: image.mimeType } : undefined, full: files.full && uri(files.full), before: files.before && uri(files.before) } };
+}
+
+/**
+ * `look { board }` (W2, docs/37 §5): every variant of one slot built into its own child theme of the one
+ * being looked at and cropped on this site's content, one sheet back. Facts first — one line per cell with
+ * findings — then the sheet, then the sheet as a link. ~2–4 s a cell on a small site.
+ */
+async function boardAt(root: string, slot: string, args: Record<string, unknown>, o: { other: boolean; themeName: string; variation?: string; width?: number; cacheDir: string; uri: (f: string) => string; fail: typeof fail }): Promise<ToolResult> {
+  const sets = args.sets === undefined ? undefined : Number(args.sets);
+  if (sets !== undefined && ![1, 3, 5].includes(sets)) return o.fail(`sets is 1, 3 or 5; got ${JSON.stringify(args.sets)}`, "1 is the theme's own tokens; 3 and 5 add the board's token sets.");
+  const eyes = await import("@snypd/bench/look");
+  eyesLoaded = true;
+  if (!eyes.eyesBrowser()) return o.fail("no picture — a board needs a browser, and there is none on this machine", "`snypd eyes install` fetches chrome-headless-shell (~90 MB) once — a person runs it; or set SNYPD_CHROME to any Chromium. snypd://theme/pieces/<slot> still describes every piece in words.");
+  const b = await import("@snypd/bench/board");
+  let r;
+  try {
+    r = await b.board({ root, slot, sets, theme: o.other ? o.themeName : undefined, variation: o.other ? o.variation : undefined, width: o.width,
+      route: typeof args.route === "string" && args.route ? args.route : undefined, cacheDir: o.cacheDir });
+  } catch (e) {
+    const err = e as Error & { hint?: string };
+    if (err instanceof eyes.NoBrowserError) return o.fail(err.message, err.hint);
+    return o.fail(err.message, err.hint ?? "");
+  }
+  const { image, file, ...facts } = r;
+  return {
+    content: [
+      { type: "text", text: b.formatBoard(r, o.uri) },
+      { type: "image", data: image.data, mimeType: image.mimeType },
+      { type: "resource_link", uri: o.uri(file), name: `board ${slot}`, mimeType: "image/webp", description: `${r.variants.length} × ${r.sets.length} on ${r.theme}, ${r.route} at ${r.width} px` },
+    ],
+    structuredContent: { ok: true, ...facts, image: { width: image.width, height: image.height, mimeType: image.mimeType }, sheet: o.uri(file) },
+  };
 }
 
 /** Close the browser `look` started, if it did. Called when the session ends; never imports what was not loaded. */

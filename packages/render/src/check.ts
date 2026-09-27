@@ -34,11 +34,11 @@ import { load as parseYaml } from "js-yaml";
 import {
   CONTRAST_PAIRS, contrastRatio, cssValue, loadConfig, loadPlugin, MAX_FONT_KB, PLUGIN_API, resolveColor, resolvePlugin,
   themeTokens, themeVariations, themeFile, isPlaceholder, pluginShortName, tiersOf, tokenVars,
-  type LoadedConfig, type Mode, type Rgb,
+  type LoadedConfig, type Mode, type Rgb, type ThemeFont,
 } from "@snypd/core";
 import { themeContract } from "@snypd/spec";
 import { loadTheme, pieceCss, type Theme, LAYOUT_NAMES } from "./theme";
-import { bareElements, cssRules, literalHits, selectorClasses, selectorHits } from "./contract";
+import { bareElements, cssRules, literalHits, selectorClasses, selectorHits, styledClasses } from "./contract";
 import { applyChosen, chosenRules, designVerdict, plainCss, staticTaste } from "./taste";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
@@ -269,13 +269,18 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
   if (!theme?.font) add("font.budget", "skip", "this theme declares no webfont, and inherits none");
   else {
     const kb = +(theme.font.bytes.byteLength / 1024).toFixed(2);
-    add("font.budget", "pass", `${theme.font.file} — ${kb} KB against its own declaration of ${theme.font.kb}, ceiling ${MAX_FONT_KB} (decision 118)`);
+    const cuts = theme.font.loadedCuts.map((c) => `${c.file} ${+(c.bytes.byteLength / 1024).toFixed(2)} KB`);
+    add("font.budget", "pass", `${theme.font.file} — ${kb} KB against its own declaration of ${theme.font.kb}, ceiling ${MAX_FONT_KB} a file (decisions 118, 281)${cuts.length ? `; not preloaded: ${cuts.join(", ")}` : ""}`);
     // The family name is CSS's, not the font file's: a face nothing names is 30 KB nobody sees.
     const used = all.some((t) => String(t.value).includes(theme!.font!.family));
     add("font.used", used ? "pass" : "fail",
       used ? `\`${theme.font.family}\` is named by a token, so something renders in it`
         : `\`${theme.font.family}\` is declared and no token names it — the face downloads and nothing is set in it`);
     add("font.fallback", "pass", `metric-matched fallback: size-adjust ${theme.font.fallback["size-adjust"]}, ascent ${theme.font.fallback["ascent-override"]}`);
+    const craft = fontCraft(theme.font, theme.css ?? "", all.some((t) => t.name === "font.body" && String(t.value).includes(theme!.font!.family)));
+    add("font.craft", craft.length ? "warn" : "pass",
+      craft.length ? `${craft.join("; ")} — the browser fakes what the face does not carry (decision 281)`
+        : `every italic, weight and figure style the sheet asks for, \`${theme.font.family}\` carries${theme.font.cuts?.length ? ` (${theme.font.cuts.map((c) => c.style === "italic" ? "italic" : c.weight).join(", ")} beside the roman)` : ""}`);
   }
 
   // ── the pieces (docs/36 §4.6, decision 269) ─────────────────────────────────────────────────────
@@ -310,7 +315,7 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
       const styled = new Map<string, string>();
       for (const { css, piece } of pieceSources) for (const r of cssRules(css)) for (const c of selectorClasses(r.selector)) if (!styled.has(c)) styled.set(c, piece.id);
       const over = cssRules(own).flatMap((r) => [
-        ...selectorClasses(r.selector).filter((c) => styled.has(c)).map((c) => `${basename(String(yaml.css))}:${r.line} .${c} (${styled.get(c)})`),
+        ...styledClasses(r.selector).filter((c) => styled.has(c)).map((c) => `${basename(String(yaml.css))}:${r.line} .${c} (${styled.get(c)})`),
         // A bare `a { color }` is the same takeover without naming a class: it beats blocks/hairline's
         // `.snypd-button` on every <a> it is (the trial's accent-on-black pill, docs/37 §1.4). Only rules
         // that paint or lay out, and only where the element is not scoped under a class of the theme's own
@@ -473,4 +478,33 @@ export function formatCheck(r: CheckResult): string {
   return [head, ...body, "",
     `${tally}${warns ? `, ${warns} to look at` : ""}${skips ? `, ${skips} not checked` : ""} — ${r.rules.length} rules`,
   ].join("\n");
+}
+
+/**
+ * **What the sheet asks of the face that the face cannot give** (decision 281, docs/38 §1). Each is a thing
+ * the browser silently fakes: a slanted roman for `em`, a smeared bold, scaled capitals, or nothing at all
+ * for a figure style. Read against the whole resolved sheet, so a rule that sets another family is counted
+ * too — which is why it warns and never fails. `features`/`digits` absent (a hand-vendored face): the two
+ * feature questions are not asked.
+ */
+export function fontCraft(font: Pick<ThemeFont, "weight" | "style" | "cuts" | "features" | "digits">, css: string, setsProse: boolean): string[] {
+  const out: string[] = [];
+  const cuts = font.cuts ?? [];
+  const hasItalic = font.style === "italic" || cuts.some((c) => c.style === "italic");
+  if (!hasItalic && (setsProse || /font-style:\s*italic/.test(css))) out.push(setsProse ? "no italic: every `em` and `cite` in prose is a slanted roman" : "no italic, and the sheet sets `font-style: italic`");
+  const span = (w: string | number | undefined): [number, number] => { const [a, b] = String(w ?? 400).split(" ").map(Number); return [a, b ?? a]; };
+  const spans = [span(font.weight), ...cuts.filter((c) => c.style === "normal").map((c) => span(c.weight))];
+  const top = Math.max(...spans.map(([, b]) => b));
+  // Lighter than the face falls back to its lightest, which is honest; heavier is synthesised — a smear —
+  // unless `font-synthesis-weight: none`, and then it is silently the roman. Within 50 the browser rounds.
+  const asked = [...css.matchAll(/(?:font-weight:|\bfont:)\s*(\d{3})\b/g)].map((m) => +m[1]);
+  const far = [...new Set(asked.filter((w) => w > top + 50))].sort();
+  if (far.length) out.push(`asks for weight ${far.join(", ")} and the face stops at ${top}`);
+  if (font.features) {
+    const f = new Set(font.features);
+    if (/tabular-nums|["']tnum["']/.test(css) && !f.has("tnum") && font.digits !== "tabular") out.push("`tabular-nums` asked, and the face has no tabular figures");
+    if (/oldstyle-nums|["']onum["']/.test(css) && !f.has("onum")) out.push("`oldstyle-nums` asked, and the face has none");
+    if (/(?:all-)?small-caps|["'](?:smcp|c2sc)["']/.test(css) && !f.has("smcp")) out.push("`small-caps` asked, and the face has none: the browser scales capitals");
+  }
+  return out;
 }

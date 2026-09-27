@@ -8,14 +8,29 @@ import { cssValue, SETTING_URL_RE } from "./values";
 
 const slug = z.string().regex(/^[a-z][a-z0-9-]*$/i, "identifier: letters, digits, dashes");
 
+/** What a field can be to a `feature` piece (docs/37 §2). */
+export const FIELD_ROLES = ["fact", "kicker", "flag"] as const;
+export type FieldRole = (typeof FIELD_ROLES)[number];
+
 export const FieldSpec: z.ZodType<Record<string, unknown>> = z.lazy(() =>
   z.object({
     type: z.string(),
     required: z.boolean().optional(), default: z.unknown().optional(), description: z.string().optional(),
     min: z.number().optional(), max: z.number().optional(), pattern: z.string().optional(),
     values: z.array(z.string()).optional(), to: z.string().optional(), of: FieldSpec.optional(), fields: z.record(z.string(), FieldSpec).optional(),
+    // How a `feature` piece draws the field (docs/37 §2, W3). A type with any field that has a `role` is a
+    // feature type: it renders through the theme's `feature` layout when the theme has one. `fact` is a cell
+    // of the facts strip, `kicker` the line above the title, `flag` a boolean shown as a badge when true.
+    role: z.union([z.enum(FIELD_ROLES), z.array(z.enum(FIELD_ROLES)).min(1)]).optional(),
+    /** The word a reader sees for the field — a fact's term, a flag's badge. Defaults to the name, title-cased. */
+    label: z.string().min(1).optional(),
+    /** How the value is written where a reader sees it: `v{value}`. */
+    show: z.string().includes("{value}").optional(),
+    /** Where a fact links: a url, with `{value}` for the value (a leading `#` dropped, as in `#34`). */
+    href: z.string().min(1).optional(),
   }).strict(),
 );
+
 
 export const TypeSchema = z.object({
   extends: z.string().optional(),
@@ -27,6 +42,10 @@ export const TypeSchema = z.object({
   vocabulary: z.union([z.literal("all"), z.array(z.string())]).default("all"),
   mcp: z.object({ read: z.boolean().default(true), write: z.union([z.literal(false), z.literal("draft"), z.literal("publish")]).default("draft") }).strict().default({ read: true, write: "draft" }),
   fields: z.record(z.string(), FieldSpec).default({}),
+  /** One of what the type holds, as a reader would say it — `case`, `session`. A list says "6 cases"; defaults to the type's name. */
+  noun: z.string().min(1).optional(),
+  /** What the type is, in a sentence: the line under its archive's count, and what an agent reads first. */
+  description: z.string().min(1).optional(),
 }).strict();
 
 export const TaxonomySchema = z.object({
@@ -175,8 +194,14 @@ const slot = z.union([z.string().min(1), z.object({ fallback: z.string().min(1) 
  * `page.font.kb` the way `page.js.kb` measures script. A theme that declares more than this is refused at
  * load rather than discovered by a bench run in CI, because the person who finds out otherwise is a
  * visitor on a train.
+ *
+ * **Per file** since decision 281 (48, up from 40): old-style figures and small caps put Source Serif 4 at
+ * 44 KB. The roman is the only file preloaded; each cut (`font.cuts`) is fetched only by a page that sets
+ * something in it, so the lane a page is measured against is the roman plus the cuts it can reach.
  */
-export const MAX_FONT_KB = 40;
+export const MAX_FONT_KB = 48;
+/** How many cuts may ride beside the roman: an italic, and a weight a static family cannot vary into. */
+export const MAX_FONT_CUTS = 3;
 
 /**
  * **The metric-matched fallback face** (B1). The four descriptors that make the font a browser paints
@@ -212,6 +237,18 @@ const FallbackSchema = z.object({
  * The family name is CSS's, not the font's: it is what `font.body` and `font.heading` have to name, and
  * `theme check` (X1) is where naming a family no token uses becomes a finding.
  */
+/**
+ * One more file of the theme's webfont family (decision 281): the italic, or a static weight. Same family,
+ * so the browser picks it by `font-style`/`font-weight` as it would a system face's; never preloaded.
+ */
+export const FontCutSchema = z.object({
+  file: z.string().min(1).regex(/\.woff2$/i, "a .woff2"),
+  weight: z.union([z.string().regex(/^\d{3}( \d{3})?$/, "`400`, or a range: `400 700`"), z.number().int()]).optional(),
+  style: z.enum(["normal", "italic"]),
+  kb: z.number().positive().max(MAX_FONT_KB, `at most ${MAX_FONT_KB} per file (decisions 118, 281)`),
+}).strict();
+export type FontCut = z.infer<typeof FontCutSchema>;
+
 export const ThemeFontSchema = z.object({
   family: z.string().min(1),
   /** Theme-relative path to the .woff2; emitted as `assets/fonts/<basename>` and preloaded. */
@@ -219,10 +256,22 @@ export const ThemeFontSchema = z.object({
   /** `font-weight` on the generated face: `400` for a static instance, `400 700` for a variable range. */
   weight: z.union([z.string().regex(/^\d{3}( \d{3})?$/, "`400`, or a range: `400 700`"), z.number().int()]).optional(),
   style: z.enum(["normal", "italic"]).optional(),
-  kb: z.number().positive().max(MAX_FONT_KB, `at most ${MAX_FONT_KB} — a theme ships one webfont, and it costs what decision 118 affords it`),
+  kb: z.number().positive().max(MAX_FONT_KB, `at most ${MAX_FONT_KB} — a theme ships one webfont family, and each file costs what decisions 118 and 281 afford it`),
   fallback: FallbackSchema,
+  /** The italic and any static weight beside the roman (decision 281). */
+  cuts: z.array(FontCutSchema).max(MAX_FONT_CUTS).optional(),
+  /**
+   * What the roman can do, read from the file by the shelf (decision 281): the OpenType features a piece
+   * can ask for by name (`tnum`, `onum`, `smcp`…) and what its digits do with none on. Written by the seed;
+   * absent on a hand-vendored face, and then `font.craft` does not guess.
+   */
+  features: z.array(z.string().regex(/^[a-z0-9]{4}$/)).optional(),
+  digits: z.enum(["tabular", "proportional"]).optional(),
 }).strict();
 export type ThemeFont = z.infer<typeof ThemeFontSchema>;
+/** Every kilobyte a page set in this font can load: the roman and each cut (decision 281). */
+export const fontLaneKb = (font: Pick<ThemeFont, "kb" | "cuts"> | undefined): number =>
+  font ? font.kb + (font.cuts ?? []).reduce((n, c) => n + c.kb, 0) : 0;
 
 // ── Pieces (docs/36 §2–§4, decisions 266–270) ────────────────────────────────────────────────────
 /** A slot or a variant name: lowercase, digits, dashes — it is a directory, a layer name and a YAML key. */

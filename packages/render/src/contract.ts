@@ -159,6 +159,22 @@ export function selectorClasses(selector: string): string[] {
 }
 
 /**
+ * The classes a selector styles, not the ones it only tests: `selectorClasses` with every `:has()` and
+ * `:not()` argument taken out first. `main:has(> .snypd-ledger) > .snypd-lede` styles the lede on a page
+ * that has a ledger, and says nothing about how the ledger looks; `:is()` and `:where()` are kept, because
+ * what they list is the element styled.
+ */
+export function styledClasses(selector: string): string[] {
+  let out = "", depth = 0;
+  for (let i = 0; i < selector.length; i++) {
+    if (depth === 0 && /^:(has|not)\(/.test(selector.slice(i, i + 5))) { depth = 1; i = selector.indexOf("(", i); continue; }
+    if (depth > 0) { if (selector[i] === "(") depth++; else if (selector[i] === ")") depth--; continue; }
+    out += selector[i];
+  }
+  return selectorClasses(out);
+}
+
+/**
  * The elements a selector styles by their tag alone — `a`, `main a:hover`, `.snypd-cta a` → `a` — one per
  * comma part, with the classes that part names above it. A part whose last compound carries a class, an id
  * or an attribute gives none: the last compound is what gets the declarations, so `.snypd-cta a` styles

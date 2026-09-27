@@ -48,7 +48,7 @@ describe("stdio", () => {
       req(3, "resources/read", { uri: "snypd://lint/post/post-00005" }),
       req(4, "resources/read", { uri: "snypd://lint/post/nope" }),
     ]);
-    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}", "snypd://theme/pieces/{slot}", "snypd://look/{id}/{picture}", "snypd://{plugin}/last"]);
+    expect(templates.result.resourceTemplates.map((t: any) => t.uriTemplate)).toEqual(["snypd://content/{type}/{slug}", "snypd://history/{type}/{slug}", "snypd://lint/{type}/{slug}", "snypd://theme/pieces/{slot}", "snypd://theme/pieces/{slot}/{name}/{still}", "snypd://look/{id}/{picture}", "snypd://{plugin}/last"]);
     const lintRes = JSON.parse(lintOk.result.contents[0].text);
     expect(lintRes.file).toBe("content/posts/post-00005.md");
     expect(lintRes.errors).toBe(0); expect(lintRes.diagnostics).toEqual([]); expect(lintRes.words).toBeGreaterThan(100);
@@ -1061,10 +1061,14 @@ describe("find_tools + the catalogue", () => {
     expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/pieces");
     expect(templates.result.resourceTemplates.map((r: any) => r.uriTemplate)).toContain("snypd://theme/pieces/{slot}");
     const text: string = shelf.result.contents[0].text;
-    // The index: one gist per piece; editorial is built from pieces since P3, and its are marked.
-    expect(text).toContain("  house:   # always on — ");
-    expect(text).toMatch(/^    block: "A contents list at the top of a post, in flow"   # [\d.]+ KB$/m);
-    expect(text).toMatch(/^    nameplate: "A quiet nameplate"   # [\d.]+ KB · IN USE$/m);
+    // The index: one gist per piece; editorial is built from pieces since P3, and its are marked. Folded
+    // where nothing is decided (W1): `house` is named in the header, a one-piece slot is one line, and a
+    // piece's KB is in its slot's file.
+    expect(text).not.toMatch(/^  house:/m);
+    expect(text).toContain("`house` — the rules every sheet shares — is under every theme on pieces");
+    expect(text).toMatch(/^  toc: \{ block: "A contents list at the top of a post, in flow" \}   # A post's table of contents\.$/m);
+    expect(text).toMatch(/^    nameplate: "A quiet nameplate"   # IN USE$/m);
+    expect(text).not.toMatch(/ KB\b/);
     expect(text).not.toMatch(/^    title-bar: ".*IN USE$/m);
     expect(text).not.toContain("is on no pieces");
     // A slot, whole: the line, where it came from, what a switch does, the tokens it needs, what it ships.
@@ -1079,6 +1083,14 @@ describe("find_tools + the catalogue", () => {
     const n = countTokens(text);
     console.log(`snypd://theme/pieces: ${n} tokens`);
     expect(n).toBeLessThanOrEqual(1200);
+  });
+
+  test("W3: coverage names the site's own types and what draws each — a case through `feature/facts`, its archive through `list/plain`", async () => {
+    const [, coverage] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://theme/coverage" })], "examples/studio");
+    const cov = JSON.parse(coverage.result.contents[0].text);
+    expect(cov.types.find((t: any) => t.type === "work")).toEqual({ type: "work", items: 6, layout: "feature", piece: "feature/facts" });
+    expect(cov.types.find((t: any) => t.type === "post")).toMatchObject({ layout: "post" });
+    expect(cov.layouts).toContain("feature");
   });
 
   test("theme, tokens and coverage are resources, and prompts are scripts an agent can run", async () => {
@@ -1627,6 +1639,44 @@ describe("theme › look", () => {
     } finally { await s.close(); }
   });
 
+  test("W2: `board` draws every piece of one slot on this site's pages in one sheet; the sheet and each piece's still read back as pictures", async () => {
+    const eyes = await import("@snypd/bench/look");
+    const s = createServer(site);
+    try {
+      const badSets = (await s.handle(call(1, "theme", { action: "look", board: "home", sets: 2 }))) as any;
+      expect(badSets.result.isError).toBe(true);
+      expect(badSets.result.content[0].text).toContain("sets is 1, 3 or 5");
+      // The stills are a checkout's, and cost nothing until read.
+      const slotFile = (await s.handle({ jsonrpc: "2.0", id: 2, method: "resources/read", params: { uri: "snypd://theme/pieces/home" } })) as any;
+      expect(slotFile.result.contents[0].text).toContain("still: snypd://theme/pieces/home/split/still-1280.webp");
+      expect(slotFile.result.contents[0].text).toContain('look { board: "home" }');
+      const still = (await s.handle({ jsonrpc: "2.0", id: 3, method: "resources/read", params: { uri: "snypd://theme/pieces/home/split/still-390.webp" } })) as any;
+      expect(Buffer.from(still.result.contents[0].blob, "base64").subarray(8, 12).toString()).toBe("WEBP");
+      const none = (await s.handle({ jsonrpc: "2.0", id: 4, method: "resources/read", params: { uri: "snypd://theme/pieces/home/nope/still-390.webp" } })) as any;
+      expect(none.error.code).toBe(-32002);
+      if (!eyes.eyesBrowser()) {
+        const blind = (await s.handle(call(5, "theme", { action: "look", board: "home" }))) as any;
+        expect(blind.result.content[0].text).toContain("a board needs a browser");
+        return;
+      }
+      const live = readFileSync(join(site, "snypd.yaml"), "utf8");
+      const r = (await s.handle(call(6, "theme", { action: "look", board: "home" }))) as any;
+      expect(r.result.isError).toBeUndefined();
+      expect(r.result.content.map((c: any) => c.type)).toEqual(["text", "image", "resource_link"]);
+      expect(r.result.content[0].text).toMatch(/^board · home · 2 × 1 on editorial · \/ at 1280/);
+      // The front page is cropped by the slot's own container, not by the first band a piece emits.
+      expect(r.result.structuredContent.cells.map((c: any) => [c.variant, c.selector])).toEqual([["bands", "main.snypd-home"], ["split", "main.snypd-home"]]);
+      const sheet = (await s.handle({ jsonrpc: "2.0", id: 7, method: "resources/read", params: { uri: r.result.content[2].uri } })) as any;
+      expect(Buffer.from(sheet.result.contents[0].blob, "base64").subarray(8, 12).toString()).toBe("WEBP");
+      const sets = (await s.handle(call(8, "theme", { action: "look", board: "wall", sets: 3 }))) as any;
+      expect(sets.result.structuredContent).toMatchObject({ variants: ["marquee", "row"], sets: ["light-serif", "dark-sans", "loud-accent"] });
+      expect(sets.result.structuredContent.cells).toHaveLength(6);
+      expect(readFileSync(join(site, "snypd.yaml"), "utf8")).toBe(live);
+      expect(readdirSync(site).filter((f) => f.startsWith("dist-board-"))).toEqual([]);
+      expect(readdirSync(join(site, ".snypd", "look")).filter((f) => f.startsWith("board-") && !f.endsWith(".webp"))).toEqual([]);   // the scratch themes are gone
+    } finally { await s.close(); }
+  }, 120_000);
+
   test("find_tools reaches it by what an agent would say; doctor names the browser; the template is listed", async () => {
     const s = createServer(site);
     try {
@@ -1636,6 +1686,7 @@ describe("theme › look", () => {
       expect(doc.result.content[0].text).toMatch(/eyes: (`theme` › look uses|no browser)/);
       const t = (await s.handle({ jsonrpc: "2.0", id: 3, method: "resources/templates/list" })) as any;
       expect(t.result.resourceTemplates.map((x: any) => x.uriTemplate)).toContain("snypd://look/{id}/{picture}");
+      expect(t.result.resourceTemplates.map((x: any) => x.uriTemplate)).toContain("snypd://theme/pieces/{slot}/{name}/{still}");
     } finally { await s.close(); }
   });
 });

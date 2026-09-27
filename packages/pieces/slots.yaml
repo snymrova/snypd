@@ -12,10 +12,12 @@ slots:
   - { slot: blocks,    line: "The fourteen primitives: callouts, figures, stats, steps, FAQs." }
   - { slot: cover,     line: "The top of a post — title, eyebrow, subtitle, byline, cover image." }
   - { slot: masthead,  line: "The site header — name, logo, tagline, menu." }
+  - { slot: list,      line: "An archive's page: its heading and the line under it. The rows are `entries`." }
   - { slot: entries,   line: "A list of posts — on the index, a term, an author." }
   - { slot: post-foot, line: "The end of a post — terms, source link, author." }
   - { slot: footer,    line: "The site footer." }
   - { slot: home,      line: "The front page's layout." }
+  - { slot: feature,   line: "The page of a site's own type, drawn from the fields it marks `role:` fact, kicker, flag." }
   - { slot: notes,     line: "Footnotes — cards at the end, or notes in the margin." }
   - { slot: toc,       line: "A post's table of contents." }
   - { slot: wall,      line: "The logo wall — a row, or a marquee." }

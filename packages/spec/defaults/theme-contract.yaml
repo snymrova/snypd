@@ -122,6 +122,9 @@ themeContract:
     - snypd-steps
     - snypd-still
     - snypd-tldr
+    # the whole-site slots (W3, docs/37 §7): what a `list` layout writes around its entries — the line under
+    # the title — which the `entries` piece beside it sets on its own track
+    - snypd-lede
     # the view-transition class every page title carries — `::view-transition-group(.snypd-title)`
     - snypd-title
     # the renderer

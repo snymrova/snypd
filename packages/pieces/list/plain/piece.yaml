@@ -1,0 +1,6 @@
+piece: list/plain
+from: base
+line: An archive as a heading and its entries — and, for a type the site declares, one line under the heading that says what the list holds, counted and dated from the entries, then the type's own sentence.
+reads: [color.muted, measure]
+layouts:
+  index: ./layout.tsx

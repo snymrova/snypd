@@ -1,0 +1,18 @@
+piece: feature/facts
+from: studio
+line: "A case as three bands — the cover with a facts strip under it (every `role: fact` field, then the year), the body with its sections numbered, and a close with the call to action beside the next one."
+reads: [color.accent, color.border, color.muted, color.text, font.display, font.ui, size.h3, size.small, space.2, space.3, space.4, space.5, space.6, size.cover-cap, measure.close, measure.deck]
+needs:
+  size.cover-cap: 72vh
+  measure.close: 22rem
+  measure.deck: 34rem
+emits: [snypd-band, snypd-hero, snypd-feature, snypd-feature-hero, snypd-feature-body, snypd-feature-close, snypd-feature-end, snypd-feature-cta, snypd-feature-next, snypd-feature-meta, snypd-facts, snypd-fact-items, snypd-badge, snypd-twin-link]
+settings:
+  - { id: caseCtaTitle, type: text, label: "Call to action",        group: "Feature pages", info: "The line at the end of every feature page — \"Have something to make?\" With no link below, nothing is shown." }
+  - { id: caseCtaHref,  type: text, label: "Call to action link",   group: "Feature pages", info: "Where the button under it goes — a contact page, a mailto:, a form. Site-relative or absolute." }
+  - { id: caseCtaLabel, type: text, label: "Call to action button", group: "Feature pages", default: "Get in touch", info: "The word on the button." }
+pairs:
+  home: bands
+  column: three-track
+layouts:
+  feature: ./layout.tsx

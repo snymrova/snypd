@@ -113,13 +113,26 @@ export function handlers(root: string): Handlers {
         (stranded.length ? `# ${stranded.length} value${stranded.length === 1 ? "" : "s"} in snypd.yaml this theme does not declare, left from another one: ${stranded.join(", ")}\n` : "")];
     }
     if (part === "coverage") {
-      const { loadTheme } = await import("@snypd/render");
+      const { loadTheme, typeLayout, isFeatureType } = await import("@snypd/render");
+      const { listContent } = await import("@snypd/core");
       const t = await loadTheme(cfg);
       const by = (s: string) => t.coverage.filter((x) => x.status === s);
+      // What draws each of this site's types here (W3, docs/37 §6): the layout, and the piece it comes from.
+      // A type with roles and no `feature` piece renders as a post — said, so the facts strip does not vanish silently.
+      const counts = new Map<string, number>();
+      for (const f of listContent(root, cfg)) counts.set(f.type, (counts.get(f.type) ?? 0) + 1);
+      const types = Object.keys(cfg.config.types).filter((n) => cfg.config.types[n]!.layout).map((n) => {
+        const { used } = typeLayout(cfg.config, t.layouts, n);
+        const from = t.layoutCoverage.find((l) => l.name === used);
+        const feature = isFeatureType(cfg.config, n);
+        return { type: n, items: counts.get(n) ?? 0, layout: used, ...(from?.status === "piece" ? { piece: from.via } : from?.via ? { via: from.via } : {}),
+          ...(feature && used !== "feature" ? { note: "its fields carry roles, and this theme has no `feature` piece — it renders without its facts; `pieces: { feature: … }` draws them" } : {}) };
+      });
       return [JSON_, JSON.stringify({
         theme: t.name, extends: t.chain.slice(1).map((l) => l.name),
         summary: { own: by("own").length, inherited: by("inherited").length, fallback: by("fallback").length, missing: by("missing").length, total: t.coverage.length },
         layouts: Object.keys(t.layouts).sort(),
+        types,
         primitives: t.coverage,
         parts: t.partCoverage,
         note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · piece = a piece's (`via` is <slot>/<name>, snypd://theme/pieces) · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries, toc) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout. `toc` is the post layout's contents slot and renders nothing in `base`: a theme that wants a contents list overrides it and reads `page.headings`",
@@ -154,20 +167,30 @@ export function handlers(root: string): Handlers {
             ...(v.settings.length ? [`    settings: [${v.settings.map((x) => x.id).join(", ")}]   # snypd://theme/settings once in use`] : []),
             ...(pairs(v).length ? [`    pairs: { ${pairs(v).join(", ")} }`] : []),
             ...([...Object.keys(v.parts), ...Object.keys(v.layouts)].length ? [`    ships: [${[...Object.keys(v.parts).map((x) => `part ${x}`), ...Object.keys(v.layouts).map((x) => `layout ${x}`)].join(", ")}]`] : []),
+            // W2: the picture, as a link — it costs nothing until it is opened (~350 tokens at 1280).
+            ...(v.stills ? [`    still: snypd://theme/pieces/${v.piece}/still-1280.webp   # also still-390.webp${v.stills.fresh ? "" : " — older than the piece"}`] : []),
           ].join("\n");
         });
-        return [YAML, `# ${slot}: ${s.line}${s.always ? " — always on, for every theme on pieces" : ""}\n# \`pieces: { ${slot}: <name> }\`, or \`{ use: <name>, <switch>: <value> }\`.\n${slot}:\n${body.join("\n") || "  {}   # nothing on the shelf yet"}\n`];
+        return [YAML, `# ${slot}: ${s.line}${s.always ? " — always on, for every theme on pieces" : ""}\n# \`pieces: { ${slot}: <name> }\`, or \`{ use: <name>, <switch>: <value> }\`. \`theme\` › look { board: "${slot}" } draws every one below on this site's content, in one picture.\n${slot}:\n${body.join("\n") || "  {}   # nothing on the shelf yet"}\n`];
       }
+      // Folded where nothing is being decided (W1, docs/37): `house` is always on and gets no line; a slot
+      // with one piece is that piece on the slot's own line. A piece's KB is in its slot's file, not here —
+      // nobody chooses a masthead on its weight, and at 42 pieces the index had passed its 1,200 tokens.
       const lines: string[] = [];
       const empty: string[] = [];
+      const gist = (v: (typeof m.pieces)[string]) => JSON.stringify(v.line.split(" — ")[0]!.replace(/[.;:,]$/, ""));
+      const meta = (v: (typeof m.pieces)[string]) => [...(sw(v).length ? [sw(v).join(", ")] : []), ...(pairs(v).length ? [`pairs ${pairs(v).join(", ")}`] : []), ...(on.has(v.piece) ? ["IN USE"] : [])];
       for (const s of m.slots) {
+        if (s.always) continue;
         const vs = Object.values(m.pieces).filter((p) => p.slot === s.slot);
         if (!vs.length) { empty.push(s.slot); continue; }
-        lines.push(`  ${s.slot}:   # ${s.always ? "always on — " : ""}${s.line}`);
-        for (const v of vs) {
-          const meta = [`${v.kb} KB`, ...(sw(v).length ? [sw(v).join(", ")] : []), ...(pairs(v).length ? [`pairs ${pairs(v).join(", ")}`] : []), ...(on.has(v.piece) ? ["IN USE"] : [])];
-          lines.push(`    ${v.name}: ${JSON.stringify(v.line.split(" — ")[0]!.replace(/[.;:,]$/, ""))}   # ${meta.join(" · ")}`);
+        if (vs.length === 1) {
+          const v = vs[0]!;
+          lines.push(`  ${s.slot}: { ${v.name}: ${gist(v)} }   # ${[s.line, ...meta(v)].join(" · ")}`);
+          continue;
         }
+        lines.push(`  ${s.slot}:   # ${s.line}`);
+        for (const v of vs) lines.push(`    ${v.name}: ${gist(v)}${meta(v).length ? `   # ${meta(v).join(" · ")}` : ""}`);
       }
       const use = cfg.config.theme.use;
       return [YAML, `# The shelf: the slots a theme is assembled from and the pieces that fill them (docs/36), one gist\n` +
@@ -175,7 +198,8 @@ export function handlers(root: string): Handlers {
         `# Name one per slot in theme.yaml: \`pieces: { toc: block }\`, or \`{ use: <name>, <switch>: <value> }\`; a\n` +
         `# switch listed bare is true|false. A piece reads the contract tokens and styles base's classes, so it\n` +
         `# sits on any theme; a theme's own theme.css still wins over every piece (\`@layer snypd.pieces\` is\n` +
-        `# beneath \`snypd.theme\`).\n` +
+        `# beneath \`snypd.theme\`). \`house\` — the rules every sheet shares — is under every theme on pieces.\n` +
+        `# To see a slot's pieces before choosing: \`theme\` › look { board: "<slot>" } (this site's pages, one picture).\n` +
         (cfg.pieces.length ? "" : `# \`${use}\` is on no pieces — its sheet is all its own.\n`) +
         `slots:\n${lines.join("\n")}\n` +
         (empty.length ? `# nothing on the shelf yet for: ${empty.join(", ")}\n` : "")];
@@ -218,6 +242,7 @@ export function handlers(root: string): Handlers {
         { uriTemplate: "snypd://history/{type}/{slug}", name: "history", mimeType: JSON_, description: "Commits touching one item, newest first, each with the principal that made it (docs/02 §7)" },
         { uriTemplate: "snypd://lint/{type}/{slug}", name: "lint", mimeType: JSON_, description: "Lint diagnostics for one content file: rule id, severity, line, message and a fix hint (docs/01 editorial lint)" },
         { uriTemplate: "snypd://theme/pieces/{slot}", name: "theme/pieces/slot", mimeType: YAML, description: "Every piece in one slot of the shelf, whole: its line, provenance, switches and what each does, the tokens it needs, its settings and pairs — read once snypd://theme/pieces has narrowed a slot to a choice" },
+        { uriTemplate: "snypd://theme/pieces/{slot}/{name}/{still}", name: "theme/pieces/still", mimeType: "image/webp", description: "A piece's still (W2): `still-1280.webp` (≤ 640×400, ~350 tokens) or `still-390.webp` (≤ 195×422) — its slot on the specimen, on the shelf's host theme with only that piece swapped in. snypd://theme/pieces/<slot> links each piece's" },
         { uriTemplate: "snypd://look/{id}/{picture}", name: "look", mimeType: "image/webp", description: "A picture `theme` › look took (E1): `full.webp` is the whole page with every problem boxed, `before.webp` the previous look at the same crop. The look's result links the ones it made; the last two dozen are kept" },
         { uriTemplate: "snypd://{plugin}/last", name: "plugin/last", mimeType: YAML, description: "What one plugin said the last few times an event fired at it (P4): its rows from the event ring, newest first. `snypd://plugins` names the plugins that react" },
       ];
@@ -225,10 +250,18 @@ export function handlers(root: string): Handlers {
     async readResource(uri) {
       const text = (mimeType: string, text: string) => [{ uri, mimeType, text }];
       // The one binary resource (E1): a picture from `.snypd/look/`, by the id and name the look linked.
-      const lookM = /^snypd:\/\/look\/([0-9a-f]{8})\/(crop|full|before)\.webp$/.exec(uri);
+      const lookM = /^snypd:\/\/look\/(?:([0-9a-f]{8})\/(crop|full|before)|(board-[a-z-]+-[0-9a-f]{8}))\.webp$/.exec(uri);
       if (lookM) {
-        const file = join(root, ".snypd", "look", lookM[1]!, `${lookM[2]}.webp`);
+        // `board-<slot>-<id>.webp` (W2) sits beside the looks' directories: a sheet is not one look's picture.
+        const file = lookM[3] ? join(root, ".snypd", "look", `${lookM[3]}.webp`) : join(root, ".snypd", "look", lookM[1]!, `${lookM[2]}.webp`);
         if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (the last two dozen looks are kept; look again)`);
+        return [{ uri, mimeType: "image/webp", blob: readFileSync(file).toString("base64") }];
+      }
+      // A piece's still (W2): the slot on the specimen, shot by `snypd pieces stills`, read from the shelf in a checkout.
+      const stillM = /^snypd:\/\/theme\/pieces\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/(still-(?:1280|390)\.webp)$/.exec(uri);
+      if (stillM) {
+        const file = join(import.meta.dir, "..", "..", "pieces", stillM[1]!, stillM[2]!, stillM[3]!);
+        if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no still for ${stillM[1]}/${stillM[2]} here — \`look { board: "${stillM[1]}" }\` draws the slot on this site instead)`);
         return [{ uri, mimeType: "image/webp", blob: readFileSync(file).toString("base64") }];
       }
       const contentM = /^snypd:\/\/(content|history)\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9/-]*?)(\.md)?$/i.exec(uri);

@@ -49,10 +49,12 @@ export const SLOT_SELECTORS: Record<string, string[]> = {
   code: ["main pre", "main table"],
   blocks: ["main .snypd-block", "main figure"],
   cover: [".snypd-cover", "main article > header", "main h1"],
+  list: ["main:has(> .snypd-lede)"],
   entries: [".snypd-entries", ".snypd-home-entries"],
   "post-foot": [".snypd-post-footer"],
   footer: ["body > footer", "footer"],
   home: ["main.snypd-home"],
+  feature: ["main:has(.snypd-feature)", "main.snypd-feature"],   // an article on the column has no box of its own
   notes: [".footnotes"],
   toc: [".snypd-toc"],
   wall: [".snypd-logo-wall"],
@@ -89,6 +91,11 @@ export interface LookOptions {
   view?: "picture" | "outline";
   /** The theme (or `theme › variation`) at `url` when it is not the live one (W0): in the label, and in the key, so `since` compares a candidate with itself. */
   theme?: string;
+  /**
+   * The crop alone (W2): no boxes drawn on it, no full page, no before/after record. What the board and the
+   * stills compose many of — the facts still come back, as text.
+   */
+  bare?: boolean;
 }
 
 export interface LookFact {
@@ -495,6 +502,16 @@ export async function look(opts: LookOptions): Promise<LookResult> {
   }
 }
 
+/**
+ * A page of the eyes' browser for work that is not a look — the board lays its sheet out in one and
+ * photographs it. The same session, so a board of ten crops starts one browser, not eleven.
+ */
+export async function eyesPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+  const s = await eyes();
+  const { page } = await tab(s);
+  try { return await fn(page); } finally { await page.close(); }
+}
+
 async function lookOnce(opts: LookOptions): Promise<LookResult> {
   const t0 = performance.now();
   const s = await eyes();
@@ -520,7 +537,12 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
   // The crop: an explicit selector, else the piece's classes and the slot's usual places, else the first viewport.
   const slot = opts.slot && !WHOLE_PAGE_SLOTS.has(opts.slot) ? opts.slot : undefined;
   if (opts.slot && !SLOT_SELECTORS[opts.slot] && !WHOLE_PAGE_SLOTS.has(opts.slot)) throw Object.assign(new Error(`no slot "${opts.slot}"`), { hint: `slots: ${[...Object.keys(SLOT_SELECTORS), ...WHOLE_PAGE_SLOTS].join(", ")} — or pass \`selector\`` });
-  const selectors = opts.selector ? [opts.selector] : slot ? [...(opts.slotClasses ?? []).map((c) => `.${c}`), ...SLOT_SELECTORS[slot]!] : [];
+  // The slot's own classed selectors first (`main.snypd-home`, `.snypd-cover`): a piece's emitted classes are
+  // often *inside* the slot (home/bands emits `snypd-band`, and the first band is not the front page). Then
+  // the piece's classes, for a piece whose markup replaces the slot's usual container; bare tags (`main`) last.
+  const specific = (sel: string) => /[.#[]/.test(sel);
+  const own = slot ? SLOT_SELECTORS[slot]! : [];
+  const selectors = opts.selector ? [opts.selector] : slot ? [...own.filter(specific), ...(opts.slotClasses ?? []).map((c) => `.${c}`), ...own.filter((x) => !specific(x))] : [];
 
   let where = selectors.length ? await evaluate<ReturnType<typeof locate>>(page, call(locate, selectors, "rest")) : {};
   if (selectors.length && !where.sel) notes.push(`${opts.selector ? `\`${opts.selector}\`` : `the ${slot} slot`} is not on ${route} (looked for ${selectors.join(", ")}) — showing the first viewport`);
@@ -605,6 +627,14 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
   const shotOf = async (c: Box, scale = 1) => (await page.send<{ data: string }>("Page.captureScreenshot", { format: "webp", quality: 82, captureBeyondViewport: true, clip: { x: c[0], y: c[1], width: c[2], height: c[3], scale } })).data;
   const scale = Math.min(1, MAX_EDGE / Math.max(clip[2], clip[3]));
   const clean = await shotOf(clip, scale);
+  const [iw, ih] = [Math.round(clip[2] * scale), Math.round(clip[3] * scale)];
+  if (opts.bare) {
+    const files: LookResult["files"] = { crop: join(dir, "crop.webp") };
+    writeFileSync(files.crop!, Buffer.from(clean, "base64"));
+    prune(opts.cacheDir);
+    return { id, label, ms: Math.round(performance.now() - t0), browser: s.which.name, route, width, scheme, state, selector: where.sel, clip, status,
+      problems, passes, image: { data: clean, mimeType: "image/webp", width: iw, height: ih }, files, notes };
+  }
   const drawn = problems.filter((p) => p.box && p.n);
   let boxed = clean;
   if (drawn.length) {
@@ -642,7 +672,6 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
   writeFileSync(lastJson, JSON.stringify({ taste: tasteNow, clip, id }));
   prune(opts.cacheDir);
 
-  const [iw, ih] = [Math.round(clip[2] * scale), Math.round(clip[3] * scale)];
   return {
     id, label, ms: Math.round(performance.now() - t0), browser: s.which.name, route, width, scheme, state, selector: where.sel, clip, status,
     problems, passes, image: { data: boxed, mimeType: "image/webp", width: iw, height: ih }, files, delta, notes,
