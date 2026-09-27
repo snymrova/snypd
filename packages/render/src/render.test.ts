@@ -3686,3 +3686,31 @@ describe("W4: `cover/page` — a page's first paragraph is its standfirst, so th
     expect(css).toContain(".snypd-page > .snypd-cover:first-child:not(:has(.snypd-subtitle)) + p");
   });
 });
+
+describe("W4: `masthead/centered` — a grid over base's header, so the brand, the menu and the motion control must stay its children", () => {
+  const root = "corpora/_test/masthead-centered";
+  const dist = join(root, "dist");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/pages", "content/nav", "content/media", "themes/m"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "content/media/clip.mp4"), new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]));   // an autoplaying cover is what brings the motion control
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: M, url: https://m.example }\ntheme: { use: m, settings: { tagline: Small machines. } }\n");
+    writeFileSync(join(root, "content/nav/header.yaml"), '- { label: "About", ref: "page/about" }\n');
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\n::cover{media=\"/media/clip.mp4\" autoplay=true}\n\nText.\n");
+    writeFileSync(join(root, "themes/m/theme.yaml"), "theme: m\nextends: base\npieces:\n  masthead: centered\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the header's children are the brand (name, then tagline), the nav, and the motion control — the three the grid places", async () => {
+    await build(root);
+    const html = readFileSync(join(dist, "about/index.html"), "utf8");
+    const header = html.match(/<header class="snypd-masthead">([\s\S]*?)<\/header>/)![1]!;
+    // Top-level children only: strip each child's own contents and read the tags that are left.
+    const kids = [...header.matchAll(/<(div|nav|p)\b([^>]*)>/g)].filter((m) => !/snypd-tagline/.test(m[2]!)).map((m) => `${m[1]}${m[2]!.match(/class="([^"]*)"/)?.[1] ? `.${m[2]!.match(/class="([^"]*)"/)![1]}` : ""}`);
+    expect(kids).toEqual(["div.snypd-brand", "nav", "p.snypd-motion"]);
+    expect(header).toMatch(/<div class="snypd-brand"><a href="\/" rel="home">M<\/a><p class="snypd-tagline">Small machines\.<\/p><\/div>/);
+    const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
+    expect(css).toContain(".snypd-masthead{display: grid;grid-template-columns: 1fr auto 1fr");
+  });
+});

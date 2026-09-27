@@ -463,6 +463,20 @@
         ]
       }
     },
+    "masthead/centered": {
+      "inputs": "45bbb0e000bfc9b8",
+      "route": "/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          89
+        ],
+        "still-390.webp": [
+          195,
+          70
+        ]
+      }
+    },
     "masthead/nameplate": {
       "inputs": "41f63beb2fed0f29",
       "route": "/",

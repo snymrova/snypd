@@ -1174,6 +1174,63 @@
         "fresh": true
       }
     },
+    "masthead/centered": {
+      "piece": "masthead/centered",
+      "from": "drawn",
+      "line": "A nameplate — the name centred and set large in the display face, the one big thing in the header; the tagline muted under it when the site sets one; the menu centred under them in a strip between two hairlines that run the page's width. On a phone the menu is its button, centred under the name, and one rule closes the header.",
+      "reads": [
+        "font.display",
+        "font.ui",
+        "size.h2",
+        "size.small",
+        "size.body",
+        "color.bg",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "color.text",
+        "color.muted",
+        "color.border"
+      ],
+      "needs": {},
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "refs": [
+        {
+          "url": "https://www.robinsloan.com/",
+          "took": "the name is the header: centred, set large in the display face, nothing beside it"
+        },
+        {
+          "url": "https://www.lrb.co.uk/",
+          "took": "a centred nameplate is the only large thing in the header — everything else is small and at the edges"
+        },
+        {
+          "url": "https://worksinprogress.co/",
+          "took": "the menu as a strip between two full-width rules, so the page starts under a line, not under a name"
+        }
+      ],
+      "draft": true,
+      "slot": "masthead",
+      "name": "centered",
+      "kb": 2.33,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "masthead/centered/still-1280.webp",
+          "masthead/centered/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
     "masthead/nameplate": {
       "piece": "masthead/nameplate",
       "from": "editorial",

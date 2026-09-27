@@ -96,6 +96,8 @@ import _piece_list_ruled_piece_css from "../../pieces/list/ruled/piece.css" with
 import _piece_list_ruled_piece_yaml from "../../pieces/list/ruled/piece.yaml" with { type: "text" };
 import _piece_masthead_bar_piece_css from "../../pieces/masthead/bar/piece.css" with { type: "text" };
 import _piece_masthead_bar_piece_yaml from "../../pieces/masthead/bar/piece.yaml" with { type: "text" };
+import _piece_masthead_centered_piece_css from "../../pieces/masthead/centered/piece.css" with { type: "text" };
+import _piece_masthead_centered_piece_yaml from "../../pieces/masthead/centered/piece.yaml" with { type: "text" };
 import _piece_masthead_nameplate_piece_css from "../../pieces/masthead/nameplate/piece.css" with { type: "text" };
 import _piece_masthead_nameplate_piece_yaml from "../../pieces/masthead/nameplate/piece.yaml" with { type: "text" };
 import _piece_masthead_plain_piece_css from "../../pieces/masthead/plain/piece.css" with { type: "text" };
@@ -669,6 +671,17 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
     modules: {
       "part.tsx": () => import("../../pieces/masthead/bar/part.tsx"),
+    },
+  },
+  "masthead/centered": {
+    hash: "66d3cf33a222421df5420dfc8ef29886bfd4eceb",
+    files: {
+      "piece.css": _piece_masthead_centered_piece_css,
+      "piece.yaml": _piece_masthead_centered_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
     },
   },
   "masthead/nameplate": {
