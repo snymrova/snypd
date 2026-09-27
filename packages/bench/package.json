@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./look": "./src/look.ts",
     "./cdp": "./src/cdp.ts",
-    "./eyes": "./src/eyes.ts"
+    "./eyes": "./src/eyes.ts",
+    "./board": "./src/board.ts"
   },
   "license": "MIT",
   "dependencies": {
@@ -18,7 +19,8 @@
     "@snypd/core": "workspace:*",
     "@snypd/viz": "workspace:*",
     "@snypd/mcp": "workspace:*",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "@snypd/shelf": "workspace:*"
   },
   "devDependencies": {
     "axe-core": "^4.13.0"

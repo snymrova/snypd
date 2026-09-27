@@ -26,10 +26,28 @@ export interface PieceEntry {
   switchKb: Record<string, number>;
   /** Piece-relative, sorted. */
   files: string[];
-  /** `<slot>/<name>/still.png`, when the piece ships one. */
-  still?: string;
+  /**
+   * The piece's two stills (docs/37 §5, W2), `<slot>/<name>/still-1280.webp` and `…/still-390.webp`, when
+   * `snypd pieces stills` has shot them; `fresh` is false once the piece or its host changed after.
+   */
+  stills?: { files: string[]; fresh: boolean };
 }
-export interface PieceManifest { $comment: string; slots: SlotEntry[]; pieces: Record<string, PieceEntry> }
+/** One token set a piece is seen on (board.yaml): colour, one shelf face, and a few sizes where the set is about proportion. */
+export interface BoardSet { name: string; line: string; face?: string; tokens: Record<string, string | number> }
+export interface BoardDecl {
+  stills: { host: string; root: string; routes: Record<string, string> };
+  sets: BoardSet[];
+}
+/** What `snypd pieces stills` wrote down about one piece's stills (`stills.json`). */
+export interface StillRecord { inputs: string; route: string; sizes: Record<string, [number, number]> }
+export interface PieceManifest { $comment: string; slots: SlotEntry[]; board: BoardDecl; pieces: Record<string, PieceEntry> }
+
+/** The two stills a piece carries: the slot at 1280 shown at half size in 640×400, at 390 in 195×422. */
+export const STILL_FILES = ["still-1280.webp", "still-390.webp"] as const;
+export const STILL_FRAMES: Record<(typeof STILL_FILES)[number], { width: number; frame: [number, number] }> = {
+  "still-1280.webp": { width: 1280, frame: [640, 400] },
+  "still-390.webp": { width: 390, frame: [195, 422] },
+};
 
 export const loadPieces = (): PieceManifest => manifest as PieceManifest;
 /** The canonical slot order (docs/36 §4.2): the order of the `snypd.pieces.<slot>` sublayers. */

@@ -13,6 +13,7 @@
  * `piece.literal` and `piece.selector` over every stylesheet the piece ships, and `reads:` held to the
  * contract tokens its CSS actually names — `reads:` is what decides which optional tokens a theme emits.
  */
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseYaml } from "../../core/src/yaml";
@@ -20,14 +21,17 @@ import { PieceYamlSchema } from "../../core/src/schema";
 import { cssVar, minifyCss } from "../../render/src/tokens";
 import { literalHits, selectorHits } from "../../render/src/contract";
 import { themeContract } from "../../spec/src/index";
-import type { PieceManifest, PieceEntry, SlotEntry } from "./index";
+import { STILL_FILES, type BoardDecl, type PieceManifest, type PieceEntry, type SlotEntry, type StillRecord } from "./index";
 
 const parse = (src: string, file: string) => parseYaml(src, file).value;
 export const PIECES = join(import.meta.dir, "..");
 
+/** A piece's stills are pictures of it, not part of it: kept out of `files`, of the bundle and of the stills' own input hash. */
+export const isStill = (f: string) => (STILL_FILES as readonly string[]).includes(f);
+
 const walk = (dir: string, base = dir, out: string[] = []): string[] => {
   for (const f of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-    if (f.name.startsWith(".")) continue;
+    if (f.name.startsWith(".") || isStill(f.name)) continue;
     const p = join(dir, f.name);
     if (f.isDirectory()) walk(p, base, out); else out.push(relative(base, p).split("\\").join("/"));
   }
@@ -37,14 +41,51 @@ const walk = (dir: string, base = dir, out: string[] = []): string[] => {
 /** Kilobytes on the wire, minified, to two places — what `cssKb` is charged for the piece. */
 const kbOf = (css: string) => +(Buffer.byteLength(minifyCss(css)) / 1024).toFixed(2);
 
+/** `board.yaml`, checked: every set's token is a contract token, every slot has a stills route. */
+export function readBoard(slots: string[], known: Set<string>, errors: string[]): BoardDecl {
+  const b = parse(readFileSync(join(PIECES, "board.yaml"), "utf8"), "board.yaml") as BoardDecl;
+  if (!b?.stills?.host || !b.stills.root || !b.stills.routes) errors.push("board.yaml: stills needs host, root and routes");
+  for (const s of slots) if (!b?.stills?.routes?.[s]?.startsWith("/")) errors.push(`board.yaml: stills.routes has no route for ${s}`);
+  const seen = new Set<string>();
+  for (const set of b?.sets ?? []) {
+    if (!/^[a-z][a-z0-9-]*$/.test(set.name ?? "") || seen.has(set.name)) errors.push(`board.yaml: set name ${JSON.stringify(set.name)} — lowercase, dashes, once`);
+    seen.add(set.name);
+    if (!set.line) errors.push(`board.yaml: set ${set.name} has no line`);
+    for (const t of Object.keys(set.tokens ?? {})) if (!known.has(t)) errors.push(`board.yaml: set ${set.name} sets \`${t}\`, which is not a contract token — a board set may only retune what every piece can read`);
+  }
+  if ((b?.sets?.length ?? 0) < 3) errors.push("board.yaml: at least three sets (docs/37 §4·3)");
+  return b;
+}
+
+/**
+ * What a piece's stills are a picture of: the piece's own files, the host theme's `theme.yaml` and the
+ * stills block of `board.yaml`. `stills.json` records it when the stills are shot; a piece whose inputs
+ * have moved since has stale stills, and the manifest test says which.
+ */
+export function stillInputs(id: string, board: BoardDecl): string {
+  const dir = join(PIECES, id);
+  const h = createHash("sha1");
+  for (const f of walk(dir)) h.update(f).update(readFileSync(join(dir, f)));
+  const host = join(PIECES, "..", "..", "themes", board.stills.host, "theme.yaml");
+  if (existsSync(host)) h.update(readFileSync(host));
+  h.update(JSON.stringify(board.stills));
+  return h.digest("hex").slice(0, 16);
+}
+
+export const STILLS_JSON = join(PIECES, "stills.json");
+export const readStills = (): Record<string, StillRecord> => existsSync(STILLS_JSON) ? JSON.parse(readFileSync(STILLS_JSON, "utf8")).pieces ?? {} : {};
+
 export function generate(): PieceManifest {
   const slots = (parse(readFileSync(join(PIECES, "slots.yaml"), "utf8"), "slots.yaml") as { slots: SlotEntry[] }).slots;
   const names = new Set(slots.map((s) => s.slot));
   const contract = themeContract();
   const known = new Set([...contract.tokens, ...Object.keys(contract.optional)]);
+  const errorsBoard: string[] = [];
+  const board = readBoard(slots.map((s) => s.slot), known, errorsBoard);
+  const shot = readStills();
   const byVar = new Map([...known].map((t) => [cssVar(t), t]));
   const pieces: Record<string, PieceEntry> = {};
-  const errors: string[] = [];
+  const errors: string[] = [...errorsBoard];
   for (const slot of slots.map((s) => s.slot)) {
     const sdir = join(PIECES, slot);
     if (!existsSync(sdir)) continue;
@@ -80,11 +121,13 @@ export function generate(): PieceManifest {
       }
       for (const t of named) if (!y.reads.includes(t)) errors.push(`${id}/piece.yaml: its CSS reads \`${t}\` and \`reads:\` does not list it`);
       for (const t of y.reads) if (known.has(t) && !named.has(t)) errors.push(`${id}/piece.yaml: \`reads:\` lists \`${t}\` and no stylesheet in the piece reads it`);
-      pieces[id] = { ...y, slot, name: v, kb: kbOf(css), switchKb, files, ...(files.includes("still.png") ? { still: `${id}/still.png` } : {}) };
+      // The stills are listed when both are on disk; `fresh` says whether they picture the piece as it is now.
+      const stills = STILL_FILES.every((f) => existsSync(join(dir, f))) ? { files: STILL_FILES.map((f) => `${id}/${f}`), fresh: shot[id]?.inputs === stillInputs(id, board) } : undefined;
+      pieces[id] = { ...y, slot, name: v, kb: kbOf(css), switchKb, files, ...(stills ? { stills } : {}) };
     }
   }
   if (errors.length) throw new Error(`pieces: ${errors.length} problem${errors.length === 1 ? "" : "s"}\n  ${errors.join("\n  ")}`);
-  return { $comment: "GENERATED by `bun packages/pieces/src/gen.ts` — do not edit.", slots, pieces };
+  return { $comment: "GENERATED by `bun packages/pieces/src/gen.ts` — do not edit.", slots, board, pieces };
 }
 
 export const render = (m: PieceManifest) => JSON.stringify(m, null, 2) + "\n";

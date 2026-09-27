@@ -18,6 +18,7 @@
         "@snypd/mcp": "workspace:*",
         "@snypd/render": "workspace:*",
         "@snypd/runtime": "workspace:*",
+        "@snypd/shelf": "workspace:*",
         "@snypd/spec": "workspace:*",
         "@snypd/viz": "workspace:*",
         "gpt-tokenizer": "^4.0.0",
@@ -74,6 +75,10 @@
       "devDependencies": {
         "@modelcontextprotocol/sdk": "^1.30.0",
       },
+    },
+    "packages/pieces": {
+      "name": "@snypd/pieces",
+      "version": "0.1.7",
     },
     "packages/render": {
       "name": "@snypd/render",
@@ -173,6 +178,8 @@
     "@snypd/core": ["@snypd/core@workspace:packages/core"],
 
     "@snypd/mcp": ["@snypd/mcp@workspace:packages/mcp"],
+
+    "@snypd/pieces": ["@snypd/pieces@workspace:packages/pieces"],
 
     "@snypd/plugin-analytics": ["@snypd/plugin-analytics@workspace:plugins/analytics"],
 

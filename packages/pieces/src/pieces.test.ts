@@ -64,7 +64,27 @@ describe("the manifest", () => {
     const m = loadPieces();
     expect(m.slots[0]).toMatchObject({ slot: "house", always: true });
     expect(new Set(m.slots.map((s) => s.slot)).size).toBe(m.slots.length);
-    for (const p of Object.values(m.pieces)) { expect(p.from.length).toBeGreaterThan(0); expect(p.kb).toBeGreaterThan(0); }
+    // A piece ships CSS — in its sheet, or (motion/still, whose idea is the absence of a transition) only in
+    // its switches.
+    for (const p of Object.values(m.pieces)) { expect(p.from.length).toBeGreaterThan(0); expect(p.kb + Object.values(p.switchKb).reduce((a, b) => a + b, 0), p.piece).toBeGreaterThan(0); }
+  });
+  test("W2: every piece has its two stills, and they picture the piece as it is now", () => {
+    // Stale or missing: `snypd pieces stills --stale` (needs a browser) reshoots exactly those.
+    const m = loadPieces();
+    const off = Object.values(m.pieces).filter((p) => !p.stills?.fresh).map((p) => `${p.piece}${p.stills ? " (stale)" : " (none)"}`);
+    expect(off).toEqual([]);
+    for (const p of Object.values(m.pieces)) expect(p.stills!.files).toEqual([`${p.piece}/still-1280.webp`, `${p.piece}/still-390.webp`]);
+    // A still is a picture of the piece, not part of it: never in `files`, so never in the binary.
+    for (const p of Object.values(m.pieces)) expect(p.files.filter((f) => f.startsWith("still-"))).toEqual([]);
+  });
+  test("W2: the board's five token sets — contract tokens only, every face on the shelf, a stills route per slot", async () => {
+    const { shelfFace } = await import("@snypd/shelf");
+    const m = loadPieces();
+    expect(m.board.sets.map((s) => s.name)).toEqual(["light-serif", "dark-sans", "loud-accent", "committed", "pathological"]);
+    for (const s of m.board.sets) expect(s.face && shelfFace(s.face), s.name).toBeTruthy();
+    expect(Object.keys(m.board.stills.routes).sort()).toEqual(m.slots.map((s) => s.slot).sort());
+    // One committed scheme per set, so a board row is the same page whatever the viewer prefers.
+    for (const s of m.board.sets) expect(["light", "dark"]).toContain(s.tokens["color.scheme"] as string);
   });
   test("house is the nineteen rules every sheet shares, less the reduced-motion reset base now carries", () => {
     const css = readFileSync(join(import.meta.dir, "..", "house", "house", "piece.css"), "utf8");

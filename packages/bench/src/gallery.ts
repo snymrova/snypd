@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { build, loadTheme } from "@snypd/render";
 import { serve } from "@snypd/runtime";
-import { loadConfig, installedThemes, themeVariations, SiteIndex, INDEX_DIR } from "@snypd/core";
+import { loadConfig, installedThemes, themeVariations, SiteIndex, INDEX_DIR, fontLaneKb } from "@snypd/core";
 import { launch, findChrome } from "./cdp";
 import { measure, VIEWPORTS, type PageResult, type Viewport } from "./page";
 import { TOKENIZER } from "./tokens";
@@ -90,10 +90,11 @@ export interface GalleryOptions {
  * One look, built into its own `dist-<purpose>-<slug>-<pid>` with its own index and served on a free port — the
  * loop `gallery` and `shoot` (docs/29 TF2) share, so the out-of-band theme switch lives in one place.
  */
-export async function buildAndServe(root: string, look: Pick<Look, "theme" | "variation" | "slug">, purpose: string, opts: { drafts?: boolean } = {}):
+export async function buildAndServe(root: string, look: Pick<Look, "theme" | "variation" | "slug">, purpose: string, opts: { drafts?: boolean; searchPaths?: string[] } = {}):
   Promise<{ url: string; dist: string; fontKb: number; stop: () => void }> {
-  const cfg = loadConfig(root, { theme: look.theme, variation: look.variation });
-  const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
+  // `searchPaths` for the board (W2): its child themes live in a scratch directory, not the site's `themes/`.
+  const cfg = loadConfig(root, { theme: look.theme, variation: look.variation, searchPaths: opts.searchPaths });
+  const fontKb = fontLaneKb((await loadTheme(cfg)).font);
   // Per process: the sandbox's preview shoots the specimen continuously, and a second shoot of the same
   // look into the same directory had its pages deleted under it when the first one finished (TF5 found
   // it as 160 HTTP 404s). The index goes with the build, and `stop` removes both.

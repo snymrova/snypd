@@ -574,6 +574,48 @@ switch (verb) {
     if (all.length > 6) console.log(`  … and ${all.length - 6} more`);
     break;
   }
+  /**
+   * `snypd pieces stills|board` (W2, docs/37 §5): the shelf seen. `stills` photographs every piece (or the
+   * ones named, or `--stale`) on the specimen and writes `still-1280.webp` + `still-390.webp` beside each
+   * `piece.yaml`; `board <slot>` is every variant of one slot on this site's content in one picture, on the
+   * theme's own tokens or on `--sets=3|5` of board.yaml's.
+   */
+  case "pieces": {
+    const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
+    const USAGE = "usage: snypd pieces stills [<slot>/<name>…] [--stale]\n       snypd pieces board <slot> [root] [--sets=1|3|5] [--theme=<name>] [--variants=a,b] [--route=/x/] [--width=1280] [--out=board.webp]";
+    const fail = (e: unknown) => { const err = e as Error & { hint?: string }; console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`); process.exit(1); };
+    const { closeEyes } = await import("@snypd/bench/look");
+    if (args[0] === "stills") {
+      const { stills } = await import("@snypd/bench/board");
+      try {
+        const r = await stills({ only: args.slice(1), stale: flags.has("--stale"), onPiece: (id, i, n) => console.error(`${i}/${n} ${id}`) });
+        console.log(`stills: ${r.written.length} written${r.skipped.length ? `, ${r.skipped.length} fresh and left` : ""}${r.failed.length ? `, ${r.failed.length} failed` : ""} — packages/pieces/<slot>/<name>/still-{1280,390}.webp, stills.json, pieces.json`);
+        for (const f of r.failed) console.log(`  ✗ ${f.id}: ${f.why}`);
+        if (r.failed.length) process.exitCode = 1;
+      } catch (e) { fail(e); } finally { closeEyes(); }
+      break;
+    }
+    if (args[0] === "board" && args[1]) {
+      const { board, formatBoard } = await import("@snypd/bench/board");
+      const { join } = await import("node:path");
+      const { copyFileSync, mkdirSync } = await import("node:fs");
+      const root = args[2] ?? ".";
+      const sets = opt("sets") ? Number(opt("sets")) : undefined;
+      if (sets !== undefined && ![1, 3, 5].includes(sets)) { console.error(`--sets=${opt("sets")}: 1, 3 or 5`); process.exit(2); }
+      const cacheDir = join(root, ".snypd", "look");
+      mkdirSync(cacheDir, { recursive: true });
+      try {
+        const r = await board({ root, slot: args[1], sets, theme: opt("theme"), variants: opt("variants")?.split(",").filter(Boolean), route: opt("route"), width: opt("width") ? Number(opt("width")) : undefined, cacheDir,
+          onCell: (l, i, n) => console.error(`${i}/${n} ${l}`) });
+        const out = opt("out") ?? `board-${r.slot}.webp`;
+        copyFileSync(r.file, out);
+        console.log(formatBoard(r).split("\n").slice(0, -1).join("\n"));
+        console.log(`sheet: ${out} (${r.image.width}×${r.image.height})`);
+      } catch (e) { fail(e); } finally { closeEyes(); }
+      break;
+    }
+    console.error(USAGE); process.exit(2);
+  }
   // S18d′: a distributed binary is asked "which one is this?" by bug reports, package managers and
   // agents alike, and until now nothing answered. The import is lazy for the same reason every other one
   // here is (decision 49): `--version` must not put a module on the path `initialize` pays for.
@@ -584,7 +626,7 @@ switch (verb) {
   }
   default:
     console.log([
-      "usage: snypd <init|dev|serve|build|cards|shoot|eyes|bench|new|seed|check> [--version]",
+      "usage: snypd <init|dev|serve|build|cards|shoot|eyes|pieces|bench|new|seed|check> [--version]",
       "",
       "  snypd init [dir] [--name=…] [--url=…] [--host=cloudflare|vercel|none]   scaffold a site (making dir if needed), Cloudflare config by default",
       "  snypd dev [root] [--port=N] [--host=H] [--no-open] [--reload=N|--no-reload]   the Desk and the site with drafts in it, for a person",
@@ -592,6 +634,8 @@ switch (verb) {
       "  snypd build [root] [--drafts] [--verbose]                             content → dist/; --drafts (or a build of snypd/drafts) is a noindex preview",
       "  snypd shoot [root] [--theme=a,b/variation] [--route=/x/,…] [--width=390,768,1280,1440] [--scheme=both|light|dark] [--out=shots] [--diff=<earlier shoot>] [--exact]   photograph themes on every route; contact sheet; --diff marks what moved, --exact shoots a baseline for it (needs Chrome)",
       "  snypd eyes [install]                                                  which browser theme › look uses; `install` fetches chrome-headless-shell once",
+      "  snypd pieces stills [<slot>/<name>…] [--stale]                        photograph every piece on the specimen, beside its piece.yaml (needs Chrome)",
+      "  snypd pieces board <slot> [root] [--sets=1|3|5] [--variants=a,b] [--out=file]   every variant of one slot on this site, one picture (needs Chrome)",
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",
