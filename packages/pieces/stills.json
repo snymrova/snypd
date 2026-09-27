@@ -323,6 +323,20 @@
         ]
       }
     },
+    "footer/index": {
+      "inputs": "de9f5b62e923b72a",
+      "route": "/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          204
+        ],
+        "still-390.webp": [
+          195,
+          273
+        ]
+      }
+    },
     "footer/line": {
       "inputs": "875129c1b80696a4",
       "route": "/",

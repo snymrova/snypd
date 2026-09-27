@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
@@ -3712,5 +3712,61 @@ describe("W4: `masthead/centered` — a grid over base's header, so the brand, t
     expect(header).toMatch(/<div class="snypd-brand"><a href="\/" rel="home">M<\/a><p class="snypd-tagline">Small machines\.<\/p><\/div>/);
     const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
     expect(css).toContain(".snypd-masthead{display: grid;grid-template-columns: 1fr auto 1fr");
+  });
+});
+
+describe("W4: `footer/index` — the site as a map, from `ctx.sections`, keyed on the map and not on the posts", () => {
+  const root = "corpora/_test/footer-index";
+  const dist = join(root, "dist");
+  const post = (slug: string, date: string, tags: string[], kind = "chairs") =>
+    writeFileSync(join(root, `content/posts/${slug}.md`), `---\ntitle: ${slug}\ndate: ${date}\nstatus: published\ncategory: ${kind}\ntags: [${tags.join(", ")}]\n---\n\nText.\n`);
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/nav", "themes/f"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), [
+      "snypd: 1", "site: { name: F, url: https://f.example, description: A studio. }",
+      "theme: { use: f, settings: { social: [{ label: Mail, url: \"mailto:f@f.example\" }] } }",
+      "",
+    ].join("\n"));
+    writeFileSync(join(root, "content/nav/footer.yaml"), '- { label: "Everything", ref: "/posts" }\n- { label: "About", ref: "page/about" }\n');
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\nUs.\n");
+    // A page holds `/`, so the posts have an archive of their own at `/posts/` (R1) for the map to name.
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: Home\nstatus: published\nhome: true\n---\n\nHello.\n");
+    // Nine tags: a cloud, not a section. Two categories: a section.
+    for (let i = 0; i < 9; i++) post(`p${i}`, `2026-01-${String(i + 1).padStart(2, "0")}`, [`t${i}`], i % 2 ? "lamps" : "chairs");
+    writeFileSync(join(root, "themes/f/theme.yaml"), "theme: f\nextends: base\nsettings:\n  - { id: social, type: link_list, label: Social }\npieces:\n  column: three-track\n  footer: index\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("Index is the archives then the menu's other items; a small taxonomy is a column; nine tags are not; Elsewhere is the social links", async () => {
+    await build(root);
+    const html = readFileSync(join(dist, "about/index.html"), "utf8");
+    const map = html.match(/<nav aria-label="Footer" class="snypd-footer-index-map">([\s\S]*?)<\/nav>/)![1]!;
+    const heads = [...map.matchAll(/<h2>([^<]*)<\/h2>/g)].map((m) => m[1]);
+    expect(heads).toEqual(["Index", "Categories", "Elsewhere"]);
+    // `/posts/` is headed by the menu's word for it, once — not again as a menu item.
+    expect(map).toContain('<li><a href="/posts/">Everything</a></li><li><a href="/about/" aria-current="page">About</a></li>');
+    expect(map.match(/href="\/posts\/"/g)!.length).toBe(1);
+    // A term with no page is titled from its slug.
+    expect(map).toContain('<li><a href="/category/chairs/">Chairs</a></li><li><a href="/category/lamps/">Lamps</a></li>');
+    expect(map).toContain('<ul class="snypd-social"><li><a href="mailto:f@f.example" rel="me">Mail</a></li></ul>');
+    expect(html).toContain('<p class="snypd-footer-index-name"><a href="/" rel="home">F</a></p><p>A studio.</p>');
+  });
+
+  test("a post under the terms the site has re-renders what it would have anyway; a new term re-renders every page", async () => {
+    await build(root);
+    const at = (r: string) => statSync(join(dist, r, "index.html")).mtimeMs;
+    const before = [at("about"), at("posts/p1")];
+    post("p9", "2026-02-01", ["t0"], "lamps");
+    await build(root);
+    // Under a category and a tag the site already has, the map is unchanged: the about page and an older post are not rewritten.
+    expect([at("about"), at("posts/p1")]).toEqual(before);
+    post("p10", "2026-02-02", ["t0"], "stools");
+    await build(root);
+    // A new category is a new line on every page's map.
+    expect(at("about")).toBeGreaterThan(before[0]!);
+    expect(at("posts/p1")).toBeGreaterThan(before[1]!);
+    expect(readFileSync(join(dist, "about/index.html"), "utf8")).toContain('<a href="/category/stools/">Stools</a>');
   });
 });

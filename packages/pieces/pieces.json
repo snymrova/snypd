@@ -2156,6 +2156,78 @@
         "fresh": true
       }
     },
+    "footer/index": {
+      "piece": "footer/index",
+      "from": "drawn",
+      "line": "The site as a map — the name with its description beside it, then equal columns across the whole width, each under a heading with a hairline beneath it; Index (the archives and the footer menu), a column per small taxonomy, Elsewhere. The footer note closes it under a hairline. Right for a studio or a product with sections; wrong for a person with one list.",
+      "reads": [
+        "font.display",
+        "font.ui",
+        "size.small",
+        "size.h3",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "space.6",
+        "color.text",
+        "color.muted",
+        "color.border",
+        "measure",
+        "measure.footer-column"
+      ],
+      "needs": {
+        "measure.footer-column": "9rem"
+      },
+      "emits": [
+        "snypd-footer-index",
+        "snypd-footer-index-brand",
+        "snypd-footer-index-name",
+        "snypd-footer-index-map",
+        "snypd-footer-index-end"
+      ],
+      "switches": {},
+      "settings": [],
+      "parts": {
+        "footer": "./part.tsx"
+      },
+      "layouts": {},
+      "pairs": {
+        "column": "three-track"
+      },
+      "refs": [
+        {
+          "url": "https://stripe.com/",
+          "took": "headings in the text colour and links muted, so the eye reads the columns before the items"
+        },
+        {
+          "url": "https://linear.app/",
+          "took": "columns of one width, a small heading over each, and a bottom row that keeps to the same left edge"
+        },
+        {
+          "url": "https://www.gov.uk/",
+          "took": "each section's heading ruled beneath, so a column is a list under a label and not a stack of links"
+        }
+      ],
+      "draft": true,
+      "slot": "footer",
+      "name": "index",
+      "kb": 1.79,
+      "switchKb": {},
+      "files": [
+        "part.tsx",
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "footer/index/still-1280.webp",
+          "footer/index/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
     "footer/line": {
       "piece": "footer/line",
       "from": "technical, editorial",

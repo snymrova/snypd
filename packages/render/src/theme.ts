@@ -74,6 +74,13 @@ export interface SiteCtx {
    * on no pieces.
    */
   pieces: Readonly<Record<string, Readonly<{ use: string } & Record<string, boolean | string>>>>;
+  /**
+   * The site's sections (W4, `footer/index`): every dated type's archive, and every taxonomy with the terms
+   * in use, by title — a map of the site a footer can draw on every page. No counts and no entries, so a
+   * post published does not change it; a new term or a renamed archive does, and it is in every route's
+   * key. Absent where a ctx is built outside a site build.
+   */
+  sections?: { archives: Archive[]; taxonomies: { name: string; label: string; terms: TermLink[] }[] };
 }
 
 /**

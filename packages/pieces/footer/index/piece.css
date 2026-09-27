@@ -1,0 +1,38 @@
+/* footer/index — drawn. Three rows on the column's `--edge`, like the masthead and the bands: the name with
+   the site's description beside it; the map; the note. The map is as many equal columns as
+   `measure.footer-column` fits across the whole width — five at 1280, two on a phone, no count written
+   down — so its tracks line up down the rows when the sections are more than fit. Each heading is the
+   text colour with a hairline under it (the one signature detail); the links under it are muted until
+   pointed at. */
+body > footer.snypd-footer-index {
+  display: grid; gap: var(--space-5);
+  padding: var(--space-6) var(--edge) var(--space-5); border-top: 1px solid var(--color-border);
+  font: var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted);
+}
+.snypd-footer-index p { margin: 0; }
+.snypd-footer-index a { color: inherit; text-decoration: none; }
+.snypd-footer-index a:hover, .snypd-footer-index a[aria-current="page"] { color: var(--color-text); }
+.snypd-footer-index-brand { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-4); }
+.snypd-footer-index-brand > p:not(.snypd-footer-index-name) { max-width: var(--measure); }
+.snypd-footer-index-name { font: 500 var(--size-h3) / 1.15 var(--font-display); letter-spacing: -0.01em; color: var(--color-text); }
+
+.snypd-footer-index-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--measure-footer-column), 100%), 1fr)); gap: var(--space-5) var(--space-4); }
+.snypd-footer-index-map h2 {
+  margin: 0 0 var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border);
+  font: 600 var(--size-small) / 1.4 var(--font-ui); letter-spacing: 0; color: var(--color-text);
+}
+.snypd-footer-index-map ul { list-style: none; margin: 0; padding: 0; }
+.snypd-footer-index-map li { margin: 0; }
+.snypd-footer-index-map a { display: block; padding-block: var(--space-1); }
+
+/* The close: the note and the `footer-end` slot, under a hairline across the map's width. */
+.snypd-footer-index-end { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
+.snypd-footer-index-end:empty { display: none; }
+.snypd-footer-index .snypd-footer-note { max-width: var(--measure); }
+.snypd-footer-index .snypd-footer-note a { text-decoration: underline; }
+
+/* A phone: the map two-up, and a row's gap a step smaller — at `space-5` a five-section map was a screen and a half. */
+@media (max-width: 47.5rem) {
+  body > footer.snypd-footer-index { gap: var(--space-4); padding-top: var(--space-5); }
+  .snypd-footer-index-map { row-gap: var(--space-4); }
+}

@@ -334,6 +334,14 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
    * the newest six of every dated type, which on every site so far was the same list; a site with a
    * `work` beside its notes wants its front page to show the work, and its menu already says so.
    */
+  // The site's sections (W4, `footer/index`): the archives above and each taxonomy's terms, by title. In every
+  // key, since a footer drawn from them is on every page — and only the map is in it, so publishing a post
+  // under terms the site already uses re-renders nothing it did not before; a new term re-renders the site.
+  ctx.sections = {
+    archives: archives.map(({ type, route, title }) => ({ type, route, title })),
+    taxonomies: Object.keys(c.taxonomies).map((t) => ({ name: t, label: titleCase(plural(t)), terms: allTerms.filter((x) => x.taxonomy === t).sort((a, b) => a.title.localeCompare(b.title)) })),
+  };
+  base += `:sections:${sha1(JSON.stringify(ctx.sections))}`;
   const headerMenu = nav.nav.header ?? Object.values(nav.nav)[0] ?? [];
   const homeArchive = headerMenu.map((i) => archives.find((a) => a.route === i.route)).find(Boolean) ?? archives[0];
 

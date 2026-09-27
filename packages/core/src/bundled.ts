@@ -74,6 +74,8 @@ import _piece_footer_close_piece_css from "../../pieces/footer/close/piece.css" 
 import _piece_footer_close_piece_yaml from "../../pieces/footer/close/piece.yaml" with { type: "text" };
 import _piece_footer_colophon_piece_css from "../../pieces/footer/colophon/piece.css" with { type: "text" };
 import _piece_footer_colophon_piece_yaml from "../../pieces/footer/colophon/piece.yaml" with { type: "text" };
+import _piece_footer_index_piece_css from "../../pieces/footer/index/piece.css" with { type: "text" };
+import _piece_footer_index_piece_yaml from "../../pieces/footer/index/piece.yaml" with { type: "text" };
 import _piece_footer_line_piece_css from "../../pieces/footer/line/piece.css" with { type: "text" };
 import _piece_footer_line_piece_yaml from "../../pieces/footer/line/piece.yaml" with { type: "text" };
 import _piece_footer_line_quiet_links_css from "../../pieces/footer/line/quiet-links.css" with { type: "text" };
@@ -549,6 +551,18 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
     modules: {
       "part.tsx": () => import("../../pieces/footer/colophon/part.tsx"),
+    },
+  },
+  "footer/index": {
+    hash: "a78e54dd2c21226379eb50a2abdab3d327860b02",
+    files: {
+      "piece.css": _piece_footer_index_piece_css,
+      "piece.yaml": _piece_footer_index_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+      "part.tsx": () => import("../../pieces/footer/index/part.tsx"),
     },
   },
   "footer/line": {
