@@ -184,7 +184,7 @@
       }
     },
     "entries/ledger": {
-      "inputs": "ef1959ff38fb3de0",
+      "inputs": "98de6e9cba1d5981",
       "route": "/posts/",
       "sizes": {
         "still-1280.webp": [
@@ -367,6 +367,20 @@
     },
     "list/plain": {
       "inputs": "018b93188dea1ef7",
+      "route": "/changelog/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          400
+        ],
+        "still-390.webp": [
+          195,
+          422
+        ]
+      }
+    },
+    "list/ruled": {
+      "inputs": "d0fa28750d301f2f",
       "route": "/changelog/",
       "sizes": {
         "still-1280.webp": [

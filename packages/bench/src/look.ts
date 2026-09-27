@@ -49,7 +49,7 @@ export const SLOT_SELECTORS: Record<string, string[]> = {
   code: ["main pre", "main table"],
   blocks: ["main .snypd-block", "main figure"],
   cover: [".snypd-cover", "main article > header", "main h1"],
-  list: ["main:has(> .snypd-lede)"],
+  list: ["main:has(> .snypd-lede)", "main.snypd-list", "main:has(> h1 + .snypd-entries)", "main:has(> h1 ~ ol)"],   // W4: base's plain archive has no lede
   entries: [".snypd-entries", ".snypd-home-entries"],
   "post-foot": [".snypd-post-footer"],
   footer: ["body > footer", "footer"],

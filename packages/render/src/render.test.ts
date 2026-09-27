@@ -3451,3 +3451,55 @@ describe("W4 (docs/37 §7): `home/index` — the front page is the ruled index, 
     expect(d.detail).toContain("home/index is a draft");
   });
 });
+
+describe("W4: `list/ruled` — an archive as a heading, an intro, and the terms as a filter row; a term's page keeps the row", () => {
+  const root = "corpora/_test/list-ruled";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/taxonomies/tag", "themes/r"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: R, url: https://r.example }\ntheme: { use: r }\n");
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: R\nstatus: published\nhome: true\n---\n\nHello.\n");   // so the list is at /posts/
+    writeFileSync(join(root, "content/taxonomies/tag/notes.md"), "---\ntitle: Field notes\nstatus: published\ndescription: Short dispatches.\n---\n");
+    const item = (i: number, tags: string) => `---\ntitle: Post ${i}\ndate: 2026-0${i}-01\nstatus: published\ntags: [${tags}]\ncategory: engineering\n---\n\nBody ${i}.\n`;
+    writeFileSync(join(root, "content/posts/p1.md"), item(1, "notes"));
+    writeFileSync(join(root, "content/posts/p2.md"), item(2, "notes, agents"));
+    writeFileSync(join(root, "content/posts/p3.md"), item(3, "agents"));
+    writeFileSync(join(root, "themes/r/theme.yaml"), "theme: r\nextends: base\npieces:\n  column: three-track\n  entries: list\n  list: ruled\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the archive: count line for any type, one filter line per taxonomy in the type's order, All once with the count, terms by count with a bare slug title-cased", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("posts");
+    expect(h).toContain('<main class="snypd-list"><h1>Posts</h1><p class="snypd-lede">3 posts, 1 Jan 2026 to 1 Mar 2026.</p>');
+    const rows = [...h.matchAll(/<nav class="snypd-list-filter"[^>]*>([^]*?)<\/nav>/g)].map((m) => m[1]!);
+    expect(rows.length).toBe(2);
+    expect(rows[0]).toContain('<span class="snypd-list-filter-name">Categories</span>');
+    expect(rows[0]).toContain('<a href="/posts/" aria-current="page">All <span class="snypd-list-count">3</span></a>');
+    expect(rows[0]).toContain('<a href="/category/engineering/">Engineering <span class="snypd-list-count">3</span></a>');
+    expect(rows[1]).toContain('<span class="snypd-list-filter-name">Tags</span>');
+    expect(rows[1]).not.toContain(">All");                                              // once, on the first line
+    expect(rows[1].indexOf("Agents")).toBeLessThan(rows[1].indexOf("Field notes"));   // 2 and 2, so by title — and `agents` has no page, so it is title-cased
+    expect(rows[1]).toContain('<a href="/tag/notes/">Field notes <span class="snypd-list-count">2</span></a>');
+    expect(rows[1]).toContain('<a href="/tag/agents/">Agents <span class="snypd-list-count">2</span></a>');
+  });
+
+  test("a term's page: the taxonomy as the heading's kicker, the term's description in the intro, All without a count, the term marked current", async () => {
+    await build(root);
+    const h = read("tag/notes");
+    expect(h).toContain('<h1><small class="snypd-list-kicker">Tag</small>Field notes</h1><p class="snypd-lede">2 posts, 1 Jan 2026 to 1 Feb 2026. Short dispatches.</p>');
+    expect(h).toContain('<a href="/posts/">All</a>');                                  // the archive the build named for the term (W4)
+    expect(h).toContain('<a href="/tag/notes/" aria-current="page">Field notes <span class="snypd-list-count">2</span></a>');
+    expect(h).toContain('<a href="/tag/agents/">Agents <span class="snypd-list-count">1</span></a>');   // only what the listed entries carry
+  });
+
+  test("a site whose only list is `/`: All is the page itself on the archive, and a term's page offers no All", async () => {
+    rmSync(join(root, "content/pages/home.md"));
+    await build(root);
+    expect(read("")).toContain('<a href="/" aria-current="page">All <span class="snypd-list-count">3</span></a>');
+    expect(read("tag/notes")).not.toContain(">All");
+  });
+});

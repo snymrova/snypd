@@ -125,6 +125,9 @@ themeContract:
     # the whole-site slots (W3, docs/37 §7): what a `list` layout writes around its entries — the line under
     # the title — which the `entries` piece beside it sets on its own track
     - snypd-lede
+    # W4: the filter row a `list` layout draws under its intro — the terms of the listed type, each a link —
+    # which the `entries` piece beside it puts on its own track, as it does the lede
+    - snypd-list-filter
     # the view-transition class every page title carries — `::view-transition-group(.snypd-title)`
     - snypd-title
     # the renderer

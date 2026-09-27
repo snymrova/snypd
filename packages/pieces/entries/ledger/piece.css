@@ -22,5 +22,7 @@ main:has(> .snypd-ledger) > h1 { margin-bottom: var(--space-3); }
   .snypd-ledger-row { grid-template-columns: minmax(0, 1fr); }
   .snypd-ledger-when { padding-top: 0; }
 }
-/* The line under an archive's title (`list`) sits on the ledger's track, a step above its first row. */
+/* The line under an archive's title (`list`) sits on the ledger's track, a step above its first row; so
+   does a filter row, which closes on the ledger's first rule. */
 main:has(> .snypd-ledger) > .snypd-lede { grid-column: wide; margin-bottom: var(--space-4); }
+main:has(> .snypd-ledger) > .snypd-list-filter { grid-column: wide; }

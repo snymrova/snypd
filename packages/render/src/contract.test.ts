@@ -55,6 +55,12 @@ describe("the theme contract (docs/36 §3)", () => {
     ];
     const found = new Set<string>();
     for (const f of sources) for (const c of emitted(readFileSync(f, "utf8"))) found.add(c);
+    // A list piece's own classes (W4: `list/ruled`'s strip) are its own to style — declared under `emits:` —
+    // and not the contract's; only what the `entries` piece beside it must reach (the lede, the filter row) is.
+    for (const d of readdirSync(join(REPO, "packages/pieces/list"), { withFileTypes: true }).filter((d) => d.isDirectory())) {
+      const y = Bun.YAML.parse(readFileSync(join(REPO, "packages/pieces/list", d.name, "piece.yaml"), "utf8")) as { emits?: string[] };
+      for (const c of y.emits ?? []) found.delete(c);
+    }
     const listed = new Set(contract.classes);
     const prefixed = (c: string) => contract.classPrefixes.some((p) => c.startsWith(p));
     expect([...found].filter((c) => !listed.has(c) && !prefixed(c)).sort()).toEqual([]);   // emitted, not listed

@@ -193,7 +193,7 @@ export interface LayoutProps {
   /** Listed items (index, term, author; the newest few for home). */
   entries: Entry[];
   term?: TermLink;
-  /** For `index` (and a `<type>-index`): the archive this page is; for `home`: the archive its entries come from and link to. Absent on the `/` list, which is every dated type's. */
+  /** For `index` (and a `<type>-index`): the archive this page is; for `home`: the archive its entries come from and link to; for `term` (W4): the one type's archive the page filters, when it is one type's. Absent on the `/` list, which is every dated type's. */
   archive?: Archive;
   /** For a content route of a dated type (R3): the item before and after it in its type's list, newest first — what a *next case* card is drawn from. Absent for a page, an author, a list. */
   adjacent?: { newer?: Entry; older?: Entry };

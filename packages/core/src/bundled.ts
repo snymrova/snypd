@@ -84,6 +84,8 @@ import _piece_house_house_piece_css from "../../pieces/house/house/piece.css" wi
 import _piece_house_house_piece_yaml from "../../pieces/house/house/piece.yaml" with { type: "text" };
 import _piece_list_plain_piece_css from "../../pieces/list/plain/piece.css" with { type: "text" };
 import _piece_list_plain_piece_yaml from "../../pieces/list/plain/piece.yaml" with { type: "text" };
+import _piece_list_ruled_piece_css from "../../pieces/list/ruled/piece.css" with { type: "text" };
+import _piece_list_ruled_piece_yaml from "../../pieces/list/ruled/piece.yaml" with { type: "text" };
 import _piece_masthead_bar_piece_css from "../../pieces/masthead/bar/piece.css" with { type: "text" };
 import _piece_masthead_bar_piece_yaml from "../../pieces/masthead/bar/piece.yaml" with { type: "text" };
 import _piece_masthead_nameplate_piece_css from "../../pieces/masthead/nameplate/piece.css" with { type: "text" };
@@ -423,7 +425,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "entries/ledger": {
-    hash: "4f071931efcd7e13b23e21449a311df680740c49",
+    hash: "58640ebf573fe7d88dc16b37a920fa2300c8488a",
     files: {
       "piece.css": _piece_entries_ledger_piece_css,
       "piece.yaml": _piece_entries_ledger_piece_yaml,
@@ -586,6 +588,19 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
     modules: {
       "layout.tsx": () => import("../../pieces/list/plain/layout.tsx"),
+    },
+  },
+  "list/ruled": {
+    hash: "63e2b2059e1e0f2138e28c1fb35c1a12a70a33d2",
+    files: {
+      "piece.css": _piece_list_ruled_piece_css,
+      "piece.yaml": _piece_list_ruled_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+      "layout.tsx": () => import("../../pieces/list/ruled/layout.tsx"),
+      "term.tsx": () => import("../../pieces/list/ruled/term.tsx"),
     },
   },
   "masthead/bar": {

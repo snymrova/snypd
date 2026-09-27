@@ -442,7 +442,11 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       lastmod.set(link.route, entries[0]?.updated ?? entries[0]?.date);
       const dir = routeDir(link.route);
       const schema = { "@context": "https://schema.org", "@type": "CollectionPage", name: link.title, url: url(link.route), description: link.description };
-      plan.push({ route: link.route, key: sha1(`${base}:term:${JSON.stringify(link)}:${listKey(entries)}`), kind: "route", outputs: [join(dir, "index.html")], render: () => { const fc = fctx(link.route); return { [join(dir, "index.html")]: theme.layouts.term!({ ctx, kind: "term", route: link.route, title: applyFilter(hooks, "title", link.title, fc), description: applyFilter(hooks, "description", link.description, fc), entries: applyFilter(hooks, "entries", entries, fc), term: link, jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fc)) }).html }; } });
+      // W4: the archive a term's page filters, when its entries are all one type's and that type has one —
+      // what a `list` piece's *All* link goes back to. A taxonomy across types, or a site whose only list is `/`, hands none.
+      const types = new Set(entries.map((e) => e.type));
+      const termArchive = types.size === 1 ? archives.find((a) => a.type === [...types][0]) : undefined;
+      plan.push({ route: link.route, key: sha1(`${base}:term:${JSON.stringify(link)}:${listKey(entries)}:${termArchive?.route ?? ""}`), kind: "route", outputs: [join(dir, "index.html")], render: () => { const fc = fctx(link.route); return { [join(dir, "index.html")]: theme.layouts.term!({ ctx, kind: "term", route: link.route, title: applyFilter(hooks, "title", link.title, fc), description: applyFilter(hooks, "description", link.description, fc), entries: applyFilter(hooks, "entries", entries, fc), term: link, ...(termArchive ? { archive: { type: termArchive.type, route: termArchive.route, title: termArchive.title } } : {}), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fc)) }).html }; } });
     }
   }
   // site artefacts (emit.ts): keyed on everything they show, so an unchanged list rewrites nothing
