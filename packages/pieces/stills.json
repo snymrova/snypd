@@ -7,11 +7,25 @@
       "sizes": {
         "still-1280.webp": [
           640,
-          78
+          400
         ],
         "still-390.webp": [
           195,
-          78
+          422
+        ]
+      }
+    },
+    "blocks/ink": {
+      "inputs": "ef999b2db1e23d7a",
+      "route": "/posts/every-primitive-once/",
+      "sizes": {
+        "still-1280.webp": [
+          640,
+          400
+        ],
+        "still-390.webp": [
+          195,
+          422
         ]
       }
     },
@@ -21,11 +35,11 @@
       "sizes": {
         "still-1280.webp": [
           640,
-          78
+          400
         ],
         "still-390.webp": [
           195,
-          78
+          422
         ]
       }
     },
@@ -35,11 +49,11 @@
       "sizes": {
         "still-1280.webp": [
           640,
-          78
+          400
         ],
         "still-390.webp": [
           195,
-          78
+          422
         ]
       }
     },
@@ -49,11 +63,11 @@
       "sizes": {
         "still-1280.webp": [
           640,
-          78
+          400
         ],
         "still-390.webp": [
           195,
-          78
+          422
         ]
       }
     },

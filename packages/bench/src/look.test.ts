@@ -104,11 +104,13 @@ describe.skipIf(!seeing)("the eyes, in a real browser", () => {
     .faint { color: #bbb; }
     .cut { width: 80px; white-space: nowrap; overflow: hidden; }
     .cover { position: absolute; left: 0; top: 0; width: 200px; height: 60px; background: #eee; }
+    .snypd-tldr, .snypd-steps { height: 20px; } .gap { height: 100px; }
     ${css}
   </style><body><header class="snypd-masthead"><a href="/a">Ferrule</a><button popovertarget="m">Menu</button><ul id="m" popover><li>One</li></ul></header>
   <main><h1>Title</h1><div class="wide"></div><p class="faint">This grey sentence is too faint to read against white.</p>
   <p class="cut">A line that will never fit in eighty pixels</p><img src="/missing.png" alt="" width="40" height="40">
-  <details><summary>More</summary><p>Hidden until opened.</p></details></main></body></html>`;
+  <details><summary>More</summary><p>Hidden until opened.</p></details>
+  <section class="snypd-tldr">Short.</section><div class="gap"></div><section class="snypd-steps">Steps.</section></main></body></html>`;
   const server = Bun.serve({ port: 0, fetch: (r) => new URL(r.url).pathname === "/missing.png" ? new Response("no", { status: 404 }) : new Response(page(), { headers: { "content-type": "text/html" } }) });
   const url = `http://localhost:${server.port}`;
   afterAll(() => { closeEyes(); server.stop(true); rmSync(cache, { recursive: true, force: true }); });
@@ -148,6 +150,10 @@ describe.skipIf(!seeing)("the eyes, in a real browser", () => {
     expect(open.clip[3]).toBeGreaterThanOrEqual(rest.clip[3]);
     const det = await look({ url, cacheDir: cache, selector: "main", state: "open", since: "none" });
     expect(det.notes).toEqual([]);
+    // W4: `blocks` is many elements down a page, so its crop is the box around all of them, gap and all.
+    const blocks = await look({ url, cacheDir: cache, slot: "blocks", since: "none" });
+    expect(blocks.selector).toStartWith("main :is(.snypd-tldr");
+    expect(blocks.clip[3]).toBeGreaterThanOrEqual(140);
     const none = await look({ url, cacheDir: cache, slot: "toc", since: "none" });
     expect(none.notes[0]).toContain("not on /");
   });

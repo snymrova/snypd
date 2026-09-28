@@ -47,7 +47,9 @@ export const SLOT_SELECTORS: Record<string, string[]> = {
   column: ["main"],
   prose: ["main article", "main"],
   code: ["main pre", "main table"],
-  blocks: ["main .snypd-block", "main figure"],
+  // W4: the box around every text block (a leading `+`, see `locate`). `.snypd-block` is emitted by nothing, so
+  // until then every blocks board and still was the chart, the one block no blocks piece draws.
+  blocks: ["+main :is(.snypd-tldr, .snypd-callout, .snypd-pullquote, .snypd-stat-row, .snypd-steps, .snypd-faq, .snypd-cta)", "main figure"],
   cover: [".snypd-cover", "main article > header", "main h1"],
   list: ["main:has(> .snypd-lede)", "main.snypd-list", "main:has(> h1 + .snypd-entries)", "main:has(> h1 ~ ol)"],   // W4: base's plain archive has no lede
   entries: [".snypd-entries", ".snypd-home-entries"],
@@ -247,18 +249,26 @@ const SETTLE = `(async () => {
   return { h: Math.ceil(document.documentElement.scrollHeight), cls: +cls.toFixed(4), status: nav && nav.responseStatus || 0 };
 })()`;
 
-/** Find the crop: the first selector that matches a visible element; its box, and the piece of the selector list that matched. */
+/**
+ * Find the crop: the first selector that matches a visible element; its box, and the piece of the selector list
+ * that matched. A selector written with a leading `+` crops to the box around *every* visible match — a slot
+ * that is many elements down a page, like `blocks`, and not one container.
+ */
 function locate(selectors: string[], state: string): { sel?: string; box?: number[]; menu?: number[] } {
   const g = globalThis as any; // eslint-disable-line @typescript-eslint/no-explicit-any
   const doc = g.document;
   const box = (e: any) => { const r = e.getBoundingClientRect(); return [Math.round(r.left + g.scrollX), Math.round(r.top + g.scrollY), Math.round(r.width), Math.round(r.height)]; }; // eslint-disable-line @typescript-eslint/no-explicit-any
   for (const sel of selectors) {
     let els: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
-    try { els = [...doc.querySelectorAll(sel)]; } catch { continue; }
-    const e = els.find((x) => { const r = x.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
-    if (!e) continue;
+    const all = sel.startsWith("+");
+    try { els = [...doc.querySelectorAll(all ? sel.slice(1) : sel)]; } catch { continue; }
+    const seen = els.filter((x) => { const r = x.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+    if (!seen.length) continue;
     const m = state === "menu-open" ? doc.querySelector(":popover-open") : null;
-    return { sel, box: box(e), menu: m ? box(m) : undefined };
+    if (!all) return { sel, box: box(seen[0]), menu: m ? box(m) : undefined };
+    const bs = seen.map(box), x = Math.min(...bs.map((b) => b[0])), y = Math.min(...bs.map((b) => b[1]));
+    const r = Math.max(...bs.map((b) => b[0] + b[2])), b = Math.max(...bs.map((b) => b[1] + b[3]));
+    return { sel: sel.slice(1), box: [x, y, r - x, b - y], menu: m ? box(m) : undefined };
   }
   return {};
 }
@@ -445,7 +455,7 @@ function outline(slots: Record<string, string[]>): string {
     if (t === "footer" && !e.closest("main, article, section, aside")) return "contentinfo";
     return ({ nav: "navigation", main: "main", aside: "complementary", search: "search", form: e.getAttribute("aria-label") ? "form" : undefined, section: e.getAttribute("aria-label") || e.getAttribute("aria-labelledby") ? "region" : undefined } as Record<string, string | undefined>)[t];
   };
-  const slotOf = (e: El) => { for (const [s, sels] of Object.entries(slots)) for (const sel of sels) { try { if (e.matches(sel)) return s; } catch { /* a selector this engine refuses */ } } return undefined; };
+  const slotOf = (e: El) => { for (const [s, sels] of Object.entries(slots)) for (const sel of sels) { try { if (e.matches(sel.replace(/^\+/, ""))) return s; } catch { /* a selector this engine refuses */ } } return undefined; };
   const label = (e: El) => (e.getAttribute("aria-label") || "").trim();
   const lines: string[] = [];
   const walk = (e: El, depth: number) => {

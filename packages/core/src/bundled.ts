@@ -24,6 +24,8 @@ import _plugin_changelog_snypd_yaml from "../../../plugins/changelog/snypd.yaml"
 import _plugin_indexnow_snypd_yaml from "../../../plugins/indexnow/snypd.yaml" with { type: "text" };
 import _piece_blocks_hairline_piece_css from "../../pieces/blocks/hairline/piece.css" with { type: "text" };
 import _piece_blocks_hairline_piece_yaml from "../../pieces/blocks/hairline/piece.yaml" with { type: "text" };
+import _piece_blocks_ink_piece_css from "../../pieces/blocks/ink/piece.css" with { type: "text" };
+import _piece_blocks_ink_piece_yaml from "../../pieces/blocks/ink/piece.yaml" with { type: "text" };
 import _piece_blocks_rows_piece_css from "../../pieces/blocks/rows/piece.css" with { type: "text" };
 import _piece_blocks_rows_piece_yaml from "../../pieces/blocks/rows/piece.yaml" with { type: "text" };
 import _piece_blocks_ruled_piece_css from "../../pieces/blocks/ruled/piece.css" with { type: "text" };
@@ -291,6 +293,17 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     files: {
       "piece.css": _piece_blocks_hairline_piece_css,
       "piece.yaml": _piece_blocks_hairline_piece_yaml,
+    },
+    bytes: {
+    },
+    modules: {
+    },
+  },
+  "blocks/ink": {
+    hash: "63b6c89b3dda75e4544f1939a736de2fec3a6774",
+    files: {
+      "piece.css": _piece_blocks_ink_piece_css,
+      "piece.yaml": _piece_blocks_ink_piece_yaml,
     },
     bytes: {
     },

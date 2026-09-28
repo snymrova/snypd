@@ -698,6 +698,68 @@
         "fresh": true
       }
     },
+    "blocks/ink": {
+      "piece": "blocks/ink",
+      "from": "drawn",
+      "line": "The fourteen primitives in the text colour alone — no tint, no accent. A callout says how much it matters by how much ink it takes (a grey rule for a tip, a black one for a note, a heavy one for a warning, a danger set in reverse); a summary, a row of figures and a call to action sit between a heavy rule and a light one, as a book sets a table; a pull quote is an epigraph. Right for a writer, a reference or a notebook; wrong for a brand that needs its colour on the page.",
+      "reads": [
+        "font.display",
+        "font.ui",
+        "size.body",
+        "size.small",
+        "size.h2",
+        "size.h3",
+        "size.number",
+        "leading.tight",
+        "space.1",
+        "space.2",
+        "space.3",
+        "space.4",
+        "space.5",
+        "color.text",
+        "color.bg",
+        "color.border",
+        "motion.quick",
+        "measure.stat",
+        "space.step"
+      ],
+      "needs": {
+        "measure.stat": "9rem",
+        "space.step": "2.5rem"
+      },
+      "emits": [],
+      "switches": {},
+      "settings": [],
+      "parts": {},
+      "layouts": {},
+      "pairs": {},
+      "refs": [
+        {
+          "url": "https://gwern.net/lorem-block",
+          "took": "admonitions in greyscale, heavier as they grow more serious, the most serious one reversed out of black"
+        },
+        {
+          "url": "https://edwardtufte.github.io/tufte-css/",
+          "took": "the epigraph — italic, no quotation marks, the source set right under it — and the booktabs table: a heavy rule above, a light one below, space between rows"
+        }
+      ],
+      "draft": true,
+      "slot": "blocks",
+      "name": "ink",
+      "kb": 4.92,
+      "switchKb": {},
+      "files": [
+        "piece.css",
+        "piece.yaml"
+      ],
+      "stills": {
+        "files": [
+          "blocks/ink/still-1280.webp",
+          "blocks/ink/still-390.webp"
+        ],
+        "fresh": true
+      }
+    },
     "blocks/rows": {
       "piece": "blocks/rows",
       "from": "folio",

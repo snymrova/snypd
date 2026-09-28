@@ -1,0 +1,97 @@
+/* blocks/ink — drawn from gwern.net and Tufte CSS. Every block in the text colour: nothing is tinted, nothing
+   is accented, and weight, size and rules carry what colour carries elsewhere. The one signature is the
+   ladder — a callout takes more ink the more it matters, and the last rung is reversed out. */
+
+/* Between a heavy rule and a light one, as a book sets a table: the summary, the row of figures. */
+.snypd-tldr, .snypd-stat-row { border-top: 2px solid var(--color-text); border-bottom: 1px solid var(--color-text); padding-block: var(--space-3); }
+.snypd-tldr { font-size: var(--size-h3); line-height: 1.4; }
+.snypd-tldr > p:first-child strong, .snypd-callout > p:first-child > strong:only-child {
+  display: block; font: var(--size-small) / 1.2 var(--font-ui); font-weight: bolder;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.snypd-tldr > p:first-child strong { margin-bottom: var(--space-2); }
+
+/* The ladder. A tip is a grey rule, a note (and any kind the renderer does not know) a black one, a warning
+   a heavy one; a danger is the page reversed — gwern's error box, and the one block that is a block. */
+.snypd-callout { border-left: 1px solid var(--color-text); padding-inline-start: var(--space-3); }
+.snypd-callout[data-kind="tip"] { border-left-color: var(--color-border); }
+.snypd-callout[data-kind="warning"] { border-left-width: 3px; }
+.snypd-callout[data-kind="danger"] { border-left: 0; background: var(--color-text); color: var(--color-bg); padding: var(--space-3) var(--space-4); }
+/* Reversed, a link or a code span keeps the ground it is on: the prose's link colour and the code's tint
+   were chosen against the page, not against the text colour. */
+.snypd-callout[data-kind="danger"] a { color: inherit; }
+.snypd-callout[data-kind="danger"] :is(code, pre) { background: transparent; color: inherit; border-color: currentColor; }
+
+/* The epigraph: the words in italic at a size up, no quotation marks, the source under them set right. */
+.snypd-pullquote { border: 0; padding: 0; margin-block: var(--space-5); margin-inline: var(--space-4); font-size: var(--size-h3); line-height: 1.4; font-style: italic; color: var(--color-text); }
+.snypd-pullquote p { text-wrap: pretty; }
+.snypd-pullquote footer { font: var(--size-small) / 1.4 var(--font-ui); font-style: normal; text-align: end; margin-top: var(--space-2); }
+.snypd-pullquote footer::before { content: "— " / ""; }
+.snypd-pullquote footer a { color: inherit; }
+
+/* The figures: the display face at the size of a number, lining and tabular so a row of them lines up;
+   the label small under it, in the same ink. */
+.snypd-stat-row { display: grid; gap: var(--space-3) var(--space-4); grid-template-columns: repeat(auto-fit, minmax(var(--measure-stat), 1fr)); }
+/* No orphans (docs/18 §2 · 5), as every blocks piece sets them: three is three across, four is two by two. */
+.snypd-stat-row[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.snypd-stat-row[data-count="4"] { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 48rem) { .snypd-stat-row[data-count="4"] { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 30rem) { .snypd-stat-row[data-count="3"], .snypd-stat-row[data-count="4"] { grid-template-columns: 1fr; } }
+.snypd-stat-value { font: var(--size-number) / 1 var(--font-display); font-variant-numeric: lining-nums tabular-nums; }
+.snypd-stat-value small { font: var(--size-small) / 1 var(--font-ui); margin-left: 0.3em; }
+.snypd-stat-label { font: var(--size-small) / 1.35 var(--font-ui); margin-top: var(--space-2); }
+@supports (text-box: trim-both cap alphabetic) { .snypd-stat-value { text-box: trim-both cap alphabetic; } }
+/* A source is a footnote's worth of link: the ink it sits in, under a dotted rule. */
+.snypd-source { color: inherit; text-decoration: underline dotted; text-underline-offset: 0.2em; margin-left: 0.35em; }
+.snypd-source:hover { text-decoration-style: solid; }
+
+/* Steps: the number hung in its own column, at a heading's size in the display face, and no rule between
+   them — the numbers are the rhythm. */
+.snypd-steps > :is(h2, h3, h4), .snypd-faq > :is(h2, h3, h4) { margin-top: 0; }
+.snypd-steps ol { counter-reset: step; list-style: none; padding: 0; }
+.snypd-steps ol > li { counter-increment: step; padding-left: var(--space-step); margin-top: var(--space-3); }
+/* Inline, hung into the padding: an inline box sits on its line's baseline, so the number and the step's
+   first words share one, whatever the two sizes are. */
+.snypd-steps ol > li::before {
+  content: counter(step) / "";
+  display: inline-block; width: var(--space-step); margin-left: calc(var(--space-step) * -1);
+  font: var(--size-h3) / 1 var(--font-display); font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Questions between two rules, the answers under them by space alone. */
+.snypd-faq { border-block: 1px solid var(--color-text); padding-block: var(--space-2); }
+.snypd-faq > :is(h2, h3, h4, h5, h6) { margin-block: var(--space-2); }
+.snypd-faq-item { padding-block: var(--space-1); }
+/* The block's own rule closes it; house's grey one under the last question would make it two. */
+.snypd-faq-item:last-child { border-bottom: 0; }
+/* A question is a pressable line; at body size it is 23px, so a quarter-em each side takes it past WCAG's 24. */
+.snypd-faq-item summary { list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); padding-block: 0.25em; }
+.snypd-faq-item summary::-webkit-details-marker { display: none; }
+.snypd-faq-item summary::after { content: "+" / ""; font: var(--size-h3) / 1 var(--font-ui); transition: rotate var(--motion-quick) ease-out; }
+.snypd-faq-item[open] summary::after { rotate: 45deg; }
+.snypd-faq-item h3 { margin: 0; font-size: var(--size-body); font-weight: bolder; }
+.snypd-faq-answer { padding-block: var(--space-1) 0; }
+
+/* The call to action closes a section, so it opens on the heavy rule; its button is type reversed out of a
+   square block, and turns back to the page on hover. */
+.snypd-cta { border-top: 2px solid var(--color-text); padding-top: var(--space-3); }
+.snypd-cta > p:first-child { font: var(--size-h2) / var(--leading-tight) var(--font-display); text-wrap: balance; max-width: 20ch; }
+.snypd-cta > p:first-child strong { font-weight: inherit; }
+.snypd-cta > p:nth-child(2) { margin-top: var(--space-2); }
+.snypd-button {
+  display: inline-block; margin-top: var(--space-3);
+  background: var(--color-text); color: var(--color-bg); border: 1px solid var(--color-text);
+  font: var(--size-body) / 1 var(--font-ui); font-weight: bolder; text-decoration: none;
+  padding: 0.8em 1.3em;
+  transition: background var(--motion-quick) ease-out, color var(--motion-quick) ease-out;
+}
+.snypd-button:hover { background: transparent; color: var(--color-text); }
+.snypd-button:focus-visible, .snypd-scroll:focus-visible { outline: 2px solid var(--color-text); outline-offset: 3px; }
+
+/* Every block gets the same breath as a figure. */
+.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow, .snypd-tldr, .snypd-callout, .snypd-stat-row, .snypd-steps, .snypd-faq, .snypd-cta { margin-block: var(--space-4); }
+.snypd-figure img, .snypd-figure video { display: block; width: 100%; }
+figcaption { margin-top: var(--space-2); font-size: var(--size-small); }
+
+/* The lightbox's close button: the page's ground, ruled in its ink. */
+.snypd-lightbox-close { font: var(--size-small) / 1 var(--font-ui); color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-text); }
