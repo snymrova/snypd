@@ -11,7 +11,13 @@
 import manifest from "../pieces.json";
 
 export interface SlotEntry { slot: string; line: string; always?: boolean }
-export interface PieceSwitchDecl { default: boolean | string; of?: string[]; description?: string }
+export interface PieceSwitchDecl {
+  default: boolean | string; of?: string[]; description?: string;
+  /** A drawn switch's sources, as a piece's `refs:`. */
+  refs?: { url: string; took: string }[];
+  /** Unseen (decision 278), as a piece's `draft:`: kept out of the shelf index, refused by `check theme` when on. */
+  draft?: boolean;
+}
 export interface PieceSettingDecl { id: string; type: string; [k: string]: unknown }
 export interface PieceEntry {
   piece: string; slot: string; name: string; from: string; line: string;

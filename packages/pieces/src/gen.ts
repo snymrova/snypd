@@ -118,6 +118,7 @@ export function generate(): PieceManifest {
         if (!offered) errors.push(`${id}/${f}: no switch includes it — a boolean switch reads <id>.css, one with \`of:\` reads <id>-<value>.css`);
         switchKb[stem] = kbOf(readFileSync(join(dir, f), "utf8"));
       }
+      for (const [sw, d] of Object.entries(y.switches)) if (d.draft && d.refs.length < 2) errors.push(`${id}/piece.yaml: switch \`${sw}\` is a draft and names ${d.refs.length ? "one ref" : "no refs"} — a drawn switch names at least two under \`refs:\` (url + took)`);
       if ("use" in y.switches) errors.push(`${id}/piece.yaml: a switch may not be called \`use\` — it is the key that names the piece`);
       for (const t of y.reads) if (!known.has(t) && !(t in y.needs)) errors.push(`${id}/piece.yaml: reads \`${t}\`, which is neither a contract token nor one of its \`needs:\``);
       const allowed = [...contract.classes, ...y.emits];

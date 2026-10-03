@@ -1,4 +1,12 @@
 piece: prose/book
 from: editorial
 line: Long-form prose — hyphenated and pretty-wrapped, links underlined at a third of their colour until pointed at, an italic ruled quote.
-reads: [color.scheme, color.bg, color.text, color.accent, color.border, font.body, font.heading, size.body, size.h1, size.h2, size.h3, leading.body, leading.tight, space.4, space.5, radius]
+reads: [color.scheme, color.bg, color.text, color.accent, color.border, font.body, font.heading, font.display, size.body, size.h1, size.h2, size.h3, leading.body, leading.tight, space.4, space.5, space.6, radius]
+switches:
+  display-heads:
+    default: false
+    description: "The title and section heads in the display face, the title at the face's own weight; the heads under them in the prose face; every head set off by the space above it."
+    draft: true
+    refs:
+      - { url: "https://practicaltypography.com/headings.html", took: "a heading is emphasised by the space above it, bold not italic, and only a small step up in size" }
+      - { url: "https://craigmod.com/essays/fast_software/", took: "the headline in a display face at its regular weight, large, carried by size alone" }

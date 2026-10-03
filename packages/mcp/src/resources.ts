@@ -150,7 +150,8 @@ export function handlers(root: string): Handlers {
       const m = (await import("../../pieces/src/index")).loadPieces();
       const on = new Map(cfg.pieces.map((p) => [p.id, p]));
       // A switch with `of:` prints its values; a bare name is an on/off one (the index's legend says so).
-      const sw = (v: (typeof m.pieces)[string]) => Object.entries(v.switches).map(([k, d]) => d.of ? `${k}=${d.of.join("|")}` : k);
+      // A draft switch is left out, as a draft piece is (decision 278); its slot's file names it.
+      const sw = (v: (typeof m.pieces)[string]) => Object.entries(v.switches).filter(([, d]) => !d.draft).map(([k, d]) => d.of ? `${k}=${d.of.join("|")}` : k);
       const pairs = (v: (typeof m.pieces)[string]) => Object.entries(v.pairs).map(([k, w]) => `${k}: ${Array.isArray(w) ? w.join("|") : w}`);
       if (part !== "pieces") {
         const slot = part.slice("pieces/".length);
@@ -162,7 +163,10 @@ export function handlers(root: string): Handlers {
           return [`  ${v.name}:${using ? `   # IN USE${Object.keys(using.switches).length ? ` — ${Object.entries(using.switches).map(([k, x]) => `${k}=${x}`).join(", ")}` : ""}` : ""}`,
             `    line: ${JSON.stringify(v.line)}`,
             `    from: ${v.from}   # ${v.kb} KB of CSS${Object.keys(v.switchKb).length ? ` + switch files` : ""}`,
-            ...(Object.keys(v.switches).length ? ["    switches:", ...Object.entries(v.switches).map(([k, d]) => `      ${k}: ${d.of ? d.of.join(" | ") : "true | false"}   # default ${d.default}${d.description ? ` — ${d.description}` : ""}`)] : []),
+            ...(Object.keys(v.switches).length ? ["    switches:", ...Object.entries(v.switches).flatMap(([k, d]) => [
+              `      ${k}: ${d.of ? d.of.join(" | ") : "true | false"}   # default ${d.default}${d.description ? ` — ${d.description}` : ""}${d.draft ? " — DRAFT: unseen; a theme that turns it on fails `check theme` until a sitting passes it (decision 278)" : ""}`,
+              ...(d.refs?.length ? d.refs.map((r) => `        # drawn from ${r.url} — ${r.took}`) : []),
+            ])] : []),
             ...(Object.keys(v.needs).length ? [`    needs:   # tokens beyond the contract, with this default; the theme may set them`, ...Object.entries(v.needs).map(([k, x]) => `      ${k}: ${JSON.stringify(x)}`)] : []),
             ...(v.settings.length ? [`    settings: [${v.settings.map((x) => x.id).join(", ")}]   # snypd://theme/settings once in use`] : []),
             ...(pairs(v).length ? [`    pairs: { ${pairs(v).join(", ")} }`] : []),

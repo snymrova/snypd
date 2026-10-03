@@ -130,6 +130,7 @@ import _piece_post_foot_pills_piece_css from "../../pieces/post-foot/pills/piece
 import _piece_post_foot_pills_piece_yaml from "../../pieces/post-foot/pills/piece.yaml" with { type: "text" };
 import _piece_post_foot_ruled_piece_css from "../../pieces/post-foot/ruled/piece.css" with { type: "text" };
 import _piece_post_foot_ruled_piece_yaml from "../../pieces/post-foot/ruled/piece.yaml" with { type: "text" };
+import _piece_prose_book_display_heads_css from "../../pieces/prose/book/display-heads.css" with { type: "text" };
 import _piece_prose_book_piece_css from "../../pieces/prose/book/piece.css" with { type: "text" };
 import _piece_prose_book_piece_yaml from "../../pieces/prose/book/piece.yaml" with { type: "text" };
 import _piece_prose_display_piece_css from "../../pieces/prose/display/piece.css" with { type: "text" };
@@ -850,8 +851,9 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "prose/book": {
-    hash: "9dde567a0d1aec6c048bdc2410154d1683fe8e88",
+    hash: "94fb7132ec66e9567de022268e115ea859841d02",
     files: {
+      "display-heads.css": _piece_prose_book_display_heads_css,
       "piece.css": _piece_prose_book_piece_css,
       "piece.yaml": _piece_prose_book_piece_yaml,
     },

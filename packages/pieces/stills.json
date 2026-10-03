@@ -674,7 +674,7 @@
       }
     },
     "prose/book": {
-      "inputs": "22d660f371828312",
+      "inputs": "2acb33b599d980ff",
       "route": "/posts/long-read/",
       "sizes": {
         "still-1280.webp": [

@@ -1065,6 +1065,14 @@ describe("find_tools + the catalogue", () => {
     expect(slot).toContain("      - { url: https://craigmod.com/essays/, took: ");
   });
 
+  test("W4: a drawn switch is a draft too — left out of the index's switches, marked in its slot's file with its sources", async () => {
+    const [, shelf, prose] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://theme/pieces" }), req(3, "resources/read", { uri: "snypd://theme/pieces/prose" })], "corpora/theme");
+    const index: string = shelf.result.contents[0].text, slot: string = prose.result.contents[0].text;
+    expect(index.match(/^    book: .*$/m)![0]).not.toContain("display-heads");   // code/quiet has a switch of the same name, carved and on the shelf
+    expect(slot).toMatch(/^      display-heads: true \| false   # default false — .* — DRAFT: unseen/m);
+    expect(slot).toContain("        # drawn from https://practicaltypography.com/headings.html — ");
+  });
+
   test("snypd://theme/pieces is the shelf: every slot, every piece on one line, the active theme's marked — under 1,200 tokens (docs/36 §5)", async () => {
     const [, list, shelf, masthead, nope, templates] = await session([req(1, "initialize"), req(2, "resources/list"), req(3, "resources/read", { uri: "snypd://theme/pieces" }),
       req(4, "resources/read", { uri: "snypd://theme/pieces/masthead" }), req(5, "resources/read", { uri: "snypd://theme/pieces/nope" }), req(6, "resources/templates/list")], "corpora/theme");

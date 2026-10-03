@@ -299,7 +299,11 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     const view = themeView(cfg);
     // W4 (decision 278): a drawn piece is a draft until Sunny's sitting passes it on its board. It can be
     // built and looked at — that is how it gets seen — but a theme that ships is on shelf pieces only.
-    const drafts = pieces.filter((p) => p.entry.draft).map((p) => p.id);
+    // A drawn switch is the same: on, it is a draft's CSS in the theme.
+    const drafts = [
+      ...pieces.filter((p) => p.entry.draft).map((p) => p.id),
+      ...pieces.flatMap((p) => Object.entries(p.switches).filter(([sw, v]) => p.entry.switches[sw]?.draft && v !== p.entry.switches[sw]!.default).map(([sw]) => `${p.id} ${sw}`)),
+    ];
     if (drafts.length) add("pieces.draft", "fail", `${drafts.join(", ")} ${drafts.length === 1 ? "is a draft" : "are drafts"} — seen on the board, not yet passed at a sitting; \`theme\` › look { board } shows it, and the shelf's other ${drafts.length === 1 ? "piece" : "pieces"} in the slot ship`);
     const missing = [...new Set(pieces.flatMap((p) => p.entry.reads.filter((t) => contract.tokens.includes(t) && !(t in view)).map((t) => `${t} (${p.id})`)))];
     add("pieces.tokens", missing.length ? "fail" : "pass",

@@ -32,8 +32,8 @@ import type { Page } from "./cdp";
 export interface ChildTheme {
   /** The theme it extends — the site's, or the shelf's host for a still. */
   parent: string;
-  /** `pieces:` entries over the parent's: `{ home: "split" }`. */
-  pieces?: Record<string, string>;
+  /** `pieces:` entries over the parent's: `{ home: "split" }`, or `{ prose: { use: "book", "display-heads": true } }`. */
+  pieces?: Record<string, string | Record<string, string | boolean>>;
   /** A variation of the parent, folded into the child's tokens (a child cannot name its parent's variation). */
   variationTokens?: Record<string, unknown>;
   set?: BoardSet;
@@ -224,7 +224,11 @@ export interface BoardOptions {
   /** The theme to swap pieces in; the live one by default. */
   theme?: string;
   variation?: string;
-  /** Only these variants; every one on the shelf by default. */
+  /**
+   * Only these columns; every variant on the shelf by default, and beside each one its draft switches turned
+   * on (decision 278: a drawn switch is seen on the board like a drawn piece). A column is a variant's name,
+   * or `name+switch` / `name+switch=value` for that variant with one switch set.
+   */
   variants?: string[];
   width?: number;
   /** Where the slot is photographed; the page of this site that shows it best by default (`routeFor`). */
@@ -236,6 +240,11 @@ export interface BoardOptions {
 
 const warningsOf = (c: LoadedConfig) => c.diagnostics.filter((d) => d.level === "warning" && d.path.startsWith("theme.pieces")).map((d) => d.message);
 
+/** One column of a board: a variant, or a variant with one switch set (`book+display-heads`). */
+interface Column { entry: PieceEntry; label: string; switches?: Record<string, string | boolean> }
+const column = (p: PieceEntry, sw: string, value: string | boolean): Column =>
+  ({ entry: p, label: `${p.name}+${sw}${typeof value === "string" ? `=${value}` : value ? "" : "=false"}`, switches: { [sw]: value } });
+
 export async function board(opts: BoardOptions): Promise<BoardResult> {
   const t0 = performance.now();
   const m = loadPieces();
@@ -245,11 +254,22 @@ export async function board(opts: BoardOptions): Promise<BoardResult> {
   if (!live.ok) throw Object.assign(new Error(`theme "${opts.theme ?? "(live)"}" does not load`), { hint: live.diagnostics.filter((d) => d.level === "error").map((d) => d.message).join("; ") });
   const parent = live.config.theme.use;
   const current = live.pieces.find((p) => p.slot === slot)?.name;
-  let variants: PieceEntry[] = Object.values(m.pieces).filter((p) => p.slot === slot);
+  const shelf: PieceEntry[] = Object.values(m.pieces).filter((p) => p.slot === slot);
+  let variants: Column[] = shelf.flatMap((p) => [{ entry: p, label: p.name },
+    ...Object.entries(p.switches).filter(([, d]) => d.draft).flatMap(([sw, d]) => d.of ? d.of.filter((o) => o !== d.default).map((o) => column(p, sw, o)) : [column(p, sw, !d.default)])]);
   if (opts.variants?.length) {
-    const unknown = opts.variants.filter((v) => !variants.some((p) => p.name === v));
-    if (unknown.length) throw Object.assign(new Error(`${slot} has no ${unknown.join(", ")}`), { hint: `${slot}: ${variants.map((p) => p.name).join(", ")}` });
-    variants = variants.filter((p) => opts.variants!.includes(p.name));
+    const unknown: string[] = [];
+    variants = opts.variants.flatMap((label) => {
+      const [name, sw] = label.split("+") as [string, string | undefined];
+      const p = shelf.find((x) => x.name === name);
+      if (!p) { unknown.push(label); return []; }
+      if (!sw) return [{ entry: p, label: p.name }];
+      const [k, val] = sw.split("=") as [string, string | undefined];
+      const d = p.switches[k];
+      if (!d || (d.of ? !val || !d.of.includes(val) : val !== undefined && val !== "true" && val !== "false")) { unknown.push(label); return []; }
+      return [column(p, k, d.of ? val! : val !== "false")];
+    });
+    if (unknown.length) throw Object.assign(new Error(`${slot} has no ${unknown.join(", ")}`), { hint: `${slot}: ${shelf.map((p) => [p.name, ...Object.entries(p.switches).map(([k, d]) => `${p.name}+${k}${d.of ? `=${d.of.join("|")}` : ""}`)].join(", ")).join(", ")}` });
   }
   if (!variants.length) throw Object.assign(new Error(`nothing on the shelf for ${slot} yet`), { hint: "snypd://theme/pieces lists what each slot has" });
   const n = Math.max(1, Math.min(opts.sets ?? 1, m.board.sets.length));
@@ -265,21 +285,26 @@ export async function board(opts: BoardOptions): Promise<BoardResult> {
   let route = opts.route;
   try {
     let i = 0;
-    for (const [r, set] of sets.entries()) for (const v of variants) {
-      const name = `board-${slot}-${v.name}${set ? `-${set.name}` : ""}`;
-      opts.onCell?.(`${v.name}${set ? ` on ${set.name}` : ""}`, ++i, sets.length * variants.length);
+    for (const [r, set] of sets.entries()) for (const col of variants) {
+      const v = col.entry;
+      const isCurrent = v.name === current && !col.switches;
+      const name = `board-${slot}-${col.label.replace(/[^a-z0-9-]+/g, "-")}${set ? `-${set.name}` : ""}`;
+      opts.onCell?.(`${col.label}${set ? ` on ${set.name}` : ""}`, ++i, sets.length * variants.length);
       const c0 = performance.now();
-      // The current variant keeps the theme's own switches: the child names nothing for the slot.
-      writeChildTheme(scratch, name, { parent, pieces: v.name === current ? undefined : { [slot]: v.name }, variationTokens, set });
+      // The current variant keeps the theme's own switches: the child names nothing for the slot. A switch
+      // column on the current variant keeps them too, and sets its one switch over them.
+      const piece = !col.switches ? (isCurrent ? undefined : v.name)
+        : { use: v.name, ...(v.name === current ? live.pieces.find((p) => p.slot === slot)!.switches : {}), ...col.switches };
+      writeChildTheme(scratch, name, { parent, pieces: piece === undefined ? undefined : { [slot]: piece }, variationTokens, set });
       const cfg = loadConfig(opts.root, { theme: name, searchPaths: [scratch] });
-      const cell: BoardCell = { variant: v.name, set: set?.name, current: v.name === current, route: route ?? "/", problems: [], warnings: warningsOf(cfg), ms: 0 };
+      const cell: BoardCell = { variant: col.label, set: set?.name, current: isCurrent, route: route ?? "/", problems: [], warnings: warningsOf(cfg), ms: 0 };
       let pic: LookResult | undefined;
       if (!cfg.ok) cell.error = cfg.diagnostics.filter((d) => d.level === "error").map((d) => d.message).join("; ");
       else {
         let s: Awaited<ReturnType<typeof buildAndServe>> | undefined;
         try {
           s = await buildAndServe(opts.root, { theme: name, slug: name }, "board", { drafts: true, searchPaths: [scratch] });
-          route ??= routeFor(s.dist, slot, variants.flatMap((p) => p.emits));
+          route ??= routeFor(s.dist, slot, variants.flatMap((c) => c.entry.emits));
           cell.route = route;
           pic = await look({ url: s.url, cacheDir: opts.cacheDir, route, slot, slotClasses: v.emits, width, since: "none", bare: true, theme: name });
           cell.problems = pic.problems.filter((p) => !p.outside);
@@ -296,11 +321,11 @@ export async function board(opts: BoardOptions): Promise<BoardResult> {
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 
   const title = `${slot} · ${variants.length} variant${variants.length === 1 ? "" : "s"} on ${parent}${variation ? ` › ${variation}` : ""} · ${route} at ${width}${sets[0] ? ` · ${sets.length} token sets` : " · the theme's own tokens"}`;
-  const image = await composeSheet({ cols: variants.map((v) => v.name), rows: sets.map((s) => s?.name ?? parent), cells: sheet, title, maxAspect: slot === "home" ? 1.3 : 1.0 });
+  const image = await composeSheet({ cols: variants.map((c) => c.label), rows: sets.map((s) => s?.name ?? parent), cells: sheet, title, maxAspect: slot === "home" ? 1.3 : 1.0 });
   const file = join(opts.cacheDir, `board-${slot}-${randomBytes(4).toString("hex")}.webp`);
   writeFileSync(file, Buffer.from(image.data, "base64"));
   pruneBoards(opts.cacheDir);
-  return { slot, theme: parent, route: route ?? "/", width, variants: variants.map((v) => v.name), sets: sets.map((s) => s?.name ?? parent), cells, image: { ...image, mimeType: "image/webp" }, file, ms: Math.round(performance.now() - t0) };
+  return { slot, theme: parent, route: route ?? "/", width, variants: variants.map((c) => c.label), sets: sets.map((s) => s?.name ?? parent), cells, image: { ...image, mimeType: "image/webp" }, file, ms: Math.round(performance.now() - t0) };
 }
 
 /** Keep the newest eight sheets. */

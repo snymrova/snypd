@@ -285,6 +285,10 @@ export const PieceSwitchSchema = z.object({
   default: z.union([z.boolean(), pieceName]),
   of: z.array(pieceName).min(2).optional(),
   description: z.string().optional(),
+  /** A switch drawn from references rather than carved (docs/37 §16): a real page and the idea taken, as a piece's `refs:`. */
+  refs: z.array(z.object({ url: z.string().url(), took: z.string().min(1) }).strict()).default([]),
+  /** Unseen, as a piece's `draft:` (decision 278): a theme that turns it on fails `check theme` until a sitting passes it. */
+  draft: z.boolean().default(false),
 }).strict().superRefine((s, ctx) => {
   if (s.of && (typeof s.default !== "string" || !s.of.includes(s.default))) ctx.addIssue({ code: "custom", message: `default must be one of ${s.of.join(", ")}` });
   if (!s.of && typeof s.default !== "boolean") ctx.addIssue({ code: "custom", message: "a switch without `of:` is a boolean — default: true or false" });

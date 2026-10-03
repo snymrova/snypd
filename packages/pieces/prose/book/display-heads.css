@@ -1,0 +1,11 @@
+/* display-heads — drawn (docs/37 §16). The title and the section heads in the display face. The title, the
+   one large thing on the page, is set at the face's own weight: a display face is cut to be seen large and
+   carries itself by its size, not by bolding. The section heads keep their weight, since at their size a
+   regular head is only a slightly larger line of text. The heads under them stay in the prose face, so the
+   step down is a change of family. Every head is set off by the space above it, which ties it to the text
+   it leads. */
+h1, h2 { font-family: var(--font-display); }
+h1 { font-weight: normal; letter-spacing: -0.025em; }
+h2 { margin-top: var(--space-6); }
+h3, h4 { font-family: var(--font-body); }
+h3 { margin-top: var(--space-5); }

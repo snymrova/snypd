@@ -3770,3 +3770,37 @@ describe("W4: `footer/index` — the site as a map, from `ctx.sections`, keyed o
     expect(readFileSync(join(dist, "about/index.html"), "utf8")).toContain('<a href="/category/stools/">Stools</a>');
   });
 });
+
+describe("W4: `prose/book` display-heads — a drawn switch is a draft as a drawn piece is (decision 278)", () => {
+  const root = "corpora/_test/prose-display-heads";
+  const dist = join(root, "dist");
+  const rule = (r: { rules: { rule: string; status: string; detail: string }[] }, name: string) => r.rules.find((x) => x.rule === name)!;
+  const theme = (sw: string) => writeFileSync(join(root, "themes/p/theme.yaml"), `theme: p\nextends: base\npieces:\n  prose: ${sw}\n`);
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/pages", "themes/p"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: p }\n");
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\n## A head\n\nText.\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("off by default: book's heads, and `check theme` has nothing to refuse", async () => {
+    theme("book");
+    await build(root);
+    expect(readFileSync(join(dist, "assets/theme.css"), "utf8")).not.toContain("font-family: var(--font-display)");
+    expect(rule(await checkTheme(root, "p"), "pieces.draft")).toBeUndefined();
+  });
+
+  test("on: the title and section heads in the display face, the title at its own weight — and `check theme` fails it until a sitting passes it", async () => {
+    theme("{ use: book, display-heads: true }");
+    await build(root);
+    const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
+    expect(css).toContain("h1,h2{font-family: var(--font-display)}");
+    expect(css).toContain("h1{font-weight: normal;");
+    expect(css).toMatch(/--font-display:/);                     // read by the switch, so the optional token is emitted
+    const d = rule(await checkTheme(root, "p"), "pieces.draft");
+    expect(d.status).toBe("fail");
+    expect(d.detail).toContain("prose/book display-heads is a draft");
+  });
+});

@@ -252,23 +252,33 @@
             "loose",
             "tight"
           ],
-          "description": "The gap between two blocks: `loose` is space.4, four fifths of a line; `tight` is space.3, for reference that is scanned."
+          "description": "The gap between two blocks: `loose` is space.4, four fifths of a line; `tight` is space.3, for reference that is scanned.",
+          "refs": [],
+          "draft": false
         },
         "data": {
           "default": false,
-          "description": "Code blocks and tables take the breakout track too — where data is the content rather than an illustration of it."
+          "description": "Code blocks and tables take the breakout track too — where data is the content rather than an illustration of it.",
+          "refs": [],
+          "draft": false
         },
         "fit": {
           "default": false,
-          "description": "A chart, diagram or flow shrinks to its drawing and centres on the track, its caption wrapping under the drawing — one left edge per figure."
+          "description": "A chart, diagram or flow shrinks to its drawing and centres on the track, its caption wrapping under the drawing — one left edge per figure.",
+          "refs": [],
+          "draft": false
         },
         "pages": {
           "default": false,
-          "description": "A page's article dissolves into the column as a post's does, so its figures and tables break out of the text track too."
+          "description": "A page's article dissolves into the column as a post's does, so its figures and tables break out of the text track too.",
+          "refs": [],
+          "draft": false
         },
         "shrink": {
           "default": false,
-          "description": "Every block in the column may shrink below its content's width — a long unbroken line scrolls or wraps inside its block instead of widening the track."
+          "description": "Every block in the column may shrink below its content's width — a long unbroken line scrolls or wraps inside its block instead of widening the track.",
+          "refs": [],
+          "draft": false
         }
       },
       "settings": [],
@@ -316,6 +326,7 @@
         "color.border",
         "font.body",
         "font.heading",
+        "font.display",
         "size.body",
         "size.h1",
         "size.h2",
@@ -324,11 +335,28 @@
         "leading.tight",
         "space.4",
         "space.5",
+        "space.6",
         "radius"
       ],
       "needs": {},
       "emits": [],
-      "switches": {},
+      "switches": {
+        "display-heads": {
+          "default": false,
+          "description": "The title and section heads in the display face, the title at the face's own weight; the heads under them in the prose face; every head set off by the space above it.",
+          "refs": [
+            {
+              "url": "https://practicaltypography.com/headings.html",
+              "took": "a heading is emphasised by the space above it, bold not italic, and only a small step up in size"
+            },
+            {
+              "url": "https://craigmod.com/essays/fast_software/",
+              "took": "the headline in a display face at its regular weight, large, carried by size alone"
+            }
+          ],
+          "draft": true
+        }
+      },
       "settings": [],
       "parts": {},
       "layouts": {},
@@ -338,8 +366,11 @@
       "slot": "prose",
       "name": "book",
       "kb": 1.19,
-      "switchKb": {},
+      "switchKb": {
+        "display-heads": 0.18
+      },
       "files": [
+        "display-heads.css",
         "piece.css",
         "piece.yaml"
       ],
@@ -564,7 +595,9 @@
       "switches": {
         "display-heads": {
           "default": false,
-          "description": "Table headers in the display face and tracked wider — a theme whose chrome is set in it."
+          "description": "Table headers in the display face and tracked wider — a theme whose chrome is set in it.",
+          "refs": [],
+          "draft": false
         }
       },
       "settings": [],
@@ -2310,11 +2343,15 @@
       "switches": {
         "roomy": {
           "default": false,
-          "description": "A step more padding and a shorter line; the menu's items a space further apart."
+          "description": "A step more padding and a shorter line; the menu's items a space further apart.",
+          "refs": [],
+          "draft": false
         },
         "quiet-links": {
           "default": false,
-          "description": "Every link in the footer plain and inheriting its colour — the note's and a plugin's, not only the menu's."
+          "description": "Every link in the footer plain and inheriting its colour — the note's and a plugin's, not only the menu's.",
+          "refs": [],
+          "draft": false
         }
       },
       "settings": [],
@@ -2890,7 +2927,9 @@
       "switches": {
         "on-page": {
           "default": false,
-          "description": "The card on the page's own background rather than the surface colour — a theme whose surface is for code."
+          "description": "The card on the page's own background rather than the surface colour — a theme whose surface is for code.",
+          "refs": [],
+          "draft": false
         }
       },
       "settings": [],
@@ -3125,7 +3164,9 @@
       "switches": {
         "plain-title": {
           "default": false,
-          "description": "The wall's title as written, in the display face — not tracked capitals in the UI face."
+          "description": "The wall's title as written, in the display face — not tracked capitals in the UI face.",
+          "refs": [],
+          "draft": false
         }
       },
       "settings": [],
@@ -3170,11 +3211,15 @@
       "switches": {
         "progress": {
           "default": true,
-          "description": "A thin line in the accent across the top of a post, filling as it is read (scroll-driven; none in Firefox)."
+          "description": "A thin line in the accent across the top of a post, filling as it is read (scroll-driven; none in Firefox).",
+          "refs": [],
+          "draft": false
         },
         "reveal": {
           "default": false,
-          "description": "Listed entries, stats, the front page's steps and the wall's marks rise into place as they scroll in, and numbers count up to their value. Translate only, never opacity; still under reduced motion."
+          "description": "Listed entries, stats, the front page's steps and the wall's marks rise into place as they scroll in, and numbers count up to their value. Translate only, never opacity; still under reduced motion.",
+          "refs": [],
+          "draft": false
         }
       },
       "settings": [],
@@ -3216,7 +3261,9 @@
       "switches": {
         "count": {
           "default": false,
-          "description": "A stat's figure counts up from zero as it scrolls in, painted over the real text, which stays in the page. Under `@supports`; still under reduced motion."
+          "description": "A stat's figure counts up from zero as it scrolls in, painted over the real text, which stays in the page. Under `@supports`; still under reduced motion.",
+          "refs": [],
+          "draft": false
         }
       },
       "settings": [],
