@@ -268,7 +268,7 @@
       }
     },
     "feature/facts": {
-      "inputs": "03c8233e27b14b90",
+      "inputs": "406c92f3735db6ac",
       "route": "/changelog/1-0-0/",
       "sizes": {
         "still-1280.webp": [
@@ -338,7 +338,7 @@
       }
     },
     "footer/index": {
-      "inputs": "3f3a76fda69654e6",
+      "inputs": "1a5b7d08790420d3",
       "route": "/",
       "sizes": {
         "still-1280.webp": [

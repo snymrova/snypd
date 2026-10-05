@@ -25,6 +25,8 @@
 .snypd-feature-close { row-gap: var(--space-5); }
 .snypd-feature-end { display: grid; grid-template-columns: minmax(min(100%, var(--measure-close)), 1fr) minmax(min(100%, var(--measure-close)), 1.4fr); gap: var(--space-5) var(--space-6); align-items: start; max-width: none; }
 .snypd-feature-end:not(:has(.snypd-feature-cta)) { grid-template-columns: minmax(0, var(--measure-deck)); }
+/* The case's button stands a block's space under its line (the sitting, 5 Oct 2026): studio meant space-4, and the blocks' `p:nth-child(2)` gave it space-3. */
+.snypd-cta.snypd-feature-cta > p:nth-child(2) { margin-top: var(--space-4); }
 .snypd-feature-next > h2 { margin-top: 0; font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
 .snypd-feature-next .snypd-entries { grid-template-columns: 1fr; margin-top: var(--space-3); }
 .snypd-feature-meta { margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--color-border); font: var(--size-small) / 1.5 var(--font-ui); color: var(--color-muted); max-width: none; }

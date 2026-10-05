@@ -312,6 +312,12 @@ export const PieceYamlSchema = z.object({
   needs: z.record(z.string().min(1), z.union([z.string(), z.number()])).default({}),
   /** Classes this piece's own part or layout emits — added to the contract for its own CSS only. */
   emits: z.array(z.string().min(1)).default([]),
+  /**
+   * Site-wide data the piece's parts and layouts read beyond the page (the W4 sitting, 5 Oct 2026): today only
+   * `sections`, the map of archives and terms. The build hands it over, and keys every route on it, only
+   * when a resolved piece lists it here, so a new tag re-renders every page only on a theme that draws it.
+   */
+  ctx: z.array(z.enum(["sections"])).default([]),
   switches: z.record(pieceName, PieceSwitchSchema).default({}),
   /** Site-facing choices, merged into the chain's declarations beneath the theme's own (docs/36 §4.1). */
   settings: z.array(SettingDeclSchema).default([]),

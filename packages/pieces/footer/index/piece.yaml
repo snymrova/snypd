@@ -6,6 +6,7 @@ refs:
   - { url: https://linear.app/,  took: "columns of one width, a small heading over each, and a bottom row that keeps to the same left edge" }
   - { url: https://www.gov.uk/,  took: "each section's heading ruled beneath, so a column is a list under a label and not a stack of links" }
 reads: [font.display, font.ui, size.small, size.h3, space.1, space.2, space.3, space.4, space.5, space.6, color.text, color.muted, color.border, measure, measure.footer-column]
+ctx: [sections]
 needs:
   measure.footer-column: 9rem
 emits: [snypd-footer-index, snypd-footer-index-brand, snypd-footer-index-name, snypd-footer-index-map, snypd-footer-index-end]

@@ -78,7 +78,8 @@ export interface SiteCtx {
    * The site's sections (W4, `footer/index`): every dated type's archive, and every taxonomy with the terms
    * in use, by title — a map of the site a footer can draw on every page. No counts and no entries, so a
    * post published does not change it; a new term or a renamed archive does, and it is in every route's
-   * key. Absent where a ctx is built outside a site build.
+   * key. Present only when a resolved piece lists it under `ctx:`, so a theme that never draws the map is
+   * not re-rendered whole for a new tag. Absent where a ctx is built outside a site build.
    */
   sections?: { archives: Archive[]; taxonomies: { name: string; label: string; terms: TermLink[] }[] };
 }

@@ -508,7 +508,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "feature/facts": {
-    hash: "1f7d12412f8d4ea06f1bcd68bb34948b8ff2e8ca",
+    hash: "cbed4ec9ee1f8c1c6d343bd9c77370d5d55db04e",
     files: {
       "piece.css": _piece_feature_facts_piece_css,
       "piece.yaml": _piece_feature_facts_piece_yaml,
@@ -568,7 +568,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "footer/index": {
-    hash: "9cc7918e4ba5cadadc3bae329da88cec403ddb98",
+    hash: "ccdaa5767f4a86dc803058cdda493c54ba37a48b",
     files: {
       "piece.css": _piece_footer_index_piece_css,
       "piece.yaml": _piece_footer_index_piece_yaml,

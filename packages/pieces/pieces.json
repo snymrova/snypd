@@ -205,6 +205,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -245,6 +246,7 @@
         "space.page-top": "var(--space-5)"
       },
       "emits": [],
+      "ctx": [],
       "switches": {
         "rhythm": {
           "default": "loose",
@@ -340,6 +342,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {
         "display-heads": {
           "default": false,
@@ -409,6 +412,7 @@
         "radius.small": "var(--radius)"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -457,6 +461,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -504,6 +509,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -548,6 +554,7 @@
         "size.code": "0.85rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -592,6 +599,7 @@
         "radius.small": "var(--radius)"
       },
       "emits": [],
+      "ctx": [],
       "switches": {
         "display-heads": {
           "default": false,
@@ -648,6 +656,7 @@
         "radius.small": "var(--radius)"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -708,6 +717,7 @@
         "measure.stat": "11rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -761,6 +771,7 @@
         "space.step": "2.5rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -837,6 +848,7 @@
         "space.button": "0.875rem 1.25rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -897,6 +909,7 @@
         "space.step": "2.6rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -956,6 +969,7 @@
         "size.step-mark": "1.7rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1002,6 +1016,7 @@
         "measure.deck": "34rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1047,6 +1062,7 @@
         "measure.deck": "34rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1100,6 +1116,7 @@
         "measure.deck": "34rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1145,6 +1162,7 @@
         "measure.deck": "36rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1190,6 +1208,7 @@
         "measure.deck": "30rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1243,6 +1262,7 @@
         "measure.logo": "12rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {
@@ -1290,6 +1310,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1351,6 +1372,7 @@
         "measure.logo": "12rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -1416,6 +1438,7 @@
         "space.chip": "0.5rem 0.875rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1466,6 +1489,7 @@
       "emits": [
         "snypd-repo"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -1545,6 +1569,7 @@
         "snypd-tile-name",
         "snypd-tile-label"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1598,6 +1623,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1647,6 +1673,7 @@
         "snypd-list-filter-name",
         "snypd-list-count"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1718,6 +1745,7 @@
         "snypd-entry-card-title",
         "snypd-entry-card-text"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {
@@ -1770,6 +1798,7 @@
         "snypd-entry-index-when",
         "snypd-entry-index-empty"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {
@@ -1845,6 +1874,7 @@
         "snypd-ledger-when",
         "snypd-ledger-empty"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {
@@ -1894,6 +1924,7 @@
         "measure.excerpt": "34rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1934,6 +1965,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -1974,6 +2006,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -2013,6 +2046,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -2053,6 +2087,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -2094,6 +2129,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -2140,6 +2176,7 @@
         "snypd-footer-close",
         "snypd-footer-status"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -2215,6 +2252,7 @@
         "snypd-wordmark",
         "snypd-footer-end"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -2282,6 +2320,9 @@
         "snypd-footer-index-map",
         "snypd-footer-index-end"
       ],
+      "ctx": [
+        "sections"
+      ],
       "switches": {},
       "settings": [],
       "parts": {
@@ -2340,6 +2381,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {
         "roomy": {
           "default": false,
@@ -2413,6 +2455,7 @@
         "snypd-band",
         "snypd-hero"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -2483,6 +2526,7 @@
         "snypd-index-more",
         "snypd-index-after"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -2569,6 +2613,7 @@
         "snypd-portfolio-more",
         "snypd-portfolio-after"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -2662,6 +2707,7 @@
         "snypd-home-list",
         "snypd-home-more"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -2750,6 +2796,7 @@
         "snypd-badge",
         "snypd-twin-link"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -2787,7 +2834,7 @@
       "draft": false,
       "slot": "feature",
       "name": "facts",
-      "kb": 2.93,
+      "kb": 3.01,
       "switchKb": {},
       "files": [
         "layout.tsx",
@@ -2828,6 +2875,7 @@
         "snypd-badge",
         "snypd-around"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -2878,6 +2926,7 @@
         "snypd-badge",
         "snypd-around"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -2924,6 +2973,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {
         "on-page": {
           "default": false,
@@ -2970,6 +3020,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -3011,6 +3062,7 @@
         "measure.sidenote": "clamp(9rem, calc((100vw - var(--measure)) / 2 - 3rem), 14rem)"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -3056,6 +3108,7 @@
         "snypd-toc",
         "snypd-toc-label"
       ],
+      "ctx": [],
       "switches": {},
       "settings": [
         {
@@ -3118,6 +3171,7 @@
         "motion.marquee": "28s"
       },
       "emits": [],
+      "ctx": [],
       "switches": {},
       "settings": [],
       "parts": {},
@@ -3161,6 +3215,7 @@
         "size.mark": "2rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {
         "plain-title": {
           "default": false,
@@ -3208,6 +3263,7 @@
         "space.rise": "1.25rem"
       },
       "emits": [],
+      "ctx": [],
       "switches": {
         "progress": {
           "default": true,
@@ -3258,6 +3314,7 @@
       ],
       "needs": {},
       "emits": [],
+      "ctx": [],
       "switches": {
         "count": {
           "default": false,

@@ -3778,6 +3778,17 @@ describe("W4: `footer/index` — the site as a map, from `ctx.sections`, keyed o
     expect(at("posts/p1")).toBeGreaterThan(before[1]!);
     expect(readFileSync(join(dist, "about/index.html"), "utf8")).toContain('<a href="/category/stools/">Stools</a>');
   });
+
+  test("a theme with no piece asking for `ctx.sections` is not keyed on them: a new term re-renders only its own pages", async () => {
+    writeFileSync(join(root, "themes/f/theme.yaml"), "theme: f\nextends: base\nsettings:\n  - { id: social, type: link_list, label: Social }\npieces:\n  column: three-track\n  footer: line\n");
+    await build(root);
+    const at = (r: string) => statSync(join(dist, r, "index.html")).mtimeMs;
+    const before = [at("about"), at("posts/p1")];
+    post("p11", "2026-02-03", ["t1"], "benches");
+    await build(root);
+    expect([at("about"), at("posts/p1")]).toEqual(before);
+    expect(existsSync(join(dist, "category/benches/index.html"))).toBe(true);
+  });
 });
 
 describe("W4: `prose/book` display-heads — a drawn switch is judged as a drawn piece is (decision 278)", () => {

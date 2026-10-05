@@ -22,6 +22,8 @@ export interface PieceSettingDecl { id: string; type: string; [k: string]: unkno
 export interface PieceEntry {
   piece: string; slot: string; name: string; from: string; line: string;
   reads: string[]; needs: Record<string, string | number>; emits: string[];
+  /** Site-wide `ctx` keys its parts read (`sections`): handed over, and in every route's key, only when a resolved piece lists one. */
+  ctx: string[];
   switches: Record<string, PieceSwitchDecl>;
   settings: PieceSettingDecl[];
   parts: Record<string, string>; layouts: Record<string, string>;

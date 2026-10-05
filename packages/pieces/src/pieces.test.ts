@@ -79,6 +79,10 @@ describe("the manifest", () => {
     for (const p of Object.values(m.pieces)) expect(p.draft, p.piece).toBe(false);
     expect(m.pieces["prose/book"]!.switches["display-heads"]!.draft).toBe(false);
   });
+  test("the sitting: `ctx.sections` is asked for — footer/index draws the map, and no other piece makes a site keyed on it", () => {
+    const m = loadPieces();
+    expect(Object.values(m.pieces).filter((p) => p.ctx.includes("sections")).map((p) => p.piece)).toEqual(["footer/index"]);
+  });
 
   test("W2: every piece has its two stills, and they picture the piece as it is now", () => {
     // Stale or missing: `snypd pieces stills --stale` (needs a browser) reshoots exactly those.

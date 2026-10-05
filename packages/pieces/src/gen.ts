@@ -134,6 +134,13 @@ export function generate(): PieceManifest {
       }
       for (const t of named) if (!y.reads.includes(t)) errors.push(`${id}/piece.yaml: its CSS reads \`${t}\` and \`reads:\` does not list it`);
       for (const t of y.reads) if (known.has(t) && !named.has(t)) errors.push(`${id}/piece.yaml: \`reads:\` lists \`${t}\` and no stylesheet in the piece reads it`);
+      // `ctx:` held to the parts as `reads:` is to the CSS: a key the build hands over only on request is a key a part must ask for.
+      const tsx = files.filter((f) => /\.tsx?$/.test(f)).map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+      for (const k of ["sections"] as const) {
+        const used = new RegExp(`\\bctx\\.${k}\\b`).test(tsx);
+        if (used && !y.ctx.includes(k)) errors.push(`${id}/piece.yaml: a part reads \`ctx.${k}\` and \`ctx:\` does not list it — the build hands it only to a piece that asks`);
+        if (!used && y.ctx.includes(k)) errors.push(`${id}/piece.yaml: \`ctx:\` lists \`${k}\` and no part in the piece reads \`ctx.${k}\``);
+      }
       // The stills are listed when both are on disk; `fresh` says whether they picture the piece as it is now.
       const stills = STILL_FILES.every((f) => existsSync(join(dir, f))) ? { files: STILL_FILES.map((f) => `${id}/${f}`), fresh: shot[id]?.inputs === stillInputs(id, board) } : undefined;
       pieces[id] = { ...y, slot, name: v, kb: kbOf(css), switchKb, files, ...(stills ? { stills } : {}) };
