@@ -66,7 +66,7 @@ export function ArchiveHead({ ctx, entries, route, title, kicker, intro, type, c
     h("h1", {}, kicker ? h("small", { class: "snypd-list-kicker" }, kicker) : null, title),
     lede || about ? h("p", { class: "snypd-lede" }, [lede, about].filter(Boolean).join(" ")) : null,
     Slot({ name: "before-content", ctx, route, title }),
-    archiveFilters(ctx, entries, type).map((f, i) => h("nav", { class: "snypd-list-filter", "aria-label": `${titleCase(f.taxonomy)}: filter the list` },
+    archiveFilters(ctx, entries, type).map((f, i) => h("nav", { class: "snypd-list-filter snypd-scroller", "aria-label": `${titleCase(f.taxonomy)}: filter the list` },
       h("span", { class: "snypd-list-filter-name" }, titleCase(plural(f.taxonomy))),
       // *All* once, on the first line; its count is the archive's, which a term's page does not know.
       all && i === 0 ? h("a", { href: all.endsWith("/") ? all : `${all}/`, "aria-current": current ? undefined : "page" }, "All", current ? "" : h(Fragment, {}, " ", h("span", { class: "snypd-list-count" }, String(entries.length)))) : null,

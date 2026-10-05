@@ -10,3 +10,5 @@ settings:
   - { id: repo,    type: url,  label: "Source repository", group: Identity, info: "Linked from the masthead as `src`. A documentation site whose source is not one click away is documentation nobody corrects." }
 parts:
   header: ./part.tsx
+switches:
+  menu-button: { default: false, description: "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way." }

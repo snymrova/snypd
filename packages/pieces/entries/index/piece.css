@@ -29,3 +29,8 @@
 @media (min-width: 60rem) {
   .snypd-entry-index-when { width: 0; margin-inline: var(--space-3) calc(var(--space-3) * -1); }
 }
+/* On a phone each row is a 44 px target (the W4 sitting): the padding grows to make up a one-line title's
+   shortfall, so a row stays one tap and the dotted rhythm stays even; a title that wraps is taller anyway. */
+@media (max-width: 37.5rem) {
+  .snypd-entry-index-row { box-sizing: border-box; min-block-size: var(--size-tap); padding-block: max(var(--space-1), calc((var(--size-tap) - var(--size-body) * var(--leading-tight)) / 2)); }
+}

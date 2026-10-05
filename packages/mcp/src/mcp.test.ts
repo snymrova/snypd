@@ -1087,7 +1087,7 @@ describe("find_tools + the catalogue", () => {
     expect(text).not.toMatch(/^  house:/m);
     expect(text).toContain("`house` — the rules every sheet shares — is under every theme on pieces");
     expect(text).toMatch(/^  toc: \{ block: "A contents list at the top of a post, in flow" \}   # A post's table of contents\.$/m);
-    expect(text).toMatch(/^    nameplate: "A quiet nameplate"   # IN USE$/m);
+    expect(text).toMatch(/^    nameplate: "A quiet nameplate"   # menu-button · IN USE$/m);
     expect(text).not.toMatch(/ KB\b/);
     expect(text).not.toMatch(/^    title-bar: ".*IN USE$/m);
     expect(text).not.toContain("is on no pieces");

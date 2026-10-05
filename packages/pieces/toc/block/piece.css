@@ -27,6 +27,12 @@
 .snypd-toc a { color: var(--color-muted); text-decoration: none; }
 .snypd-toc a:hover { color: var(--color-accent); text-decoration: underline; }
 @media (max-width: 34rem) { .snypd-toc ol { columns: 1; } }
+/* On a phone each entry is a 44 px target (the W4 sitting): the link is the line, padded to the floor, and
+   the space between items is that padding. */
+@media (max-width: 37.5rem) {
+  .snypd-toc li { margin-top: 0; }
+  .snypd-toc a { display: block; padding-block: max(0px, calc((var(--size-tap) - 1lh) / 2)); }
+}
 
 /* The contents list knows where you are — Chrome 140+, one declaration, and elsewhere the list it was. */
 @supports (scroll-target-group: auto) {

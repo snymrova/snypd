@@ -6,10 +6,9 @@
  * A part of its own rather than base's header: base shows a tagline only when the site sets one, and a
  * nameplate always carries a line under the name.
  */
-import { menu, settingText, type Html, type PartProps } from "@snypd/render";
+import { settingText, SiteMenu, type Html, type PartProps } from "@snypd/render";
 
 export default function Header({ ctx, route }: PartProps): Html {
-  const items = menu(ctx, "header", route);
   const logo = settingText(ctx, "logo");
   // The logo's intrinsic size comes from `ctx.media`, the same lookup a `figure` uses, so a masthead
   // does not reflow while it loads. An off-site logo has no entry and gets no attributes, as S13 decided.
@@ -27,13 +26,7 @@ export default function Header({ ctx, route }: PartProps): Html {
         </a>
         {tagline ? <p class="snypd-tagline">{tagline}</p> : null}
       </div>
-      {items.length ? (
-        <nav aria-label="Site">
-          {/* The same button and popover `base`'s header carries (U7): on a phone the list waits behind it. */}
-          <button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button>
-          <ul id="snypd-menu" popover>{items.map((i) => <li><a href={i.href} rel={i.rel} aria-current={i.current ? "page" : undefined}>{i.label}</a></li>)}</ul>
-        </nav>
-      ) : null}
+      <SiteMenu ctx={ctx} route={route} />
     </header>
   );
 }

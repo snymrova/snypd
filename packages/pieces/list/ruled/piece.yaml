@@ -5,7 +5,7 @@ refs:
   - { url: https://www.pentagram.com/work,          took: "the disciplines as a filter row over the work, counts beside them" }
   - { url: https://github.blog/changelog/,           took: "heading, one line of intro, the labels as filters, then the list" }
   - { url: https://www.smashingmagazine.com/articles/, took: "the category strip set between two rules" }
-reads: [font.ui, size.small, color.muted, color.text, color.accent, color.border, measure, space.2, space.3, space.4]
+reads: [font.ui, size.small, color.muted, color.text, color.accent, color.border, measure, space.2, space.3, space.4, size.tap]
 emits: [snypd-list, snypd-list-kicker, snypd-list-filter-name, snypd-list-count]
 layouts:
   index: ./layout.tsx

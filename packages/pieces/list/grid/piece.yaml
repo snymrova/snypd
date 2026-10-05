@@ -5,7 +5,7 @@ refs:
   - { url: https://www.pentagram.com/work,        took: "one crop for every tile, so the grid reads as a wall; the title and the discipline under each" }
   - { url: https://www.criterion.com/shop/browse/list, took: "a catalogue of covers at one size, the year beside the title under each" }
   - { url: https://photos.google.com/,           took: "the grid broken at each turn of the date by a heading across it, so a wall of pictures stays a timeline" }
-reads: [font.display, font.ui, size.h3, size.small, leading.tight, color.text, color.muted, color.accent, color.border, color.surface, measure, space.2, space.3, space.4, space.5, measure.tile]
+reads: [font.display, font.ui, size.h3, size.body, size.small, leading.tight, color.text, color.muted, color.accent, color.border, color.surface, measure, space.2, space.3, space.4, space.5, measure.tile, size.tap]
 needs:
   measure.tile: 15rem
 emits: [snypd-list, snypd-list-kicker, snypd-list-filter-name, snypd-list-count, snypd-tiles, snypd-tiles-year, snypd-tiles-mark, snypd-tile, snypd-tile-frame, snypd-tile-name, snypd-tile-label]

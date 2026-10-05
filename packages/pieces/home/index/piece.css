@@ -43,3 +43,6 @@
 .snypd-index-more a:hover { color: var(--color-accent); text-decoration-color: currentColor; }
 
 .snypd-index-after > h2 { margin-top: var(--space-5); font-size: var(--size-h3); }
+/* The afterword is set a step down from a page, so its sub-heads step down with it, a block's title among
+   them: at the h3 size, a `steps` title stood level with the h2 above it (notebook's shoot, h2:h3 1.0). */
+.snypd-index-after h3 { font-size: var(--size-body); }

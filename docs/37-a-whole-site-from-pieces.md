@@ -411,3 +411,44 @@ The sitting does not decide what a kit *is*, only which drafts the drawn kits ma
 **Left in W5.** `look { tour }`; `look { board: "kits" }`; kit stills; `build-theme` rewritten around kits, with the *how pieces combine* note; and the drawn kits losing `draft:` as the sitting passes their pieces.
 
 **The sitting, 5 Oct 2026: all ten drafts pass.** The ten W4 pieces and the `display-heads` switch lose `draft:`, and with them the `notebook` and `portfolio` kits, so `snypd://theme/kits` now lists all five (627 tokens, still under the 700 gate). The open calls were taken as recommended: `ctx.sections` is keyed only for a piece that declares it reads it, ink keeps the `viz` palette, and every 390 tap-target failure that predates W4 is fixed. `feature/log` keeps drawing releases, and studio's case button becomes `space-4`. **The phone tap target is 44 px**, overriding the 24 px recommended here, after Apple's 44 pt and Material's 48 dp. Links inside running prose stay exempt, as WCAG exempts them. The launch date has moved, so themes stay first. The fixes and the mobile pass are §18.
+
+---
+
+## 18. The mobile pass, built 5 Oct 2026
+
+The sitting set the phone's tap target at 44 px and asked for every piece to be fixed, not only the drafts. A sweep (`shots/mobile/sweep.sh`) shoots every slot's board at 390 on three sets, on the specimen and on Ferrule. Before the pass it found failures in five slots: every masthead (the name 20–28 px, the Menu button 23–35, the motion box 13), the list filters (27 px), `entries/index` rows (29), the TOC (19), `home/split`'s hero button (36). Once those were fixed, the footers' menus (18–37) and the walls' marks (32–40) showed up as well.
+
+**Two checks, raised.** `look`'s `layout.tap-target` fails anything pressed under **44 px** on its short side below 600 px; it was 24, with 24–44 only counted. A checkbox is measured together with its label, which presses it too, as WCAG reads it. The first four failures are boxed and the rest counted. `taste.tiny-text` fails reading text under **16 px** on a phone; it was 14. It now skips small print (a byline, a meta or facts strip, a caption, a label), since a sentence is what the floor is for. A third rule written for body size was dropped before it shipped, because `tiny-text` already covered it.
+
+**One floor in base, as behaviour.** Below 37.5rem base's sheet holds everything its markup lets a reader press at `min-block-size: 2.75rem`, centred with `align-content`:
+- the name
+- the Menu button and the open sheet's links
+- `.snypd-button`
+- the motion label
+- a scroller's items
+- the three lists every footer writes: the Footer `nav`, `.snypd-social` and `.snypd-offices`
+
+Short items are held as wide as tall. It is a floor, not a size, so a theme's padding still draws the control. Base still reads no token. **`size.tap`** (2.75rem) is a new optional contract token for pieces whose own classes need the floor: `entries/index`'s rows and `toc/block`'s links pad to it, and `wall/row` and `wall/marquee` grow a linked mark to it with padding paid back by a negative margin.
+
+**The scroller, a base pattern.** `.snypd-scroller`, a new contract class, makes a row that runs sideways on a phone instead of wrapping:
+- it snaps to its items and shows no scrollbar;
+- it fades at an edge only while there is more past it (the fade lengths ride a scroll timeline on the row, so a row that fits has none);
+- it scrolls the current item into view where `scroll-initial-target` exists.
+
+Its wrap and overflow are `!important` in base's layer, as the phone menu's layout is, so a theme's desktop `flex-wrap: wrap` cannot reach the phone. The list filters are scrollers.
+
+**A strip menu.** `SiteMenu` (render) is now the one menu markup for base's header and the three masthead parts that drew their own. `centered`, `nameplate`, `plain` and `title-bar` gain a **`menu-button`** switch, off by default. When it is off, a menu of six items or fewer has no button and no popover. On a phone it is a row under the name, drawn by rules in each `piece.css` scoped to the strip's own `nav[data-menu="strip"]`: centred between two hairlines on `centered`, and edge to edge under the name on the other three. A seventh item puts the menu back behind the button whatever the switch says. `bar`, the sticky one, has no such switch and keeps its button. The switch is a boolean, not `phone-menu: strip|button`, because the four pieces' values pushed `snypd://theme/pieces` to 1,215 tokens, over its 1,200 gate.
+
+**The rest of the plan.**
+- `list/grid` is two across on a phone.
+- `entries/cards`' lift and title colour answer `(hover: hover)` only, since on a touch screen `:hover` sticks after the tap.
+- Safe-area insets needed nothing: the viewport has no `viewport-fit=cover`, so the browser keeps the page out of the notch.
+- **The notebook afterword bug was two things.** The taste probe read the year mark (an `h2` set small as a label) as the page's h2, so it now prefers heads with no class, which are the ones the markdown wrote. And the afterword set its h2 at `size.h3` while a `steps` title under it stayed at `size.h3`, so `home/index` now steps every h3 in the afterword down to the body size. Notebook's front page passes all five rendered rules.
+
+**Two things the sweep caught in the pass itself.**
+- The scroller first brought the current item in at the row's *start*, which scrolled a filter row's own label (*Services*) off the left edge. It now brings it in at the end, so a row that fits does not move.
+- `check theme`'s tier rule flagged the scroll timeline outside `@supports`. The fades and `scroll-initial-target` are now guarded, and `scroll-initial-target` joins the rule's list as a one-engine feature.
+
+**Proof.** `SETS=5 shots/mobile/sweep.sh five`: every slot's board at 390 on all five token sets, on the specimen and on Ferrule (22 boards). The first run had 336 of 350 cells clean. The 14 failures were Ferrule's name on the pathological set at 43 px wide, so the name is now held as wide as tall too. The rerun has **350 of 350 clean**. Twenty-three pieces' 390 stills were reshot, and now show the floor and the strips. Typecheck clean. **716 pass / 0 fail.**
+
+**Left in W5.** `look { tour }`; `look { board: "kits" }`; kit stills; `build-theme` rewritten around kits; then the trial on a fresh agent (§8). The gallery strip that docs/39 proposes stands on this pass's scroller.

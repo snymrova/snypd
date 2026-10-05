@@ -6,3 +6,5 @@ refs:
   - { url: https://www.lrb.co.uk/,        took: "a centred nameplate is the only large thing in the header — everything else is small and at the edges" }
   - { url: https://worksinprogress.co/,   took: "the menu as a strip between two full-width rules, so the page starts under a line, not under a name" }
 reads: [font.display, font.ui, size.h2, size.small, size.body, color.bg, space.2, space.3, space.4, space.5, color.text, color.muted, color.border]
+switches:
+  menu-button: { default: false, description: "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way." }

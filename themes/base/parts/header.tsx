@@ -6,7 +6,9 @@
  * hides the list until the button is pressed and the platform does the rest — light dismiss, Escape,
  * focus — and on anything wider the same sheet puts the list back in flow and hides the button, so a
  * theme styles one `<ul>` and never sees the popover unless it wants to. The button is a button and
- * not a link or a label because `popovertarget` is what makes it work without a script.
+ * not a link or a label because `popovertarget` is what makes it work without a script. The markup is
+ * `SiteMenu`'s, shared with the masthead pieces that draw their own header; a masthead whose
+ * `menu-button` switch is off gets a short menu as a sideways row on a phone instead (docs/37 §18).
  *
  * Last in the header, the motion control (`parts/motion.tsx`) — on the pages that need one, and on no other.
  *
@@ -17,10 +19,9 @@
  * sized from `ctx.media` — the lookup a `figure` uses — so the header does not reflow while it loads; an
  * off-site logo has no entry and gets no size. The tagline is shown only when the site sets one.
  */
-import { menu, part, settingText, type Html, type PartProps } from "@snypd/render";
+import { part, settingText, SiteMenu, type Html, type PartProps } from "@snypd/render";
 
 export default function Header({ ctx, route, title, page }: PartProps): Html {
-  const items = menu(ctx, "header", route);
   const Motion = part(ctx, "motion");
   const logo = settingText(ctx, "logo");
   const size = logo ? ctx.media[logo] : undefined;
@@ -36,12 +37,7 @@ export default function Header({ ctx, route, title, page }: PartProps): Html {
         </a>
         {tagline ? <p class="snypd-tagline">{tagline}</p> : null}
       </div>
-      {items.length ? (
-        <nav aria-label="Site">
-          <button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button>
-          <ul id="snypd-menu" popover>{items.map((i) => <li><a href={i.href} rel={i.rel} aria-current={i.current ? "page" : undefined}>{i.label}</a></li>)}</ul>
-        </nav>
-      ) : null}
+      <SiteMenu ctx={ctx} route={route} />
       <Motion ctx={ctx} route={route} title={title} page={page} />
     </header>
   );

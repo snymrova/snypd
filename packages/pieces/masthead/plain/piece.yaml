@@ -11,3 +11,5 @@ needs:
   space.chip: 0.5rem 0.875rem
 pairs:
   column: three-track
+switches:
+  menu-button: { default: false, description: "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way." }

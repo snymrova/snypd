@@ -51,7 +51,8 @@ describe("the theme contract (docs/36 §3)", () => {
       // the whole-site slots' layouts (W3): what a `list` writes around the entries, which `entries` styles
       ...tsx(join(REPO, "packages/pieces/list")),
       // `archive.ts` is the head the list pieces share (W4) — its filter row and lede, whatever list draws them
-      ...["html.ts", "theme.ts", "media.ts", "archive.ts"].map((f) => join(REPO, "packages/render/src", f)),
+      // `sitemenu.ts` is the header's menu, base's and every masthead part's (the mobile pass)
+      ...["html.ts", "theme.ts", "media.ts", "archive.ts", "sitemenu.ts"].map((f) => join(REPO, "packages/render/src", f)),
       ...readdirSync(join(REPO, "packages/viz/src")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).map((f) => join(REPO, "packages/viz/src", f)),
     ];
     const found = new Set<string>();

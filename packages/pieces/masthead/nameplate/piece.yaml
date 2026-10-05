@@ -8,3 +8,5 @@ settings:
   - { id: tagline, type: text, label: Tagline, group: Identity, info: "One line under the name. Defaults to the site's own description." }
 parts:
   header: ./part.tsx
+switches:
+  menu-button: { default: false, description: "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way." }

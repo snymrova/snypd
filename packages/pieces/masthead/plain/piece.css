@@ -31,3 +31,11 @@
 #snypd-menu:popover-open a { font-size: var(--size-body); }
 #snypd-menu:popover-open a[rel~="external"] { justify-self: start; }
 @media (max-width: 47.5rem) { .snypd-masthead nav ul { gap: var(--space-2) var(--space-menu-narrow); } }
+/* A strip menu (the mobile pass; `menu-button` off, the default): on a phone the menu is a row of its
+   own under the name, running to the screen's edges and scrolling sideways, instead of a button beside it. The outlined link that
+   leaves the site stays last in the row. */
+@media (max-width: 37.5rem) {
+  .snypd-masthead:has(> nav[data-menu="strip"]) { padding-bottom: 0; row-gap: 0; }
+  .snypd-masthead nav[data-menu="strip"] { flex: 1 0 100%; margin-inline: calc(-1 * var(--edge)); }
+  .snypd-masthead nav[data-menu="strip"] ul { gap: 0 var(--space-menu-narrow); padding-inline: var(--edge); scroll-padding-inline: var(--edge); }
+}

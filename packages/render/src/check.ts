@@ -85,6 +85,7 @@ export const GUARDED_CSS: { pattern: RegExp; what: string; tier: "two engines" |
   { pattern: /(?<![\w-])if\(/i, what: "if()", tier: "one engine", test: "(width: if(style(--x): 1px; else: 2px))" },
   { pattern: /@function\b/i, what: "@function", tier: "one engine", test: "at-rule(@function)" },
   { pattern: /\bcorner-shape\s*:/i, what: "corner-shape", tier: "one engine", test: "(corner-shape: squircle)" },
+  { pattern: /\bscroll-initial-target\s*:/i, what: "scroll-initial-target", tier: "one engine", test: "(scroll-initial-target: nearest)" },
 ];
 
 /**

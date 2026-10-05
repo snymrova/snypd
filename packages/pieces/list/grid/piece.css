@@ -25,6 +25,8 @@ h1 > .snypd-list-kicker { display: block; font: 400 var(--size-small) / 1.4 var(
    keeps its rhythm and the row gap is none; and a word as short as *All* is held to 2em wide, which a
    longer term already is (the sitting's board found *All* at 15px on a term's page on a phone). */
 .snypd-list-filter a { color: inherit; text-decoration: none; padding-block: 0.25em; min-inline-size: 2em; }
+/* On a phone the row is base's scroller and every term is a 44 px target, *All* as wide as it is tall. */
+@media (max-width: 37.5rem) { .snypd-list-filter a { min-inline-size: var(--size-tap); } }
 .snypd-list-filter a:hover { color: var(--color-accent); }
 .snypd-list-filter a[aria-current="page"] { color: var(--color-text); text-decoration: underline; text-decoration-color: var(--color-accent); text-decoration-thickness: 2px; text-underline-offset: 0.35em; }
 .snypd-list-count { font-variant-numeric: tabular-nums; opacity: 0.7; }
@@ -59,4 +61,11 @@ h1 > .snypd-list-kicker { display: block; font: 400 var(--size-small) / 1.4 var(
 .snypd-tile > a:hover .snypd-tile-name,
 .snypd-tile > a:focus-visible .snypd-tile-name {
   color: var(--color-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em;
+}
+/* On a phone the wall is two across (the mobile pass), as a catalogue is on one: one tile to a row was a
+   scroll of single pictures, and two keep the grid a grid. The gaps close a step to give the pictures the
+   width. An empty tile's name is set a step down to fit the half width. */
+@media (max-width: 37.5rem) {
+  .snypd-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-3); }
+  .snypd-tile-frame[data-empty] > span { font-size: var(--size-body); }
 }

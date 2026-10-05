@@ -984,9 +984,22 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example, description: A tagline }\ntheme: { use: editorial }\n");
     await build(root);
     const ed = read("about-us");
-    expect(ed).toContain('<header class="snypd-masthead"><div class="snypd-brand"><a href="/" rel="home">N</a><p class="snypd-tagline">A tagline</p></div><nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover>');
+    expect(ed).toContain('<header class="snypd-masthead"><div class="snypd-brand"><a href="/" rel="home">N</a><p class="snypd-tagline">A tagline</p></div><nav aria-label="Site" data-menu="strip"><ul id="snypd-menu" class="snypd-scroller">');
     expect(ed).toContain('<a href="/about-us/" aria-current="page">About</a>');
     expect(ed).toContain('<nav aria-label="Footer">');
+    // `menu-button` (the mobile pass, docs/37 §18): seven items are a sheet behind the button whatever the
+    // switch says, and a theme that turns the switch on keeps the button for a short menu too.
+    const two = readFileSync(join(root, "content/nav/header.yaml"), "utf8");
+    writeFileSync(join(root, "content/nav/header.yaml"), two + Array.from({ length: 5 }, (_, i) => `- { label: X${i}, url: /x${i} }\n`).join(""));
+    await build(root);
+    expect(read("about-us")).toContain('<nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover>');
+    writeFileSync(join(root, "content/nav/header.yaml"), two);
+    mkdirSync(join(root, "themes/eb"), { recursive: true });
+    writeFileSync(join(root, "themes/eb/theme.yaml"), "theme: eb\nextends: editorial\npieces:\n  masthead: { use: nameplate, menu-button: true }\n");
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example, description: A tagline }\ntheme: { use: eb }\n");
+    await build(root);
+    expect(read("about-us")).toContain('popovertarget="snypd-menu"');
+    rmSync(join(root, "themes/eb"), { recursive: true, force: true });
     const ctxNav = { header: [{ label: "Home", href: "/", route: "/" }] };
     expect(menu({ nav: ctxNav } as never, "header", "/")).toEqual([{ label: "Home", href: "/", route: "/", current: true }]);
     expect(menu({ nav: ctxNav } as never, "header", "/x")).toEqual([{ label: "Home", href: "/", route: "/", current: false }]);
@@ -2014,8 +2027,10 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
     expect(read("")).toContain('<nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover><li><a href="/" aria-current="page">Home</a></li></ul></nav>');
     const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
     expect(css.startsWith("@layer snypd.tokens,snypd.base,snypd.pieces,snypd.theme,snypd.site;@layer snypd.base{")).toBe(true);
-    for (const rule of ["#snypd-menu:not(:popover-open){display: none !important}", ".snypd-figure-open{", ".snypd-lightbox::backdrop{", ".snypd-faq-item::details-content{", "position-area: block-start span-all", "@starting-style{"]) expect(css).toContain(rule);
-    expect(css).not.toContain("var(--");                 // behaviour, not looks: base declares no token and reads none
+    for (const rule of ["#snypd-menu[popover]:not(:popover-open){display: none !important}", ".snypd-figure-open{", ".snypd-lightbox::backdrop{", ".snypd-faq-item::details-content{", "position-area: block-start span-all", "@starting-style{"]) expect(css).toContain(rule);
+    // Behaviour, not looks: base declares no token and reads none. The scroller's edge fades are base's own
+    // registered properties (`--snypd-fade-*`), driven by its scroll timeline — not tokens a theme sets.
+    expect(css.replace(/var\(--snypd-fade-(start|end)\)/g, "")).not.toContain("var(--");
   });
 
   test("none of it is script: the pages pass the build's own gate at a budget of 0", () => {
@@ -3035,6 +3050,8 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     expect(fired(m(), 390)).toEqual([]);
     expect(fired(m({ eyebrows: [{ text: "NEWS", heading: "A title" }] }), 1280)).toEqual(["taste.eyebrow"]);
     expect(fired(m({ body: [{ px: 13, text: "small" }] }), 390)).toEqual(["taste.tiny-text"]);
+    expect(fired(m({ body: [{ px: 15, text: "small" }] }), 390)).toEqual(["taste.tiny-text"]);    // the floor is 16 since the W4 sitting
+    expect(fired(m({ body: [{ px: 15.6, text: "fluid" }] }), 390)).toEqual([]);                  // a fluid size landing at 15.6 passes
     expect(fired(m({ body: [{ px: 13, text: "small" }] }), 1280)).toEqual([]);             // tiny text is a phone rule
     expect(fired(m({ measures: [91, 95, 88] }), 1280)).toEqual(["taste.measure"]);
     expect(fired(m({ measures: [38, 40] }), 1280)).toEqual(["taste.measure"]);
@@ -3484,7 +3501,7 @@ describe("W4: `list/ruled` — an archive as a heading, an intro, and the terms 
     expect((await build(root)).fallbacks).toEqual([]);
     const h = read("posts");
     expect(h).toContain('<main class="snypd-list"><h1>Posts</h1><p class="snypd-lede">3 posts, 1 Jan 2026 to 1 Mar 2026.</p>');
-    const rows = [...h.matchAll(/<nav class="snypd-list-filter"[^>]*>([^]*?)<\/nav>/g)].map((m) => m[1]!);
+    const rows = [...h.matchAll(/<nav class="snypd-list-filter snypd-scroller"[^>]*>([^]*?)<\/nav>/g)].map((m) => m[1]!);
     expect(rows.length).toBe(2);
     expect(rows[0]).toContain('<span class="snypd-list-filter-name">Categories</span>');
     expect(rows[0]).toContain('<a href="/posts/" aria-current="page">All <span class="snypd-list-count">3</span></a>');

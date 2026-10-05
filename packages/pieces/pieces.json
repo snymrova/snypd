@@ -1311,7 +1311,14 @@
       "needs": {},
       "emits": [],
       "ctx": [],
-      "switches": {},
+      "switches": {
+        "menu-button": {
+          "default": false,
+          "description": "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way.",
+          "refs": [],
+          "draft": false
+        }
+      },
       "settings": [],
       "parts": {},
       "layouts": {},
@@ -1333,7 +1340,7 @@
       "draft": false,
       "slot": "masthead",
       "name": "centered",
-      "kb": 2.33,
+      "kb": 2.86,
       "switchKb": {},
       "files": [
         "piece.css",
@@ -1373,7 +1380,14 @@
       },
       "emits": [],
       "ctx": [],
-      "switches": {},
+      "switches": {
+        "menu-button": {
+          "default": false,
+          "description": "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way.",
+          "refs": [],
+          "draft": false
+        }
+      },
       "settings": [
         {
           "id": "tagline",
@@ -1392,7 +1406,7 @@
       "draft": false,
       "slot": "masthead",
       "name": "nameplate",
-      "kb": 1.43,
+      "kb": 1.76,
       "switchKb": {},
       "files": [
         "part.tsx",
@@ -1439,7 +1453,14 @@
       },
       "emits": [],
       "ctx": [],
-      "switches": {},
+      "switches": {
+        "menu-button": {
+          "default": false,
+          "description": "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way.",
+          "refs": [],
+          "draft": false
+        }
+      },
       "settings": [],
       "parts": {},
       "layouts": {},
@@ -1450,7 +1471,7 @@
       "draft": false,
       "slot": "masthead",
       "name": "plain",
-      "kb": 2.03,
+      "kb": 2.36,
       "switchKb": {},
       "files": [
         "piece.css",
@@ -1490,7 +1511,14 @@
         "snypd-repo"
       ],
       "ctx": [],
-      "switches": {},
+      "switches": {
+        "menu-button": {
+          "default": false,
+          "description": "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way.",
+          "refs": [],
+          "draft": false
+        }
+      },
       "settings": [
         {
           "id": "tagline",
@@ -1516,7 +1544,7 @@
       "draft": false,
       "slot": "masthead",
       "name": "title-bar",
-      "kb": 1.55,
+      "kb": 1.87,
       "switchKb": {},
       "files": [
         "part.tsx",
@@ -1539,6 +1567,7 @@
         "font.display",
         "font.ui",
         "size.h3",
+        "size.body",
         "size.small",
         "leading.tight",
         "color.text",
@@ -1551,7 +1580,8 @@
         "space.3",
         "space.4",
         "space.5",
-        "measure.tile"
+        "measure.tile",
+        "size.tap"
       ],
       "needs": {
         "measure.tile": "15rem"
@@ -1597,7 +1627,7 @@
       "draft": false,
       "slot": "list",
       "name": "grid",
-      "kb": 2.81,
+      "kb": 3.08,
       "switchKb": {},
       "files": [
         "layout.tsx",
@@ -1664,7 +1694,8 @@
         "measure",
         "space.2",
         "space.3",
-        "space.4"
+        "space.4",
+        "size.tap"
       ],
       "needs": {},
       "emits": [
@@ -1699,7 +1730,7 @@
       "draft": false,
       "slot": "list",
       "name": "ruled",
-      "kb": 1.1,
+      "kb": 1.18,
       "switchKb": {},
       "files": [
         "layout.tsx",
@@ -1757,7 +1788,7 @@
       "draft": false,
       "slot": "entries",
       "name": "cards",
-      "kb": 1.81,
+      "kb": 1.87,
       "switchKb": {},
       "files": [
         "part.tsx",
@@ -1787,7 +1818,8 @@
         "color.accent",
         "space.1",
         "space.2",
-        "space.3"
+        "space.3",
+        "size.tap"
       ],
       "needs": {},
       "emits": [
@@ -1825,7 +1857,7 @@
       "draft": false,
       "slot": "entries",
       "name": "index",
-      "kb": 1.02,
+      "kb": 1.22,
       "switchKb": {},
       "files": [
         "part.tsx",
@@ -2507,6 +2539,7 @@
         "font.ui",
         "size.h2",
         "size.h3",
+        "size.body",
         "size.small",
         "leading.tight",
         "color.muted",
@@ -2562,7 +2595,7 @@
       "draft": false,
       "slot": "home",
       "name": "index",
-      "kb": 1.42,
+      "kb": 1.47,
       "switchKb": {},
       "files": [
         "layout.tsx",
@@ -3101,7 +3134,8 @@
         "color.muted",
         "radius",
         "size.small",
-        "font.ui"
+        "font.ui",
+        "size.tap"
       ],
       "needs": {},
       "emits": [
@@ -3134,7 +3168,7 @@
       "draft": false,
       "slot": "toc",
       "name": "block",
-      "kb": 1.26,
+      "kb": 1.4,
       "switchKb": {},
       "files": [
         "part.tsx",
@@ -3164,6 +3198,7 @@
         "color.border",
         "motion.quick",
         "size.mark",
+        "size.tap",
         "motion.marquee"
       ],
       "needs": {
@@ -3181,7 +3216,7 @@
       "draft": false,
       "slot": "wall",
       "name": "marquee",
-      "kb": 1.9,
+      "kb": 2.08,
       "switchKb": {},
       "files": [
         "piece.css",
@@ -3209,7 +3244,8 @@
         "space.4",
         "color.muted",
         "color.border",
-        "size.mark"
+        "size.mark",
+        "size.tap"
       ],
       "needs": {
         "size.mark": "2rem"
@@ -3232,7 +3268,7 @@
       "draft": false,
       "slot": "wall",
       "name": "row",
-      "kb": 0.66,
+      "kb": 0.84,
       "switchKb": {
         "plain-title": 0.12
       },

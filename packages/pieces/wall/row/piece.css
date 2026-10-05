@@ -7,3 +7,8 @@
 .snypd-logo-wall img { display: block; height: var(--size-mark); width: auto; max-width: calc(var(--size-mark) * 5); object-fit: contain; }
 .snypd-marquee { display: contents; }
 .snypd-marquee ul[aria-hidden] { display: none; }
+/* On a phone a linked mark is a 44 px target (the W4 sitting): padding grows the link by the mark's
+   shortfall and an equal negative margin gives the space back, so the row is drawn as it was. */
+@media (max-width: 37.5rem) {
+  .snypd-logo-wall a { display: block; --pad: max(0px, calc((var(--size-tap) - var(--size-mark)) / 2)); padding-block: var(--pad); margin-block: calc(-1 * var(--pad)); }
+}

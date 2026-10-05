@@ -9,10 +9,9 @@
  * review — a pill in the chrome for a clip the reader may never notice. The reel and the marquee still
  * stand still under the reader's reduced-motion setting, which `base`'s sheet honours.
  */
-import { menu, settingText, type Html, type PartProps } from "@snypd/render";
+import { settingText, SiteMenu, type Html, type PartProps } from "@snypd/render";
 
 export default function Header({ ctx, route }: PartProps): Html {
-  const items = menu(ctx, "header", route);
   const logo = settingText(ctx, "logo");
   const size = logo ? ctx.media[logo] : undefined;
   return (
@@ -23,13 +22,7 @@ export default function Header({ ctx, route }: PartProps): Html {
               width={size ? String(size.width) : undefined} height={size ? String(size.height) : undefined} />
           : ctx.site.name}
       </a>
-      {items.length ? (
-        <nav aria-label="Site">
-          {/* The same button and popover `base`'s header carries (U7): on a phone the list waits behind it. */}
-          <button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button>
-          <ul id="snypd-menu" popover>{items.map((i) => <li><a href={i.href} rel={i.rel} aria-current={i.current ? "page" : undefined}>{i.label}</a></li>)}</ul>
-        </nav>
-      ) : null}
+      <SiteMenu ctx={ctx} route={route} />
     </header>
   );
 }

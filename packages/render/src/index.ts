@@ -1,6 +1,7 @@
 /** @snypd/render — content → typed tree → theme TSX → dist/, incrementally (docs/04 "The renderer"). */
 export { build, type BuildOptions, type BuildResult } from "./build";
 export { toHtml, inline, excerpt, slugify, textOf, type HtmlOptions, type Section, type Sectioned } from "./html";
+export { SiteMenu, STRIP_MAX } from "./sitemenu";
 export { loadTheme, themeHash, pieceCss, pieceSheets, genericPrimitive, part, Part, menu, settingText, settingFlag, settingLinks, formatDate, transitionName, PART_NAMES, type Theme, type LoadedFont, type MenuItem, type SiteCtx, type Entry, type Page, type TermLink, type PrimitiveProps, type PrimitiveComponent, type LayoutProps, type LayoutComponent, type Coverage, type Parts, type PartComponent, type ShellProps, type PartProps, type EntriesProps } from "./theme";
 export { isFeatureType, typeLayout, featureOf, nounOf, typeDescription, termLinks, type Feature, type Fact } from "./feature";
 export { ArchiveHead, archiveSpan, archiveCount, archiveFilters, termTitle, coverOf, coverFrame, withoutYear, type ArchiveHeadProps } from "./archive";

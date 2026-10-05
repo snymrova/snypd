@@ -198,7 +198,7 @@
       }
     },
     "entries/cards": {
-      "inputs": "91f2e1d652530dc2",
+      "inputs": "1ffaa565e16c72e0",
       "route": "/posts/",
       "sizes": {
         "still-1280.webp": [
@@ -212,7 +212,7 @@
       }
     },
     "entries/index": {
-      "inputs": "d8dc8e8617cfced4",
+      "inputs": "220cc3c1bb966355",
       "route": "/posts/",
       "sizes": {
         "still-1280.webp": [
@@ -319,7 +319,7 @@
         ],
         "still-390.webp": [
           195,
-          84
+          95
         ]
       }
     },
@@ -333,7 +333,7 @@
         ],
         "still-390.webp": [
           195,
-          236
+          248
         ]
       }
     },
@@ -347,7 +347,7 @@
         ],
         "still-390.webp": [
           195,
-          273
+          339
         ]
       }
     },
@@ -361,7 +361,7 @@
         ],
         "still-390.webp": [
           195,
-          44
+          57
         ]
       }
     },
@@ -380,7 +380,7 @@
       }
     },
     "home/index": {
-      "inputs": "34c1fc8928c4fb16",
+      "inputs": "61d56bc5869ad522",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -436,7 +436,7 @@
       }
     },
     "list/grid": {
-      "inputs": "575002385ee3791e",
+      "inputs": "59d490d80b3038a0",
       "route": "/posts/",
       "sizes": {
         "still-1280.webp": [
@@ -464,7 +464,7 @@
       }
     },
     "list/ruled": {
-      "inputs": "737b0c872a922197",
+      "inputs": "1c2012d4dbedbdc9",
       "route": "/changelog/",
       "sizes": {
         "still-1280.webp": [
@@ -478,7 +478,7 @@
       }
     },
     "masthead/bar": {
-      "inputs": "03e6b5773bf24f5b",
+      "inputs": "c2be5518125c7bd8",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -492,7 +492,7 @@
       }
     },
     "masthead/centered": {
-      "inputs": "6fba559bcd8ce1bd",
+      "inputs": "b86f66bfacbd5c91",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -501,12 +501,12 @@
         ],
         "still-390.webp": [
           195,
-          70
+          101
         ]
       }
     },
     "masthead/nameplate": {
-      "inputs": "41f63beb2fed0f29",
+      "inputs": "df83067fd5725c00",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -515,12 +515,12 @@
         ],
         "still-390.webp": [
           195,
-          87
+          92
         ]
       }
     },
     "masthead/plain": {
-      "inputs": "e263bc9d43489cd6",
+      "inputs": "038fbe5f24515510",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -529,12 +529,12 @@
         ],
         "still-390.webp": [
           195,
-          39
+          79
         ]
       }
     },
     "masthead/title-bar": {
-      "inputs": "db90d73c5e61dfa5",
+      "inputs": "3b166d99463599c0",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -543,7 +543,7 @@
         ],
         "still-390.webp": [
           195,
-          79
+          92
         ]
       }
     },
@@ -730,7 +730,7 @@
       }
     },
     "toc/block": {
-      "inputs": "1c083c744d9e615c",
+      "inputs": "ddad249a0673bd08",
       "route": "/posts/long-read/",
       "sizes": {
         "still-1280.webp": [
@@ -739,12 +739,12 @@
         ],
         "still-390.webp": [
           195,
-          148
+          236
         ]
       }
     },
     "wall/marquee": {
-      "inputs": "d5bd642a9a0635fa",
+      "inputs": "79102fe5b7463b0e",
       "route": "/posts/every-primitive-once/",
       "sizes": {
         "still-1280.webp": [
@@ -758,7 +758,7 @@
       }
     },
     "wall/row": {
-      "inputs": "f1451df88d1b84df",
+      "inputs": "702a202c44b6935e",
       "route": "/posts/every-primitive-once/",
       "sizes": {
         "still-1280.webp": [

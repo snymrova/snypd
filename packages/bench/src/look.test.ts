@@ -122,7 +122,7 @@ describe.skipIf(!seeing)("the eyes, in a real browser", () => {
     expect(rules).toContain("contrast.rendered");
     expect(rules).toContain("layout.text-overflow");
     expect(rules).toContain("layout.broken-image");
-    expect(rules).toContain("layout.tap-target");      // the 12 px link is under 24 either way
+    expect(rules).toContain("layout.tap-target");      // the 12 px link is under 44 either way
     expect(rules).toContain("page.console");            // the 404 for the image
     for (const p of r.problems.filter((x) => x.rule.startsWith("layout.") || x.rule === "contrast.rendered")) expect(p.box).toBeDefined();
     expect(r.problems.find((p) => p.rule === "layout.overflow-x")!.detail).toContain("+210 px");

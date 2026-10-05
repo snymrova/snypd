@@ -25,3 +25,10 @@ body > header nav a[aria-current="page"] { color: var(--color-text); border-bott
 .snypd-menu-button { font: 500 var(--size-small) / 1 var(--font-ui); border-color: var(--color-border); color: var(--color-muted); }
 #snypd-menu:popover-open { color: var(--color-text); background: var(--color-bg); font-size: var(--size-body); letter-spacing: 0; text-transform: none; border-top: 1px solid var(--color-border); }
 #snypd-menu:popover-open a { color: var(--color-text); font-weight: 500; }
+/* A strip menu (the mobile pass; `menu-button` off, the default): on a phone the menu is a row of its
+   own under the name, running to the screen's edges and scrolling sideways, instead of a button beside it. */
+@media (max-width: 37.5rem) {
+  .snypd-masthead:has(> nav[data-menu="strip"]) { padding-bottom: 0; row-gap: 0; }
+  .snypd-masthead nav[data-menu="strip"] { flex: 1 0 100%; margin-inline: calc(-1 * var(--space-4)); }
+  body > header nav[data-menu="strip"] ul { gap: 0 var(--space-4); padding-inline: var(--space-4); scroll-padding-inline: var(--space-4); }
+}

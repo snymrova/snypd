@@ -159,7 +159,7 @@ export interface BundledTheme {
 
 export const BUNDLED: Readonly<Record<string, BundledTheme>> = {
   "base": {
-    hash: "197f0bbc2371a08f55bb5485fcaafaddd07b3b17",
+    hash: "a73b28ac3882a68c5f1eba5d3d206235d7617bd6",
     files: {
       "DESIGN.md": _base_DESIGN_md,
       "theme.css": _base_theme_css,
@@ -450,7 +450,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "entries/cards": {
-    hash: "359dd5a7d058d183baa8ea297d2d19a7775d3035",
+    hash: "244d527798533becc04fc662286e11a42717263d",
     files: {
       "piece.css": _piece_entries_cards_piece_css,
       "piece.yaml": _piece_entries_cards_piece_yaml,
@@ -462,7 +462,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "entries/index": {
-    hash: "82e0e434311c1726ddfbfc99d2407a793457109c",
+    hash: "54c123f18a38cd945483b8ff35fa6baed7ade4da",
     files: {
       "piece.css": _piece_entries_index_piece_css,
       "piece.yaml": _piece_entries_index_piece_yaml,
@@ -605,7 +605,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "home/index": {
-    hash: "2ad84e9480288ce681cc0f77493b840e28c4bb5d",
+    hash: "4e45b1f5c18f53d50cbdd697b17a31e7c5717bc1",
     files: {
       "piece.css": _piece_home_index_piece_css,
       "piece.yaml": _piece_home_index_piece_yaml,
@@ -652,7 +652,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "list/grid": {
-    hash: "f8a79cdab32f5a37bc4138dd5009f48d4cec8cd7",
+    hash: "fe7d8748384f353ae3e2e9e6089650bc357328f7",
     files: {
       "piece.css": _piece_list_grid_piece_css,
       "piece.yaml": _piece_list_grid_piece_yaml,
@@ -677,7 +677,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "list/ruled": {
-    hash: "26793c22b46c8e80e1100bea2f5113fbac4418ad",
+    hash: "b69dd8f8f3260fca5c14d49b725a827cf7829378",
     files: {
       "piece.css": _piece_list_ruled_piece_css,
       "piece.yaml": _piece_list_ruled_piece_yaml,
@@ -690,7 +690,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "masthead/bar": {
-    hash: "4d865b4fef3126fc04192038b08383afde0d6bf2",
+    hash: "aa325f9c2193416533021a65231d84708553c1d1",
     files: {
       "piece.css": _piece_masthead_bar_piece_css,
       "piece.yaml": _piece_masthead_bar_piece_yaml,
@@ -702,7 +702,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "masthead/centered": {
-    hash: "0a6da0a77c409e3d69a15308fb1cb8c7f3a3097a",
+    hash: "b6449b9c2f2c1dd02344a315f3837d3d5f390e26",
     files: {
       "piece.css": _piece_masthead_centered_piece_css,
       "piece.yaml": _piece_masthead_centered_piece_yaml,
@@ -713,7 +713,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "masthead/nameplate": {
-    hash: "398381947fdae8efa065e2d4a769fa0d85157cad",
+    hash: "1003369595be4c32f9f18438f4c90e17a21960a2",
     files: {
       "piece.css": _piece_masthead_nameplate_piece_css,
       "piece.yaml": _piece_masthead_nameplate_piece_yaml,
@@ -725,7 +725,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "masthead/plain": {
-    hash: "f5b23f9822e382442b120da3ee7a08858abed2b5",
+    hash: "f95bef4d125824e1adb844173840b8fabf9d4429",
     files: {
       "piece.css": _piece_masthead_plain_piece_css,
       "piece.yaml": _piece_masthead_plain_piece_yaml,
@@ -736,7 +736,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "masthead/title-bar": {
-    hash: "4bfc7b30c9303ad32bac9ac9700a67e4910200bf",
+    hash: "c199d1a43bd5963a15d6538e2e2f2c50cafe2903",
     files: {
       "piece.css": _piece_masthead_title_bar_piece_css,
       "piece.yaml": _piece_masthead_title_bar_piece_yaml,
@@ -896,7 +896,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "toc/block": {
-    hash: "f091991f7e5c537619d282769982b56cfe4e500f",
+    hash: "6134341bd65e3cabf8399845c222263bee5104da",
     files: {
       "piece.css": _piece_toc_block_piece_css,
       "piece.yaml": _piece_toc_block_piece_yaml,
@@ -908,7 +908,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "wall/marquee": {
-    hash: "ccbb1ade29bba468a350530ac884be98abeb0f3e",
+    hash: "6da9cd60dbbb3562fa9f03f4f92df21399c69b9f",
     files: {
       "piece.css": _piece_wall_marquee_piece_css,
       "piece.yaml": _piece_wall_marquee_piece_yaml,
@@ -919,7 +919,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "wall/row": {
-    hash: "2e76cc5a9c300a5ed73b9836a1699739f3d7cfae",
+    hash: "f8493506a3d3ab1ae85d6e60fbd277319fc25704",
     files: {
       "piece.css": _piece_wall_row_piece_css,
       "piece.yaml": _piece_wall_row_piece_yaml,

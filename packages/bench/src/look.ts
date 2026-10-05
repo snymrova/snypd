@@ -26,7 +26,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { launch, browserCandidates, cacheSandboxBlocked, type Browser, type BrowserCandidate, type Page } from "./cdp";
 import { diffPictures } from "./pixels";
-import { TASTE_PROBE, tasteVerdicts, type TasteMeasure } from "@snypd/render/taste";
+import { TASTE_PROBE, TINY_PX, tasteVerdicts, type TasteMeasure } from "@snypd/render/taste";
 
 /** x, y, width, height in document pixels. */
 export type Box = [number, number, number, number];
@@ -70,6 +70,8 @@ export const MAX_FULL_HEIGHT = 8000;
 export const IDLE_MS = 3 * 60_000;
 /** How many looks' files are kept under `.snypd/look/`; the oldest go first. */
 const KEEP = 24;
+/** The tap-target floor at phone width, in CSS px (the W4 sitting): Apple's 44 pt, WCAG 2.5.5. */
+export const TAP = 44;
 
 export interface LookOptions {
   /** The origin of a server already serving the site — the preview. */
@@ -298,7 +300,7 @@ function enter(state: string, scope: string | null, target: string | null): { ok
  * The layout detectors (docs/36 §5a, carved from impeccable's list where snypd had none) and rendered
  * contrast. Every problem has a box; every rule also says what it saw when it passed.
  */
-function detect(width: number): { problems: { rule: string; where: string; detail: string; box?: number[] }[]; seen: Record<string, unknown> } {
+function detect(width: number, tap: number): { problems: { rule: string; where: string; detail: string; box?: number[] }[]; seen: Record<string, unknown> } {
   const g = globalThis as any; // eslint-disable-line @typescript-eslint/no-explicit-any
   // The layout viewport, not `innerWidth`: under mobile emulation a page wider than the phone *widens*
   // `innerWidth` to fit it (390 became 600 in the test), which would hide the very overflow asked about.
@@ -355,23 +357,29 @@ function detect(width: number): { problems: { rule: string; where: string; detai
     problems.push({ rule: "layout.occlusion", where: name(e), detail: `its centre is under ${name(top)}`, box: box(e) });
   }
 
-  // layout.tap-target — at phone width, anything pressed. Under 24 px either way fails WCAG 2.2's AA floor (2.5.8)
-  // and is a problem with a box; 24–44 is under the AAA/platform size (2.5.5) and is counted, not boxed —
-  // the base masthead's links are 28 px tall, and fourteen boxes on every phone look drowned the one that
-  // mattered. A link inside a sentence is exempt, as both criteria say: the sentence is the target.
+  // layout.tap-target — at phone width, anything pressed. The floor is 44 px either way (the W4 sitting, 5 Oct
+  // 2026): Apple's 44 pt and Material's 48 dp, WCAG 2.2's AAA size (2.5.5), over its AA minimum of 24 (2.5.8),
+  // which a phone's thumb outgrows. The first four are boxed and the rest counted, so a page of thirty short
+  // links does not drown the one that mattered. A link inside a sentence is exempt, as both criteria say:
+  // the sentence is the target.
   if (width < 600) {
     const tiny: El[] = [];
-    let least = Infinity, under44 = 0;
+    let least = Infinity;
     for (const e of all) {
       if (!/^(A|BUTTON|SUMMARY|INPUT|SELECT)$/.test(e.tagName) && e.getAttribute("role") !== "button") continue;
       if (!vis(e) || (e.tagName === "A" && cs(e).display === "inline" && e.closest("p, li, td, figcaption, blockquote, dd") && !e.closest("nav"))) continue;
-      const r = e.getBoundingClientRect(), side = Math.min(r.width, r.height);
+      // A box with a label is pressed by either, so the target is the two together (WCAG's own reading).
+      let r = e.getBoundingClientRect();
+      for (const l of e.tagName === "INPUT" && e.labels ? [...e.labels].filter(vis) : []) {
+        const q = l.getBoundingClientRect(), x = Math.min(r.left, q.left), y = Math.min(r.top, q.top);
+        r = { left: x, top: y, width: Math.max(r.right, q.right) - x, height: Math.max(r.bottom, q.bottom) - y, right: Math.max(r.right, q.right), bottom: Math.max(r.bottom, q.bottom) };
+      }
+      const side = Math.min(r.width, r.height);
       least = Math.min(least, Math.round(side));
-      if (side < 24) tiny.push(e); else if (side < 44) under44++;
+      if (side < tap) tiny.push(e);
     }
-    for (const e of tiny.slice(0, 4)) { const r = e.getBoundingClientRect(); problems.push({ rule: "layout.tap-target", where: name(e), detail: `${Math.round(r.width)}×${Math.round(r.height)} px, under WCAG's 24${tiny.length > 4 && e === tiny[3] ? ` (and ${tiny.length - 4} more)` : ""}`, box: box(e) }); }
+    for (const e of tiny.slice(0, 4)) { const r = e.getBoundingClientRect(); problems.push({ rule: "layout.tap-target", where: name(e), detail: `${Math.round(r.width)}×${Math.round(r.height)} px, under ${tap}${tiny.length > 4 && e === tiny[3] ? ` (and ${tiny.length - 4} more)` : ""}`, box: box(e) }); }
     seen.tapLeast = Number.isFinite(least) ? least : undefined;
-    seen.tapUnder44 = under44;
   }
 
   // Rendered contrast: the text colour against what is actually behind it — the backgrounds composited up the
@@ -599,13 +607,13 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
   }
 
   // Facts: the detectors, then the taste rules this width judges, each with its box where it has one.
-  const found = await evaluate<ReturnType<typeof detect>>(page, call(detect, width));
+  const found = await evaluate<ReturnType<typeof detect>>(page, call(detect, width, TAP));
   const measure = await evaluate<TasteMeasure>(page, TASTE_PROBE);
   const facts: LookFact[] = found.problems.map((p) => ({ ...p, box: p.box as Box | undefined }));
   for (const hit of tasteVerdicts(measure, width)) {
     if (!hit.fired) continue;
     const boxes = hit.rule === "taste.eyebrow" ? measure.eyebrows.map((e) => e.box).filter(Boolean)
-      : hit.rule === "taste.tiny-text" ? measure.body.filter((b) => b.px < 14).map((b) => b.box).filter(Boolean) : [];
+      : hit.rule === "taste.tiny-text" ? measure.body.filter((b) => b.px < TINY_PX).map((b) => b.box).filter(Boolean) : [];
     const whereTaste = hit.rule === "taste.eyebrow" ? `"${measure.eyebrows[0]?.text ?? ""}"` : hit.rule === "taste.tiny-text" ? `p "${measure.body[0]?.text.slice(0, 24) ?? ""}…"` : "page";
     facts.push({ rule: hit.rule, where: whereTaste, detail: hit.detail, box: boxes[0] as Box | undefined });
   }
@@ -626,9 +634,9 @@ async function lookIn(s: Session, page: Page, logged: string[], opts: LookOption
 
   const passes: string[] = [];
   const rules = new Set(problems.filter((p) => !p.outside).map((p) => p.rule));
-  const seen = found.seen as { contrastLowest?: number; contrastJudged?: number; tapLeast?: number; tapUnder44?: number; scrollWidth?: number };
+  const seen = found.seen as { contrastLowest?: number; contrastJudged?: number; tapLeast?: number; scrollWidth?: number };
   if (!rules.has("contrast.rendered") && seen.contrastLowest !== undefined) passes.push(`contrast ≥ ${seen.contrastLowest}:1 over ${seen.contrastJudged} text runs`);
-  if (width < 600 && !rules.has("layout.tap-target") && seen.tapLeast !== undefined) passes.push(`tap targets ≥ 24 px${seen.tapUnder44 ? ` (${seen.tapUnder44} under 44)` : ""}`);
+  if (width < 600 && !rules.has("layout.tap-target") && seen.tapLeast !== undefined) passes.push(`tap targets ≥ ${TAP} px`);
   if (!rules.has("layout.overflow-x")) passes.push(`no horizontal overflow`);
   if (!facts.some((f) => f.rule === "page.cls")) passes.push(`CLS ${settled.cls}`);
   if (!logged.length) passes.push("no console errors");
