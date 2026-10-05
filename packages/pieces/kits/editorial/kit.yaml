@@ -1,0 +1,18 @@
+# editorial as a kit: the theme's own `pieces:`, stood on its own tokens and face. Composing it unchanged
+# gives editorial back; that is the proof the format holds a theme somebody already looked at.
+kit: editorial
+line: A reading page — a text serif on paper, notes in the margin, a quiet nameplate, posts read by title.
+extends: editorial
+pieces:
+  column:    three-track
+  prose:     book
+  code:      quiet
+  blocks:    surface
+  cover:     quiet
+  masthead:  nameplate
+  entries:   list
+  post-foot: band
+  footer:    { use: line, roomy: true }
+  notes:     sidenotes
+  wall:      row
+  motion:    glide

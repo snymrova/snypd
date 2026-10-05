@@ -1,6 +1,5 @@
 piece: entries/index
 from: drawn
-draft: true
 line: A list as an index — each entry one line, the title in the text face, a dotted leader carrying the eye to the date, which hangs in the column's right margin; under a year's heading the date drops the year.
 refs:
   - { url: https://sive.rs/blog,                          took: "every entry is one line — its date and its title, nothing under it" }

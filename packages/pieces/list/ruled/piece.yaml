@@ -1,6 +1,5 @@
 piece: list/ruled
 from: drawn
-draft: true
 line: An archive as a heading, an intro and the terms as a filter row set between two rules — each term a link with its count, the one the reader is on marked; a term's page keeps the row with its taxonomy as the heading's kicker.
 refs:
   - { url: https://www.pentagram.com/work,          took: "the disciplines as a filter row over the work, counts beside them" }

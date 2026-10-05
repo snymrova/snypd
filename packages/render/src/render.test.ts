@@ -11,6 +11,14 @@ import { staticTaste, tasteVerdicts, foldRendered, chosenRules, designVerdict, j
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
+import { loadPieces } from "../../pieces/src/index";
+
+/** W4's sitting passed every drawn piece; `check theme`'s draft rule is proved by marking one a draft again, for one call. */
+async function asDraft<T>(id: string, sw: string | undefined, fn: () => Promise<T>): Promise<T> {
+  const e = loadPieces().pieces[id]!, t = sw ? e.switches[sw]! : e;
+  t.draft = true;
+  try { return await fn(); } finally { t.draft = false; }
+}
 
 describe("jsx runtime", () => {
   test("escapes strings, passes Html through, drops false/null attrs, renders void tags", () => {
@@ -3398,7 +3406,7 @@ describe("font.craft: what the sheet asks of the face (decision 281)", () => {
   });
 });
 
-describe("W4 (docs/37 §7): `home/index` — the front page is the ruled index, and a drawn piece is a draft until a sitting passes it", () => {
+describe("W4 (docs/37 §7): `home/index` — the front page is the ruled index; a drawn piece was a draft until the sitting passed it", () => {
   const root = "corpora/_test/home-index";
   const dist = join(root, "dist");
   const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
@@ -3442,11 +3450,12 @@ describe("W4 (docs/37 §7): `home/index` — the front page is the ruled index, 
     expect(h.indexOf("snypd-index-after")).toBeGreaterThan(h.indexOf("snypd-index-more"));
   });
 
-  test("`homeEntries` is the site's to set, per list; `check theme` fails a theme on a draft piece (decision 278)", async () => {
+  test("`homeEntries` is the site's to set, per list; `check theme` passes it, and fails a theme on a draft piece (decision 278)", async () => {
     writeFileSync(join(root, "snypd.yaml"), yaml(", settings: { homeEntries: 2 } "));
     await build(root);
     expect(read("").match(/<li>/g)!.length).toBe(4);              // two of each list
-    const d = rule(await checkTheme(root, "n"), "pieces.draft");
+    expect(rule(await checkTheme(root, "n"), "pieces.draft")).toBeUndefined();
+    const d = rule(await asDraft("home/index", undefined, () => checkTheme(root, "n")), "pieces.draft");
     expect(d.status).toBe("fail");
     expect(d.detail).toContain("home/index is a draft");
   });
@@ -3771,7 +3780,7 @@ describe("W4: `footer/index` — the site as a map, from `ctx.sections`, keyed o
   });
 });
 
-describe("W4: `prose/book` display-heads — a drawn switch is a draft as a drawn piece is (decision 278)", () => {
+describe("W4: `prose/book` display-heads — a drawn switch is judged as a drawn piece is (decision 278)", () => {
   const root = "corpora/_test/prose-display-heads";
   const dist = join(root, "dist");
   const rule = (r: { rules: { rule: string; status: string; detail: string }[] }, name: string) => r.rules.find((x) => x.rule === name)!;
@@ -3792,14 +3801,15 @@ describe("W4: `prose/book` display-heads — a drawn switch is a draft as a draw
     expect(rule(await checkTheme(root, "p"), "pieces.draft")).toBeUndefined();
   });
 
-  test("on: the title and section heads in the display face, the title at its own weight — and `check theme` fails it until a sitting passes it", async () => {
+  test("on: the title and section heads in the display face, the title at its own weight — and `check theme` would fail it as a draft", async () => {
     theme("{ use: book, display-heads: true }");
     await build(root);
     const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
     expect(css).toContain("h1,h2{font-family: var(--font-display)}");
     expect(css).toContain("h1{font-weight: normal;");
     expect(css).toMatch(/--font-display:/);                     // read by the switch, so the optional token is emitted
-    const d = rule(await checkTheme(root, "p"), "pieces.draft");
+    expect(rule(await checkTheme(root, "p"), "pieces.draft")).toBeUndefined();
+    const d = rule(await asDraft("prose/book", "display-heads", () => checkTheme(root, "p")), "pieces.draft");
     expect(d.status).toBe("fail");
     expect(d.detail).toContain("prose/book display-heads is a draft");
   });

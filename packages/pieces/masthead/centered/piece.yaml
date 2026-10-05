@@ -1,6 +1,5 @@
 piece: masthead/centered
 from: drawn
-draft: true
 line: A nameplate — the name centred and set large in the display face, the one big thing in the header; the tagline muted under it when the site sets one; the menu centred under them in a strip between two hairlines that run the page's width. On a phone the menu is its button, centred under the name, and one rule closes the header.
 refs:
   - { url: https://www.robinsloan.com/,   took: "the name is the header: centred, set large in the display face, nothing beside it" }

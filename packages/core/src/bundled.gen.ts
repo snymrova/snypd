@@ -21,9 +21,10 @@ export const BUNDLED_PLUGIN_NAMES = ["analytics", "autolink", "changelog", "inde
 /**
  * Every piece on the shelf (docs/36 §4.6), keyed `<slot>/<name>` — found by walking `packages/pieces`,
  * because a piece is shipped with the binary or not at all (decision 268: live, versioned with the binary).
+ * `kits/` is not a slot: a kit is data, and travels whole inside `pieces.json`.
  */
 export const bundledPieceNames = (): string[] =>
-  readdirSync(PIECES, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name !== "src" && d.name !== "node_modules").sort((a, b) => a.name.localeCompare(b.name))
+  readdirSync(PIECES, { withFileTypes: true }).filter((d) => d.isDirectory() && d.name !== "src" && d.name !== "node_modules" && d.name !== "kits").sort((a, b) => a.name.localeCompare(b.name))
     .flatMap((s) => readdirSync(join(PIECES, s.name), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => `${s.name}/${d.name}`).sort());
 /** Text we can inline as a string. */
 const TEXT = [".yaml", ".css", ".json", ".txt", ".md"];

@@ -301,7 +301,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "blocks/ink": {
-    hash: "63b6c89b3dda75e4544f1939a736de2fec3a6774",
+    hash: "f9923459cb985ba8b8fa0606e68a8e70dbe012d8",
     files: {
       "piece.css": _piece_blocks_ink_piece_css,
       "piece.yaml": _piece_blocks_ink_piece_yaml,
@@ -406,7 +406,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "cover/page": {
-    hash: "3b4bbba5655abc4c47281831dc1fba50e994faff",
+    hash: "cc131184aea7848cb8167f1c9d46159f625c33f1",
     files: {
       "piece.css": _piece_cover_page_piece_css,
       "piece.yaml": _piece_cover_page_piece_yaml,
@@ -462,7 +462,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "entries/index": {
-    hash: "20958cb9d85e4edd46248cba74e1f79a06c5d017",
+    hash: "82e0e434311c1726ddfbfc99d2407a793457109c",
     files: {
       "piece.css": _piece_entries_index_piece_css,
       "piece.yaml": _piece_entries_index_piece_yaml,
@@ -568,7 +568,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "footer/index": {
-    hash: "a78e54dd2c21226379eb50a2abdab3d327860b02",
+    hash: "9cc7918e4ba5cadadc3bae329da88cec403ddb98",
     files: {
       "piece.css": _piece_footer_index_piece_css,
       "piece.yaml": _piece_footer_index_piece_yaml,
@@ -605,7 +605,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "home/index": {
-    hash: "46f522d987b24cf2f96d373b113ae92337453fb2",
+    hash: "2ad84e9480288ce681cc0f77493b840e28c4bb5d",
     files: {
       "piece.css": _piece_home_index_piece_css,
       "piece.yaml": _piece_home_index_piece_yaml,
@@ -617,7 +617,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "home/portfolio": {
-    hash: "54bc3fd7515a2f314765f5053f1177773edb5ba9",
+    hash: "203fcfa57ad4dfeab3676aeb2777b7e98e6f6bf4",
     files: {
       "piece.css": _piece_home_portfolio_piece_css,
       "piece.yaml": _piece_home_portfolio_piece_yaml,
@@ -652,7 +652,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "list/grid": {
-    hash: "cdfed8c85638c3ca85d5eba2028b12237e574677",
+    hash: "f8a79cdab32f5a37bc4138dd5009f48d4cec8cd7",
     files: {
       "piece.css": _piece_list_grid_piece_css,
       "piece.yaml": _piece_list_grid_piece_yaml,
@@ -677,7 +677,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "list/ruled": {
-    hash: "90431f9c99fdb3aa8c1c7097001276aef3a10b46",
+    hash: "26793c22b46c8e80e1100bea2f5113fbac4418ad",
     files: {
       "piece.css": _piece_list_ruled_piece_css,
       "piece.yaml": _piece_list_ruled_piece_yaml,
@@ -702,7 +702,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "masthead/centered": {
-    hash: "66d3cf33a222421df5420dfc8ef29886bfd4eceb",
+    hash: "0a6da0a77c409e3d69a15308fb1cb8c7f3a3097a",
     files: {
       "piece.css": _piece_masthead_centered_piece_css,
       "piece.yaml": _piece_masthead_centered_piece_yaml,
@@ -851,7 +851,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "prose/book": {
-    hash: "94fb7132ec66e9567de022268e115ea859841d02",
+    hash: "23ff37347aff20d4b41daf3a5bf36d5ed38edeb8",
     files: {
       "display-heads.css": _piece_prose_book_display_heads_css,
       "piece.css": _piece_prose_book_piece_css,

@@ -1,6 +1,5 @@
 piece: footer/index
 from: drawn
-draft: true
 line: The site as a map — the name with its description beside it, then equal columns across the whole width, each under a heading with a hairline beneath it; Index (the archives and the footer menu), a column per small taxonomy, Elsewhere. The footer note closes it under a hairline. Right for a studio or a product with sections; wrong for a person with one list.
 refs:
   - { url: https://stripe.com/,  took: "headings in the text colour and links muted, so the eye reads the columns before the items" }

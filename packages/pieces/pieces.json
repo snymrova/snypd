@@ -354,7 +354,7 @@
               "took": "the headline in a display face at its regular weight, large, carried by size alone"
             }
           ],
-          "draft": true
+          "draft": false
         }
       },
       "settings": [],
@@ -776,7 +776,7 @@
           "took": "the epigraph — italic, no quotation marks, the source set right under it — and the booktabs table: a heavy rule above, a light one below, space between rows"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "blocks",
       "name": "ink",
       "kb": 4.92,
@@ -1062,7 +1062,7 @@
           "took": "the standfirst: one sentence a size up under the headline, before the body starts"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "cover",
       "name": "page",
       "kb": 1.17,
@@ -1309,7 +1309,7 @@
           "took": "the menu as a strip between two full-width rules, so the page starts under a line, not under a name"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "masthead",
       "name": "centered",
       "kb": 2.33,
@@ -1569,10 +1569,10 @@
           "took": "the grid broken at each turn of the date by a heading across it, so a wall of pictures stays a timeline"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "list",
       "name": "grid",
-      "kb": 2.79,
+      "kb": 2.81,
       "switchKb": {},
       "files": [
         "layout.tsx",
@@ -1669,10 +1669,10 @@
           "took": "the category strip set between two rules"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "list",
       "name": "ruled",
-      "kb": 1.08,
+      "kb": 1.1,
       "switchKb": {},
       "files": [
         "layout.tsx",
@@ -1793,7 +1793,7 @@
           "took": "the right margin as the place for the small matter beside the line"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "entries",
       "name": "index",
       "kb": 1.02,
@@ -2305,7 +2305,7 @@
           "took": "each section's heading ruled beneath, so a column is a list under a label and not a stack of links"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "footer",
       "name": "index",
       "kb": 1.79,
@@ -2515,7 +2515,7 @@
           "took": "the year as a running mark over its entries"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "home",
       "name": "index",
       "kb": 1.42,
@@ -2601,7 +2601,7 @@
           "took": "the caption as a wall label: the title, then the year and one fact, small, under the work"
         }
       ],
-      "draft": true,
+      "draft": false,
       "slot": "home",
       "name": "portfolio",
       "kb": 2.21,
@@ -3290,6 +3290,184 @@
         ],
         "fresh": true
       }
+    }
+  },
+  "kits": {
+    "editorial": {
+      "kit": "editorial",
+      "line": "A reading page — a text serif on paper, notes in the margin, a quiet nameplate, posts read by title.",
+      "extends": "editorial",
+      "pieces": {
+        "column": "three-track",
+        "prose": "book",
+        "code": "quiet",
+        "blocks": "surface",
+        "cover": "quiet",
+        "masthead": "nameplate",
+        "entries": "list",
+        "post-foot": "band",
+        "footer": {
+          "use": "line",
+          "roomy": true
+        },
+        "notes": "sidenotes",
+        "wall": "row",
+        "motion": "glide"
+      },
+      "refs": [],
+      "draft": false
+    },
+    "notebook": {
+      "kit": "notebook",
+      "line": "A writer's notebook — a centred nameplate, the site as a ruled index, pages that open on their first sentence, blocks in ink.",
+      "extends": "editorial",
+      "pieces": {
+        "column": "three-track",
+        "prose": {
+          "use": "book",
+          "display-heads": true
+        },
+        "code": "quiet",
+        "blocks": "ink",
+        "cover": "page",
+        "masthead": "centered",
+        "home": "index",
+        "list": "ruled",
+        "entries": "index",
+        "post-foot": "band",
+        "footer": {
+          "use": "line",
+          "roomy": true
+        },
+        "notes": "sidenotes",
+        "wall": "row",
+        "motion": "still"
+      },
+      "seed": {
+        "accent": "oklch(0.42 0.06 250)",
+        "strategy": "restrained",
+        "scheme": "light"
+      },
+      "face": "instrument-serif",
+      "refs": [
+        {
+          "url": "https://craigmod.com/",
+          "took": "a writer's front page as a list of what they wrote, the headline at a display face's regular weight"
+        },
+        {
+          "url": "https://gwern.net/",
+          "took": "a long-form site in the text colour alone, the index as the front door"
+        }
+      ],
+      "draft": false
+    },
+    "portfolio": {
+      "kit": "portfolio",
+      "line": "A portfolio — the work whole on the front page, archives as walls of covers by year, a centred nameplate, the footer a map.",
+      "extends": "studio",
+      "pieces": {
+        "column": {
+          "use": "three-track",
+          "rhythm": "tight",
+          "fit": true
+        },
+        "prose": "display",
+        "code": {
+          "use": "quiet",
+          "display-heads": true
+        },
+        "blocks": "hairline",
+        "cover": "page",
+        "masthead": "centered",
+        "entries": "cards",
+        "post-foot": "pills",
+        "footer": "index",
+        "home": "portfolio",
+        "list": "grid",
+        "feature": "facts",
+        "notes": "plain",
+        "wall": "marquee",
+        "motion": {
+          "use": "glide",
+          "progress": false,
+          "reveal": true
+        }
+      },
+      "refs": [
+        {
+          "url": "https://www.pentagram.com/",
+          "took": "the work is the front page; the studio's words come after it"
+        },
+        {
+          "url": "https://www.are.na/",
+          "took": "every picture whole inside a frame every work shares"
+        }
+      ],
+      "draft": false
+    },
+    "studio": {
+      "kit": "studio",
+      "line": "A studio's site — full-bleed bands and a showreel, cases as cards and three-band pages, a name set huge at the foot.",
+      "extends": "studio",
+      "pieces": {
+        "column": {
+          "use": "three-track",
+          "rhythm": "tight",
+          "fit": true
+        },
+        "prose": "display",
+        "code": {
+          "use": "quiet",
+          "display-heads": true
+        },
+        "blocks": "hairline",
+        "cover": "display",
+        "masthead": "bar",
+        "entries": "cards",
+        "post-foot": "pills",
+        "footer": "colophon",
+        "home": "bands",
+        "list": "plain",
+        "feature": "facts",
+        "notes": "plain",
+        "wall": "marquee",
+        "motion": {
+          "use": "glide",
+          "progress": false,
+          "reveal": true
+        }
+      },
+      "refs": [],
+      "draft": false
+    },
+    "technical": {
+      "kit": "technical",
+      "line": "Reference docs — a title bar, code and tables as the content, a contents block, posts as ruled rows.",
+      "extends": "technical",
+      "pieces": {
+        "column": {
+          "use": "three-track",
+          "rhythm": "tight",
+          "data": true
+        },
+        "prose": "docs",
+        "code": "first-class",
+        "blocks": "ruled",
+        "cover": "path",
+        "masthead": "title-bar",
+        "entries": "rows",
+        "post-foot": "ruled",
+        "footer": {
+          "use": "line",
+          "quiet-links": true
+        },
+        "notes": "cards",
+        "toc": "block",
+        "wall": "row",
+        "motion": "glide"
+      },
+      "refs": [],
+      "draft": false
     }
   }
 }

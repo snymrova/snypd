@@ -1,0 +1,26 @@
+# A writer's notebook, drawn in W4 (docs/37 §4's example): the front page and every archive as a
+# ruled index, a centred nameplate, pages that open on a standfirst, blocks in the text colour alone, the
+# title in a display serif.
+kit: notebook
+line: A writer's notebook — a centred nameplate, the site as a ruled index, pages that open on their first sentence, blocks in ink.
+extends: editorial
+seed: { accent: "oklch(0.42 0.06 250)", strategy: restrained, scheme: light }
+face: instrument-serif
+pieces:
+  column:    three-track
+  prose:     { use: book, display-heads: true }
+  code:      quiet
+  blocks:    ink
+  cover:     page
+  masthead:  centered
+  home:      index
+  list:      ruled
+  entries:   index
+  post-foot: band
+  footer:    { use: line, roomy: true }
+  notes:     sidenotes
+  wall:      row
+  motion:    still
+refs:
+  - { url: "https://craigmod.com/", took: "a writer's front page as a list of what they wrote, the headline at a display face's regular weight" }
+  - { url: "https://gwern.net/", took: "a long-form site in the text colour alone, the index as the front door" }

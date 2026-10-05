@@ -343,6 +343,36 @@ export const ThemePieceSchema = z.union([
   z.object({ use: pieceName }).catchall(z.union([z.boolean(), pieceName])),
 ]);
 export type ThemePiece = z.infer<typeof ThemePieceSchema>;
+/**
+ * `kit.yaml` — a whole site in one line (docs/37 §4, decision 277): one piece per slot, the theme whose
+ * tokens, face and settings it stands on, and optionally a seed and a shelf face over those. The
+ * combination somebody looked at whole; `theme › compose` starts a theme from it and changes a few slots.
+ */
+export const KitYamlSchema = z.object({
+  /** The directory it lives in, `packages/pieces/kits/<kit>/`. */
+  kit: pieceName,
+  /** One line — what `snypd://theme/kits` prints and an agent picks on. */
+  line: z.string().min(1),
+  /** The bundled theme a composed theme extends: its tokens, its face, its settings, its variations. */
+  extends: pieceName.default("base"),
+  /** Slot → piece, as a theme's `pieces:` writes it. A slot left out is what `extends:` gives it. */
+  pieces: z.record(pieceName, ThemePieceSchema),
+  /** A palette and type scale over `extends:`'s (`theme › seed`): the accent, and the seed's two choices. */
+  seed: z.object({
+    accent: z.string().min(1),
+    strategy: z.enum(["restrained", "balanced", "expressive"]).optional(),
+    scheme: z.enum(["both", "light", "dark"]).optional(),
+  }).strict().optional(),
+  /** A face on the shelf (`@snypd/shelf`, what `theme › seed` takes as `face`), installed with the seed. Needs `seed:`, as `theme › seed` does. */
+  face: pieceName.optional(),
+  /** Where a drawn kit's idea came from, as a piece's `refs:`. */
+  refs: z.array(z.object({ url: z.string().url(), took: z.string().min(1) }).strict()).default([]),
+  /** Unseen (decision 278): may name draft pieces, is left out of `snypd://theme/kits`, and a theme composed from it fails `check theme` until its pieces pass. */
+  draft: z.boolean().default(false),
+}).strict().superRefine((k, ctx) => {
+  if (k.face && !k.seed) ctx.addIssue({ code: "custom", path: ["face"], message: "a face is installed with a seed — give the kit `seed:` too" });
+});
+export type KitYaml = z.infer<typeof KitYamlSchema>;
 
 export const ThemeYamlSchema = z.object({
   theme: z.string().min(1).optional(),

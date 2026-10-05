@@ -1055,21 +1055,23 @@ describe("find_tools + the catalogue", () => {
     expect(switched.result.content[0].text).toContain("base does not declare");
   });
 
-  test("W4: a draft is not on the shelf an agent chooses from; its slot's file names it, marked, with the pages it was drawn from", async () => {
+  test("W4: a piece the sitting passed is on the shelf; its slot's file still names the pages it was drawn from (decision 278)", async () => {
     const [, shelf, home] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://theme/pieces" }), req(3, "resources/read", { uri: "snypd://theme/pieces/home" })], "corpora/theme");
     const index: string = shelf.result.contents[0].text, slot: string = home.result.contents[0].text;
     expect(index).toMatch(/^    bands: /m);
-    expect(index).not.toMatch(/^    index: /m);
+    expect(index).toMatch(/^    index: "The front page is the ruled index"$/m);   // its `pairs column: three-track` is said once, on column's line
+    expect(index).toMatch(/^  column: .* · paired by \d+ · IN USE$/m);
     expect(slot).toMatch(/^  index:\n    line: "The front page is the ruled index/m);
-    expect(slot).toContain("    draft: true   # unseen — on its board, not on the shelf");
+    expect(slot).not.toContain("draft: true");
     expect(slot).toContain("      - { url: https://craigmod.com/essays/, took: ");
   });
 
-  test("W4: a drawn switch is a draft too — left out of the index's switches, marked in its slot's file with its sources", async () => {
+  test("W4: a drawn switch the sitting passed is in the index's switches, and its slot's file keeps its sources", async () => {
     const [, shelf, prose] = await session([req(1, "initialize"), req(2, "resources/read", { uri: "snypd://theme/pieces" }), req(3, "resources/read", { uri: "snypd://theme/pieces/prose" })], "corpora/theme");
     const index: string = shelf.result.contents[0].text, slot: string = prose.result.contents[0].text;
-    expect(index.match(/^    book: .*$/m)![0]).not.toContain("display-heads");   // code/quiet has a switch of the same name, carved and on the shelf
-    expect(slot).toMatch(/^      display-heads: true \| false   # default false — .* — DRAFT: unseen/m);
+    expect(index.match(/^    book: .*$/m)![0]).toContain("display-heads");
+    expect(index).toMatch(/^    hairline: "…with no boxes"$/m);   // the slot's own words, once
+    expect(slot).toMatch(/^      display-heads: true \| false   # default false — .*space above it\.$/m);
     expect(slot).toContain("        # drawn from https://practicaltypography.com/headings.html — ");
   });
 
@@ -1101,6 +1103,42 @@ describe("find_tools + the catalogue", () => {
     const n = countTokens(text);
     console.log(`snypd://theme/pieces: ${n} tokens`);
     expect(n).toBeLessThanOrEqual(1200);
+  });
+
+  test("W5: snypd://theme/kits is where a theme starts — each kit a line, what it stands on, its pieces in one line or what it changes; under 700 tokens", async () => {
+    const [, list, kits] = await session([req(1, "initialize"), req(2, "resources/list"), req(3, "resources/read", { uri: "snypd://theme/kits" })], "corpora/theme");
+    expect(list.result.resources.map((r: any) => r.uri)).toContain("snypd://theme/kits");
+    const text: string = kits.result.contents[0].text;
+    expect(text).toMatch(/^  editorial:\n    line: "A reading page/m);
+    expect(text).toContain("    on: technical\n");
+    expect(text).toContain("column: three-track+rhythm=tight+data, prose: docs");
+    expect(text).toMatch(/^  notebook:\n/m);
+    expect(text).toContain("    on: editorial   # seed oklch(0.42 0.06 250) restrained light, face instrument-serif\n");
+    expect(text).toContain("    pieces: { ...studio, cover: page, masthead: centered, footer: index, home: portfolio, list: grid }");
+    expect(text).not.toContain("# drafts");
+    const { countTokens } = await import("../../bench/src/tokens");
+    const n = countTokens(text);
+    console.log(`snypd://theme/kits: ${n} tokens`);
+    expect(n).toBeLessThanOrEqual(700);
+  });
+
+  test("W5: `theme` › compose writes a theme from a kit with a slot changed, says what it stands on, and refuses a wrong slot with the slot's pieces", async () => {
+    const bare = "corpora/_test/mcp-w5-compose";
+    rmSync(bare, { recursive: true, force: true }); mkdirSync(bare, { recursive: true });
+    writeFileSync(`${bare}/snypd.yaml`, "snypd: 1\nsite: { name: t, url: https://t.example }\ntheme: { use: editorial }\n");
+    const [, ok, bad, drafty] = await session([req(1, "initialize"),
+      call(2, "theme", { action: "compose", name: "mine", kit: "technical", change: { home: "split" } }),
+      call(3, "theme", { action: "compose", name: "nope", kit: "technical", change: { home: "nope" } }),
+      call(4, "theme", { action: "compose", name: "nb", kit: "notebook" })], bare);
+    expect(structured(ok)).toMatchObject({ ok: true, theme: "mine", kit: "technical", extends: "technical", changed: ["home"], drafts: [] });
+    expect(ok.result.content[0].text).toContain("composed themes/mine/ from kit technical, extending technical — changed home");
+    expect(ok.result.content[0].text).toContain('`theme` › look { name: "mine" }');
+    expect(bad.result.isError).toBe(true);
+    expect(bad.result.content[0].text).toContain('no piece "home/nope"');
+    expect(bad.result.content[0].text).toContain("home has bands, index, portfolio, split");
+    expect(structured(drafty)).toMatchObject({ ok: true, face: "instrument-serif", drafts: [] });
+    expect(drafty.result.content[0].text).not.toContain("drafts:");
+    expect(existsSync(`${bare}/themes/nb/fonts/instrument-serif.woff2`)).toBe(true);
   });
 
   test("W3: coverage names the site's own types and what draws each — a case through `feature/facts`, its archive through `list/plain`", async () => {

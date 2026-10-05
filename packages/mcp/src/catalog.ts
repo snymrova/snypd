@@ -45,18 +45,20 @@ export const CATALOG: Tool[] = [
   { name: "theme",
     description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, scaffold a new one, or seed a scaffold's palette and type scale from one colour. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), snypd://theme/coverage for which primitives the active theme actually implements, and snypd://theme/pieces for the pieces a theme can be assembled from (`pieces:` in theme.yaml). `look` is how you see what you changed: one route, one width, one scheme, cropped to one slot, with what is wrong listed first and boxed on the picture — call it after every change to a theme, not only at the end.",
     inputSchema: S({
-      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale · `look` at the site as it renders now, or with `name` as a theme that is not live would render it — facts as text, one cropped picture, the full page as a link; `view: outline` for landmarks and headings as text, no picture", { enum: ["set", "set_tokens", "set_settings", "scaffold", "seed", "look"] }),
-      name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`: the name of the new theme (also its directory under themes/). `seed`: the scaffolded theme to fill. `look`: a theme to see instead of the live one — built on its own, nothing is switched"),
+      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `compose` a new theme from a kit (snypd://theme/kits) with a few slots changed — the fastest start · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale · `look` at the site as it renders now, or with `name` as a theme that is not live would render it — facts as text, one cropped picture, the full page as a link; `view: outline` for landmarks and headings as text, no picture", { enum: ["set", "set_tokens", "set_settings", "compose", "scaffold", "seed", "look"] }),
+      name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`/`compose`: the name of the new theme (also its directory under themes/). `seed`: the scaffolded theme to fill. `look`: a theme to see instead of the live one — built on its own, nothing is switched"),
       variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call. `look`: see that look, with or without `name`"),
       tokens: { type: "object", description: "`set_tokens`: token name → value, e.g. {\"color.accent\": \"#8a3324\"}. A token set to null goes back to the theme's default. Only tokens declared `customisable` can be set — snypd://theme/tokens lists them" },
       settings: { type: "object", description: "`set_settings`: setting id → value, e.g. {\"showDates\": false, \"tagline\": \"Notes on building\"}. A setting set to null goes back to the theme's default. Each is checked against the type the theme declared — snypd://theme/settings lists them with their types and what they mean" },
+      kit: str("`compose`: the kit to start from — snypd://theme/kits, e.g. `editorial`"),
+      change: { type: "object", description: "`compose`: slot → piece over the kit's, e.g. {\"home\": \"split\"} or {\"prose\": {\"use\": \"book\", \"display-heads\": true}}. snypd://theme/pieces/<slot> lists a slot's pieces" },
       extends: str("`scaffold`: the theme the new one inherits every layout, primitive and token from. Default `base`"),
-      seed: str("`seed`: the colour whose hue and chroma become the accent, e.g. `oklch(0.55 0.13 252)` or `#1f5fbf`"),
+      seed: str("`seed` (and `compose`, over the kit's): the colour whose hue and chroma become the accent, e.g. `oklch(0.55 0.13 252)` or `#1f5fbf`"),
       strategy: str("`seed`: how far colour reaches beyond the accent. Default `balanced`", { enum: ["restrained", "balanced", "expressive"] }),
       scheme: str("`seed`: which modes to design. Default `both`, as light-dark() pairs. `look`: `light` (default) or `dark`", { enum: ["both", "light", "dark"] }),
       ratio: str("`seed`: type-scale ratio at phone:desktop width, e.g. `1.2:1.25`"),
       base: str("`seed`: body size in px at phone:desktop width, e.g. `17:19`"),
-      face: str("`seed`: one web font from the shelf, copied into the theme with its italic, extra weights and licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
+      face: str("`seed` (and `compose`, needing a seed): one web font from the shelf, copied into the theme with its italic, extra weights and licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
       route: str("`look`: the page, e.g. `/` (default) or `/posts/long-read/`"),
       slot: str("`look`: crop to one slot — `masthead`, `cover`, `prose`, `code`, `blocks`, `entries`, `post-foot`, `footer`, `home`, `notes`, `toc`, `wall`, `column`; none for the first screen. snypd://theme/pieces lists the slots"),
       selector: str("`look`: crop to a CSS selector instead of a slot, e.g. `.snypd-stat-row`"),
@@ -354,6 +356,32 @@ export async function call(root: string, name: string, args: Record<string, unkn
             `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,
           ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens, pieces: r.pieces });
         }
+        if (action === "compose") {
+          // W5 (docs/37 §6 step 3): scaffold, the kit's pieces, its seed and face, and DESIGN.md's `## Kit`, as
+          // one call; core rolls the theme back if it does not load. The shelf is imported only for a face.
+          let r;
+          try {
+            const shelf = await import("@snypd/shelf");
+            const install = (id: string, dir: string) => {
+              if (!shelf.shelfFace(id)) throw Object.assign(new Error(`no face "${id}" on the shelf`), { hint: `One of: ${shelf.loadShelf().faces.map((f) => f.id).join(", ")}.` });
+              const got = shelf.installFace(id, dir);
+              return { id: got.face.id, font: got.font, stack: got.stack, role: got.face.role, pairsWith: got.face.pairsWith };
+            };
+            const change = args.change && typeof args.change === "object" && !Array.isArray(args.change) ? args.change as Record<string, unknown> : undefined;
+            r = c.composeTheme(root, { name: need(args, "name"), kit: need(args, "kit"), change, seed: typeof args.seed === "string" ? args.seed : undefined,
+              strategy: args.strategy as never, scheme: args.scheme === "both" || args.scheme === "light" || args.scheme === "dark" ? args.scheme : undefined, face: typeof args.face === "string" ? args.face : undefined }, install);
+          } catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
+          const git = await commit(r.files, `theme: compose ${r.name} from kit ${r.kit}${r.changed.length ? ` (${r.changed.join(", ")})` : ""}`);
+          return text([
+            `composed ${r.dir}/ from kit ${r.kit}, extending ${r.extends}${r.changed.length ? ` — changed ${r.changed.join(", ")}` : ""}`,
+            `  pieces: ${Object.entries(r.pieces).map(([k, v]) => `${k}: ${typeof v === "string" ? v : v.use}`).join(" · ")}`,
+            ...(r.seed ? [`  seeded from ${r.seed.input.seed} (${r.seed.input.strategy}, ${r.seed.input.scheme})${r.face ? `, face ${r.face}` : ""}`] : []),
+            ...(r.drafts.length ? [`  drafts: ${r.drafts.join(", ")} — unseen; \`check theme\` fails this theme until a sitting passes them`] : []),
+            ...r.warnings.map((w) => `  ⚠ ${w}`),
+            git,
+            `\`theme\` › look { name: "${r.name}" } shows it without switching; \`theme\` › set ${r.name} makes it live.`,
+          ].join("\n"), { ok: true, theme: r.name, kit: r.kit, extends: r.extends, dir: r.dir, files: r.files, pieces: r.pieces, changed: r.changed, drafts: r.drafts, warnings: r.warnings, face: r.face });
+        }
         if (action === "seed") {
           // TF3 (docs/29 §4): the same `expandSeed` + `writeSeed` as `snypd seed`; this door adds the commit.
           const name = need(args, "name");
@@ -381,7 +409,7 @@ export async function call(root: string, name: string, args: Record<string, unkn
           ].join("\n"), { ok: true, theme: name, files, tokens: Object.fromEntries(Object.entries(r.tokens).map(([k, v]) => [k, v.default])), notes: r.report.notes, steps: r.report.steps });
         }
         if (action === "look") return await lookAt(root, args, cfgOf, ctx);
-        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold, seed, look.");
+        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, compose, scaffold, seed, look.");
       }
 
       case "site": {

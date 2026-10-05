@@ -1,6 +1,5 @@
 piece: home/portfolio
 from: drawn
-draft: true
 line: The front page is the work — a line of intro, then a grid of the listed type's covers, each whole inside a frame they share and standing on one line over a wall label; the page's `##` sections follow as an afterword.
 refs:
   - { url: https://www.pentagram.com/,   took: "the work is the front page; the studio's own words come after it" }

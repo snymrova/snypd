@@ -1,0 +1,25 @@
+# A studio whose front page is the work, drawn in W4: the covers whole on the front page, every
+# archive a cropped wall broken by year, a centred nameplate, the footer as a map of the site. Stands on
+# studio's tokens and its case pages.
+kit: portfolio
+line: A portfolio — the work whole on the front page, archives as walls of covers by year, a centred nameplate, the footer a map.
+extends: studio
+pieces:
+  column:    { use: three-track, rhythm: tight, fit: true }
+  prose:     display
+  code:      { use: quiet, display-heads: true }
+  blocks:    hairline
+  cover:     page
+  masthead:  centered
+  entries:   cards
+  post-foot: pills
+  footer:    index
+  home:      portfolio
+  list:      grid
+  feature:   facts
+  notes:     plain
+  wall:      marquee
+  motion:    { use: glide, progress: false, reveal: true }
+refs:
+  - { url: "https://www.pentagram.com/", took: "the work is the front page; the studio's words come after it" }
+  - { url: "https://www.are.na/", took: "every picture whole inside a frame every work shares" }

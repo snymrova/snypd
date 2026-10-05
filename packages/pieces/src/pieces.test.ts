@@ -8,9 +8,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, pieceTokens, type ResolvedPiece } from "@snypd/core";
+import { loadConfig, parseYaml, pieceTokens, type ResolvedPiece } from "@snypd/core";
 import { build, loadTheme } from "@snypd/render";
-import { generate, render, stillRoute } from "./gen";
+import { generate, readKits, render, stillRoute } from "./gen";
 import { loadPieces } from "./index";
 
 const REPO = join(import.meta.dir, "..", "..", "..");
@@ -68,7 +68,7 @@ describe("the manifest", () => {
     // its switches.
     for (const p of Object.values(m.pieces)) { expect(p.from.length).toBeGreaterThan(0); expect(p.kb + Object.values(p.switchKb).reduce((a, b) => a + b, 0), p.piece).toBeGreaterThan(0); }
   });
-  test("W4: a drawn piece names the pages its ideas came from, and is a draft until a sitting passes it (decision 278)", () => {
+  test("W4: a drawn piece names the pages its ideas came from; the sitting passed all ten, so none is a draft (decision 278)", () => {
     const m = loadPieces();
     const drawn = Object.values(m.pieces).filter((p) => p.from === "drawn");
     expect(drawn.map((p) => p.piece)).toContain("home/index");
@@ -76,7 +76,8 @@ describe("the manifest", () => {
       expect(p.refs.length).toBeGreaterThanOrEqual(2);
       for (const r of p.refs) { expect(r.url).toMatch(/^https:\/\//); expect(r.took).not.toMatch(/^(beautiful|clean|modern|minimal)\b/i); }   // an idea, not an adjective
     }
-    for (const p of Object.values(m.pieces).filter((p) => p.from !== "drawn")) expect(p.draft).toBe(false);
+    for (const p of Object.values(m.pieces)) expect(p.draft, p.piece).toBe(false);
+    expect(m.pieces["prose/book"]!.switches["display-heads"]!.draft).toBe(false);
   });
 
   test("W2: every piece has its two stills, and they picture the piece as it is now", () => {
@@ -201,5 +202,42 @@ describe("check theme: the expanded sheet", () => {
     expect(row("coverage.parts").detail).toContain("toc from toc/block");
     expect(row("css.enhancement-guarded").detail).toContain("2 from its pieces");
     expect((await checkTheme(root, "plain")).rules.find((x) => x.rule === "pieces.used")!.status).toBe("skip");
+  });
+});
+
+describe("kits (W5, docs/37 §4)", () => {
+  const m = loadPieces();
+  // The sitting passed every drawn piece; the kit checks run on a shelf where two are drafts again.
+  const shelf = structuredClone(m.pieces);
+  shelf["home/index"]!.draft = true;
+  shelf["prose/book"]!.switches["display-heads"]!.draft = true;
+  const check = (yaml: string) => {
+    const dir = join(REPO, "corpora/_test/kits-gen"), errors: string[] = [];
+    rmSync(dir, { recursive: true, force: true }); mkdirSync(join(dir, "k"), { recursive: true });
+    writeFileSync(join(dir, "k/kit.yaml"), yaml);
+    const kits = readKits(shelf, new Set(m.slots.map((s) => s.slot)), errors, dir);
+    rmSync(dir, { recursive: true, force: true });
+    return { kits, errors };
+  };
+  test("the three themes on pieces are kits, standing on themselves with their own pieces; the drawn kits stand on passed pieces", () => {
+    const k = m.kits;
+    for (const t of ["editorial", "technical", "studio"]) {
+      expect(k[t]).toMatchObject({ kit: t, extends: t, draft: false });
+      const own = parseYaml(readFileSync(join(REPO, "themes", t, "theme.yaml"), "utf8"), "theme.yaml").value as { pieces: unknown };
+      expect(k[t]!.pieces).toEqual(own.pieces as never);
+    }
+    expect(k.notebook).toMatchObject({ extends: "editorial", draft: false, face: "instrument-serif" });
+    expect(k.portfolio).toMatchObject({ extends: "studio", draft: false });
+  });
+  test("a kit is checked against the shelf as a theme's pieces are, and three ways of its own", () => {
+    expect(check("kit: k\nline: x\npieces: { home: index }\n").errors).toEqual(["kits/k/kit.yaml: home/index is a draft — a kit that is not a draft names only pieces a sitting has passed"]);
+    expect(check("kit: k\nline: x\ndraft: true\npieces: { home: index }\n").errors).toEqual([]);
+    expect(check("kit: k\nline: x\npieces: { prose: { use: book, display-heads: true } }\n").errors).toEqual(["kits/k/kit.yaml: prose/book › display-heads is a draft switch — a kit that is not a draft leaves it off"]);
+    expect(check("kit: k\nline: x\npieces: { nope: a, home: nope, footer: { use: line, roomy: maybe } }\n").errors).toEqual([
+      'kits/k/kit.yaml: no slot "nope"', 'kits/k/kit.yaml: no piece "home/nope"', 'kits/k/kit.yaml: footer/line › roomy: true or false, got "maybe"']);
+    expect(check("kit: other\nline: x\nextends: nope\nseed: { accent: \"#888888\" }\nface: comic-sans\npieces: {}\n").errors).toEqual([
+      "kits/k/kit.yaml: `kit: other` but it lives in kits/k", "kits/k/kit.yaml: extends nope, which is not a bundled theme",
+      "kits/k/kit.yaml: face comic-sans is not on the shelf", expect.stringContaining("kits/k/kit.yaml: seed: the seed \"#888888\" has no hue")]);
+    expect(check("kit: k\nline: x\nface: lora\npieces: {}\n").errors[0]).toContain("face a face is installed with a seed");
   });
 });

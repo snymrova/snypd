@@ -186,7 +186,13 @@ export function handlers(root: string): Handlers {
       const lines: string[] = [];
       const empty: string[] = [];
       const gist = (v: (typeof m.pieces)[string]) => JSON.stringify(v.line.split(" — ")[0]!.replace(/[.;:,]$/, ""));
-      const meta = (v: (typeof m.pieces)[string]) => [...(sw(v).length ? [sw(v).join(", ")] : []), ...(pairs(v).length ? [`pairs ${pairs(v).join(", ")}`] : []), ...(on.has(v.piece) ? ["IN USE"] : [])];
+      // A pair with a slot that has one piece on the shelf is no choice (`column: three-track`, on most drawn
+      // pieces): it is said once, on that slot's line, and loading a theme still warns of an unlooked-at pair.
+      const shelf = Object.values(m.pieces).filter((p) => !p.draft);
+      const only = new Map(m.slots.map((s) => [s.slot, shelf.filter((p) => p.slot === s.slot)] as const).filter(([, vs]) => vs.length === 1).map(([k, vs]) => [k, vs[0]!.name]));
+      const chosen = (v: (typeof m.pieces)[string]) => Object.entries(v.pairs).filter(([k, w]) => only.get(k) !== w).map(([k, w]) => `${k}: ${Array.isArray(w) ? w.join("|") : w}`);
+      const pairedBy = (v: (typeof m.pieces)[string]) => only.get(v.slot) === v.name ? shelf.filter((p) => p.pairs[v.slot] === v.name).length : 0;
+      const meta = (v: (typeof m.pieces)[string]) => [...(sw(v).length ? [sw(v).join(", ")] : []), ...(chosen(v).length ? [`pairs ${chosen(v).join(", ")}`] : []), ...(pairedBy(v) ? [`paired by ${pairedBy(v)}`] : []), ...(on.has(v.piece) ? ["IN USE"] : [])];
       for (const s of m.slots) {
         if (s.always) continue;
         // A draft is not on the shelf an agent chooses from (decision 278); its slot's file still names it.
@@ -198,21 +204,52 @@ export function handlers(root: string): Handlers {
           continue;
         }
         lines.push(`  ${s.slot}:   # ${s.line}`);
-        for (const v of vs) lines.push(`    ${v.name}: ${gist(v)}${meta(v).length ? `   # ${meta(v).join(" · ")}` : ""}`);
+        // A gist that opens with its slot's own words (*The fourteen primitives*, *The end of a post*) drops them.
+        const head = s.line.split(/:| — /)[0]!;
+        const short = (v: (typeof m.pieces)[string]) => { const g = gist(v); return g.startsWith(`"${head} `) ? `"…${g.slice(head.length + 2)}` : g; };
+        for (const v of vs) lines.push(`    ${v.name}: ${short(v)}${meta(v).length ? `   # ${meta(v).join(" · ")}` : ""}`);
       }
       const use = cfg.config.theme.use;
-      return [YAML, `# The shelf: the slots a theme is assembled from and the pieces that fill them (docs/36), one gist\n` +
-        `# each — snypd://theme/pieces/<slot> is the whole of every piece in a slot: its line, switches, settings.\n` +
-        `# Name one per slot in theme.yaml: \`pieces: { toc: block }\`, or \`{ use: <name>, <switch>: <value> }\`; a\n` +
-        `# switch listed bare is true|false. A piece reads the contract tokens and styles base's classes, so it\n` +
-        `# sits on any theme; a theme's own theme.css still wins over every piece (\`@layer snypd.pieces\` is\n` +
-        `# beneath \`snypd.theme\`). \`house\` — the rules every sheet shares — is under every theme on pieces.\n` +
-        `# To see a slot's pieces before choosing: \`theme\` › look { board: "<slot>" } (this site's pages, one picture).\n` +
+      return [YAML, `# The shelf (docs/36): each slot and the pieces that fill it, one gist each; snypd://theme/pieces/<slot>\n` +
+        `# is a slot whole. Name one per slot in theme.yaml: \`pieces: { toc: block }\`, or \`{ use: <name>, <switch>:\n` +
+        `# <value> }\`; a bare switch is true|false. A piece sits on any theme, and the theme's own theme.css wins\n` +
+        `# over it (\`@layer snypd.pieces\` is beneath \`snypd.theme\`). \`house\` — the rules every sheet shares — is under every theme on pieces.\n` +
+        `# Before choosing, \`theme\` › look { board: "<slot>" } draws a slot's pieces on this site's pages.\n` +
         (cfg.pieces.length ? "" : `# \`${use}\` is on no pieces — its sheet is all its own.\n`) +
         `slots:\n${lines.join("\n")}\n` +
         (empty.length ? `# nothing on the shelf yet for: ${empty.join(", ")}\n` : "")];
     }
-    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /variations, /settings, /coverage, /pieces, /pieces/<slot>)`);
+    /**
+     * The kits (docs/37 §4, §6 step 1): whole sites somebody looked at, one piece per slot and what they
+     * stand on — where an agent starts, so it decides the one to three slots it changes and not fifteen.
+     * A kit's pieces are one line, in slot order, a switch as `name+switch`; a kit over another kit's theme is
+     * written as what it changes. Drafts are named and not
+     * listed, as the shelf index does with a draft piece (decision 278). Gated at 700 tokens.
+     */
+    if (part === "kits") {
+      const { loadKits } = await import("../../pieces/src/index");
+      const kits = Object.values(loadKits());
+      const one = (p: string | Record<string, unknown>) => typeof p === "string" ? p : [p.use, ...Object.entries(p).filter(([k]) => k !== "use").map(([k, v]) => v === true ? k : `${k}=${v}`)].join("+");
+      const seen = kits.filter((k) => !k.draft), drafts = kits.filter((k) => k.draft);
+      // A kit over another listed kit's theme is that kit's pieces with a few slots changed, and is written
+      // so (`...studio, home: portfolio`): what it changes is what it is. One that drops a slot is written whole.
+      const own = (k: (typeof kits)[number]) => {
+        const all = Object.entries(k.pieces).map(([s, p]) => [s, one(p as never)] as const);
+        const base = seen.find((b) => b.kit === k.extends && b.kit !== k.kit);
+        if (!base || Object.keys(base.pieces).some((s) => !(s in k.pieces))) return all.map(([s, p]) => `${s}: ${p}`).join(", ");
+        const was = new Map(Object.entries(base.pieces).map(([s, p]) => [s, one(p as never)]));
+        return [`...${base.kit}`, ...all.filter(([s, p]) => was.get(s) !== p).map(([s, p]) => `${s}: ${p}`)].join(", ");
+      };
+      return [YAML, `# Kits: whole sites, each a piece per slot over a theme's tokens, looked at whole (docs/37 §4).\n` +
+        `# Start from the nearest: \`theme\` › compose { name, kit, change: { <slot>: <piece> } } writes a theme that\n` +
+        `# is the kit with those slots swapped, and \`seed\`/\`face\` retune it. snypd://theme/pieces/<slot> for a slot's other pieces.\n` +
+        `# \`...studio\` is studio's pieces, then the slots this kit changes.\n` +
+        `kits:\n${seen.map((k) => [`  ${k.kit}:`, `    line: ${JSON.stringify(k.line)}`,
+          `    on: ${k.extends}${k.seed ? `   # seed ${k.seed.accent}${k.seed.strategy ? ` ${k.seed.strategy}` : ""}${k.seed.scheme ? ` ${k.seed.scheme}` : ""}` : ""}${k.face ? `, face ${k.face}` : ""}`,
+          `    pieces: { ${own(k)} }`].join("\n")).join("\n") || "  {}"}\n` +
+        (drafts.length ? `# drafts, unseen until a sitting passes their pieces: ${drafts.map((k) => k.kit).join(", ")} — compose one to see it; \`check theme\` fails it\n` : "")];
+    }
+    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /variations, /settings, /coverage, /pieces, /pieces/<slot>, /kits)`);
     return [YAML, c.renderThemeSummary(root, cfg)];
   };
   return {
@@ -229,6 +266,7 @@ export function handlers(root: string): Handlers {
         ...(c.settingDecls.length ? [{ uri: "snypd://theme/settings", name: "theme/settings", mimeType: YAML, description: "What this theme lets the site choose without writing CSS — each setting's type, what it means, and what it is set to now; `theme` › set_settings writes one" }] : []),
         ...(c.variations.length ? [{ uri: "snypd://theme/variations", name: "theme/variations", mimeType: YAML, description: "The complete named looks this theme ships — what each one is and which tokens it moves; `theme` › set with `variation` switches in one word" }] : []),
         { uri: "snypd://theme/pieces", name: "theme/pieces", mimeType: YAML, description: "The shelf: every slot a theme is assembled from (masthead, prose, entries…) and the pieces that fill each, one line apiece — what `pieces:` in theme.yaml can name" },
+        { uri: "snypd://theme/kits", name: "theme/kits", mimeType: YAML, description: "Kits: whole sites, one piece per slot over a theme's tokens, each looked at whole — where to start a theme; `theme` › compose takes one and changes a few slots" },
         { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 14 primitives and 5 parts (shell, header, footer, entries, toc) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
         { uri: "snypd://themes", name: "themes", mimeType: YAML, description: "Every theme this site can switch to — installed and bundled — with what each reads as and the looks it ships; `theme` › set takes any of them" },
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },

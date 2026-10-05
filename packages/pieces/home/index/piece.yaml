@@ -1,6 +1,5 @@
 piece: home/index
 from: drawn
-draft: true
 line: The front page is the ruled index — a line of intro, then every entry newest first in groups by year, the year set in the margin; the page's `##` sections follow as an afterword.
 refs:
   - { url: https://craigmod.com/essays/, took: "the archive is the front page; a sentence above it and nothing else" }

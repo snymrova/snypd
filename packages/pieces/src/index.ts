@@ -50,7 +50,20 @@ export interface BoardDecl {
 }
 /** What `snypd pieces stills` wrote down about one piece's stills (`stills.json`). */
 export interface StillRecord { inputs: string; route: string; sizes: Record<string, [number, number]> }
-export interface PieceManifest { $comment: string; slots: SlotEntry[]; board: BoardDecl; pieces: Record<string, PieceEntry> }
+/**
+ * A kit (docs/37 §4, decision 277): one piece per slot, the bundled theme it stands on, and optionally a
+ * seed and a shelf face — a whole site somebody looked at, which `theme › compose` starts a theme from.
+ */
+export interface KitEntry {
+  kit: string; line: string; extends: string;
+  /** Slot → piece, as a theme's `pieces:` writes it. */
+  pieces: Record<string, string | ({ use: string } & Record<string, boolean | string>)>;
+  seed?: { accent: string; strategy?: "restrained" | "balanced" | "expressive"; scheme?: "both" | "light" | "dark" };
+  face?: string;
+  refs: { url: string; took: string }[];
+  draft: boolean;
+}
+export interface PieceManifest { $comment: string; slots: SlotEntry[]; board: BoardDecl; pieces: Record<string, PieceEntry>; kits: Record<string, KitEntry> }
 
 /** The two stills a piece carries: the slot at 1280 shown at half size in 640×400, at 390 in 195×422. */
 export const STILL_FILES = ["still-1280.webp", "still-390.webp"] as const;
@@ -60,5 +73,6 @@ export const STILL_FRAMES: Record<(typeof STILL_FILES)[number], { width: number;
 };
 
 export const loadPieces = (): PieceManifest => manifest as PieceManifest;
+export const loadKits = (): Record<string, KitEntry> => loadPieces().kits ?? {};
 /** The canonical slot order (docs/36 §4.2): the order of the `snypd.pieces.<slot>` sublayers. */
 export const slotOrder = (): string[] => loadPieces().slots.map((s) => s.slot);

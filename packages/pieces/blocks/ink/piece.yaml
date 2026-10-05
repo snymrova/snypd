@@ -1,6 +1,5 @@
 piece: blocks/ink
 from: drawn
-draft: true
 line: The fourteen primitives in the text colour alone — no tint, no accent. A callout says how much it matters by how much ink it takes (a grey rule for a tip, a black one for a note, a heavy one for a warning, a danger set in reverse); a summary, a row of figures and a call to action sit between a heavy rule and a light one, as a book sets a table; a pull quote is an epigraph. Right for a writer, a reference or a notebook; wrong for a brand that needs its colour on the page.
 refs:
   - { url: https://gwern.net/lorem-block, took: "admonitions in greyscale, heavier as they grow more serious, the most serious one reversed out of black" }

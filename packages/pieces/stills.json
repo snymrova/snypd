@@ -16,7 +16,7 @@
       }
     },
     "blocks/ink": {
-      "inputs": "ef999b2db1e23d7a",
+      "inputs": "ffe0c09455cf883e",
       "route": "/posts/every-primitive-once/",
       "sizes": {
         "still-1280.webp": [
@@ -142,7 +142,7 @@
       }
     },
     "cover/page": {
-      "inputs": "b22d05afb82d2f81",
+      "inputs": "c47702bd7a455a38",
       "route": "/posts/every-primitive-once/",
       "sizes": {
         "still-1280.webp": [
@@ -212,7 +212,7 @@
       }
     },
     "entries/index": {
-      "inputs": "b70b175015f5b6ee",
+      "inputs": "d8dc8e8617cfced4",
       "route": "/posts/",
       "sizes": {
         "still-1280.webp": [
@@ -338,7 +338,7 @@
       }
     },
     "footer/index": {
-      "inputs": "de9f5b62e923b72a",
+      "inputs": "3f3a76fda69654e6",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -380,7 +380,7 @@
       }
     },
     "home/index": {
-      "inputs": "38fd0e1e6accc1d1",
+      "inputs": "34c1fc8928c4fb16",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -394,7 +394,7 @@
       }
     },
     "home/portfolio": {
-      "inputs": "fa8ed7e5c5fbbdf9",
+      "inputs": "30e9618735ccd5f4",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -436,7 +436,7 @@
       }
     },
     "list/grid": {
-      "inputs": "52483f9c626be5c4",
+      "inputs": "575002385ee3791e",
       "route": "/posts/",
       "sizes": {
         "still-1280.webp": [
@@ -464,7 +464,7 @@
       }
     },
     "list/ruled": {
-      "inputs": "ba8b5b793f65a04e",
+      "inputs": "737b0c872a922197",
       "route": "/changelog/",
       "sizes": {
         "still-1280.webp": [
@@ -492,7 +492,7 @@
       }
     },
     "masthead/centered": {
-      "inputs": "45bbb0e000bfc9b8",
+      "inputs": "6fba559bcd8ce1bd",
       "route": "/",
       "sizes": {
         "still-1280.webp": [
@@ -674,7 +674,7 @@
       }
     },
     "prose/book": {
-      "inputs": "2acb33b599d980ff",
+      "inputs": "1c3f46ccf0a68b4b",
       "route": "/posts/long-read/",
       "sizes": {
         "still-1280.webp": [

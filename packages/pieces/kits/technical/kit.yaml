@@ -1,0 +1,18 @@
+# technical as a kit: the theme's own `pieces:` on its own tokens. Composing it unchanged gives technical back.
+kit: technical
+line: Reference docs — a title bar, code and tables as the content, a contents block, posts as ruled rows.
+extends: technical
+pieces:
+  column:    { use: three-track, rhythm: tight, data: true }
+  prose:     docs
+  code:      first-class
+  blocks:    ruled
+  cover:     path
+  masthead:  title-bar
+  entries:   rows
+  post-foot: ruled
+  footer:    { use: line, quiet-links: true }
+  notes:     cards
+  toc:       block
+  wall:      row
+  motion:    glide
