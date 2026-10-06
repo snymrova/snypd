@@ -1,0 +1,15 @@
+/* motion/glide — carved from technical, editorial and studio, which differ only in the duration (240, 280
+   and 280 ms, now `motion.duration`) and in what else moves (the two switches).
+
+   Cross-document view transitions (docs/11 §5.3): one declaration, zero JavaScript, and a browser without
+   it navigates exactly as before. `@view-transition` is decided by order in the sheet, not by layer, so
+   the `none` for a reader who asked for no motion sits right after the `auto` it undoes. */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
+
+/* The shared title on the list and on the post (docs/14 §4.4), timed as a group. No crossfade between
+   pages (S36): the page swaps at once, and only the title glides into place. */
+::view-transition-group(.snypd-title) { animation-duration: var(--motion-duration); animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }

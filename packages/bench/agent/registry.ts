@@ -120,7 +120,7 @@ export const scriptedRegistry: RegistryDriver = {
     await s.call("content.update", { type: "work", slug: CASE.slug, patch: { client: CASE.client, service: [...CASE.service], industry: CASE.industry } });
     // 5 · the table is a chart; the source is the one fact the prose could not carry.
     const seen = await s.call("content.suggest_blocks", { type: "work", slug: CASE.slug });
-    const text = seen.content.map((c) => c.text).join("\n");
+    const text = seen.content.map((c) => ("text" in c ? c.text : "")).join("\n");
     const id = firstId(text);
     const fill: Record<string, Record<string, string>> = {};
     if (/needs source/.test(text)) fill[id] = { source: CASE.source };
@@ -129,7 +129,7 @@ export const scriptedRegistry: RegistryDriver = {
     // 6 · the refusal, and 7 · doing what it said.
     await s.call("content.publish", { type: "work", slug: CASE.slug });
     const prev = await s.call("content.render_preview", { type: "work", slug: CASE.slug });
-    const url = urlIn(prev.content.map((c) => c.text).join("\n"));
+    const url = urlIn(prev.content.map((c) => ("text" in c ? c.text : "")).join("\n"));
     if (!url) throw new Error("render_preview returned no URL to approve on");
     await ctx.approve(new URL(url).origin, "work", CASE.slug);
     await s.call("content.publish", { type: "work", slug: CASE.slug });

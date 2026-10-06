@@ -1,0 +1,4 @@
+piece: post-foot/line
+from: folio
+line: One small line under a rule — the terms as muted outline pills, the Markdown twin with a down arrow, both brightening to the text colour on hover.
+reads: [size.small, space.2, space.3, space.4, space.5, color.border, color.muted, color.text]

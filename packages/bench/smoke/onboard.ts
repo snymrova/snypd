@@ -105,6 +105,8 @@ export interface OnboardWalk {
   url: string;
   /** How many uploads the first `site` › deploy took: two, when the URL had to be learned and the site rebuilt against it. */
   deploys: number;
+  /** D1: the deploy went to a temporary account — the link the person is handed, which keeps the site past the hour. Optional to follow, so not an action. */
+  claimUrl?: string;
   reviewUrl: string;
   /** F4: the same answers, after `.snypd/` is deleted underneath a running flow. */
   survivesRestart: RestartCheck;
@@ -319,7 +321,7 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean; door?: Do
     await session.call("content.lint", { type: "post", slug: FIRST_POST.slug });
     const lintClean = spawnBin(bin, ["lint", "."], dir).code === 0;
     const prev = await session.call("content.render_preview", { type: "post", slug: FIRST_POST.slug });
-    const said = prev.content.map((c) => c.text).join("\n");
+    const said = prev.content.map((c) => ("text" in c ? c.text : "")).join("\n");
     // Three URLs come back — the page, its markdown twin and the review page — and only the third is the
     // one a person acts on. Matching the first `http` would take the page, which is what the first draft
     // of this walk did: the approve POST still worked (same origin) and `reviewUrl` was quietly a lie.
@@ -341,7 +343,7 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean; door?: Do
     for (let guard = 0; guard < 6; guard++) {
       const r = await session.call("content.publish", { type: "post", slug: FIRST_POST.slug });
       if (!r.isError) break;
-      const said = r.content.map((c) => c.text).join("\n");
+      const said = r.content.map((c) => ("text" in c ? c.text : "")).join("\n");
       if (/placeholder/i.test(said)) {
         act({ step: 12, kind: "answer-url", what: "answer where the site will be served", irreducible: false, proof: "refused",
           detail: "publish refused: the feed, sitemap and JSON-LD are absolute, so the origin is due here — decision 63 keeps it off step 4, and this is where the debt comes due" });
@@ -364,14 +366,17 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean; door?: Do
     }
     const publishedMs = performance.now() - t0;
 
-    // ── the walk's step 9 (docs/31 §3): `site` › deploy. The host has never seen this machine, so the
-    //    tool runs `wrangler login` and a person clicks *allow* in the tab it opened — once per machine,
-    //    and the one human action inside the tool. Then build, upload, the URL read back, `site.url` set
-    //    from it and the site uploaded again against it. Proved by the result, not assumed: `loggedIn`
-    //    is true only when login ran, and `deploys` is 2 only when the URL had to be learned.
+    // ── the walk's step 9 (docs/31 §3): `site` › deploy. The host has never seen this machine. Until D1
+    //    the tool ran `wrangler login` and a person clicked *allow* — once per machine, and the one human
+    //    action inside the tool. Since D1 it deploys to a temporary account instead: no tab, no click,
+    //    and a claim link in the answer that the person may follow within the hour (optional, so not an
+    //    action). Then build, upload, the URL read back, `site.url` set from it and the site uploaded
+    //    again against it. Proved by the result, not assumed: `loggedIn` is true only when login ran,
+    //    `temporary` is set only when the temporary account was used, and `deploys` is 2 only when the
+    //    URL had to be learned.
     const deployed = await session.call("site", { action: "deploy" });
-    const d = (deployed.structuredContent ?? {}) as { ok?: boolean; url?: string; loggedIn?: boolean; deploys?: number; urlSet?: string };
-    if (!d.ok || !d.url) throw new Error(`deploy did not end at a URL:\n${deployed.content.map((c) => c.text).join("\n")}`);
+    const d = (deployed.structuredContent ?? {}) as { ok?: boolean; url?: string; loggedIn?: boolean; deploys?: number; urlSet?: string; temporary?: { claimUrl: string } };
+    if (!d.ok || !d.url) throw new Error(`deploy did not end at a URL:\n${deployed.content.map((c) => ("text" in c ? c.text : "")).join("\n")}`);
     // Row 9 of the §2 table L3 rewrote; on the relay door the step numbers are the fourteen-row table
     // that one replaced, where the deploy would have been the fifteenth row had it been written down.
     if (d.loggedIn) act({ step: door === "front" ? 9 : 14, kind: "allow-host", what: "click allow in the tab `wrangler login` opened", irreducible: true, proof: "refused",
@@ -387,7 +392,7 @@ export async function runOnboard(opts: { bin?: string; keep?: boolean; door?: Do
       binary: bin, door, driver: REFERENCE_DRIVER, actions, fresh: freshMachine(bin),
       printedNext, printedSentence, registeredBeforeHarness,
       ttfvMs: +ttfvMs.toFixed(1), ttfpMs: +ttfpMs.toFixed(1), publishedMs: +publishedMs.toFixed(1),
-      lintClean, reviewUrl, url: d.url, deploys: d.deploys ?? 0, survivesRestart,
+      lintClean, reviewUrl, url: d.url, deploys: d.deploys ?? 0, claimUrl: d.temporary?.claimUrl, survivesRestart,
     };
   } finally {
     session?.stop();
@@ -521,7 +526,7 @@ export function onboardMetrics(w: OnboardWalk, relay?: OnboardWalk): Metric[] {
     // shape of a first deploy (the URL is learned on the first and the site rebuilt against it), and one
     // or three would each mean something moved.
     { name: "onboard.live", value: w.deploys, unit: "uploads", budget: 2, exact: true,
-      note: `${w.url} — the first \`site\` › deploy, against the stub wrangler: login, build, upload, the URL read back, \`site.url\` set, build and upload again` },
+      note: `${w.url} — the first \`site\` › deploy, against the stub wrangler: ${w.claimUrl ? "a temporary account (no login, a claim link handed over)" : "login"}, build, upload, the URL read back, \`site.url\` set, build and upload again` },
   ];
 }
 
@@ -565,7 +570,7 @@ export function formatWalk(w: OnboardWalk, relay?: OnboardWalk): string {
   ] : [];
   return [
     `## The handoff — ${w.actions.length} human action${w.actions.length === 1 ? "" : "s"}`, "",
-    `The front door (docs/08 §2): \`bunx @snypd/cli init ${SITE_DIR} && ${NEXT_LINE}\`, then the sentence, then the host's page. \`init\` was given a directory and no flags.`, "",
+    `The front door (docs/08 §2): \`bunx @snypd/cli init ${SITE_DIR} && ${NEXT_LINE}\`, then the sentence${w.actions.some((a) => a.kind === "allow-host") ? ", then the host's page" : ""}. \`init\` was given a directory and no flags.`, "",
     ...table(w), "",
     fresh,
     ...second,

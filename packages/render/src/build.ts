@@ -18,6 +18,7 @@ import { loadTheme, themeHash, type Theme, type SiteCtx, type Entry, type Author
 import { Html } from "./jsx-runtime";
 import { resolveTokens, styleSheet, minifyCss } from "./tokens";
 import { readImageSize } from "./media";
+import { typeLayout } from "./feature";
 import { loadHooks, applyFilter, applyTransforms, runEmits, type Hooks, type HookDiagnostic, type HookRun } from "./hooks";
 import { assertClientBudget } from "./budget";
 import { absolute, plural, titleCase, llmsTxt, rss, sitemap, robotsTxt, apiSite, apiType, apiTaxonomy, apiItem, pageSchema, blockSchemas, jsonLd, redirectsFile, redirectPage, headersFile, type Redirect, type SurfaceEntry, type SurfaceSite } from "./emit";
@@ -199,7 +200,7 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   // A `ref` to a rerouted item follows the filter, because the menu must point where the page is.
   const nav = siteNav(root, cfg, routeLookup(root, cfg, listContent(root, cfg), termRoutes(cfg, sync.files), index.moves()));
   if (rerouted.size) for (const links of Object.values(nav.nav)) for (const l of links) if (l.route && rerouted.has(l.route)) { const r = rerouted.get(l.route)!; l.href = r === "/" ? "/" : `${r}/`; l.route = r; }
-  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? `/assets/theme.css?v=${sha1(css).slice(0, 10)}` : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings, preview };
+  const ctx: SiteCtx = { site, tokens, theme: { name: theme.name }, assets: { css: css ? `/assets/theme.css?v=${sha1(css).slice(0, 10)}` : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: c, media: mediaSizes, parts: theme.parts, nav: nav.nav, hooks, settings, preview, pieces: theme.piecesCtx };
   // The plugin graph (P1, decision 95): every loaded plugin's bytes, hashed the way the theme chain is,
   // and the site's options beside them in the config hash — a transform that changes output must
   // invalidate the cache, and P3's transforms are plugin files. Both are absent from the key when no
@@ -267,16 +268,9 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const layoutForType = new Map<string, string | null>();
   const layoutFor = (type: string): string | null => {
     if (layoutForType.has(type)) return layoutForType.get(type)!;
-    const wanted = c.types[type]?.layout ?? null;
-    let used = wanted;
-    if (wanted && !theme.layouts[wanted]) {
-      const tried = [wanted];
-      for (const t of typeLineage(c.types, type).slice(1)) { const l = c.types[t]?.layout; if (l && !tried.includes(l)) tried.push(l); }
-      if (!tried.includes("post")) tried.push("post");
-      used = tried.find((l) => theme.layouts[l]) ?? null;
-      if (!used) throw new Error(`theme ${theme.name} has no layout "${wanted}" for type ${type}, and none of ${tried.slice(1).map((l) => `"${l}"`).join(", ")} to render it through instead`);
-      fallbacks.push({ type, wanted, used });
-    }
+    const { wanted, used, tried } = typeLayout(c, theme.layouts, type);
+    if (wanted && !used) throw new Error(`theme ${theme.name} has no layout "${wanted}" for type ${type}, and none of ${tried.slice(1).map((l) => `"${l}"`).join(", ")} to render it through instead`);
+    if (wanted && used !== wanted && used !== "feature") fallbacks.push({ type, wanted, used: used! });
     layoutForType.set(type, used);
     return used;
   };
@@ -312,8 +306,12 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
   const dated = (t: string) => Boolean(c.types[t]?.fields?.date);
   const listed = published.filter((f) => layoutOf(f) && dated(f.type));
   const listEntries = listed.map(entryOf);
-  /** What the front page lists under its body (S25): the newest few, and the `home` layout links the rest at the archive. */
-  const HOME_ENTRIES = 6;
+  /**
+   * What the front page lists under its body (S25): the newest few, and the `home` layout links the rest at
+   * the archive. A front page that *is* the list (`home/index`, W4) declares a `homeEntries` setting and
+   * gets that many of each list; nothing else reads the setting, so a theme without it is unchanged.
+   */
+  const HOME_ENTRIES = typeof settings.homeEntries === "number" && settings.homeEntries > 0 ? Math.floor(settings.homeEntries) : 6;
   const webSite = () => ({ "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: `${site.url}/`, description: site.description });
   /**
    * The archives (R1, decision 194): one list per dated type at the directory of its url pattern —
@@ -336,6 +334,17 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
    * the newest six of every dated type, which on every site so far was the same list; a site with a
    * `work` beside its notes wants its front page to show the work, and its menu already says so.
    */
+  // The site's sections (W4, `footer/index`): the archives above and each taxonomy's terms, by title. Handed
+  // over only when a resolved piece asks for them (`ctx: [sections]`, the W4 sitting), and then in every key,
+  // since a footer drawn from them is on every page. Only the map is in it, so publishing a post under terms
+  // the site already uses re-renders nothing it did not before; a new term re-renders that site, and no other.
+  if (theme.pieces.some((p) => p.entry.ctx?.includes("sections"))) {
+    ctx.sections = {
+      archives: archives.map(({ type, route, title }) => ({ type, route, title })),
+      taxonomies: Object.keys(c.taxonomies).map((t) => ({ name: t, label: titleCase(plural(t)), terms: allTerms.filter((x) => x.taxonomy === t).sort((a, b) => a.title.localeCompare(b.title)) })),
+    };
+    base += `:sections:${sha1(JSON.stringify(ctx.sections))}`;
+  }
   const headerMenu = nav.nav.header ?? Object.values(nav.nav)[0] ?? [];
   const homeArchive = headerMenu.map((i) => archives.find((a) => a.route === i.route)).find(Boolean) ?? archives[0];
 
@@ -444,7 +453,11 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
       lastmod.set(link.route, entries[0]?.updated ?? entries[0]?.date);
       const dir = routeDir(link.route);
       const schema = { "@context": "https://schema.org", "@type": "CollectionPage", name: link.title, url: url(link.route), description: link.description };
-      plan.push({ route: link.route, key: sha1(`${base}:term:${JSON.stringify(link)}:${listKey(entries)}`), kind: "route", outputs: [join(dir, "index.html")], render: () => { const fc = fctx(link.route); return { [join(dir, "index.html")]: theme.layouts.term!({ ctx, kind: "term", route: link.route, title: applyFilter(hooks, "title", link.title, fc), description: applyFilter(hooks, "description", link.description, fc), entries: applyFilter(hooks, "entries", entries, fc), term: link, jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fc)) }).html }; } });
+      // W4: the archive a term's page filters, when its entries are all one type's and that type has one —
+      // what a `list` piece's *All* link goes back to. A taxonomy across types, or a site whose only list is `/`, hands none.
+      const types = new Set(entries.map((e) => e.type));
+      const termArchive = types.size === 1 ? archives.find((a) => a.type === [...types][0]) : undefined;
+      plan.push({ route: link.route, key: sha1(`${base}:term:${JSON.stringify(link)}:${listKey(entries)}:${termArchive?.route ?? ""}`), kind: "route", outputs: [join(dir, "index.html")], render: () => { const fc = fctx(link.route); return { [join(dir, "index.html")]: theme.layouts.term!({ ctx, kind: "term", route: link.route, title: applyFilter(hooks, "title", link.title, fc), description: applyFilter(hooks, "description", link.description, fc), entries: applyFilter(hooks, "entries", entries, fc), term: link, ...(termArchive ? { archive: { type: termArchive.type, route: termArchive.route, title: termArchive.title } } : {}), jsonLd: jsonLd(applyFilter(hooks, "jsonLd", [schema], fc)) }).html }; } });
     }
   }
   // site artefacts (emit.ts): keyed on everything they show, so an unchanged list rewrites nothing
@@ -480,8 +493,10 @@ export async function build(root: string, opts: BuildOptions = {}): Promise<Buil
    */
   if (theme.font) {
     const f = theme.font;
-    const into = `assets/fonts/${f.url.split("/").pop()!.split("?")[0]}`;
-    plan.push({ route: f.url, key: sha1(`${base}:font:${into}`), kind: "artefact", outputs: [into], render: () => ({ [into]: f.bytes }) });
+    for (const { url, bytes } of [f, ...f.loadedCuts]) {
+      const into = `assets/fonts/${url.split("/").pop()!.split("?")[0]}`;
+      plan.push({ route: url, key: sha1(`${base}:font:${into}`), kind: "artefact", outputs: [into], render: () => ({ [into]: bytes }) });
+    }
     if (f.licence) artefact(`assets/fonts/${f.licence.name}`, () => f.licence!.text, base);
   }
 

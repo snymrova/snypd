@@ -21,10 +21,13 @@ types:
     # dotted form the page shows. docs/10 §4.8 sketched `{version}`; url patterns expand `{slug}` and `{path}`.
     urlPattern: /changelog/{slug}
     taxonomies: [product]
+    # A feature type (docs/37 §2): on a theme with a `feature` piece, the version sits above the title,
+    # `breaking` is a badge beside it and the product is a fact. On a theme without one, the post layout.
+    noun: release
     fields:
-      version:  { type: string, required: true, pattern: "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$", description: "The version this release is, as the page shows it (1.2.0)" }
-      breaking: { type: boolean, default: false, description: "True when something that worked before does not work the same way after" }
-      product:  { type: ref, to: product }
+      version:  { type: string, required: true, role: kicker, show: "v{value}", pattern: "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$", description: "The version this release is, as the page shows it (1.2.0)" }
+      breaking: { type: boolean, default: false, role: flag, description: "True when something that worked before does not work the same way after" }
+      product:  { type: ref, to: product, role: fact }
 
 taxonomies:
   product:

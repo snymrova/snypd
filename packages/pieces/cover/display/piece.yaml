@@ -1,0 +1,6 @@
+piece: cover/display
+from: studio
+line: The top of a page as a poster — the eyebrow in the display face, a large muted subtitle, the picture or clip under both, a ruled byline.
+reads: [font.display, font.ui, size.small, size.h3, space.3, space.4, space.5, color.accent, color.muted, color.surface, color.border, radius, measure.deck]
+needs:
+  measure.deck: 34rem

@@ -1,0 +1,15 @@
+/* post-foot/ruled — carved from technical. Where this post sits, and where its source is: one band under
+   a rule, not two loose lines. */
+.snypd-post-footer {
+  margin-top: var(--space-5); padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  font: var(--size-small) / 1.4 var(--font-ui);
+}
+.snypd-terms { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.snypd-terms a, .snypd-twin a { text-decoration: none; color: var(--color-muted); }
+.snypd-terms a { border: 1px solid var(--color-border); border-radius: var(--radius); padding: 0.25em 0.6em; }
+.snypd-terms a::before { content: "#"; color: var(--color-border); }
+.snypd-terms a:hover, .snypd-twin a:hover { color: var(--color-accent); border-color: var(--color-accent); }
+.snypd-twin a::before { content: "↓ "; }

@@ -35,7 +35,7 @@ const TYPE_ = str("Content type: `post`, `page`, `author` (snypd://types lists t
 
 /** Words `find_tools` matches on beyond the name and description — what an agent would actually type. */
 export const KEYWORDS: Record<string, string[]> = {
-  theme: ["theme", "design", "look", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance", "setting", "logo", "tagline", "show dates", "date format", "social links", "footer"],
+  theme: ["theme", "design", "look", "see", "eyes", "screenshot", "picture", "crop", "hover", "overflow", "contrast", "style", "css", "colour", "color", "token", "font", "dark mode", "palette", "skin", "brand", "typography", "scaffold", "appearance", "setting", "logo", "tagline", "show dates", "date format", "social links", "footer"],
   site: ["config", "configuration", "settings", "snypd.yaml", "redirect", "moved", "url", "doctor", "health", "diagnose", "build", "deploy", "publish site", "push", "live", "go live", "put it online", "online", "upload", "ship", "launch", "name", "domain", "host", "cloudflare", "vercel", "wrangler", "login", "back it up", "backup", "back up", "github", "repository", "repo", "gh"],
   bench: ["bench", "benchmark", "speed", "performance", "budget", "fast", "slow", "measure", "timing", "regression", "lighthouse", "accessibility", "a11y", "screenshot", "screenshots", "shoot", "photograph", "contact"],
   "content.explain": ["explain", "why", "what ran", "pipeline", "stages", "transform", "filter", "slot", "hook", "plugin", "debug", "trace", "inspect", "autolink", "changed my post", "unexpected", "link appeared", "route key", "cache"],
@@ -43,27 +43,40 @@ export const KEYWORDS: Record<string, string[]> = {
 
 export const CATALOG: Tool[] = [
   { name: "theme",
-    description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, scaffold a new one, or seed a scaffold's palette and type scale from one colour. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), and snypd://theme/coverage for which primitives the active theme actually implements. Nothing here rebuilds the site: call content.render_preview to look at the result.",
+    description: "Change how the site looks: switch theme or one of the named looks it ships, retune its tokens, scaffold a new one, or seed a scaffold's palette and type scale from one colour. A theme in snypd is `theme.yaml` plus one stylesheet — no components are required, because every primitive and layout resolves up the `extends:` chain — so `scaffold` gives you a working theme you only have to restyle. Read snypd://theme for what is installed and which variations the active theme ships, snypd://theme/variations for what each of those looks is, snypd://theme/tokens for every knob and its default, snypd://theme/settings for the choices the theme offers a site (a logo, whether dates show, social links), snypd://theme/coverage for which primitives the active theme actually implements, and snypd://theme/pieces for the pieces a theme can be assembled from (`pieces:` in theme.yaml). `look` is how you see what you changed: one route, one width, one scheme, cropped to one slot, with what is wrong listed first and boxed on the picture — call it after every change to a theme, not only at the end.",
     inputSchema: S({
-      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale", { enum: ["set", "set_tokens", "set_settings", "scaffold", "seed"] }),
-      name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`: the name of the new theme (also its directory under themes/)"),
-      variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call"),
+      action: str("`set` a different theme, or one of the named looks it ships · `set_tokens` to retune the active one · `set_settings` for the choices it offers (logo, dates, social links — snypd://theme/settings) · `compose` a new theme from a kit (snypd://theme/kits) with a few slots changed — the fastest start · `scaffold` a new theme that extends an existing one · `seed` a theme in themes/ from one colour: a palette that passes the contrast gate by construction, plus a fluid type scale · `look` at the site as it renders now, or with `name` as a theme that is not live would render it — facts as text, one cropped picture, the full page as a link; `view: outline` for landmarks and headings as text, no picture", { enum: ["set", "set_tokens", "set_settings", "compose", "scaffold", "seed", "look"] }),
+      name: str("`set`: the theme to use — optional when `variation` is given. `scaffold`/`compose`: the name of the new theme (also its directory under themes/). `seed`: the scaffolded theme to fill. `look`: a theme to see instead of the live one — built on its own, nothing is switched"),
+      variation: str("`set`: one of the named looks the theme ships — a complete token set with a name, e.g. `ink`. snypd://theme/variations says what each one is. `null` goes back to the theme's own tokens. Can be sent with `name` to switch theme and look in one call. `look`: see that look, with or without `name`"),
       tokens: { type: "object", description: "`set_tokens`: token name → value, e.g. {\"color.accent\": \"#8a3324\"}. A token set to null goes back to the theme's default. Only tokens declared `customisable` can be set — snypd://theme/tokens lists them" },
       settings: { type: "object", description: "`set_settings`: setting id → value, e.g. {\"showDates\": false, \"tagline\": \"Notes on building\"}. A setting set to null goes back to the theme's default. Each is checked against the type the theme declared — snypd://theme/settings lists them with their types and what they mean" },
+      kit: str("`compose`: the kit to start from — snypd://theme/kits, e.g. `editorial`"),
+      change: { type: "object", description: "`compose`: slot → piece over the kit's, e.g. {\"home\": \"split\"} or {\"prose\": {\"use\": \"book\", \"display-heads\": true}}. snypd://theme/pieces/<slot> lists a slot's pieces" },
       extends: str("`scaffold`: the theme the new one inherits every layout, primitive and token from. Default `base`"),
-      seed: str("`seed`: the colour whose hue and chroma become the accent, e.g. `oklch(0.55 0.13 252)` or `#1f5fbf`"),
+      seed: str("`seed` (and `compose`, over the kit's): the colour whose hue and chroma become the accent, e.g. `oklch(0.55 0.13 252)` or `#1f5fbf`"),
       strategy: str("`seed`: how far colour reaches beyond the accent. Default `balanced`", { enum: ["restrained", "balanced", "expressive"] }),
-      scheme: str("`seed`: which modes to design. Default `both`, as light-dark() pairs", { enum: ["both", "light", "dark"] }),
+      scheme: str("`seed`: which modes to design. Default `both`, as light-dark() pairs. `look`: `light` (default) or `dark`", { enum: ["both", "light", "dark"] }),
       ratio: str("`seed`: type-scale ratio at phone:desktop width, e.g. `1.2:1.25`"),
       base: str("`seed`: body size in px at phone:desktop width, e.g. `17:19`"),
-      face: str("`seed`: one web font from the shelf, copied into the theme with its licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
+      face: str("`seed` (and `compose`, needing a seed): one web font from the shelf, copied into the theme with its italic, extra weights and licence, e.g. `ibm-plex-serif`; an id the shelf lacks is answered with the list"),
+      route: str("`look`: the page, e.g. `/` (default) or `/posts/long-read/`"),
+      slot: str("`look`: crop to one slot — `masthead`, `cover`, `prose`, `code`, `blocks`, `entries`, `post-foot`, `footer`, `home`, `notes`, `toc`, `wall`, `column`; none for the first screen. snypd://theme/pieces lists the slots"),
+      selector: str("`look`: crop to a CSS selector instead of a slot, e.g. `.snypd-stat-row`"),
+      width: { type: "number", description: "`look`: viewport width in px. Default 1280; 390 is a phone" },
+      state: str("`look`: `rest` (default) · `hover` or `focus` the first link or button in the crop · `menu-open` opens the phone menu · `open` opens the first <details> or <dialog>", { enum: ["rest", "hover", "focus", "menu-open", "open"] }),
+      target: str("`look`: what `state` acts on, as a selector, when the first one in the crop is not the one you mean"),
+      since: str("`look`: `last` (default) says what changed since the previous look at the same route, crop, width, scheme and state; `none` skips it", { enum: ["last", "none"] }),
+      view: str("`look`: `picture` (default) or `outline` — landmarks and headings, ~150 tokens, no image", { enum: ["picture", "outline"] }),
+      board: str("`look`: every piece that can fill one slot (`home`, `masthead`, `entries`…), each on this site's own content, side by side in one picture — how to choose a piece before writing `pieces:`. With `name`, swapped into that theme instead of the live one"),
+      tour: { type: "boolean", description: "`look`: the whole theme in one picture — the front page, a list and the longest page of the site's richest type, each at 1280 and 390, first screens; the gates, the pairs and every page's findings first, as text. With `name`, a theme that is not live. Takes `scheme`; not `route`, `slot`, `width`, `state` or `board`" },
+      sets: { type: "number", description: "`look` with `board`: 1 (default) on the theme's own tokens; 3 or 5 draws each piece on the board's token sets too (light serif, dark sans, loud accent, committed, pathological) — does it hold on any palette?" },
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
 
   { name: "site",
     description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or putting the site online — `deploy` uploads it through the host's own CLI and answers with the URL. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `deploy` to put it online — builds, uploads through the host's CLI (Cloudflare, `wrangler`), and answers with the URL; on a machine the host has never seen it runs `wrangler login` first and a person clicks allow once · `push` to back the site up on GitHub and send the published branch — on a site with no remote it creates the repository first, private, through `gh` (or, with `preview`, it pushes the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "deploy", "push"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `deploy` to put it online — builds, uploads through the host's CLI (Cloudflare, `wrangler`), and answers with the URL; on a machine with no Cloudflare login it goes to a temporary account, no click, and answers with a link to claim it within the hour · `push` to back the site up on GitHub and send the published branch — on a site with no remote it creates the repository first, private, through `gh` (or, with `preview`, it pushes the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "deploy", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       location: str("`set_nav`: which menu — a location the theme declares (`header`, `footer`; snypd://nav lists them)"),
@@ -76,6 +89,8 @@ export const CATALOG: Tool[] = [
       theme: str("`init`: the theme to start on. Default `editorial`"),
       public: { type: "boolean", description: "`push`: when this site has no remote and one is created, make the repository public. The default is private — a site's repository holds its drafts branch, which is every word nobody has approved" },
       preview: { type: "boolean", description: "`push`: send `snypd/drafts` instead of the site, so a host that builds branches serves a preview *with the drafts in it* (noindex, at its preview URL). This sends every unapproved word on the site to the remote — readable by anyone who can read the repository, and by anyone with the preview URL. Nothing is published by it. Read the result's first lines before relaying it as done" },
+      login: { type: "boolean", description: "`deploy`: put the site on the person's own Cloudflare account — `wrangler login` opens a tab and they click allow once. For after they claim a temporary site, or when they have an account and want it there from the start" },
+      temporary: { type: "boolean", description: "`deploy`: a new temporary account when the last one's hour has passed unclaimed — the site moves to a new URL. Only when the person says they did not claim it" },
       deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. On `init` the default is `cloudflare` (docs/31 decision 229); `none` is for a site served by something that needs no config of ours. Required on `set_deploy`. snypd holds no credential either way", { enum: ["cloudflare", "vercel", "none"] }),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
@@ -84,10 +99,10 @@ export const CATALOG: Tool[] = [
     description: "Run snypd's own benchmark suite and read the result. Every speed claim in this project is a number from here with a budget next to it, so this is how you check that a change — a theme, a token, a hundred new posts — did not cost something. `run` takes minutes at full size; `quick` is the same metrics at fewer repetitions. snypd://bench/latest is the last full report and costs nothing to read.",
     inputSchema: S({
       action: str("`run` the suite · `compare` two saved reports · `shoot` themes on every route, width and scheme, into a contact sheet whose per-route PNGs you then read", { enum: ["run", "compare", "shoot"] }),
-      suite: str("`run`: `full` (default) · `quick` · `page` (a real browser: 0 KB JS, axe, CLS) · `visual` (per-primitive render cost) · `suggest` (suggest_blocks precision)", { enum: ["full", "quick", "page", "visual", "suggest"] }),
+      suite: str("`run`: `full` (default) · `quick` · `page` (this site's pages under one theme, in a real browser: 0 KB JS, axe, CLS, the font budget) · `visual` (per-primitive render cost) · `suggest` (suggest_blocks precision)", { enum: ["full", "quick", "page", "visual", "suggest"] }),
       a: str("`compare`: path to the baseline report JSON"),
       b: str("`compare`: path to the new report JSON"),
-      themes: { type: "array", items: { type: "string" }, description: "`shoot`: themes to photograph side by side, `theme` or `theme/variation`; the active theme by default" },
+      themes: { type: "array", items: { type: "string" }, description: "`shoot`: themes to photograph side by side, `theme` or `theme/variation`; the active theme by default. `run` `page`: the one theme to measure on this site's pages — a candidate need not be live" },
       routes: { type: "array", items: { type: "string" }, description: "`shoot`: routes to photograph; the specimen's nine by default, or those of them this site has" },
       scheme: str("`shoot`: `both` (default) · `light` · `dark`", { enum: ["both", "light", "dark"] }),
     }, ["action"]),
@@ -155,7 +170,10 @@ const need = (args: Record<string, unknown>, key: string): string => {
   return v;
 };
 
-export async function call(root: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {
+/** What a catalogue call may borrow from the session that made it: the preview server `render_preview` shares. */
+export interface CallContext { preview?: () => Promise<{ url: string }> }
+
+export async function call(root: string, name: string, args: Record<string, unknown>, ctx: CallContext = {}): Promise<ToolResult> {
   const c = await loadCore();
   const cfgOf = () => {
     const cfg = c.loadConfig(root);
@@ -334,10 +352,38 @@ export async function call(root: string, name: string, args: Record<string, unkn
             `scaffolded ${r.dir}/ extending ${r.extends}`,
             `  theme.yaml   tokens and metadata; ${r.inheritedTokens} tokens inherited, none redeclared yet`,
             `  DESIGN.md    the brief \u2014 use scene, visitor mode, the rut, where the boldness goes; fill it before the stylesheet`,
-            `  theme.css    one stylesheet \u2014 the only file you have to write`,
+            r.pieces?.length
+              ? `  theme.css    no rules: \`${r.extends}\`'s pieces draw the site (${r.pieces.join(" \u00b7 ")}) \u2014 swap a slot with \`pieces:\` in theme.yaml; keep this sheet for the one bold move`
+              : `  theme.css    one stylesheet \u2014 the only file you have to write`,
             git,
             `\`theme\` \u203a set ${r.name} makes it active; content.render_preview shows it.`,
-          ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens });
+          ].join("\n"), { ok: true, theme: r.name, extends: r.extends, dir: r.dir, files: r.files, inheritedTokens: r.inheritedTokens, pieces: r.pieces });
+        }
+        if (action === "compose") {
+          // W5 (docs/37 §6 step 3): scaffold, the kit's pieces, its seed and face, and DESIGN.md's `## Kit`, as
+          // one call; core rolls the theme back if it does not load. The shelf is imported only for a face.
+          let r;
+          try {
+            const shelf = await import("@snypd/shelf");
+            const install = (id: string, dir: string) => {
+              if (!shelf.shelfFace(id)) throw Object.assign(new Error(`no face "${id}" on the shelf`), { hint: `One of: ${shelf.loadShelf().faces.map((f) => f.id).join(", ")}.` });
+              const got = shelf.installFace(id, dir);
+              return { id: got.face.id, font: got.font, stack: got.stack, role: got.face.role, pairsWith: got.face.pairsWith };
+            };
+            const change = args.change && typeof args.change === "object" && !Array.isArray(args.change) ? args.change as Record<string, unknown> : undefined;
+            r = c.composeTheme(root, { name: need(args, "name"), kit: need(args, "kit"), change, seed: typeof args.seed === "string" ? args.seed : undefined,
+              strategy: args.strategy as never, scheme: args.scheme === "both" || args.scheme === "light" || args.scheme === "dark" ? args.scheme : undefined, face: typeof args.face === "string" ? args.face : undefined }, install);
+          } catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
+          const git = await commit(r.files, `theme: compose ${r.name} from kit ${r.kit}${r.changed.length ? ` (${r.changed.join(", ")})` : ""}`);
+          return text([
+            `composed ${r.dir}/ from kit ${r.kit}, extending ${r.extends}${r.changed.length ? ` — changed ${r.changed.join(", ")}` : ""}`,
+            `  pieces: ${Object.entries(r.pieces).map(([k, v]) => `${k}: ${typeof v === "string" ? v : v.use}`).join(" · ")}`,
+            ...(r.seed ? [`  seeded from ${r.seed.input.seed} (${r.seed.input.strategy}, ${r.seed.input.scheme})${r.face ? `, face ${r.face}` : ""}`] : []),
+            ...(r.drafts.length ? [`  drafts: ${r.drafts.join(", ")} — unseen; \`check theme\` fails this theme until a sitting passes them`] : []),
+            ...r.warnings.map((w) => `  ⚠ ${w}`),
+            git,
+            `\`theme\` › look { name: "${r.name}" } shows it without switching; \`theme\` › set ${r.name} makes it live.`,
+          ].join("\n"), { ok: true, theme: r.name, kit: r.kit, extends: r.extends, dir: r.dir, files: r.files, pieces: r.pieces, changed: r.changed, drafts: r.drafts, warnings: r.warnings, face: r.face });
         }
         if (action === "seed") {
           // TF3 (docs/29 §4): the same `expandSeed` + `writeSeed` as `snypd seed`; this door adds the commit.
@@ -365,7 +411,8 @@ export async function call(root: string, name: string, args: Record<string, unkn
             "theme.css reads these as var(--color-accent) etc.; `bench` › shoot photographs the result.",
           ].join("\n"), { ok: true, theme: name, files, tokens: Object.fromEntries(Object.entries(r.tokens).map(([k, v]) => [k, v.default])), notes: r.report.notes, steps: r.report.steps });
         }
-        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, scaffold, seed.");
+        if (action === "look") return await lookAt(root, args, cfgOf, ctx);
+        return fail(`unknown action "${action}"`, "theme takes: set, set_tokens, set_settings, compose, scaffold, seed, look.");
       }
 
       case "site": {
@@ -479,9 +526,10 @@ export async function call(root: string, name: string, args: Record<string, unkn
          * **`deploy` uploads** (docs/31 §4, decisions 228–230): the walk's step 9. Build, `wrangler deploy`
          * from the site root through the host's own CLI, read the URL back — and on a first deploy set
          * `site.url` from what the host said, build again and upload again, so nothing the host serves
-         * points at `localhost`. On a machine Cloudflare has never seen it runs `wrangler login` first,
-         * which opens a tab; the person clicks *allow* and this call continues. That wait is the one
-         * human action inside the tool, and the result's first line says whether it happened.
+         * points at `localhost`. On a machine Cloudflare has never seen it goes to a **temporary**
+         * account (D1): no tab, no click, and the answer leads with the hour the site has and the link
+         * that keeps it — the one thing in it an agent must relay. `login: true` runs `wrangler login`
+         * first instead, and the person clicks *allow*.
          *
          * `deploy.push: human` refuses here exactly as it refuses `push` (229). A site with a remote and
          * no `deploy.mode` is a git-connected site and is sent to `push` instead — snypd.rocks and every
@@ -490,17 +538,20 @@ export async function call(root: string, name: string, args: Record<string, unkn
         if (action === "deploy") {
           const cfgDeploy = cfgOf();
           const { build } = await import("@snypd/render");
-          const r = await c.deploySite(root, cfgDeploy, { as: "agent", build: async (rt) => { await build(rt); } });
+          const r = await c.deploySite(root, cfgDeploy, { as: "agent", login: args.login === true, temporary: args.temporary === true, build: async (rt) => { await build(rt); } });
           const kb = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${(n / 1024).toFixed(0)} KB`;
-          const structured = { ok: r.ok, deployed: r.ok, target: r.target, url: r.url, urls: r.urls, uploaded: r.uploaded, skipped: r.skipped, files: r.files, bytes: r.bytes, versionId: r.versionId, loggedIn: r.loggedIn, urlSet: r.urlSet, deploys: r.deploys, mode: r.state.mode, policy: r.state.policy, blockers: r.state.blockers, by: r.by, at: r.at };
+          const structured = { ok: r.ok, deployed: r.ok, target: r.target, url: r.url, urls: r.urls, uploaded: r.uploaded, skipped: r.skipped, files: r.files, bytes: r.bytes, versionId: r.versionId, loggedIn: r.loggedIn, temporary: r.temporary, urlSet: r.urlSet, deploys: r.deploys, mode: r.state.mode, policy: r.state.policy, blockers: r.state.blockers, by: r.by, at: r.at };
           if (!r.ok) return { ...fail(`not deployed: ${r.reason}`, r.hint), structuredContent: { ...structured, error: r.reason, hint: r.hint } };
           const git = r.paths.length ? await commit(r.paths, `site: url ${r.urlSet} — from ${r.target}`) : "";
+          const t = r.temporary;
+          const left = t ? Math.max(0, Math.round((Date.parse(t.expiresAt) - Date.now()) / 60_000)) : 0;
           return text([
-            `${r.url} is live — ${r.files} file${r.files === 1 ? "" : "s"}, ${kb(r.bytes ?? 0)}, on ${r.target}${r.uploaded !== undefined ? ` (${r.uploaded} uploaded${r.skipped ? `, ${r.skipped} the host already had` : ""})` : ""}.`,
+            `${r.url} is live — ${r.files} file${r.files === 1 ? "" : "s"}, ${kb(r.bytes ?? 0)}, on ${r.target}${t ? ", on a temporary account" : ""}${r.uploaded !== undefined ? ` (${r.uploaded} uploaded${r.skipped ? `, ${r.skipped} the host already had` : ""})` : ""}.`,
+            ...(t ? [`**Tell the person this, with the link:** the site is up for ${left} more minute${left === 1 ? "" : "s"} (until ${t.expiresAt.slice(11, 16)} UTC) and then deleted, unless they claim it at ${t.claimUrl} — free, and it is where they sign up to Cloudflare if they have not. Deploys before then go to the same account and URL. Once claimed, \`site\` › deploy with \`login: true\` once, and every deploy after goes to their account.`] : []),
             ...(r.loggedIn ? [`Cloudflare had not seen this machine: \`wrangler login\` ran and a person allowed it. It will not ask again here.`] : []),
             ...(r.urlSet ? [`site.url was the placeholder; it is now ${r.urlSet}, read back from the host — the site was built and uploaded a second time against it, so its feed, sitemap and JSON-LD say the right origin. ${git}`] : []),
             ...(r.urls && r.urls.length > 1 ? [`Also answers at ${r.urls.filter((u) => u !== r.url).join(", ")}.`] : []),
-            `Every deploy from now on is one call and no clicks. This machine is the only copy of the words — \`site\` › push backs it up: it creates a private repository through \`gh\` and sends the published branch, drafts stay here.`,
+            `${t ? "Every deploy in that hour" : "Every deploy from now on"} is one call and no clicks. This machine is the only copy of the words — \`site\` › push backs it up: it creates a private repository through \`gh\` and sends the published branch, drafts stay here.`,
           ].join("\n"), structured);
         }
         /**
@@ -657,12 +708,17 @@ export async function call(root: string, name: string, args: Record<string, unkn
         }
         if (action === "run") {
           const suite = typeof args.suite === "string" ? args.suite : "full";
-          const report = suite === "page" ? await bench.page({ root })
+          // `page` from a session is this site's theme (W0) — `snypd bench page` in the repo is the product's harness.
+          const one = (v: unknown) => (Array.isArray(v) && typeof v[0] === "string" ? v[0] : undefined);
+          const [pt, pv] = (one(args.themes) ?? "").split("/");
+          const report = suite === "page" ? await bench.sitePage({ root, theme: pt || undefined, variation: pv || undefined })
             : suite === "visual" ? await bench.visual({})
             : suite === "suggest" ? await bench.suggest({ root })
             : await bench.run({ quick: suite === "quick" });
           const over = bench.breaches(report);
-          return text(`${bench.toMarkdown(report)}\n${over.length ? `❌ ${over.length} budget breach: ${over.join(", ")}` : "✅ every budget met"}`,
+          const site = suite === "page" ? (report as Awaited<ReturnType<typeof bench.sitePage>>) : undefined;
+          const measured = site ? `measured ${site.theme} on ${site.routes.length} of this site's routes (${site.routes.join(", ")}) at two widths\n` : "";
+          return text(`${measured}${bench.toMarkdown(report)}\n${over.length ? `❌ ${over.length} budget breach: ${over.join(", ")}` : "✅ every budget met"}`,
             { ok: true, suite, breaches: over, metrics: report.metrics });
         }
         if (action === "shoot") {
@@ -777,6 +833,155 @@ async function explain(root: string, type: string, slug: string): Promise<ToolRe
 }
 
 /** `site` › doctor: everything that decides whether this repo is a working site, in one read. */
+/**
+ * `theme › look` (E1, docs/36 §5a): the site as it renders now, from the preview this session already
+ * shares with `render_preview`. Facts first as text, one picture second, the rest as links — the image is
+ * the one content block that costs tokens, and it is the crop, not the page.
+ *
+ * With no browser on the machine the call still answers, with every fact that needs none (`check theme`:
+ * the contrast of the tokens, the static taste rules, the CSS lints) and one line on how to get eyes.
+ */
+async function lookAt(root: string, args: Record<string, unknown>, cfgOf: () => import("@snypd/core").LoadedConfig, ctx: CallContext): Promise<ToolResult> {
+  const eyes = await import("@snypd/bench/look");
+  eyesLoaded = true;
+  const opt = (k: string) => (typeof args[k] === "string" && args[k] ? (args[k] as string) : undefined);
+  const width = args.width === undefined ? undefined : Number(args.width);
+  if (width !== undefined && (!Number.isInteger(width) || width < 200 || width > 3000)) return fail(`width must be whole pixels, 200–3000; got ${JSON.stringify(args.width)}`, "390 is a phone, 768 a tablet, 1280 a laptop.");
+  const scheme = opt("scheme");
+  if (scheme && scheme !== "light" && scheme !== "dark") return fail(`look takes one scheme at a time: \`light\` or \`dark\`, not \`${scheme}\``, "One picture per call; look again for the other.");
+  const state = opt("state");
+  if (state && !(eyes.LOOK_STATES as readonly string[]).includes(state)) return fail(`no state "${state}"`, `states: ${eyes.LOOK_STATES.join(", ")}`);
+  const live = cfgOf();
+  const slot = opt("slot");
+  // W0 (docs/37 §6): `name`/`variation` render a theme that is not live, out of band — `loadConfig(root,
+  // { theme, variation })` into its own build, the switch `bench` › shoot and `check theme` make — so a
+  // candidate is seen without `set` putting it in front of the site. Unset, or naming the live look, it
+  // is the session's preview as before.
+  const other = (opt("name") && opt("name") !== live.config.theme.use) || (opt("variation") && opt("variation") !== live.config.theme.variation);
+  const themeName = opt("name") ?? live.config.theme.use, variation = opt("variation") ?? (opt("name") ? undefined : live.config.theme.variation);
+  let cfg = live;
+  if (other) {
+    const c = await loadCore();
+    cfg = c.loadConfig(root, { theme: themeName, variation });
+    if (!cfg.ok) return fail(`theme "${themeName}"${variation ? ` › ${variation}` : ""} does not load`, c.formatDiagnostics(cfg.diagnostics));
+    const vs = c.themeVariations(cfg).map((v) => v.name);
+    if (variation && !vs.includes(variation)) return fail(`theme "${themeName}" ships no variation "${variation}"`, vs.length ? `It ships: ${vs.join(", ")}.` : "It ships none; look without `variation`.");
+  }
+  const cacheDir = join((await import("@snypd/core/paths")).ensureDisposableDir(join(root, ".snypd")), "look");
+  const uri = (f: string) => `snypd://look/${relative(cacheDir, f).split(/[\\/]/).join("/")}`;
+
+  const blind = async (why: string, hint: string) => {
+    const { checkTheme } = await import("@snypd/render/check");
+    const r = await checkTheme(root, themeName);
+    const shown = r.rules.filter((x) => x.status === "fail" || x.status === "warn");
+    return text([
+      `no picture — ${why}`,
+      `What can be known without a browser, from \`check theme ${r.name}\`:`,
+      ...(shown.length ? shown.slice(0, 12).map((x) => `${x.status === "fail" ? "✗" : "⚠"} ${x.rule}  ${x.detail}${x.where ? `  (${x.where})` : ""}`) : [`✓ ${r.rules.filter((x) => x.status === "pass").length} rules pass — contrast of the tokens, the static taste rules, the CSS lints`]),
+      hint,
+    ].join("\n"), { ok: true, picture: false, reason: why, hint, check: { ok: r.ok, rules: shown } });
+  };
+  if (!eyes.eyesBrowser()) return await blind("no browser on this machine", "`snypd eyes install` fetches chrome-headless-shell (~90 MB) to ~/.cache/snypd once — a person runs it; or set SNYPD_CHROME to any Chromium.");
+  if (args.tour === true) {
+    const clash = ["board", "slot", "selector", "route", "width", "state", "target", "view"].filter((k) => args[k] !== undefined);
+    if (clash.length) return fail(`a tour takes no ${clash.join(", ")}`, "A tour is three routes at two widths, chosen for you. One page or one slot is a plain look: drop `tour`.");
+    return await tourAt(root, { other: !!other, themeName, variation, scheme: scheme as "light" | "dark" | undefined, cacheDir, uri, fail });
+  }
+  const boardSlot = opt("board");
+  if (boardSlot) return await boardAt(root, boardSlot, args, { other: !!other, themeName, variation, width, cacheDir, uri, fail });
+  if (!other && !ctx.preview) return fail("no preview server to look at", "`theme` › look runs inside `snypd serve`, which shares the session's preview with content.render_preview.");
+
+  let server: { url: string; stop?: () => void };
+  try { server = other ? await (await import("@snypd/bench")).buildAndServe(root, { theme: themeName, variation, slug: `${themeName}${variation ? `-${variation}` : ""}` }, "look", { drafts: true }) : await ctx.preview!(); }
+  catch (e) { const err = e as Error & { hint?: string }; return fail(err.message, err.hint ?? ""); }
+  let r;
+  try {
+    r = await eyes.look({
+      url: server.url, cacheDir, route: opt("route"), slot, selector: opt("selector"),
+      theme: other ? `${themeName}${variation ? ` › ${variation}` : ""}` : undefined,
+      // The piece in that slot says which classes it emits: those find the slot before any guess does.
+      slotClasses: slot ? cfg.pieces.find((p) => p.slot === slot)?.entry.emits : undefined,
+      width, scheme: scheme as "light" | "dark" | undefined, state: state as never, target: opt("target"),
+      since: opt("since") as "last" | "none" | undefined, view: opt("view") as "picture" | "outline" | undefined,
+    });
+  } catch (e) {
+    const err = e as Error & { hint?: string };
+    if (err instanceof eyes.NoBrowserError) return await blind(err.message, err.hint);
+    return fail(err.message, err.hint);
+  } finally { if (other) server.stop?.(); }
+  const content: ToolResult["content"] = [{ type: "text", text: eyes.formatLook(r, uri) }];
+  if (r.image) content.push({ type: "image", data: r.image.data, mimeType: r.image.mimeType });
+  if (r.files.full) content.push({ type: "resource_link", uri: uri(r.files.full), name: "full page", mimeType: "image/webp", description: `${r.route} at ${r.width} px, ${r.scheme}, every problem boxed` });
+  if (r.files.before) content.push({ type: "resource_link", uri: uri(r.files.before), name: "before", mimeType: "image/webp", description: "the previous look at this crop, without boxes" });
+  const { image, files, ...facts } = r;
+  return { content, structuredContent: { ok: true, ...facts, image: image ? { width: image.width, height: image.height, mimeType: image.mimeType } : undefined, full: files.full && uri(files.full), before: files.before && uri(files.before) } };
+}
+
+/**
+ * `look { board }` (W2, docs/37 §5): every variant of one slot built into its own child theme of the one
+ * being looked at and cropped on this site's content, one sheet back. Facts first — one line per cell with
+ * findings — then the sheet, then the sheet as a link. ~2–4 s a cell on a small site.
+ */
+async function boardAt(root: string, slot: string, args: Record<string, unknown>, o: { other: boolean; themeName: string; variation?: string; width?: number; cacheDir: string; uri: (f: string) => string; fail: typeof fail }): Promise<ToolResult> {
+  const sets = args.sets === undefined ? undefined : Number(args.sets);
+  if (sets !== undefined && ![1, 3, 5].includes(sets)) return o.fail(`sets is 1, 3 or 5; got ${JSON.stringify(args.sets)}`, "1 is the theme's own tokens; 3 and 5 add the board's token sets.");
+  const eyes = await import("@snypd/bench/look");
+  eyesLoaded = true;
+  if (!eyes.eyesBrowser()) return o.fail("no picture — a board needs a browser, and there is none on this machine", "`snypd eyes install` fetches chrome-headless-shell (~90 MB) once — a person runs it; or set SNYPD_CHROME to any Chromium. snypd://theme/pieces/<slot> still describes every piece in words.");
+  const b = await import("@snypd/bench/board");
+  let r;
+  try {
+    r = await b.board({ root, slot, sets, theme: o.other ? o.themeName : undefined, variation: o.other ? o.variation : undefined, width: o.width,
+      route: typeof args.route === "string" && args.route ? args.route : undefined, cacheDir: o.cacheDir });
+  } catch (e) {
+    const err = e as Error & { hint?: string };
+    if (err instanceof eyes.NoBrowserError) return o.fail(err.message, err.hint);
+    return o.fail(err.message, err.hint ?? "");
+  }
+  const { image, file, ...facts } = r;
+  return {
+    content: [
+      { type: "text", text: b.formatBoard(r, o.uri) },
+      { type: "image", data: image.data, mimeType: image.mimeType },
+      { type: "resource_link", uri: o.uri(file), name: `board ${slot}`, mimeType: "image/webp", description: `${r.variants.length} × ${r.sets.length} on ${r.theme}, ${r.route} at ${r.width} px` },
+    ],
+    structuredContent: { ok: true, ...facts, image: { width: image.width, height: image.height, mimeType: image.mimeType }, sheet: o.uri(file) },
+  };
+}
+
+/**
+ * `look { tour }` (W5, docs/37 §6 step 4): the theme a visitor meets — front page, a list, a feature page,
+ * each at 1280 and 390 — built out of band, the live theme too, so the routes come from the build. Facts
+ * first (gates, pairs, each page's findings), then the sheet, then the sheet and each crop as links.
+ */
+async function tourAt(root: string, o: { other: boolean; themeName: string; variation?: string; scheme?: "light" | "dark"; cacheDir: string; uri: (f: string) => string; fail: typeof fail }): Promise<ToolResult> {
+  const eyes = await import("@snypd/bench/look");
+  const t = await import("@snypd/bench/tour");
+  let r;
+  try { r = await t.tour({ root, theme: o.themeName, variation: o.variation, scheme: o.scheme, cacheDir: o.cacheDir }); }
+  catch (e) {
+    const err = e as Error & { hint?: string };
+    if (err instanceof eyes.NoBrowserError) return o.fail(err.message, err.hint);
+    return o.fail(err.message, err.hint ?? "");
+  }
+  const { image, file, stops, ...facts } = r;
+  return {
+    content: [
+      { type: "text", text: t.formatTour(r, o.uri) },
+      { type: "image", data: image.data, mimeType: image.mimeType },
+      { type: "resource_link", uri: o.uri(file), name: "tour", mimeType: "image/webp", description: `${r.routes.length} routes × 1280 + 390 on ${r.theme}` },
+      ...stops.filter((s) => s.file).map((s) => ({ type: "resource_link" as const, uri: o.uri(s.file!), name: `${s.kind} ${s.width}`, mimeType: "image/webp", description: `${s.route} at ${s.width}, the first screen` })),
+    ],
+    structuredContent: { ok: true, ...facts, stops: stops.map(({ image: _i, file: f, ...s }) => ({ ...s, crop: f && o.uri(f) })), image: { width: image.width, height: image.height, mimeType: image.mimeType }, sheet: o.uri(file) },
+  };
+}
+
+/** Close the browser `look` started, if it did. Called when the session ends; never imports what was not loaded. */
+export async function disposeCatalog(): Promise<void> {
+  if (eyesLoaded) (await import("@snypd/bench/look")).closeEyes();
+}
+let eyesLoaded = false;
+
 async function doctor(root: string): Promise<ToolResult> {
   const c = await loadCore();
   const cfg = c.loadConfig(root);
@@ -919,8 +1124,14 @@ async function doctor(root: string): Promise<ToolResult> {
       const runner = c.findRunner();
       if (runner) ok(`host: ${dep.target}, deployed from here through wrangler ${dep.wrangler} via \`${runner.kind}\`${dep.policy === "human" ? " — `deploy.push` is `human`, so `site` › deploy reports and a person uploads" : ""}`);
       else warn(`host: ${dep.target}, but neither \`npx\` nor \`bunx\` is on this machine, so wrangler cannot run — install Node (https://nodejs.org) or Bun (https://bun.sh); snypd does not bundle the host's CLI`);
-      if (last) ok(`last deploy ${when(last.at)} by ${last.by}: ${last.url} — ${last.files} file${last.files === 1 ? "" : "s"}${last.deploys > 1 ? `, ${last.deploys} uploads` : ""}${last.account?.email ? `; logged in as ${last.account.email} then` : ""}`);
-      else warn("no deploy on record here — `site` › deploy puts it online: one call, and on a machine the host has never seen a person clicks allow once");
+      if (last) ok(`last deploy ${when(last.at)} by ${last.by}: ${last.url} — ${last.files} file${last.files === 1 ? "" : "s"}${last.deploys > 1 ? `, ${last.deploys} uploads` : ""}${last.account?.email ? `; logged in as ${last.account.email} then` : ""}${last.temporary ? "; on a temporary account" : ""}`);
+      else warn("no deploy on record here — `site` › deploy puts it online: one call, and on a machine with no Cloudflare login it goes to a temporary account, no click");
+      // D1: a temporary account is a clock. Doctor reads it from the record, not from wrangler.
+      if (last?.temporary) {
+        const t = last.temporary;
+        if (Date.parse(t.expiresAt) > Date.now()) warn(`the site is on a temporary Cloudflare account until ${when(t.expiresAt)} UTC, then deleted — unless a person claims it at ${t.claimUrl}; after that, \`site\` › deploy with \`login: true\` once`);
+        else warn(`the temporary account's hour ended ${when(t.expiresAt)} UTC — claimed, the site is on the person's account and \`site\` › deploy with \`login: true\` reaches it; not claimed, it is gone and \`site\` › deploy with \`temporary: true\` puts it up at a new URL`);
+      }
       // The backup row (L5). A direct-deployed site is live with no repository anywhere but this disk,
       // and that is a fact worth saying once a deploy has happened — not before, when "no remote" is
       // simply what a site being written looks like.
@@ -992,6 +1203,13 @@ async function doctor(root: string): Promise<ToolResult> {
   // record outlives the process that wrote it.
   if (dev) ok(`a \`snypd dev\` server is running — Desk at ${dev.url}/_snypd`);
   else warn("no preview server — `snypd dev` starts one, or `content.render_preview` starts a session-scoped one when you ask for a URL");
+
+  // The eyes (E1): which browser `theme › look` will start, found without starting it. A machine with none
+  // is a warning and not a problem — every look still answers, with what can be known without a picture.
+  const { eyesBrowser, eyesBrowsers } = await import("@snypd/bench/look");
+  const seeing = eyesBrowser();
+  if (seeing) ok(`eyes: \`theme\` › look uses ${seeing.name} — ${seeing.path}${eyesBrowsers().length > 1 ? ` (${eyesBrowsers().length - 1} more to fall back on)` : ""}`);
+  else warn("eyes: no browser — `theme` › look answers without a picture; `snypd eyes install` fetches chrome-headless-shell (~90 MB) once, or set SNYPD_CHROME");
 
   const items = facts.items;
   if (items) ok(`${items} item${items === 1 ? "" : "s"}`);

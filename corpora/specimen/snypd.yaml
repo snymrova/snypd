@@ -9,3 +9,7 @@ theme:
 types:
   author:
     layout: author
+# A feature type (docs/37 §2, W3): the changelog plugin's `release`, whose fields carry roles, so the
+# `feature` and `list` pieces have a page to be photographed on (`snypd pieces stills`, board.yaml).
+plugins:
+  - changelog

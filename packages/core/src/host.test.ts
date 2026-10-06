@@ -9,8 +9,10 @@
  *  2. **A first deploy is two uploads and one answer.** `site.url` was the placeholder; the host names
  *     the URL; the site is rebuilt against it and uploaded again, and the config change comes back as a
  *     path for the caller to commit.
- *  3. **Login is the tool's to run** (230) and the person's to finish. Nobody logged in ⇒ `wrangler
- *     login` runs before the build; a click that never comes is a refusal that carries the URL.
+ *  3. **Nobody logged in ⇒ a temporary account** (D1): `wrangler deploy --temporary`, no login and no
+ *     click, a claim link and a deadline in the answer; the hour gone ⇒ a refusal naming both calls.
+ *     **Login is the tool's to run** (230) when asked (`login: true`) and the person's to finish; a click
+ *     that never comes is a refusal that carries the URL.
  *  4. **Every refusal names its next action** (F3): no host config, the other host, a git-connected
  *     site, a fresh account with no subdomain, `deploy.push: human`.
  *  5. **The placeholder moved.** `publishCheck` no longer refuses over it; `pushState` still does.
@@ -23,7 +25,7 @@ import { loadConfig } from "./config";
 import { git, initRepo } from "./git";
 import { writeDeploy } from "./deploy";
 import { createContent, publishCheck, approvals } from "./write";
-import { deployHint, deployMode, deploySite, deployState, parseDeploy, findRunner, readDeploy, deployPath, WRANGLER_VERSION } from "./host";
+import { deployHint, deployMode, deploySite, deployState, parseDeploy, parseTemporary, findRunner, readDeploy, deployPath, WRANGLER_VERSION } from "./host";
 import { pushState } from "./push";
 
 const ROOT = "corpora/_test/host";
@@ -54,7 +56,7 @@ const build = async (root: string) => {
 
 const calls = () => existsSync(`${STATE}/calls`) ? readFileSync(`${STATE}/calls`, "utf8").trim().split("\n") : [];
 
-beforeEach(() => { process.env.SNYPD_WRANGLER = STUB; process.env.STUB_STATE = STATE; delete process.env.STUB_DEPLOY; delete process.env.STUB_LOGIN; });
+beforeEach(() => { process.env.SNYPD_WRANGLER = STUB; process.env.STUB_STATE = STATE; delete process.env.STUB_DEPLOY; delete process.env.STUB_LOGIN; delete process.env.STUB_TEMP; });
 afterAll(() => { delete process.env.SNYPD_WRANGLER; delete process.env.STUB_STATE; rmSync(ROOT, { recursive: true, force: true }); rmSync(STATE, { recursive: true, force: true }); });
 
 describe("wrangler's output, read back", () => {
@@ -144,9 +146,9 @@ describe("deploy state (docs/31 §4)", () => {
 });
 
 describe("site › deploy — the walk's step 9 (docs/31 §3)", () => {
-  test("a first deploy: login, build, upload, the URL read back, site.url set, build and upload again", async () => {
+  test("a first deploy with `login: true`: login, build, upload, the URL read back, site.url set, build and upload again", async () => {
     const cfg = setup();
-    const r = await deploySite(ROOT, cfg, { build });
+    const r = await deploySite(ROOT, cfg, { build, login: true });
     expect(r.ok).toBe(true);
     expect(r.url).toBe("https://host-test.stub.workers.dev");
     expect(r.loggedIn).toBe(true);                                           // the host had never seen this machine
@@ -201,7 +203,7 @@ describe("site › deploy — the walk's step 9 (docs/31 §3)", () => {
     expect(r.ok).toBe(true);
     expect(r.deploys).toBe(1);
     expect(r.urlSet).toBeUndefined();
-    expect(r.url).toBe("https://host-test.stub.workers.dev");                // what answers today; the domain step is §7
+    expect(r.url).toBe("https://host-test.quiet-otter-1.workers.dev");                     // what answers today; the domain step is §7
     expect(loadConfig(ROOT).config.site.url).toBe("https://catbook.example");
   });
 
@@ -216,7 +218,7 @@ describe("site › deploy — the walk's step 9 (docs/31 §3)", () => {
 
   test("a click that never comes: the refusal carries the link wrangler opened and the command for a shell (230)", async () => {
     process.env.STUB_LOGIN = "hang";
-    const r = await deploySite(ROOT, setup(), { build, loginTimeoutMs: 1500 });
+    const r = await deploySite(ROOT, setup(), { build, login: true, loginTimeoutMs: 1500 });
     expect(r.ok).toBe(false);
     expect(r.loggedIn).toBe(false);
     expect(r.reason).toContain("login");
@@ -232,7 +234,7 @@ describe("site › deploy — the walk's step 9 (docs/31 §3)", () => {
 
   test("a fresh account with no workers.dev subdomain, outside a harness: the onboarding link, and no second upload", async () => {
     process.env.STUB_DEPLOY = "nosub";
-    const r = await deploySite(ROOT, setup(), { build });
+    const r = await deploySite(ROOT, setup(), { build, login: true });   // a temporary account comes with its subdomain
     expect(r.ok).toBe(false);
     expect(r.deploys).toBe(1);
     expect(r.reason).toContain("no workers.dev subdomain");
@@ -244,7 +246,89 @@ describe("site › deploy — the walk's step 9 (docs/31 §3)", () => {
     const r = await deploySite(ROOT, setup(), { build: async () => { throw new Error("rule 3: a broken link"); } });
     expect(r.ok).toBe(false);
     expect(r.reason).toContain("rule 3");
-    expect(calls()).toEqual(["whoami --json", "login"]);                     // login happened; the upload did not
+    expect(calls()).toEqual(["whoami --json"]);                              // nothing reached the host
+  });
+});
+
+/**
+ * D1: a machine with no Cloudflare credential deploys to a temporary account by default. The stub's
+ * `temp` file is wrangler's per-machine cache of it: present ⇒ reused (same URL), gone ⇒ a new account
+ * at a new URL, which is what the hour running out looks like from here.
+ */
+describe("site › deploy on a temporary account (D1)", () => {
+  const clock = (iso: string) => () => new Date(iso);
+
+  test("nobody logged in: no login, the URL, a claim link and a deadline, site.url set from it", async () => {
+    const r = await deploySite(ROOT, setup(), { build, now: clock("2026-10-06T14:00:00Z") });
+    expect(r.ok).toBe(true);
+    expect(r.loggedIn).toBeUndefined();                                      // no tab, no click
+    expect(r.url).toBe("https://host-test.quiet-otter-1.workers.dev");
+    expect(r.temporary).toEqual({ name: "Quiet Otter", created: true, claimUrl: "https://dash.cloudflare.com/claim-preview?claimToken=quiet-otter-1", expiresAt: "2026-10-06T15:00:00.000Z" });
+    expect(r.urlSet).toBe("https://host-test.quiet-otter-1.workers.dev");
+    expect(r.deploys).toBe(2);
+    expect(calls()).toEqual(["whoami --json", "deploy --temporary", "deploy --temporary"]);
+    // The second upload reused the account the first one made, so the deadline is the first one's.
+    expect(readDeploy(ROOT)!.temporary).toMatchObject({ created: true, expiresAt: "2026-10-06T15:00:00.000Z" });
+
+    // Inside the hour: the same account, the same URL, one upload, nothing to commit.
+    const again = await deploySite(ROOT, loadConfig(ROOT), { build, now: clock("2026-10-06T14:20:00Z") });
+    expect(again).toMatchObject({ ok: true, deploys: 1, paths: [], url: "https://host-test.quiet-otter-1.workers.dev" });
+    expect(again.temporary!.created).toBe(false);
+    expect(again.urlSet).toBeUndefined();
+  });
+
+  test("the hour gone: it refuses and names both calls; `temporary: true` moves the site and site.url with it", async () => {
+    await deploySite(ROOT, setup(), { build, now: clock("2026-10-06T14:00:00Z") });
+    rmSync(`${STATE}/temp`);                                                 // wrangler's cache expired with the account
+    const later = clock("2026-10-06T16:00:00Z");
+    const r = await deploySite(ROOT, loadConfig(ROOT), { build, now: later });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("temporary Cloudflare account");
+    expect(r.hint).toContain("login: true");
+    expect(r.hint).toContain("temporary: true");
+    expect(r.hint).toContain("claimToken=quiet-otter-1");
+    expect(calls().slice(3)).toEqual(["whoami --json"]);                     // nothing built, nothing sent
+
+    const moved = await deploySite(ROOT, loadConfig(ROOT), { build, temporary: true, now: later });
+    expect(moved).toMatchObject({ ok: true, url: "https://host-test.quiet-otter-2.workers.dev", urlSet: "https://host-test.quiet-otter-2.workers.dev", deploys: 2 });
+    expect(loadConfig(ROOT).config.site.url).toBe("https://host-test.quiet-otter-2.workers.dev");
+  });
+
+  test("claimed, then `login: true`: the site follows to the person's account and site.url with it", async () => {
+    await deploySite(ROOT, setup(), { build, now: clock("2026-10-06T14:00:00Z") });
+    const r = await deploySite(ROOT, loadConfig(ROOT), { build, login: true, now: clock("2026-10-06T16:00:00Z") });
+    expect(r).toMatchObject({ ok: true, loggedIn: true, url: "https://host-test.stub.workers.dev", urlSet: "https://host-test.stub.workers.dev" });
+    expect(r.temporary).toBeUndefined();
+    expect(readDeploy(ROOT)!.temporary).toBeUndefined();
+    expect(existsSync(`${STATE}/temp`)).toBe(false);                         // login cleared wrangler's cache, as the real one does
+  });
+
+  test("logged in: deploys to that account, and `temporary: true` is refused rather than ignored", async () => {
+    setup();
+    mkdirSync(STATE, { recursive: true }); writeFileSync(`${STATE}/loggedin`, "");
+    const r = await deploySite(ROOT, loadConfig(ROOT), { build });
+    expect(r).toMatchObject({ ok: true, url: "https://host-test.stub.workers.dev" });
+    expect(r.temporary).toBeUndefined();
+    expect(calls()).not.toContain("deploy --temporary");
+    const t = await deploySite(ROOT, loadConfig(ROOT), { build, temporary: true });
+    expect(t.ok).toBe(false);
+    expect(t.reason).toContain("logged in");
+    expect(t.hint).toContain("stub@example.com");
+  });
+
+  test("Cloudflare will not make one: the refusal offers a minute's wait or `login: true`", async () => {
+    process.env.STUB_TEMP = "fail";
+    const r = await deploySite(ROOT, setup(), { build });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("temporary account");
+    expect(r.hint).toContain("login: true");
+    expect(loadConfig(ROOT).config.site.url).toBe("http://localhost:4321");
+  });
+
+  test("the block is read from wrangler's own lines", () => {
+    const out = "Temporary account ready:\n\tAccount: Omniscient Slash (reused)\n\tClaim within: 1 hour\n\tClaim URL: https://dash.cloudflare.com/claim-preview?claimToken=abc\n";
+    expect(parseTemporary(out, new Date("2026-10-06T11:10:00Z"))).toEqual({ name: "Omniscient Slash", created: false, claimUrl: "https://dash.cloudflare.com/claim-preview?claimToken=abc", expiresAt: "2026-10-06T12:10:00.000Z" });
+    expect(parseTemporary("Deployed x triggers")).toBeUndefined();
   });
 });
 

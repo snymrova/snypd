@@ -1,0 +1,6 @@
+piece: prose/display
+from: studio
+line: Display prose — every heading in the display face, bold, tight and balanced; the body in the system sans; a ruled, muted quote.
+reads: [color.scheme, color.bg, color.text, color.muted, color.accent, color.border, font.body, font.heading, size.body, size.h1, size.h2, size.h3, leading.body, leading.tight, space.4, space.5, radius.small]
+needs:
+  radius.small: var(--radius)

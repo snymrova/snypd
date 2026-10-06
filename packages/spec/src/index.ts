@@ -135,7 +135,18 @@ export interface Defaults {
   initialStatus: string;
   budgets: Record<string, number | Record<string, number>>;
   fieldTypes: Record<string, { json: string; format?: string; keys?: string[]; description?: string }>;
+  themeContract: ThemeContract;
 }
+
+/** The theme contract (docs/36 §3, decision 269): what a piece may read and what it may style. */
+export interface ThemeContract {
+  tokens: string[];
+  optional: Record<string, { derive: string; description: string }>;
+  classes: string[];
+  classPrefixes: string[];
+  literals: { units: string[]; lengths: string[]; alphaOnly: string[] };
+}
+export function themeContract(): ThemeContract { return defaults().themeContract; }
 /** Layer 1 of the YAML stack (docs/02 §1): every built-in, merged from defaults/*.yaml. */
 export function defaults(): Defaults {
   const out: Record<string, unknown> = {};

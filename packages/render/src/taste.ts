@@ -184,9 +184,9 @@ const hex = (c: Rgb) => "#" + [c.r, c.g, c.b].map((v) => Math.round(v * 255).toS
 /** What `TASTE_PROBE` measures on one page. Every number is a computed value, in px. */
 export interface TasteMeasure {
   /** Uppercase, tracked elements directly before an h1/h2. */
-  eyebrows: { text: string; heading: string }[];
+  eyebrows: { text: string; heading: string; box?: [number, number, number, number] }[];
   /** Body copy (p, li in main) with ≥ 40 characters, smallest first. */
-  body: { px: number; text: string }[];
+  body: { px: number; text: string; box?: [number, number, number, number] }[];
   /** Characters per full line, one per paragraph of ≥ 180 characters that wraps at least three times. */
   measures: number[];
   /** The first h1, h2 and h3 on the page. */
@@ -206,21 +206,25 @@ function probe(): TasteMeasure {
   const vis = (e: Element) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const cs = (e: Element) => getComputedStyle(e);
   const text = (e: Element) => (e.textContent || "").replace(/\s+/g, " ").trim();
+  // Where on the page, in document pixels — `theme › look` draws a numbered box there (docs/36 §5a).
+  const box = (e: Element): [number, number, number, number] => { const r = e.getBoundingClientRect(); return [Math.round(r.left + (globalThis as any).scrollX), Math.round(r.top + (globalThis as any).scrollY), Math.round(r.width), Math.round(r.height)]; };
   const scope = document.querySelector("main") || document.body;
 
-  const eyebrows: { text: string; heading: string }[] = [];
+  const eyebrows: TasteMeasure["eyebrows"] = [];
   for (const h of document.querySelectorAll("h1, h2")) {
     const p = h.previousElementSibling;
     if (!p || !vis(p) || !text(p)) continue;
     const s = cs(p), size = parseFloat(s.fontSize) || 16, ls = parseFloat(s.letterSpacing) || 0;
-    if (s.textTransform === "uppercase" && ls / size > 0.05) eyebrows.push({ text: text(p).slice(0, 40), heading: text(h).slice(0, 40) });
+    if (s.textTransform === "uppercase" && ls / size > 0.05) eyebrows.push({ text: text(p).slice(0, 40), heading: text(h).slice(0, 40), box: box(p) });
   }
 
-  const body: { px: number; text: string }[] = [];
+  // Reading text, not the small print: a byline, a meta or facts strip, a caption or a label is small on
+  // purpose, and the floor is for the sentences (the W4 sitting).
+  const body: TasteMeasure["body"] = [];
   for (const e of scope.querySelectorAll("p, li")) {
-    if (e.closest("nav, footer, header, figcaption, aside, .footnotes") || !vis(e)) continue;
+    if (e.closest("nav, footer, header, figcaption, aside, small, .footnotes, [class*='byline'], [class*='-meta'], [class*='facts'], [class*='caption'], [class*='label']") || !vis(e)) continue;
     const t = text(e);
-    if (t.length >= 40) body.push({ px: parseFloat(cs(e).fontSize) || 0, text: t.slice(0, 40) });
+    if (t.length >= 40) body.push({ px: parseFloat(cs(e).fontSize) || 0, text: t.slice(0, 40), box: box(e) });
   }
   body.sort((a, b) => a.px - b.px);
 
@@ -240,7 +244,9 @@ function probe(): TasteMeasure {
   }
 
   const size = (sel: string) => { const e = document.querySelector(sel); return e && vis(e) ? parseFloat(cs(e).fontSize) : undefined; };
-  const heads = { h1: size("h1"), h2: size("main h2") ?? size("h2"), h3: size("main h3") ?? size("h3") };
+  // The page's own heads, not a part's labels: a heading the markdown wrote carries no class, and a year
+  // mark or a list's label set small as an `h2` does (home/index's years were read as the page's h2).
+  const heads = { h1: size("h1"), h2: size("main h2:not([class])") ?? size("main h2") ?? size("h2"), h3: size("main h3:not([class])") ?? size("main h3") ?? size("h3") };
 
   const gaps: number[] = [];
   if (column) {
@@ -255,6 +261,12 @@ function probe(): TasteMeasure {
 }
 /** The probe as an expression `Runtime.evaluate` can run. */
 export const TASTE_PROBE = `(${probe.toString()})()`;
+
+/**
+ * Reading text on a phone is 16 px or more (the W4 sitting, 5 Oct 2026; it was 14): iOS zooms a field under
+ * 16, and a sentence under it is a squint. 15.5 lets a fluid size that lands at 15.6 through.
+ */
+export const TINY_PX = 15.5;
 
 /** Which rendered rules a width is judged at: phone rules at a phone width, reading rules at a desktop one. */
 export const RENDERED_RULES = ["taste.eyebrow", "taste.tiny-text", "taste.measure", "taste.flat-hierarchy", "taste.monotonous-spacing"] as const;
@@ -273,9 +285,9 @@ export function tasteVerdicts(m: TasteMeasure, width: number): TasteHit[] {
     ? `${m.eyebrows.length} tracked-caps kicker${m.eyebrows.length === 1 ? "" : "s"} over a heading ("${m.eyebrows[0]!.text}" over "${m.eyebrows[0]!.heading}")`
     : "no tracked-caps kicker over a heading");
 
-  const tiny = m.body.filter((b) => b.px < 14);
+  const tiny = m.body.filter((b) => b.px < TINY_PX);
   add("taste.tiny-text", tiny.length > 0, tiny.length
-    ? `${tiny.length} block${tiny.length === 1 ? "" : "s"} of body copy under 14 px at ${width} (${tiny[0]!.px} px: "${tiny[0]!.text}…")`
+    ? `${tiny.length} block${tiny.length === 1 ? "" : "s"} of body copy under 16 px at ${width} (${tiny[0]!.px} px: "${tiny[0]!.text}…")`
     : m.body.length ? `body copy ≥ ${m.body[0]!.px} px at ${width}` : "no body copy on this page");
 
   const med = median(m.measures);

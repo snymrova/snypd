@@ -1,0 +1,15 @@
+/* footer/close — carved from folio. The footer is the other half of the same `light-dark()` pairs: one
+   declaration, `color-scheme: dark`, and every colour inside it is the token it was, read from its dark
+   side — which the contrast gate has already read. Edge to edge on the column's `--edge`. */
+body > footer.snypd-footer-close {
+  color-scheme: dark; background: var(--color-bg); color: var(--color-muted);
+  border-top: 1px solid var(--color-border); padding: var(--space-5) var(--edge);
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-3) var(--space-4);
+  font-size: var(--size-small);
+}
+body > footer.snypd-footer-close p { margin: 0; }
+body > footer.snypd-footer-close a { color: inherit; text-decoration: none; }
+body > footer.snypd-footer-close a:hover, body > footer.snypd-footer-close a[aria-current="page"] { color: var(--color-text); }
+body > footer.snypd-footer-close :is(.snypd-footer-note, .snypd-footer-status) a { text-decoration: underline; }
+body > footer.snypd-footer-close ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-footer-menu); }
+body > footer.snypd-footer-close li { margin: 0; }

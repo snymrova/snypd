@@ -1,0 +1,16 @@
+piece: list/grid
+from: drawn
+line: An archive for a type that is its pictures — the heading, the count and the filter row as `list/ruled` sets them, then every entry as its cover cropped to one frame, with the title, date and first term under it; the grid breaks at each year with a rule that carries the year. It draws its own tiles, not the `entries` piece's rows.
+refs:
+  - { url: https://www.pentagram.com/work,        took: "one crop for every tile, so the grid reads as a wall; the title and the discipline under each" }
+  - { url: https://www.criterion.com/shop/browse/list, took: "a catalogue of covers at one size, the year beside the title under each" }
+  - { url: https://photos.google.com/,           took: "the grid broken at each turn of the date by a heading across it, so a wall of pictures stays a timeline" }
+reads: [font.display, font.ui, size.h3, size.body, size.small, leading.tight, color.text, color.muted, color.accent, color.border, color.surface, measure, space.2, space.3, space.4, space.5, measure.tile, size.tap]
+needs:
+  measure.tile: 15rem
+emits: [snypd-list, snypd-list-kicker, snypd-list-filter-name, snypd-list-count, snypd-tiles, snypd-tiles-year, snypd-tiles-mark, snypd-tile, snypd-tile-frame, snypd-tile-name, snypd-tile-label]
+pairs:
+  column: three-track
+layouts:
+  index: ./layout.tsx
+  term: ./term.tsx

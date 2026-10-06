@@ -1,0 +1,70 @@
+/* blocks/rows — carved from folio. Nothing here is a box inside a box: a block is a hairline above it, or
+   one quiet surface. What repeats — steps, questions — is a run of ruled rows, and the only filled thing on
+   the page is the button. */
+
+/* The summary is a deck: one step over the prose, derived from the body so it stays one step over it
+   whatever the body becomes. Its hairline carries the label, so a byline's rule above it gives way
+   (cover's piece). */
+.snypd-tldr { border-top: 1px solid var(--color-border); padding-top: var(--space-3); font-size: calc(var(--size-body) * 1.15); line-height: 1.45; }
+.snypd-tldr > p:first-child strong { display: block; font: 500 var(--size-small) / 1.2 var(--font-display); color: var(--color-muted); margin-bottom: var(--space-2); }
+.snypd-callout { background: var(--color-surface); border-left: 3px solid var(--kind, var(--color-border)); border-radius: 0 var(--radius) var(--radius) 0; padding: var(--space-3) var(--space-4); }
+.snypd-callout[data-kind="note"]    { --kind: var(--color-viz-1); }
+.snypd-callout[data-kind="tip"]     { --kind: var(--color-viz-2); }
+.snypd-callout[data-kind="danger"]  { --kind: var(--color-viz-4); }
+.snypd-pullquote { border: 0; padding: 0; margin-block: var(--space-5); font: 500 var(--size-h2) / 1.12 var(--font-display); letter-spacing: -0.025em; color: var(--color-text); text-wrap: balance; }
+.snypd-pullquote footer { font: 400 var(--size-small) / 1.4 var(--font-ui); letter-spacing: 0; color: var(--color-muted); margin-top: var(--space-3); }
+
+/* The numbers: three across, then one — never two and a widow (`data-count` is the renderer's). The value
+   in the display face, the label small and muted under it, its source a link a reader finds on looking. */
+.snypd-stat-row { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(var(--measure-stat), 1fr)); }
+.snypd-stat-row[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
+.snypd-stat-row[data-count="4"] { grid-template-columns: repeat(4, 1fr); }
+.snypd-stat-value { font: 500 var(--size-number) / 1 var(--font-display); letter-spacing: -0.035em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.snypd-stat-value strong { font-weight: inherit; }
+.snypd-stat-value small { font: 500 var(--size-small) / 1 var(--font-display); letter-spacing: 0; color: var(--color-muted); margin-left: 0.4em; }
+.snypd-stat-label { font-size: var(--size-small); color: var(--color-muted); margin-top: var(--space-3); max-width: 24ch; }
+.snypd-source { color: inherit; text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.snypd-source:hover { color: var(--color-text); text-decoration-style: solid; }
+
+/* Steps: ruled rows, the number in mono in its own column — `01` to `04`. The number is `content` with
+   empty alt text, placed absolutely rather than as a grid cell: a step's body is inline markdown, and a
+   grid would make a cell of every `code` and `strong` in it. */
+.snypd-steps > :is(h2, h3, h4), .snypd-faq > :is(h2, h3, h4) { margin-top: 0; margin-bottom: var(--space-3); }
+.snypd-steps ol { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+.snypd-steps ol > li { counter-increment: step; position: relative; margin: 0; padding: var(--space-step-row) 0 var(--space-step-row) var(--space-step); border-top: 1px solid var(--color-border); color: var(--color-muted); }
+.snypd-steps ol > li:last-child { border-bottom: 1px solid var(--color-border); }
+.snypd-steps ol > li::before { content: counter(step, decimal-leading-zero) / ""; position: absolute; left: 0; top: var(--space-step-row); font: 400 var(--size-small) / 1.82 var(--font-mono); color: var(--color-muted); }
+.snypd-steps ol > li strong { font: 500 1em / inherit var(--font-display); letter-spacing: -0.005em; color: var(--color-text); }
+.snypd-steps ol > li :is(em, code, a) { color: var(--color-text); }
+
+.snypd-faq-item { border-top: 1px solid var(--color-border); padding-block: var(--space-3); }
+.snypd-faq-item summary { list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.snypd-faq-item summary::after { content: "+" / ""; font: 400 var(--size-h3) / 1 var(--font-display); color: var(--color-muted); transition: rotate var(--motion-quick) ease-out; }
+.snypd-faq-item[open] summary::after { rotate: 45deg; }
+.snypd-faq-item h3 { margin: 0; font-size: var(--size-body); letter-spacing: -0.005em; }
+.snypd-faq-answer { padding-block: var(--space-2) var(--space-1); color: var(--color-muted); }
+
+/* The call and the button: one solid button, no arrow. */
+.snypd-cta { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+.snypd-cta > p:first-child { font: 500 var(--size-h3) / 1.25 var(--font-display); letter-spacing: -0.015em; }
+.snypd-cta > p:first-child strong { font-weight: inherit; }
+.snypd-cta > p:nth-child(2) { color: var(--color-muted); margin-top: var(--space-2); max-width: var(--measure-deck); }
+.snypd-cta > p:last-child { margin-top: var(--space-4); }
+.snypd-button {
+  display: inline-block; background: var(--color-accent); color: var(--color-on-accent);
+  font: 500 var(--size-body) / 1.2 var(--font-display); letter-spacing: -0.005em; text-decoration: none;
+  padding: var(--space-button); border-radius: var(--radius); transition: background var(--motion-quick) ease-out;
+}
+.snypd-button:hover { background: color-mix(in oklab, var(--color-accent) 82%, var(--color-bg)); }
+
+/* Every block gets the same breath. */
+.snypd-figure, .snypd-chart, .snypd-diagram, .snypd-flow, .snypd-tldr, .snypd-callout, .snypd-stat-row, .snypd-steps, .snypd-faq, .snypd-cta { margin-block: var(--space-4); }
+.snypd-figure img, .snypd-figure video { display: block; width: 100%; border-radius: calc(var(--radius) * 2); background: var(--color-surface); }
+figcaption { margin-top: var(--space-2); }
+.snypd-scroll:focus-visible { outline: 2px solid var(--color-text); outline-offset: 3px; }
+/* The lightbox's close button (U7), in the theme's voice. */
+.snypd-lightbox-close { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius); }
+
+@supports (text-box: trim-both cap alphabetic) { .snypd-stat-value { text-box: trim-both cap alphabetic; } }
+/* A value does not wrap, so on a phone a row stacks — `510 tokens` is wider than a third of one. */
+@media (max-width: 47.5rem) { .snypd-stat-row[data-count] { grid-template-columns: 1fr; gap: var(--space-4); } }

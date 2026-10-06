@@ -27,7 +27,7 @@ img, svg, video { max-width: 100%; height: auto; }
 .snypd-menu-button { display: none; font: inherit; color: inherit; background: none; border: 1px solid currentColor; border-radius: 0.25em; padding: 0.3em 0.7em; cursor: pointer; }
 @media (max-width: 34rem) {
   .snypd-menu-button { display: inline-block; }
-  #snypd-menu:not(:popover-open) { display: none !important; }
+  #snypd-menu[popover]:not(:popover-open) { display: none !important; }
   /* The sheet's *layout* is important on purpose: a theme's `nav ul { display: flex; padding: 0 }`,
      written for the desktop row, would otherwise reach the open sheet too. Its colour and type are
      the theme's, and a theme that wants a different sheet altogether overrides the header part. */
@@ -46,6 +46,67 @@ img, svg, video { max-width: 100%; height: auto; }
 }
 @media (min-width: 34.01rem) {
   #snypd-menu { display: block; position: static; inset: auto; margin: 0; width: auto; height: auto; overflow: visible; border: 0; padding: 0; color: inherit; background: none; }
+}
+
+/* ── Tap targets on a phone (the W4 sitting, docs/37 §18). Below 37.5rem everything base's markup lets a
+   reader press is 44 px on its short side, Apple's 44 pt and WCAG 2.5.5 — as a floor, not a size: the
+   theme's padding still draws the control, and only one that falls short grows — the footer's menus and
+   lists among them, every footer writing the same three. `align-content: center`
+   keeps the label in the middle of the height it gained, in a block and an inline-block alike. The name
+   is an inline link in base's markup, so it becomes an inline-block here to take a height at all. The
+   motion box is pressed by its label too, so the label is the target (`look` measures the two together).
+   Base reads no token, so the floor is written out; a piece that needs the same floor reads `size.tap`,
+   the contract's optional token, whose default is this 2.75rem. */
+@media (max-width: 37.5rem) {
+  .snypd-masthead a[rel="home"] { display: inline-block; }
+  footer :is(nav, .snypd-social, .snypd-offices) a { display: inline-block; }
+  :is(.snypd-masthead a[rel="home"], .snypd-menu-button, .snypd-button, .snypd-motion label, #snypd-menu a, .snypd-scroller > a, footer :is(nav, .snypd-social, .snypd-offices) a) {
+    box-sizing: border-box; min-block-size: 2.75rem; align-content: center;
+  }
+  /* A short word in a row is a narrow target, so the row's items and the button are held as wide as tall. */
+  :is(.snypd-masthead a[rel="home"], .snypd-menu-button, .snypd-scroller > a, #snypd-menu.snypd-scroller a, footer :is(nav, .snypd-social, .snypd-offices) a) { min-inline-size: 2.75rem; }
+  :is(.snypd-menu-button, .snypd-scroller > a, #snypd-menu.snypd-scroller a) { text-align: center; }
+  #snypd-menu:popover-open a { display: block; }
+  #snypd-menu.snypd-scroller a { display: inline-block; }
+}
+
+/* ── The scroller (the mobile pass): a row that runs sideways on a phone instead of wrapping into a stack
+   of short lines — a filter's terms, a short menu. It snaps to its items, shows no scrollbar, and fades
+   at an edge only while there is more past it: the fade lengths ride a scroll timeline on the row
+   itself, so a row that fits has no timeline and no fade. The item the reader is on is scrolled into
+   view on load, at the row's end, where the browser has `scroll-initial-target`. Wrapping and scrolling are important on
+   purpose, as the phone menu's layout is above: a theme's `flex-wrap: wrap`, written for the desktop row,
+   must not reach the phone's. */
+@property --snypd-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --snypd-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes snypd-scroller-edges {
+  from { --snypd-fade-start: 0px; --snypd-fade-end: 1.5em; }
+  4% { --snypd-fade-start: 1.5em; }
+  96% { --snypd-fade-end: 1.5em; }
+  to { --snypd-fade-start: 1.5em; --snypd-fade-end: 0px; }
+}
+@media (max-width: 37.5rem) {
+  .snypd-scroller {
+    display: flex !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden;
+    overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none;
+  }
+  .snypd-scroller::-webkit-scrollbar { display: none; }
+  .snypd-scroller > * { flex: none; scroll-snap-align: start; }
+  /* The fades need a scroll timeline (two engines); without one the row scrolls with no fade. */
+  @supports (animation-timeline: scroll()) {
+    .snypd-scroller {
+      mask-image: linear-gradient(to right, transparent, #000 var(--snypd-fade-start), #000 calc(100% - var(--snypd-fade-end)), transparent);
+      animation: snypd-scroller-edges linear both; animation-timeline: scroll(self inline);
+    }
+  }
+  /* Brought in at the row's end, not its start: aligned to the start, a current item near the front scrolled
+     the row's own label off the left edge; at the end, a row that fits does not move. One engine. */
+  @supports (scroll-initial-target: nearest) {
+    .snypd-scroller [aria-current] { scroll-snap-align: end; scroll-initial-target: nearest; }
+  }
+  /* A strip menu (`SiteMenu`, `menu-button` off) has no popover: it is the list, in a row of its own. */
+  nav[data-menu="strip"] { min-inline-size: 0; max-inline-size: 100%; }
+  nav[data-menu="strip"] > #snypd-menu { margin: 0; padding: 0; list-style: none; }
 }
 
 /* ── The figure's lightbox (docs/14 §4.2). The button *is* the picture: its chrome comes off here, the
@@ -99,6 +160,13 @@ img, svg, video { max-width: 100%; height: auto; }
 /* ── Reduced motion: nothing above animates for a reader who asked for that — and an autoplaying clip
    is its poster, which is what the still is for. */
 @media (prefers-reduced-motion: reduce) {
+  /* Every animation and transition, a theme's included — the one rule all four sheets carried word for word
+     until it moved here (docs/36 §2, `house`). Important in the lowest layer that has it, which is exactly
+     the precedence it wants: a lower layer's `!important` beats a higher layer's, so no theme's own
+     transition can outrank a reader who asked for stillness. A theme keeps its own
+     `@view-transition { navigation: none }` beside its `navigation: auto`, because that at-rule is decided
+     by order in the sheet, not by layer. */
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   .snypd-lightbox, #snypd-menu:popover-open, .snypd-faq-item::details-content, .snypd-fn-card { transition: none; }
   video[autoplay] { display: none; }
   .snypd-still { display: block; }

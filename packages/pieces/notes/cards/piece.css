@@ -1,0 +1,6 @@
+/* notes/cards — carved from technical. base makes the footnote card work; this is its surface. The list
+   at the end is a ruled block in small type — here, not in `house`, because prose's `ul, ol` comes after
+   house and would take the list's indent. */
+.footnotes { margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid var(--color-border); font-size: var(--size-small); color: var(--color-muted); }
+.footnotes ol { padding-inline-start: 1.5em; }
+.snypd-fnref .snypd-fn-card { color: var(--color-text); background: var(--color-surface); border-color: var(--color-border); border-radius: var(--radius); font-family: var(--font-body); }

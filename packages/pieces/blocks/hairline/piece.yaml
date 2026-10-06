@@ -1,0 +1,7 @@
+piece: blocks/hairline
+from: studio
+line: The fourteen primitives with no boxes — a hairline above each block, numbers in the display face as large as a heading, `01` steps, pill buttons with an arrow.
+reads: [font.display, font.ui, size.body, size.small, size.h2, size.h3, size.number, leading.tight, space.1, space.2, space.3, space.4, color.surface, color.border, color.accent, color.on-accent, color.text, color.muted, color.bg, color.viz.1, color.viz.2, color.viz.5, radius, motion.quick, measure.deck, measure.stat]
+needs:
+  measure.deck: 34rem
+  measure.stat: 11rem

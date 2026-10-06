@@ -1,0 +1,7 @@
+piece: code/tint
+from: folio
+line: Code on a tint with no borders — inline code and blocks on the surface colour; tables ruled, tabular figures, the header in the display face over a rule in the text colour.
+reads: [font.mono, font.display, size.small, size.code, space.2, space.3, space.4, color.surface, color.border, color.text, radius, radius.small]
+needs:
+  size.code: 0.875rem
+  radius.small: var(--radius)

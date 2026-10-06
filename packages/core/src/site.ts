@@ -557,6 +557,8 @@ export function renderThemeSummary(root: string, cfg: LoadedConfig): string {
     // One line, and only from a theme that has any (U3): a settings surface nobody can find is a
     // settings surface nobody uses, and `snypd://theme` is the read an agent makes before it restyles.
     ...(set.length ? [`settings: ${set.length} declared, ${set.filter((x) => x.set).length} set here — snypd://theme/settings`] : []),
+    // Pieces (docs/36): one line, and only from a theme on some — the same bargain as settings.
+    ...(cfg.pieces.length ? [`pieces: ${cfg.pieces.map((p) => `${p.slot}: ${p.name}`).join(", ")} — snypd://theme/pieces`] : []),
     ...(active?.description ? ["reads as: >-", `  ${active.description}`] : []),
     // Names only. Another theme's personality is one `theme` › set away, and charging every session for
     // every installed theme's prose is how a resource that is read once a session turns into a tax.

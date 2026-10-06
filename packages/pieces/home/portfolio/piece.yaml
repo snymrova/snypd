@@ -1,0 +1,17 @@
+piece: home/portfolio
+from: drawn
+line: The front page is the work — a line of intro, then a grid of the listed type's covers, each whole inside a frame they share and standing on one line over a wall label; the page's `##` sections follow as an afterword.
+refs:
+  - { url: https://www.pentagram.com/,   took: "the work is the front page; the studio's own words come after it" }
+  - { url: https://www.are.na/,          took: "every picture whole inside a cell every work shares, never cropped, so a tall one and a wide one sit as equals" }
+  - { url: https://www.moma.org/collection/, took: "the caption as a wall label: the title, then the year and one fact, small, under the work" }
+reads: [font.display, font.ui, size.h2, size.h3, size.small, leading.tight, color.muted, color.border, color.accent, color.surface, measure, space.2, space.3, space.4, space.5, measure.tile]
+needs:
+  measure.tile: 15rem
+emits: [snypd-portfolio, snypd-portfolio-intro, snypd-portfolio-works, snypd-portfolio-work, snypd-portfolio-frame, snypd-portfolio-name, snypd-portfolio-label, snypd-portfolio-more, snypd-portfolio-after]
+settings:
+  - { id: homeEntries, type: number, label: "Works on the front page", group: "Front page", default: 12, info: "How many of the listed type the front page shows, newest first — the type the header menu names first. The way to the whole archive is under the grid either way." }
+pairs:
+  column: three-track
+layouts:
+  home: ./layout.tsx

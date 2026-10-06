@@ -5,7 +5,8 @@
     "ref": "f2bd09badbc763d8757951d52deec29da27e85fb"
   },
   "unicodes": "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
-  "features": "kern,liga,clig,calt",
+  "features": "kern,liga,clig,calt,tnum,lnum",
+  "serifTextFeatures": "onum,pnum,smcp,c2sc",
   "faces": [
     {
       "id": "source-serif-4",
@@ -15,10 +16,46 @@
       "file": "fonts/source-serif-4.woff2",
       "licence": "licences/source-serif-4.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 31052,
-      "kb": 31,
+      "bytes": 44624,
+      "kb": 44,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [
+        "tnum",
+        "lnum",
+        "onum",
+        "pnum",
+        "smcp",
+        "c2sc"
+      ],
+      "digits": "tabular",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {
+        "opsz": 16
+      },
+      "cuts": [
+        {
+          "file": "fonts/source-serif-4-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 35008,
+          "kb": 35,
+          "features": [
+            "tnum",
+            "lnum",
+            "onum",
+            "pnum"
+          ],
+          "source": "google/fonts@f2bd09badbc7:ofl/sourceserif4/SourceSerif4-Italic[opsz,wght].ttf"
+        }
+      ],
       "xHeight": 0.475,
       "capHeight": 0.67,
       "avgWidth": 0.4698,
@@ -42,10 +79,42 @@
       "file": "fonts/crimson-pro.woff2",
       "licence": "licences/crimson-pro.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 32660,
-      "kb": 32,
+      "bytes": 37688,
+      "kb": 37,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [
+        "tnum",
+        "lnum",
+        "onum",
+        "pnum"
+      ],
+      "digits": "proportional",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/crimson-pro-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 39444,
+          "kb": 39,
+          "features": [
+            "tnum",
+            "lnum",
+            "onum",
+            "pnum"
+          ],
+          "source": "google/fonts@f2bd09badbc7:ofl/crimsonpro/CrimsonPro-Italic[wght].ttf"
+        }
+      ],
       "xHeight": 0.42,
       "capHeight": 0.573,
       "avgWidth": 0.4008,
@@ -69,10 +138,38 @@
       "file": "fonts/lora.woff2",
       "licence": "licences/lora.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 34544,
-      "kb": 34,
+      "bytes": 35940,
+      "kb": 36,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [
+        "tnum",
+        "pnum"
+      ],
+      "digits": "proportional",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/lora-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 38980,
+          "kb": 39,
+          "features": [
+            "tnum",
+            "pnum"
+          ],
+          "source": "google/fonts@f2bd09badbc7:ofl/lora/Lora-Italic[wght].ttf"
+        }
+      ],
       "xHeight": 0.5,
       "capHeight": 0.7,
       "avgWidth": 0.4696,
@@ -100,6 +197,35 @@
       "kb": 12,
       "weight": "400",
       "style": "normal",
+      "weights": [
+        400,
+        600
+      ],
+      "italic": true,
+      "features": [],
+      "digits": "tabular",
+      "axes": [],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/ibm-plex-serif-italic.woff2",
+          "weight": "400",
+          "style": "italic",
+          "bytes": 13208,
+          "kb": 13,
+          "features": [],
+          "source": "google/fonts@f2bd09badbc7:ofl/ibmplexserif/IBMPlexSerif-Italic.ttf"
+        },
+        {
+          "file": "fonts/ibm-plex-serif-600.woff2",
+          "weight": "600",
+          "style": "normal",
+          "bytes": 12412,
+          "kb": 13,
+          "features": [],
+          "source": "google/fonts@f2bd09badbc7:ofl/ibmplexserif/IBMPlexSerif-SemiBold.ttf"
+        }
+      ],
       "xHeight": 0.516,
       "capHeight": 0.698,
       "avgWidth": 0.4721,
@@ -127,6 +253,25 @@
       "kb": 14,
       "weight": "400",
       "style": "normal",
+      "weights": [
+        400
+      ],
+      "italic": true,
+      "features": [],
+      "digits": "proportional",
+      "axes": [],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/instrument-serif-italic.woff2",
+          "weight": "400",
+          "style": "italic",
+          "bytes": 14556,
+          "kb": 15,
+          "features": [],
+          "source": "google/fonts@f2bd09badbc7:ofl/instrumentserif/InstrumentSerif-Italic.ttf"
+        }
+      ],
       "xHeight": 0.51,
       "capHeight": 0.72,
       "avgWidth": 0.3401,
@@ -150,10 +295,22 @@
       "file": "fonts/young-serif.woff2",
       "licence": "licences/young-serif.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 15156,
-      "kb": 15,
+      "bytes": 16368,
+      "kb": 16,
       "weight": "400",
       "style": "normal",
+      "weights": [
+        400
+      ],
+      "italic": false,
+      "features": [
+        "tnum",
+        "lnum"
+      ],
+      "digits": "proportional",
+      "axes": [],
+      "pinned": {},
+      "cuts": [],
       "xHeight": 0.5,
       "capHeight": 0.75,
       "avgWidth": 0.5075,
@@ -177,10 +334,21 @@
       "file": "fonts/gloock.woff2",
       "licence": "licences/gloock.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 15384,
+      "bytes": 15472,
       "kb": 16,
       "weight": "400",
       "style": "normal",
+      "weights": [
+        400
+      ],
+      "italic": false,
+      "features": [
+        "tnum"
+      ],
+      "digits": "proportional",
+      "axes": [],
+      "pinned": {},
+      "cuts": [],
       "xHeight": 0.508,
       "capHeight": 0.75,
       "avgWidth": 0.4681,
@@ -204,10 +372,46 @@
       "file": "fonts/bitter.woff2",
       "licence": "licences/bitter.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 25752,
-      "kb": 26,
+      "bytes": 33340,
+      "kb": 33,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [
+        "tnum",
+        "lnum",
+        "onum",
+        "pnum",
+        "smcp",
+        "c2sc"
+      ],
+      "digits": "proportional",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/bitter-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 33196,
+          "kb": 33,
+          "features": [
+            "tnum",
+            "lnum",
+            "onum",
+            "pnum",
+            "smcp",
+            "c2sc"
+          ],
+          "source": "google/fonts@f2bd09badbc7:ofl/bitter/Bitter-Italic[wght].ttf"
+        }
+      ],
       "xHeight": 0.528,
       "capHeight": 0.698,
       "avgWidth": 0.4663,
@@ -231,10 +435,38 @@
       "file": "fonts/instrument-sans.woff2",
       "licence": "licences/instrument-sans.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 26836,
-      "kb": 27,
+      "bytes": 28160,
+      "kb": 28,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [
+        "tnum"
+      ],
+      "digits": "proportional",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {
+        "wdth": 100
+      },
+      "cuts": [
+        {
+          "file": "fonts/instrument-sans-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 29916,
+          "kb": 30,
+          "features": [
+            "tnum"
+          ],
+          "source": "google/fonts@f2bd09badbc7:ofl/instrumentsans/InstrumentSans-Italic[wdth,wght].ttf"
+        }
+      ],
       "xHeight": 0.51,
       "capHeight": 0.72,
       "avgWidth": 0.4572,
@@ -258,10 +490,36 @@
       "file": "fonts/work-sans.woff2",
       "licence": "licences/work-sans.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 26920,
-      "kb": 27,
+      "bytes": 28436,
+      "kb": 28,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [
+        "tnum"
+      ],
+      "digits": "proportional",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/work-sans-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 29500,
+          "kb": 29,
+          "features": [
+            "tnum"
+          ],
+          "source": "google/fonts@f2bd09badbc7:ofl/worksans/WorkSans-Italic[wght].ttf"
+        }
+      ],
       "xHeight": 0.5,
       "capHeight": 0.66,
       "avgWidth": 0.503,
@@ -289,6 +547,30 @@
       "kb": 24,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [],
+      "digits": "tabular",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {
+        "wdth": 100
+      },
+      "cuts": [
+        {
+          "file": "fonts/ibm-plex-sans-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 26444,
+          "kb": 26,
+          "features": [],
+          "source": "google/fonts@f2bd09badbc7:ofl/ibmplexsans/IBMPlexSans-Italic[wdth,wght].ttf"
+        }
+      ],
       "xHeight": 0.516,
       "capHeight": 0.698,
       "avgWidth": 0.4504,
@@ -316,6 +598,28 @@
       "kb": 24,
       "weight": "400 700",
       "style": "normal",
+      "weights": [
+        400,
+        700
+      ],
+      "italic": true,
+      "features": [],
+      "digits": "tabular",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/source-sans-3-italic.woff2",
+          "weight": "400 700",
+          "style": "italic",
+          "bytes": 23852,
+          "kb": 24,
+          "features": [],
+          "source": "google/fonts@f2bd09badbc7:ofl/sourcesans3/SourceSans3-Italic[wght].ttf"
+        }
+      ],
       "xHeight": 0.486,
       "capHeight": 0.66,
       "avgWidth": 0.4197,
@@ -339,10 +643,27 @@
       "file": "fonts/bricolage-grotesque.woff2",
       "licence": "licences/bricolage-grotesque.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 33388,
-      "kb": 33,
+      "bytes": 34444,
+      "kb": 34,
       "weight": "400 800",
       "style": "normal",
+      "weights": [
+        400,
+        800
+      ],
+      "italic": false,
+      "features": [
+        "tnum"
+      ],
+      "digits": "proportional",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {
+        "opsz": 96,
+        "wdth": 100
+      },
+      "cuts": [],
       "xHeight": 0.525,
       "capHeight": 0.66,
       "avgWidth": 0.4432,
@@ -370,6 +691,20 @@
       "kb": 22,
       "weight": "400 800",
       "style": "normal",
+      "weights": [
+        400,
+        800
+      ],
+      "italic": false,
+      "features": [],
+      "digits": "proportional",
+      "axes": [
+        "wght"
+      ],
+      "pinned": {
+        "opsz": 72
+      },
+      "cuts": [],
       "xHeight": 0.6,
       "capHeight": 0.8,
       "avgWidth": 0.3735,
@@ -393,10 +728,21 @@
       "file": "fonts/barlow-condensed.woff2",
       "licence": "licences/barlow-condensed.OFL.txt",
       "licenceName": "OFL-1.1",
-      "bytes": 11852,
-      "kb": 12,
+      "bytes": 12500,
+      "kb": 13,
       "weight": "600",
       "style": "normal",
+      "weights": [
+        600
+      ],
+      "italic": false,
+      "features": [
+        "tnum"
+      ],
+      "digits": "proportional",
+      "axes": [],
+      "pinned": {},
+      "cuts": [],
       "xHeight": 0.511,
       "capHeight": 0.7,
       "avgWidth": 0.3587,
@@ -424,6 +770,25 @@
       "kb": 9,
       "weight": "400",
       "style": "normal",
+      "weights": [
+        400
+      ],
+      "italic": true,
+      "features": [],
+      "digits": "tabular",
+      "axes": [],
+      "pinned": {},
+      "cuts": [
+        {
+          "file": "fonts/ibm-plex-mono-italic.woff2",
+          "weight": "400",
+          "style": "italic",
+          "bytes": 9524,
+          "kb": 10,
+          "features": [],
+          "source": "google/fonts@f2bd09badbc7:ofl/ibmplexmono/IBMPlexMono-Italic.ttf"
+        }
+      ],
       "xHeight": 0.516,
       "capHeight": 0.698,
       "avgWidth": 0.6,

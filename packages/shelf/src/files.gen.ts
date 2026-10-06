@@ -2,28 +2,39 @@
 // Shelf-relative path → a path Bun can read: on disk from a checkout, inside $bunfs from the binary.
 import _0_file from "../fonts/source-serif-4.woff2" with { type: "file" };
 import _0_licence from "../licences/source-serif-4.OFL.txt" with { type: "file" };
+import _0_cut0 from "../fonts/source-serif-4-italic.woff2" with { type: "file" };
 import _1_file from "../fonts/crimson-pro.woff2" with { type: "file" };
 import _1_licence from "../licences/crimson-pro.OFL.txt" with { type: "file" };
+import _1_cut0 from "../fonts/crimson-pro-italic.woff2" with { type: "file" };
 import _2_file from "../fonts/lora.woff2" with { type: "file" };
 import _2_licence from "../licences/lora.OFL.txt" with { type: "file" };
+import _2_cut0 from "../fonts/lora-italic.woff2" with { type: "file" };
 import _3_file from "../fonts/ibm-plex-serif.woff2" with { type: "file" };
 import _3_licence from "../licences/ibm-plex-serif.OFL.txt" with { type: "file" };
+import _3_cut0 from "../fonts/ibm-plex-serif-italic.woff2" with { type: "file" };
+import _3_cut1 from "../fonts/ibm-plex-serif-600.woff2" with { type: "file" };
 import _4_file from "../fonts/instrument-serif.woff2" with { type: "file" };
 import _4_licence from "../licences/instrument-serif.OFL.txt" with { type: "file" };
+import _4_cut0 from "../fonts/instrument-serif-italic.woff2" with { type: "file" };
 import _5_file from "../fonts/young-serif.woff2" with { type: "file" };
 import _5_licence from "../licences/young-serif.OFL.txt" with { type: "file" };
 import _6_file from "../fonts/gloock.woff2" with { type: "file" };
 import _6_licence from "../licences/gloock.OFL.txt" with { type: "file" };
 import _7_file from "../fonts/bitter.woff2" with { type: "file" };
 import _7_licence from "../licences/bitter.OFL.txt" with { type: "file" };
+import _7_cut0 from "../fonts/bitter-italic.woff2" with { type: "file" };
 import _8_file from "../fonts/instrument-sans.woff2" with { type: "file" };
 import _8_licence from "../licences/instrument-sans.OFL.txt" with { type: "file" };
+import _8_cut0 from "../fonts/instrument-sans-italic.woff2" with { type: "file" };
 import _9_file from "../fonts/work-sans.woff2" with { type: "file" };
 import _9_licence from "../licences/work-sans.OFL.txt" with { type: "file" };
+import _9_cut0 from "../fonts/work-sans-italic.woff2" with { type: "file" };
 import _10_file from "../fonts/ibm-plex-sans.woff2" with { type: "file" };
 import _10_licence from "../licences/ibm-plex-sans.OFL.txt" with { type: "file" };
+import _10_cut0 from "../fonts/ibm-plex-sans-italic.woff2" with { type: "file" };
 import _11_file from "../fonts/source-sans-3.woff2" with { type: "file" };
 import _11_licence from "../licences/source-sans-3.OFL.txt" with { type: "file" };
+import _11_cut0 from "../fonts/source-sans-3-italic.woff2" with { type: "file" };
 import _12_file from "../fonts/bricolage-grotesque.woff2" with { type: "file" };
 import _12_licence from "../licences/bricolage-grotesque.OFL.txt" with { type: "file" };
 import _13_file from "../fonts/big-shoulders.woff2" with { type: "file" };
@@ -32,32 +43,44 @@ import _14_file from "../fonts/barlow-condensed.woff2" with { type: "file" };
 import _14_licence from "../licences/barlow-condensed.OFL.txt" with { type: "file" };
 import _15_file from "../fonts/ibm-plex-mono.woff2" with { type: "file" };
 import _15_licence from "../licences/ibm-plex-mono.OFL.txt" with { type: "file" };
+import _15_cut0 from "../fonts/ibm-plex-mono-italic.woff2" with { type: "file" };
 
 export const FILES: Readonly<Record<string, string>> = {
   "fonts/source-serif-4.woff2": _0_file,
   "licences/source-serif-4.OFL.txt": _0_licence,
+  "fonts/source-serif-4-italic.woff2": _0_cut0,
   "fonts/crimson-pro.woff2": _1_file,
   "licences/crimson-pro.OFL.txt": _1_licence,
+  "fonts/crimson-pro-italic.woff2": _1_cut0,
   "fonts/lora.woff2": _2_file,
   "licences/lora.OFL.txt": _2_licence,
+  "fonts/lora-italic.woff2": _2_cut0,
   "fonts/ibm-plex-serif.woff2": _3_file,
   "licences/ibm-plex-serif.OFL.txt": _3_licence,
+  "fonts/ibm-plex-serif-italic.woff2": _3_cut0,
+  "fonts/ibm-plex-serif-600.woff2": _3_cut1,
   "fonts/instrument-serif.woff2": _4_file,
   "licences/instrument-serif.OFL.txt": _4_licence,
+  "fonts/instrument-serif-italic.woff2": _4_cut0,
   "fonts/young-serif.woff2": _5_file,
   "licences/young-serif.OFL.txt": _5_licence,
   "fonts/gloock.woff2": _6_file,
   "licences/gloock.OFL.txt": _6_licence,
   "fonts/bitter.woff2": _7_file,
   "licences/bitter.OFL.txt": _7_licence,
+  "fonts/bitter-italic.woff2": _7_cut0,
   "fonts/instrument-sans.woff2": _8_file,
   "licences/instrument-sans.OFL.txt": _8_licence,
+  "fonts/instrument-sans-italic.woff2": _8_cut0,
   "fonts/work-sans.woff2": _9_file,
   "licences/work-sans.OFL.txt": _9_licence,
+  "fonts/work-sans-italic.woff2": _9_cut0,
   "fonts/ibm-plex-sans.woff2": _10_file,
   "licences/ibm-plex-sans.OFL.txt": _10_licence,
+  "fonts/ibm-plex-sans-italic.woff2": _10_cut0,
   "fonts/source-sans-3.woff2": _11_file,
   "licences/source-sans-3.OFL.txt": _11_licence,
+  "fonts/source-sans-3-italic.woff2": _11_cut0,
   "fonts/bricolage-grotesque.woff2": _12_file,
   "licences/bricolage-grotesque.OFL.txt": _12_licence,
   "fonts/big-shoulders.woff2": _13_file,
@@ -66,4 +89,5 @@ export const FILES: Readonly<Record<string, string>> = {
   "licences/barlow-condensed.OFL.txt": _14_licence,
   "fonts/ibm-plex-mono.woff2": _15_file,
   "licences/ibm-plex-mono.OFL.txt": _15_licence,
+  "fonts/ibm-plex-mono-italic.woff2": _15_cut0,
 };

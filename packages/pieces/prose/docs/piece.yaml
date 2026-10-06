@@ -1,0 +1,4 @@
+piece: prose/docs
+from: technical
+line: Reference prose — headings in the heading face tracked in, quiet deep-link marks on hover, links underlined from the font, no hyphenation.
+reads: [color.scheme, color.bg, color.text, color.muted, color.accent, color.border, font.body, font.heading, size.body, size.h1, size.h2, size.h3, leading.body, leading.tight, space.4, space.5, radius]

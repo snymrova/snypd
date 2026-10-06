@@ -1,0 +1,4 @@
+piece: entries/rows
+from: technical
+line: A list of posts as ruled rows — the date, the title in the heading face, the excerpt muted under it.
+reads: [font.heading, size.h3, space.1, space.2, space.3, color.border, color.text, color.accent, color.muted]

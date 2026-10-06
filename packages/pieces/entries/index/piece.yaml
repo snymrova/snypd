@@ -1,0 +1,13 @@
+piece: entries/index
+from: drawn
+line: A list as an index — each entry one line, the title in the text face, a dotted leader carrying the eye to the date, which hangs in the column's right margin; under a year's heading the date drops the year.
+refs:
+  - { url: https://sive.rs/blog,                          took: "every entry is one line — its date and its title, nothing under it" }
+  - { url: https://www.w3.org/TR/css-content-3/#leaders,  took: "the dot leader that carries the eye from a title across to its number" }
+  - { url: https://edwardtufte.github.io/tufte-css/,       took: "the right margin as the place for the small matter beside the line" }
+reads: [font.body, font.ui, size.body, size.small, leading.tight, color.border, color.muted, color.accent, space.1, space.2, space.3, size.tap]
+emits: [snypd-entry-index, snypd-entry-index-row, snypd-entry-index-title, snypd-entry-index-leader, snypd-entry-index-when, snypd-entry-index-empty]
+pairs:
+  column: three-track
+parts:
+  entries: ./part.tsx

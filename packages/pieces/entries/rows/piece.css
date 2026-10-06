@@ -1,0 +1,8 @@
+/* entries/rows — carved from technical. Index, term and author listings as a ruled table of rows: date,
+   then title, then the excerpt under it. */
+.snypd-entries { list-style: none; padding: 0; margin: 0; }
+.snypd-entries > li { padding-block: var(--space-3); border-top: 1px solid var(--color-border); margin-top: 0; }
+.snypd-entries > li > a { font-family: var(--font-heading); font-size: var(--size-h3); font-weight: 600; letter-spacing: -0.03em; text-decoration: none; color: var(--color-text); }
+.snypd-entries > li > a:hover { color: var(--color-accent); }
+.snypd-entries time { display: block; margin-bottom: var(--space-1); }
+.snypd-entries p { margin-top: var(--space-2); color: var(--color-muted); }

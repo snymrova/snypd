@@ -1,0 +1,6 @@
+piece: motion/still
+from: folio
+line: Nothing moves between pages — the next page is swapped in, never held for a transition; numbers counting up as they scroll in is a switch.
+reads: [color.bg]
+switches:
+  count: { default: false, description: "A stat's figure counts up from zero as it scrolls in, painted over the real text, which stays in the page. Under `@supports`; still under reduced motion." }

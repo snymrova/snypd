@@ -91,7 +91,7 @@ export const scripted: Driver = {
     ctx.phase("upgrade");
     for (const u of UPGRADES) {
       const seen = await s.call("content.suggest_blocks", { type: "post", slug: u.slug });
-      const text = seen.content.map((c) => c.text).join("\n");
+      const text = seen.content.map((c) => ("text" in c ? c.text : "")).join("\n");
       const id = firstId(text);
       // The need is named in the suggestion, so the fill is written against what came back rather than
       // against a table in this file. A detector that starts asking for something else still passes.
@@ -131,7 +131,7 @@ export const scripted: Driver = {
     ctx.phase("publish");
     const slugs = [...UPGRADES.map((u) => u.slug), NEW_POST.slug];
     const prev = await s.call("content.render_preview", { type: "post", slug: slugs[0]! });
-    const url = (prev.content.map((c) => c.text).join("\n").match(/https?:\/\/[^\s)]+/) ?? [])[0];
+    const url = (prev.content.map((c) => ("text" in c ? c.text : "")).join("\n").match(/https?:\/\/[^\s)]+/) ?? [])[0];
     if (!url) throw new Error("render_preview returned no URL to approve on");
     const origin = new URL(url).origin;
     for (const slug of slugs) await ctx.approve(origin, "post", slug);

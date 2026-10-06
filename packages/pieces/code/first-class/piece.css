@@ -1,0 +1,35 @@
+/* code/first-class — carved from technical. Inline code is bordered rather than filled, so it reads as a
+   token inside a sentence; a block is a slab with room for an 80-column line.
+
+   Tables: a ruled header, tabular figures, and a table narrower than the column left at the width it
+   needs. `display: block; overflow-x: auto` is the obvious responsive trick and is not used, because it
+   takes the table role out of the accessibility tree; `max-width: 100%` with cells that wrap costs a few
+   more lines on a phone and costs nobody the table. */
+code, kbd, samp, pre { font-family: var(--font-mono); }
+code {
+  font-size: 0.9em; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius); padding: 0.05em 0.3em;
+}
+pre {
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4); overflow-x: auto;
+  font-size: var(--size-code); line-height: 1.55; tab-size: 2;
+}
+pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+kbd {
+  font-size: 0.85em; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-bottom-width: 2px; border-radius: var(--radius); padding: 0.1em 0.4em;
+}
+
+table {
+  border-collapse: collapse; font-size: var(--size-small); line-height: 1.45;
+  width: max-content; max-width: 100%; margin-inline: auto;
+  font-variant-numeric: tabular-nums;
+}
+th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-border); vertical-align: top; overflow-wrap: anywhere; }
+th {
+  font-family: var(--font-ui); font-weight: 600; color: var(--color-text);
+  border-bottom: 2px solid var(--color-border);
+}
+tbody tr:nth-child(even) { background: var(--color-surface); }
+tbody tr:last-child td { border-bottom: 0; }

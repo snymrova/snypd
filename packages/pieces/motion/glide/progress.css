@@ -1,0 +1,9 @@
+/* progress — a reading-progress line at the top of a post, scroll-driven (Chrome, Safari); Firefox shows none. */
+@supports (animation-timeline: scroll()) {
+  body:has(.snypd-post)::before {
+    content: ""; position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 2;
+    background: var(--color-accent); transform-origin: 0 50%;
+    animation: snypd-progress linear both; animation-timeline: scroll(root);
+  }
+  @keyframes snypd-progress { from { scale: 0 1; } to { scale: 1 1; } }
+}

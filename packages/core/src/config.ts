@@ -15,6 +15,7 @@ import { parsePath, parseYaml, pathKey, type Origin, type Path } from "./yaml";
 import { ConfigSchema, SettingDeclSchema, settingValue, ThemeYamlSchema, THEME_UNBUILT_KEYS, VariationSchema, type Config, type SettingDecl, type VariationDecl } from "./schema";
 import { cssValue } from "./values";
 import { loadPlugin, type LoadedPlugin } from "./plugins";
+import { pieceSettings, pieceTokens, resolvePieces, type ResolvedPiece } from "./pieces";
 
 export interface Diagnostic { level: "error" | "warning"; path: string; message: string; source?: Source; where?: string;
   /** Set when the diagnostic is about one plugin (P1). An error here refuses that plugin and nothing else: the site still loads, `ok` stays true, and doctor carries it as a problem. */ plugin?: string }
@@ -42,6 +43,12 @@ export interface LoadedConfig {
    * set, and the gallery, not for the renderer, which never learns a variation was involved.
    */
   variations: VariationDecl[];
+  /**
+   * The pieces the theme is built from (docs/36 §4.1), one per slot in canonical order, with every switch
+   * resolved. Empty for a theme that declares no `pieces:` — which is every theme written before P2.
+   * The renderer reads this to concatenate `snypd.pieces` and to find a piece's part or layout per link.
+   */
+  pieces: ResolvedPiece[];
   explain(path: string | Path): string;
   source(path: string | Path): Source | undefined;
   render(): string;
@@ -285,7 +292,10 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   // theme's own directory, at a size the theme claims — and there is nothing about it for a site to
   // answer, so `snypd.yaml` has no key for it and `snypd://config` should not carry a block that reads
   // like one. It cost 14 tokens of `tokens.learn.editorial` on the way in, which is how it was found.
-  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; delete o.variations; delete o.font; return { theme: o }; };
+  // `pieces:` is the fourth (docs/36 §4.1): a declaration of which bricks the theme is built from, read
+  // by `resolvePieces` below and by the renderer, and nothing a site answers — so it does not cost
+  // `snypd://config` a line either.
+  const withoutDecls = (v: unknown) => { const o = { ...(isObj(v) ? v : {}) }; delete o.settings; delete o.variations; delete o.font; delete o.pieces; return { theme: o }; };
   for (const link of [...themeChain].reverse()) if (link.yamlFile) merged = mergeLayer(merged, readLayer(root, "theme", link.yamlFile, diags, link.name, withoutDecls, themeParsed.get(link.yamlFile)), prov);
   // Every theme.yaml in the chain is validated, strictly, with file:line (decision 73). A key docs/04
   // documents and nothing reads is a warning that says so; any other unknown key, or a wrong shape, is an
@@ -317,7 +327,11 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
   // The declarations, parent first so a child's `id` lands where its parent's was — the same "nearest
   // declarer wins" the chain gives a part, with the list's order kept. Anything that does not parse has
   // already been reported by the strict pass above, so it is left out rather than reported twice.
-  const settingDecls: SettingDecl[] = [];
+  // The pieces first (docs/36 §4.1): their settings are laid down beneath the chain's, so a theme that
+  // redeclares a piece's `id` replaces it where it stands, the rule a child already has over its parent.
+  const { pieces, diagnostics: pieceDiags } = resolvePieces(themeChain, themeParsed, (f) => rel(root, f));
+  diags.push(...pieceDiags);
+  const settingDecls: SettingDecl[] = pieceSettings(pieces);
   for (const link of [...themeChain].reverse()) {
     const v = link.yamlFile ? themeParsed.get(link.yamlFile)?.value : undefined;
     if (!isObj(v) || !Array.isArray(v.settings)) continue;
@@ -364,6 +378,17 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
       }
       merged = mergeLayer(merged, { name: "theme", from: `${o.from} › ${chosen.name}`, file: o.file, value: { theme: { tokens: chosen.tokens } }, origins }, prov);
     }
+  }
+
+  // 2.6 the tokens the pieces read and the theme does not declare (docs/36 §3): a piece's `needs:` default,
+  // or an optional contract token's derived value. After the variation, so a variation that retunes a
+  // token the theme declares is not undone; before the site, so a site's override still wins; and before
+  // the `cssValue` gate and `check theme`'s contrast pairs, which see them like any other token.
+  if (pieces.length) {
+    const soFar = getPath(merged, ["theme", "tokens"]);
+    const { tokens: added, from } = pieceTokens(pieces, new Set(isObj(soFar) ? Object.keys(soFar) : []));
+    for (const [id, keys] of Object.entries(Object.groupBy(Object.keys(added), (k) => from[k]!)))
+      merged = mergeLayer(merged, { name: "theme", from: `piece ${id}`, file: `pieces/${id}/piece.yaml`, value: { theme: { tokens: Object.fromEntries(keys!.map((k) => [k, added[k]!])) } } }, prov);
   }
 
   const self = themeChain[0];
@@ -481,7 +506,7 @@ export function loadConfig(root = ".", opts: LoadOptions = {}): LoadedConfig {
       ? `, overrides inherited ${JSON.stringify(bv)} (${pathKey(basePath)}, ${describeSource(prov.get(pathKey(basePath)))})` : "";
     return `\`${key}\` = ${JSON.stringify(v)} ← ${describeSource(s)}${over}`;
   };
-  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, settingDecls, variations, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
+  return { root, env, ok, config, raw, provenance: prov, layers, diagnostics: diags, plugins, settingDecls, variations, pieces, explain, source, render: () => renderConfig(raw, prov, layers, diags, env) };
 }
 
 function nearest(prov: Provenance, key: string): Source | undefined {
@@ -523,6 +548,9 @@ export function renderConfig(raw: Record<string, unknown>, prov: Provenance, lay
   const untouched = (p: Path, v: unknown): { family: string; line?: number } | undefined => {
     if (allFrom(prov, p, v, "spec")) return { family: `<@snypd/spec default — ${pointer(p)}>` };
     const s = prov.get(pathKey(p));
+    // A piece's default (docs/36 §3) is one family whichever piece it came from: nine tokens from six
+    // pieces were nine lines with no provenance, and the shelf resource already says whose each is.
+    if (p[0] === "theme" && s?.layer === "theme" && s.from?.startsWith("piece ") && allFrom(prov, p, v, "theme")) return { family: "<the pieces' defaults — snypd://theme/pieces>" };
     if (p[0] === "theme" && s?.layer === "theme" && allFrom(prov, p, v, "theme")) return { family: `<theme ${s.from} default — ${s.file}>`, line: s.line };
     if (s?.layer === "inherited" && allFrom(prov, p, v, "inherited")) return { family: `<inherited from types.${s.from}>` };
     return undefined;

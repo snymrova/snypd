@@ -1,0 +1,4 @@
+piece: post-foot/pills
+from: studio
+line: Terms as outlined pills — the end of a post under a rule, the pills in the display face, the markdown twin a dotted text link beside them.
+reads: [font.display, size.small, space.2, space.3, space.4, space.5, color.border, color.muted, color.text]

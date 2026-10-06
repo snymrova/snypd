@@ -1,0 +1,54 @@
+/* home/portfolio — drawn (W4, docs/37 §7; refs in piece.yaml). The front page is the work: a line of
+   intro, then a grid of the listed type's covers, then the way to the archive and the page's `##` sections
+   as an afterword. The grid, the intro and the more line share one left edge — the grid's, on `wide` — and
+   words above the grid are held to the measure (decision 188), the same edge `entries/cards` keeps.
+
+   The one signature detail: every cover sits whole inside a frame every work shares, standing on the
+   frame's floor. A tall picture and a wide one take the same cell and neither is cropped; a row's
+   pictures stand on one line and its labels start on the next, as works hung to a common sill. The frame
+   is the shape of the grid's typical cover, which the layout measures and hands over as
+   `--portfolio-frame`, and it draws nothing — no fill, no border — so the pictures are the only shapes.
+
+   The intro and the afterword are subgrids over the column's own tracks, so a block inside them that
+   names a track (a stat row on `wide`, a figure on `full`) finds it, instead of opening an implicit column
+   beside the heading. Their children take the grid's edge at zero specificity — a block's own
+   `grid-column` wins — and running text is held to the measure. */
+.snypd-portfolio-intro, .snypd-portfolio-after { grid-column: full; display: grid; grid-template-columns: subgrid; row-gap: var(--space-4); }
+:where(.snypd-portfolio-intro, .snypd-portfolio-after) > * { grid-column: wide; }
+:where(.snypd-portfolio-intro, .snypd-portfolio-after) > :where(:not([class]), .snypd-tldr, .snypd-callout),
+.snypd-portfolio > .snypd-portfolio-more { grid-column: wide; max-width: var(--measure); }
+.snypd-portfolio-intro > h1 {
+  font: 400 var(--size-h2) / var(--leading-tight) var(--font-display);
+  letter-spacing: -0.01em; text-wrap: balance; margin: 0;
+}
+
+.snypd-portfolio-works {
+  grid-column: wide; list-style: none; padding: 0; margin: var(--space-4) 0 0;
+  display: grid; gap: var(--space-5) var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--measure-tile)), 1fr));
+}
+.snypd-portfolio-work { margin: 0; }
+.snypd-portfolio-work > a { display: grid; gap: var(--space-2); color: inherit; text-decoration: none; }
+.snypd-portfolio-frame { display: grid; aspect-ratio: var(--portfolio-frame, 1); margin-bottom: var(--space-2); }
+.snypd-portfolio-frame > img { width: 100%; height: 100%; object-fit: contain; object-position: bottom; }
+/* No cover: the work's name in the frame, on the same floor, on the one fill the page allows itself — so a
+   grid that is half pictures still reads as one row of shapes. */
+.snypd-portfolio-frame[data-empty] { background: var(--color-surface); padding: var(--space-3); align-items: end; }
+.snypd-portfolio-frame[data-empty] > span {
+  font: 400 var(--size-h3) / var(--leading-tight) var(--font-display); letter-spacing: -0.01em;
+  text-wrap: balance; color: var(--color-muted);
+}
+
+/* The wall label: the title in the text face, then the year and one fact, small and in the UI face. */
+.snypd-portfolio-name { font-weight: 500; line-height: var(--leading-tight); text-wrap: balance; }
+.snypd-portfolio-label { font: 400 var(--size-small) / 1.3 var(--font-ui); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.snypd-portfolio-work > a:hover .snypd-portfolio-name,
+.snypd-portfolio-work > a:focus-visible .snypd-portfolio-name {
+  color: var(--color-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em;
+}
+
+.snypd-portfolio-more { font: 400 var(--size-small) / 1.5 var(--font-ui); color: var(--color-muted); margin-top: var(--space-2); }
+.snypd-portfolio-more a { color: inherit; text-decoration-color: var(--color-border); text-underline-offset: 0.2em; }
+.snypd-portfolio-more a:hover { color: var(--color-accent); text-decoration-color: currentColor; }
+
+.snypd-portfolio-after > h2 { margin-top: var(--space-5); font-size: var(--size-h3); }

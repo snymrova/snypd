@@ -1,0 +1,6 @@
+piece: cover/path
+from: technical
+line: The top of a reference page — a tracked accent eyebrow, a muted deck, the cover image in the column, a ruled byline.
+reads: [font.ui, size.small, size.h3, space.2, space.4, color.accent, color.muted, color.surface, color.border, radius, measure.deck]
+needs:
+  measure.deck: 34rem

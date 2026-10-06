@@ -1,15 +1,24 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, renameSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseMarkdown, buildTree, type Block } from "@snypd/core";
 import { build, toHtml, inline, minifyCss, slugify, excerpt, jsx, raw, Html, loadTheme, loadHooks, part, menu, flowSteps, tokensCss, styleSheet, CSS_LAYERS, atImport, resolveTokens, fontFaceCss } from "./index";
 import { loadConfig, initRepo, lintSite, scaffoldTheme, scaffoldPlugin, expandSeed, writeSeed, LIVE_ROUTE, SiteIndex } from "@snypd/core";
 import { preview } from "./preview";
-import { checkTheme, checkPlugin, formatCheck, unguardedCss } from "./check";
+import { checkTheme, checkPlugin, formatCheck, unguardedCss, fontCraft } from "./check";
+import { cssRules } from "./contract";
 import { staticTaste, tasteVerdicts, foldRendered, chosenRules, designVerdict, judgedAt, leadFamily, type TasteMeasure } from "./taste";
 import { deskPage, type DeskOnboarding } from "./desk";
 import { imageSize, svgSize } from "./media";
 import { png } from "../../bench/src/corpus";
+import { loadPieces } from "../../pieces/src/index";
+
+/** W4's sitting passed every drawn piece; `check theme`'s draft rule is proved by marking one a draft again, for one call. */
+async function asDraft<T>(id: string, sw: string | undefined, fn: () => Promise<T>): Promise<T> {
+  const e = loadPieces().pieces[id]!, t = sw ? e.switches[sw]! : e;
+  t.draft = true;
+  try { return await fn(); } finally { t.draft = false; }
+}
 
 describe("jsx runtime", () => {
   test("escapes strings, passes Html through, drops false/null attrs, renders void tags", () => {
@@ -296,7 +305,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(r.artefacts).toBe(13);
     // S14: minified on the way out. H0: the layer statement first, the tokens in `snypd.tokens`, the
     // chain's only sheet in `snypd.base` — `base` is the root of its own chain.
-    expect(read("assets", "theme.css")).toBe("@layer snypd.tokens,snypd.base,snypd.theme,snypd.site;@layer snypd.tokens{:root{--color-accent: #f00;--content-width: 64ch}}@layer snypd.base{a{color: var(--color-accent)}}");
+    expect(read("assets", "theme.css")).toBe("@layer snypd.tokens,snypd.base,snypd.pieces,snypd.theme,snypd.site;@layer snypd.tokens{:root{--color-accent: #f00;--content-width: 64ch}}@layer snypd.base{a{color: var(--color-accent)}}");
     expect(read("about")).toMatch(/<link rel="stylesheet" href="\/assets\/theme\.css\?v=[0-9a-f]{10}">/);
     expect(read("", "llms.txt")).toContain("# T2\n\n> A test site\n");
     expect(JSON.parse(read("api", "site.json")).description).toBe("A test site");
@@ -523,6 +532,28 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
       expect(loadTheme(loadConfig(gone))).rejects.toThrow(/font\.file "\.\/fonts\/t\.woff2" is declared/);
     });
 
+    test("decision 281: the cuts are the same family, land in dist, and are never preloaded", async () => {
+      const cuts = "  cuts:\n    - { file: ./fonts/t-italic.woff2, weight: 400 700, style: italic, kb: 1 }\n    - { file: ./fonts/t-600.woff2, weight: 600, style: normal, kb: 1 }\n";
+      const root = site("corpora/_test/font-cuts", "f", `theme: f\nextends: base\n${decl(cuts)}`);
+      writeFileSync(join(root, "themes/f/fonts/t-italic.woff2"), Buffer.from("italic"));
+      writeFileSync(join(root, "themes/f/fonts/t-600.woff2"), Buffer.from("semibold"));
+      const t = await loadTheme(loadConfig(root));
+      expect(t.font!.loadedCuts.map((c) => c.url)).toEqual([expect.stringMatching(/^\/assets\/fonts\/t-italic\.woff2\?v=/), expect.stringMatching(/^\/assets\/fonts\/t-600\.woff2\?v=/)]);
+      // Three faces of one family, then the fallback: the browser picks a cut by style and weight.
+      expect(t.font!.css.match(/font-family: "Test Serif";/g)!.length).toBe(3);
+      expect(t.font!.css).toContain("font-style: italic");
+      expect(t.font!.css).toContain("font-weight: 600;");
+      await build(root);
+      expect(readFileSync(join(root, "dist/assets/fonts/t-italic.woff2"), "utf8")).toBe("italic");
+      expect(readFileSync(join(root, "dist/assets/fonts/t-600.woff2"), "utf8")).toBe("semibold");
+      const html = readFileSync(join(root, "dist/a/index.html"), "utf8");
+      expect(html).toContain(`rel="preload" href="${t.font!.url}"`);
+      expect(html).not.toContain("t-italic.woff2");                    // fetched by the first `em`, not before
+      // A cut is held to its own declaration, as the roman is.
+      writeFileSync(join(root, "themes/f/fonts/t-600.woff2"), Buffer.alloc(2048));
+      expect(loadTheme(loadConfig(root))).rejects.toThrow(/t-600\.woff2 is 2 KB but theme\.yaml declares font\.cuts\[1\]\.kb: 1/);
+    });
+
     test("decision 131: `font:` is a declaration, so it never merges into the config", async () => {
       const root = site("corpora/_test/font-decl", "f", `theme: f\nextends: base\n${decl()}`);
       const cfg = loadConfig(root);
@@ -586,7 +617,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(cfg.diagnostics.map((d) => d.message).join(" ")).toContain("extends cycle");
     expect(cfg.layers.find((l) => l.name === "theme")!.chain!.map((c) => c.name)).toEqual(["a", "b"]);
   });
-  test("editorial: the shipped child theme covers all 14 primitives with no primitive .tsx of its own, and overrides one part", async () => {
+  test("editorial: the shipped child theme covers all 14 primitives with no primitive .tsx of its own, and takes its masthead from a piece", async () => {
     const root = "corpora/_test/theme-editorial";
     rmSync(root, { recursive: true, force: true }); mkdirSync(join(root, "content/posts"), { recursive: true });
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: E, url: https://e.example }\ntheme: { use: editorial }\n");
@@ -602,9 +633,10 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     expect(t.css).toContain(".snypd-diagram .snypd-scroll, .snypd-flow .snypd-scroll { --viz-max-width: 100%; }");
     expect(t.css).toContain(".snypd-diagram .snypd-scroll > svg, .snypd-flow .snypd-scroll > svg { min-width: calc(var(--viz-width, 0px) * 0.7); }");
     expect(t.css).not.toContain(".snypd-chart .snypd-scroll { --viz-max-width: 100%");
-    // U1: the header is editorial's one file; shell, footer and entries are base's. No layout was forked.
+    // U1, then P3: the header is the `nameplate` piece's (carved from editorial's one file); shell, footer
+    // and entries are base's. No layout was forked, and the theme has no part of its own left.
     const pc = (n: string) => t.partCoverage.find((c) => c.name === n)!;
-    expect(pc("header").status).toBe("own");
+    expect(pc("header")).toMatchObject({ status: "piece", via: "masthead/nameplate" });
     expect(pc("shell")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("footer")).toMatchObject({ status: "inherited", via: "base" });
     expect(pc("entries")).toMatchObject({ status: "inherited", via: "base" });
@@ -771,7 +803,7 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     const head = a.slice(a.indexOf("<head>"), a.indexOf("</head>"));
     expect(head).toContain('<meta name="x-slot" content="local:L"><!--head:second-->');
     expect(head.indexOf('application/ld+json')).toBeLessThan(head.indexOf('name="x-slot"'));   // last in head, after the JSON-LD
-    expect(a).toMatch(/<body>\s*<!--body-start:local:\/articles\/a:L-->\s*<header>/);
+    expect(a).toMatch(/<body>\s*<!--body-start:local:\/articles\/a:L-->\s*<header class=\"snypd-masthead\">/);
     expect(a).toMatch(/<!--before-content:local:\/articles\/a:L-->\s*<p>Body of A\.<\/p>\s*<!--after-content:local:\/articles\/a:L-->/);
     expect(a).toMatch(/<!--footer-end:local:\/articles\/a:L-->\s*<\/footer>/);
     expect(a).toMatch(/<\/footer>\s*<!--body-end:local:\/articles\/a:L-->\s*<\/body>/);
@@ -952,9 +984,22 @@ describe("build (S6/S7): incremental, route cache, base theme, agent-read surfac
     writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example, description: A tagline }\ntheme: { use: editorial }\n");
     await build(root);
     const ed = read("about-us");
-    expect(ed).toContain('<header class="snypd-masthead"><div class="snypd-brand"><a href="/" rel="home">N</a><p class="snypd-tagline">A tagline</p></div><nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover>');
+    expect(ed).toContain('<header class="snypd-masthead"><div class="snypd-brand"><a href="/" rel="home">N</a><p class="snypd-tagline">A tagline</p></div><nav aria-label="Site" data-menu="strip"><ul id="snypd-menu" class="snypd-scroller">');
     expect(ed).toContain('<a href="/about-us/" aria-current="page">About</a>');
     expect(ed).toContain('<nav aria-label="Footer">');
+    // `menu-button` (the mobile pass, docs/37 §18): seven items are a sheet behind the button whatever the
+    // switch says, and a theme that turns the switch on keeps the button for a short menu too.
+    const two = readFileSync(join(root, "content/nav/header.yaml"), "utf8");
+    writeFileSync(join(root, "content/nav/header.yaml"), two + Array.from({ length: 5 }, (_, i) => `- { label: X${i}, url: /x${i} }\n`).join(""));
+    await build(root);
+    expect(read("about-us")).toContain('<nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover>');
+    writeFileSync(join(root, "content/nav/header.yaml"), two);
+    mkdirSync(join(root, "themes/eb"), { recursive: true });
+    writeFileSync(join(root, "themes/eb/theme.yaml"), "theme: eb\nextends: editorial\npieces:\n  masthead: { use: nameplate, menu-button: true }\n");
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: N, url: https://n.example, description: A tagline }\ntheme: { use: eb }\n");
+    await build(root);
+    expect(read("about-us")).toContain('popovertarget="snypd-menu"');
+    rmSync(join(root, "themes/eb"), { recursive: true, force: true });
     const ctxNav = { header: [{ label: "Home", href: "/", route: "/" }] };
     expect(menu({ nav: ctxNav } as never, "header", "/")).toEqual([{ label: "Home", href: "/", route: "/", current: true }]);
     expect(menu({ nav: ctxNav } as never, "header", "/x")).toEqual([{ label: "Home", href: "/", route: "/", current: false }]);
@@ -1981,9 +2026,11 @@ describe("the runtime pass (U7): what base's markup does now, with no script", (
   test("the menu is a popover behind a button, and base's own sheet ships in its layer", () => {
     expect(read("")).toContain('<nav aria-label="Site"><button type="button" class="snypd-menu-button" popovertarget="snypd-menu">Menu</button><ul id="snypd-menu" popover><li><a href="/" aria-current="page">Home</a></li></ul></nav>');
     const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
-    expect(css.startsWith("@layer snypd.tokens,snypd.base,snypd.theme,snypd.site;@layer snypd.base{")).toBe(true);
-    for (const rule of ["#snypd-menu:not(:popover-open){display: none !important}", ".snypd-figure-open{", ".snypd-lightbox::backdrop{", ".snypd-faq-item::details-content{", "position-area: block-start span-all", "@starting-style{"]) expect(css).toContain(rule);
-    expect(css).not.toContain("var(--");                 // behaviour, not looks: base declares no token and reads none
+    expect(css.startsWith("@layer snypd.tokens,snypd.base,snypd.pieces,snypd.theme,snypd.site;@layer snypd.base{")).toBe(true);
+    for (const rule of ["#snypd-menu[popover]:not(:popover-open){display: none !important}", ".snypd-figure-open{", ".snypd-lightbox::backdrop{", ".snypd-faq-item::details-content{", "position-area: block-start span-all", "@starting-style{"]) expect(css).toContain(rule);
+    // Behaviour, not looks: base declares no token and reads none. The scroller's edge fades are base's own
+    // registered properties (`--snypd-fade-*`), driven by its scroll timeline — not tokens a theme sets.
+    expect(css.replace(/var\(--snypd-fade-(start|end)\)/g, "")).not.toContain("var(--");
   });
 
   test("none of it is script: the pages pass the build's own gate at a budget of 0", () => {
@@ -2652,7 +2699,7 @@ The second heading with this text, which is what makes the id de-duplication wor
   });
 
   /** D8: `technical` is built from the contract — parts and settings and variations — with no forked layout. */
-  test("D8: every layout and every primitive is inherited; two parts are its own and three are not", async () => {
+  test("D8: every layout and every primitive is inherited; two parts come from pieces and the rest from base", async () => {
     configure("technical");
     const t = await loadTheme(loadConfig(root));
     expect(t.name).toBe("technical");
@@ -2667,10 +2714,10 @@ The second heading with this text, which is what makes the id de-duplication wor
     expect(t.coverage.every((c) => c.status === "inherited" && c.via === "base")).toBe(true);
     expect(t.partCoverage).toEqual([
       { name: "shell", status: "inherited", via: "base" },
-      { name: "header", status: "own" },
+      { name: "header", status: "piece", via: "masthead/title-bar" },
       { name: "footer", status: "inherited", via: "base" },
       { name: "entries", status: "inherited", via: "base" },
-      { name: "toc", status: "own" },
+      { name: "toc", status: "piece", via: "toc/block" },
       { name: "motion", status: "inherited", via: "base" },
     ]);
   });
@@ -2697,14 +2744,16 @@ The second heading with this text, which is what makes the id de-duplication wor
    * this the obvious next worry. It is not the same: `@view-transition` parses as a `CSSViewTransitionRule`
    * inside `@layer` and inside `@media`, and a real cross-document navigation between two layered pages
    * fires `pagereveal` carrying a `viewTransition` — measured in Chrome, not assumed. What this test
-   * holds is the half a unit test can: the declaration reaches the wire, inside the theme's own layer.
+   * holds is the half a unit test can: the declaration reaches the wire, inside the theme's own layer —
+   * or, for a theme on pieces (P3), inside the `motion` piece's.
    */
   test("@view-transition survives the layer the theme's sheet is wrapped in", async () => {
     for (const theme of ["editorial", "technical", "studio"]) {
       configure(theme);
       await build(root);
       const css = page("assets/theme.css");
-      const layer = css.slice(css.indexOf(`@layer snypd.theme.${theme}{`));
+      const at = css.indexOf("@layer snypd.pieces.motion{");
+      const layer = css.slice(at >= 0 ? at : css.indexOf(`@layer snypd.theme.${theme}{`));
       expect(layer, theme).toContain("@view-transition{navigation: auto}");
       // And off for a reader who asked for that, which is the pair and not the declaration.
       expect(layer, theme).toContain("@view-transition{navigation: none}");
@@ -2873,6 +2922,31 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     expect((await checkTheme(root, "fresh")).ok).toBe(true);
   });
 
+  test("W0: a scaffold over a parent on pieces gets a sheet with no rules — nothing in the theme layer to beat the pieces", async () => {
+    const r = scaffoldTheme(root, { name: "over-pieces", extends: "editorial" });
+    expect(r.pieces).toContain("blocks: surface");
+    const css = readFileSync(join(root, "themes/over-pieces/theme.css"), "utf8");
+    expect(cssRules(css)).toEqual([]);
+    expect(css).toContain("one bold move");
+    const c = await checkTheme(root, "over-pieces");
+    expect(rule(c, "pieces.residue").status).toBe("pass");
+    expect(c.rules.filter((x) => x.status === "fail").map((x) => x.rule)).toEqual(["meta.personality"]);
+    // Over `base` (no pieces) the starter still carries the rules a sheet on its own needs.
+    expect(scaffoldTheme(root, { name: "over-base" }).pieces).toEqual([]);
+    expect(readFileSync(join(root, "themes/over-base/theme.css"), "utf8")).toContain("a { color: var(--color-accent); }");
+  });
+
+  test("W0: a bare element in the theme's own sheet is residue over its pieces; one under a class of the theme's own is not", async () => {
+    scaffoldTheme(root, { name: "bare", extends: "editorial" });
+    writeFileSync(join(root, "themes/bare/theme.css"), "a { color: var(--color-accent); }\n.snypd-cta a:hover { text-decoration: none; }\n.snypd-own dd a { color: inherit; }\nmain p { text-wrap: pretty; }\n");
+    const d = rule(await checkTheme(root, "bare"), "pieces.residue");
+    expect(d.status).toBe("warn");
+    expect(d.detail).toContain("theme.css:1 a (bare — over every piece's <a>");
+    expect(d.detail).toContain("theme.css:2 a (bare — over every piece's <a> in .snypd-cta");
+    expect(d.detail).not.toContain("theme.css:3");
+    expect(d.detail).not.toContain("theme.css:4");
+  });
+
   test("TF3: three seeded scaffolds pass every contrast rule of the real gate, on every side and look", async () => {
     const cases = [
       { name: "seed-a", extends: "base", seed: "oklch(0.52 0.12 250)", strategy: "restrained" as const },
@@ -2976,6 +3050,8 @@ describe("`check theme` and `check plugin` (X1): every rule, on a theme that pas
     expect(fired(m(), 390)).toEqual([]);
     expect(fired(m({ eyebrows: [{ text: "NEWS", heading: "A title" }] }), 1280)).toEqual(["taste.eyebrow"]);
     expect(fired(m({ body: [{ px: 13, text: "small" }] }), 390)).toEqual(["taste.tiny-text"]);
+    expect(fired(m({ body: [{ px: 15, text: "small" }] }), 390)).toEqual(["taste.tiny-text"]);    // the floor is 16 since the W4 sitting
+    expect(fired(m({ body: [{ px: 15.6, text: "fluid" }] }), 390)).toEqual([]);                  // a fluid size landing at 15.6 passes
     expect(fired(m({ body: [{ px: 13, text: "small" }] }), 1280)).toEqual([]);             // tiny text is a phone rule
     expect(fired(m({ measures: [91, 95, 88] }), 1280)).toEqual(["taste.measure"]);
     expect(fired(m({ measures: [38, 40] }), 1280)).toEqual(["taste.measure"]);
@@ -3264,5 +3340,505 @@ describe("R1 (docs/20): a type of the site's own — archives, the front page's 
     expect(existsSync(join(blog, "dist/posts/index.html"))).toBe(false);
     expect(readFileSync(join(blog, "dist/index.html"), "utf8")).toContain('href="/posts/one/"');
     rmSync(blog, { recursive: true, force: true });
+  });
+});
+
+describe("W3 (docs/37 §2, §7): a type whose fields carry roles is drawn by the `feature` piece, and its archive counts it", () => {
+  const root = "corpora/_test/feature";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const yaml = (theme: string, own = "") =>
+    `snypd: 1\nsite: { name: F, url: https://f.example }\ntheme: { use: ${theme} }\n` +
+    `types:\n  work:\n    extends: post\n    dir: content/work\n    urlPattern: /work/{slug}\n    layout: work\n    noun: case\n    description: Cases, newest first.\n    fields:\n` +
+    `      client: { type: string, required: true, role: [kicker, fact] }\n` +
+    `      pr: { type: string, role: fact, label: Pull request, href: "https://example.com/pull/{value}" }\n` +
+    `      decisions: { type: list, of: { type: number }, role: fact, href: "https://example.com/decisions" }\n` +
+    `      shipped: { type: boolean, role: flag }\n` + own;
+  const item = (title: string, date: string, extra = "") => `---\ntitle: ${title}\ndate: ${date}\nstatus: published\n${extra}---\n\nBody of ${title}.\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/work", "themes/f", "themes/o/layouts"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "content/work/kiln.md"), item("Kiln", "2026-09-02", 'client: Bitácora\npr: "#34"\ndecisions: [212]\nshipped: true\n'));
+    writeFileSync(join(root, "content/work/stem.md"), item("Stem", "2026-09-01", "client: Lumo\ndecisions: [7, 8]\n"));
+    writeFileSync(join(root, "content/posts/grog.md"), item("A note on grog", "2026-09-03"));
+    // `f` is on pieces and names a feature piece; `o` also draws `work` by its own name.
+    writeFileSync(join(root, "themes/f/theme.yaml"), "theme: f\nextends: base\npieces:\n  list: plain\n  feature: log\n");
+    writeFileSync(join(root, "themes/o/theme.yaml"), "theme: o\nextends: base\nlayouts: [post, page, index, term, author, work]\npieces:\n  feature: log\n");
+    writeFileSync(join(root, "themes/o/layouts/work.tsx"), 'export default ({ page }) => ({ html: `<!doctype html><title>${page.title}</title><p>OWN-WORK</p>` });');
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("on a theme with `feature`, the type renders through it: the kicker, a flag's badge, the facts in declared order, a fact's link", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml("f"));
+    const r = await build(root);
+    expect(r.fallbacks).toEqual([]);
+    const k = read("work/kiln");
+    expect(k).toContain('<p class="snypd-eyebrow">Bitácora <span class="snypd-badge">Shipped</span></p>');
+    expect(k).toContain('<dl class="snypd-facts" data-count="4">');
+    expect(k.indexOf("<dt>Date</dt>")).toBeLessThan(k.indexOf("<dt>Client</dt>"));
+    expect(k.indexOf("<dt>Client</dt>")).toBeLessThan(k.indexOf("<dt>Pull request</dt>"));
+    expect(k).toContain('<dt>Pull request</dt><dd><a href="https://example.com/pull/34" rel="external">#34</a></dd>');
+    // a list fact with one value takes the singular of its name; its items link where the field says
+    expect(k).toContain('<dt>Decision</dt><dd><span class="snypd-fact-items"><a href="https://example.com/decisions" rel="external">212</a></span></dd>');
+    const st = read("work/stem");
+    expect(st).toContain("<dt>Decisions</dt>");
+    expect(st).not.toContain("snypd-badge");                     // a flag that is not true draws nothing
+    expect(st).not.toContain("<dt>Pull request</dt>");           // a fact with no value draws no cell
+    expect(read("posts/grog")).not.toContain("snypd-facts");     // a type with no roles is still a post
+    // the archive of a feature type says what it holds; `/posts/` does not
+    expect(read("work")).toContain('<p class="snypd-lede">2 cases, 1 Sep 2026 to 2 Sep 2026. Cases, newest first.</p>');
+    expect(read("posts")).not.toContain("snypd-lede");
+  });
+
+  test("on a theme without `feature`, the type falls back as before; a theme that draws the type by name keeps its own", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml("base"));
+    expect((await build(root)).fallbacks).toEqual([{ type: "work", wanted: "work", used: "post" }]);
+    expect(read("work/kiln")).not.toContain("snypd-facts");
+    writeFileSync(join(root, "snypd.yaml"), yaml("o"));
+    expect((await build(root)).fallbacks).toEqual([]);
+    expect(read("work/kiln")).toContain("<p>OWN-WORK</p>");
+  });
+});
+
+describe("font.craft: what the sheet asks of the face (decision 281)", () => {
+  const roman = { weight: "400 700", style: "normal" as const, features: ["tnum", "lnum"], digits: "proportional" as const };
+  test("a prose face with no italic is a slanted roman in every `em`", () => {
+    expect(fontCraft(roman, "", true)[0]).toMatch(/no italic/);
+    expect(fontCraft({ ...roman, cuts: [{ file: "i.woff2", style: "italic", kb: 1 }] }, "", true)).toEqual([]);
+    // A display face nothing sets prose in is only asked when the sheet itself sets italic.
+    expect(fontCraft(roman, "h1 { color: red }", false)).toEqual([]);
+    expect(fontCraft(roman, "h1 { font-style: italic }", false)[0]).toMatch(/sets `font-style: italic`/);
+  });
+  test("a weight past the face's reach is named; within 50 the browser rounds; a cut extends the reach", () => {
+    const plex = { weight: "400", style: "normal" as const };
+    expect(fontCraft(plex, "h2 { font-weight: 600 } b { font-weight: 450 }", false)).toEqual(["asks for weight 600 and the face stops at 400"]);
+    expect(fontCraft({ ...plex, cuts: [{ file: "s.woff2", weight: "600", style: "normal", kb: 1 }] }, "h2 { font: 600 1rem/1 serif }", false)).toEqual([]);
+  });
+  test("figure styles and small caps are asked only of a face that recorded its features", () => {
+    const css = ".n { font-variant-numeric: oldstyle-nums } .c { font-variant-caps: all-small-caps }";
+    expect(fontCraft(roman, css, false)).toEqual(["`oldstyle-nums` asked, and the face has none", "`small-caps` asked, and the face has none: the browser scales capitals"]);
+    expect(fontCraft({ weight: "400 700" }, css, false)).toEqual([]);                  // hand-vendored: not guessed
+    expect(fontCraft({ ...roman, features: [], digits: "tabular" }, ".t { font-variant-numeric: tabular-nums }", false)).toEqual([]);
+  });
+});
+
+describe("W4 (docs/37 §7): `home/index` — the front page is the ruled index; a drawn piece was a draft until the sitting passed it", () => {
+  const root = "corpora/_test/home-index";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const yaml = (settings = "") =>
+    `snypd: 1\nsite: { name: N, url: https://n.example }\ntheme: { use: n${settings} }\n` +
+    `types:\n  note:\n    extends: post\n    dir: content/notes\n    urlPattern: /notes/{slug}\n    layout: post\n`;
+  const item = (title: string, date: string) => `---\ntitle: ${title}\ndate: ${date}\nstatus: published\ndescription: About ${title}.\n---\n\nBody of ${title}.\n`;
+  const rule = (r: { rules: { rule: string; status: string; detail: string }[] }, name: string) => r.rules.find((x) => x.rule === name)!;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/notes", "content/pages", "themes/n"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    // Seven posts over two years and three notes, so the index has two year groups and merges two types.
+    for (let i = 1; i <= 7; i++) writeFileSync(join(root, `content/posts/p${i}.md`), item(`Post ${i}`, i <= 3 ? `2025-0${i}-10` : `2026-0${i}-10`));
+    for (let i = 1; i <= 3; i++) writeFileSync(join(root, `content/notes/n${i}.md`), item(`Note ${i}`, `2026-0${i + 4}-20`));
+    writeFileSync(join(root, "content/pages/home.md"), `---\ntitle: A notebook\nstatus: published\nhome: true\n---\n\n::cover{subtitle="Under the title." media="/media/reel.mp4"}\n\nThe one sentence above the index.\n\n## Colophon\n\nSet in the shelf's serif.\n`);
+    writeFileSync(join(root, "themes/n/theme.yaml"), "theme: n\nextends: base\npieces:\n  column: three-track\n  entries: list\n  home: index\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the intro, then every dated type as one list in year groups newest first, the way to each archive, the `##` sections after — and no cover media", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml());
+    const r = await build(root);
+    expect(r.fallbacks).toEqual([]);
+    const h = read("");
+    expect(h).toContain('<main class="snypd-home snypd-index">');
+    expect(h).toContain('<header class="snypd-index-intro"><h1>A notebook</h1><p>The one sentence above the index.</p>');
+    expect(h).not.toContain("snypd-cover");                       // the film is another piece's idea
+    expect(h).not.toContain("Under the title.");
+    // Ten entries, more than base's six: the piece's `homeEntries` setting (default 24) is what the build hands the page.
+    expect(h.match(/<li>/g)!.length).toBe(10);
+    const y26 = h.indexOf('<h2 class="snypd-index-mark" id="snypd-year-2026">2026</h2>'), y25 = h.indexOf('<h2 class="snypd-index-mark" id="snypd-year-2025">2025</h2>');
+    expect(y26).toBeGreaterThan(0);
+    expect(y25).toBeGreaterThan(y26);
+    // Newest first across both types: Note 3 (2026-07) leads, Post 7 (2026-07-10) after it, and 2025's posts close.
+    expect(h.indexOf("Note 3")).toBeLessThan(h.indexOf("Post 7"));
+    expect(h.indexOf("Post 7")).toBeLessThan(h.indexOf("Note 2"));
+    expect(h.indexOf("Post 1")).toBeGreaterThan(y25);
+    expect(h).toContain('<p class="snypd-index-more"><a href="/posts/">Every post</a> · <a href="/notes/">Every note</a></p>');
+    expect(h).toContain('<section class="snypd-index-after" aria-labelledby="colophon"><h2 id="colophon">Colophon</h2>');
+    expect(h.indexOf("snypd-index-after")).toBeGreaterThan(h.indexOf("snypd-index-more"));
+  });
+
+  test("`homeEntries` is the site's to set, per list; `check theme` passes it, and fails a theme on a draft piece (decision 278)", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml(", settings: { homeEntries: 2 } "));
+    await build(root);
+    expect(read("").match(/<li>/g)!.length).toBe(4);              // two of each list
+    expect(rule(await checkTheme(root, "n"), "pieces.draft")).toBeUndefined();
+    const d = rule(await asDraft("home/index", undefined, () => checkTheme(root, "n")), "pieces.draft");
+    expect(d.status).toBe("fail");
+    expect(d.detail).toContain("home/index is a draft");
+  });
+});
+
+describe("W4: `list/ruled` — an archive as a heading, an intro, and the terms as a filter row; a term's page keeps the row", () => {
+  const root = "corpora/_test/list-ruled";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/taxonomies/tag", "themes/r"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: R, url: https://r.example }\ntheme: { use: r }\n");
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: R\nstatus: published\nhome: true\n---\n\nHello.\n");   // so the list is at /posts/
+    writeFileSync(join(root, "content/taxonomies/tag/notes.md"), "---\ntitle: Field notes\nstatus: published\ndescription: Short dispatches.\n---\n");
+    const item = (i: number, tags: string) => `---\ntitle: Post ${i}\ndate: 2026-0${i}-01\nstatus: published\ntags: [${tags}]\ncategory: engineering\n---\n\nBody ${i}.\n`;
+    writeFileSync(join(root, "content/posts/p1.md"), item(1, "notes"));
+    writeFileSync(join(root, "content/posts/p2.md"), item(2, "notes, agents"));
+    writeFileSync(join(root, "content/posts/p3.md"), item(3, "agents"));
+    writeFileSync(join(root, "themes/r/theme.yaml"), "theme: r\nextends: base\npieces:\n  column: three-track\n  entries: list\n  list: ruled\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the archive: count line for any type, one filter line per taxonomy in the type's order, All once with the count, terms by count with a bare slug title-cased", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("posts");
+    expect(h).toContain('<main class="snypd-list"><h1>Posts</h1><p class="snypd-lede">3 posts, 1 Jan 2026 to 1 Mar 2026.</p>');
+    const rows = [...h.matchAll(/<nav class="snypd-list-filter snypd-scroller"[^>]*>([^]*?)<\/nav>/g)].map((m) => m[1]!);
+    expect(rows.length).toBe(2);
+    expect(rows[0]).toContain('<span class="snypd-list-filter-name">Categories</span>');
+    expect(rows[0]).toContain('<a href="/posts/" aria-current="page">All <span class="snypd-list-count">3</span></a>');
+    expect(rows[0]).toContain('<a href="/category/engineering/">Engineering <span class="snypd-list-count">3</span></a>');
+    expect(rows[1]).toContain('<span class="snypd-list-filter-name">Tags</span>');
+    expect(rows[1]).not.toContain(">All");                                              // once, on the first line
+    expect(rows[1].indexOf("Agents")).toBeLessThan(rows[1].indexOf("Field notes"));   // 2 and 2, so by title — and `agents` has no page, so it is title-cased
+    expect(rows[1]).toContain('<a href="/tag/notes/">Field notes <span class="snypd-list-count">2</span></a>');
+    expect(rows[1]).toContain('<a href="/tag/agents/">Agents <span class="snypd-list-count">2</span></a>');
+  });
+
+  test("a term's page: the taxonomy as the heading's kicker, the term's description in the intro, All without a count, the term marked current", async () => {
+    await build(root);
+    const h = read("tag/notes");
+    expect(h).toContain('<h1><small class="snypd-list-kicker">Tag</small>Field notes</h1><p class="snypd-lede">2 posts, 1 Jan 2026 to 1 Feb 2026. Short dispatches.</p>');
+    expect(h).toContain('<a href="/posts/">All</a>');                                  // the archive the build named for the term (W4)
+    expect(h).toContain('<a href="/tag/notes/" aria-current="page">Field notes <span class="snypd-list-count">2</span></a>');
+    expect(h).toContain('<a href="/tag/agents/">Agents <span class="snypd-list-count">1</span></a>');   // only what the listed entries carry
+  });
+
+  test("a site whose only list is `/`: All is the page itself on the archive, and a term's page offers no All", async () => {
+    rmSync(join(root, "content/pages/home.md"));
+    await build(root);
+    expect(read("")).toContain('<a href="/" aria-current="page">All <span class="snypd-list-count">3</span></a>');
+    expect(read("tag/notes")).not.toContain(">All");
+  });
+});
+
+describe("W4: `entries/index` — each entry one line, a leader to the date, the date without its year under a year's heading", () => {
+  const root = "corpora/_test/entries-index";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const yaml = (settings = "") => `snypd: 1\nsite: { name: I, url: https://i.example }\ntheme: { use: i${settings} }\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "themes/i"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    const item = (i: number, date: string) => `---\ntitle: Post ${i}\ndate: ${date}\nstatus: published\ndescription: About post ${i}.\ntags: [notes]\n---\n\nBody ${i}.\n`;
+    writeFileSync(join(root, "content/posts/p1.md"), item(1, "2025-11-03"));
+    writeFileSync(join(root, "content/posts/p2.md"), item(2, "2026-09-12"));
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: I\nstatus: published\nhome: true\n---\n\nAn index.\n");
+    writeFileSync(join(root, "themes/i/theme.yaml"), "theme: i\nextends: editorial\npieces:\n  entries: index\n  home: index\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("an archive: the title, a leader, the whole date in the site's format — and nothing under the line", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml());
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("posts");
+    expect(h).toContain('<ol class="snypd-entry-index" reversed>');
+    expect(h).toMatch(/<a class="snypd-entry-index-row" href="\/posts\/p2\/"><span class="snypd-entry-index-title"[^>]*>Post 2<\/span><span class="snypd-entry-index-leader" aria-hidden="true"><\/span><time class="snypd-entry-index-when" datetime="2026-09-12">2026-09-12<\/time><\/a>/);
+    expect(h).not.toContain("About post 2.");                      // an index is read down the titles
+    expect(h.indexOf("Post 2")).toBeLessThan(h.indexOf("Post 1")); // the build's order, newest first
+  });
+
+  test("under `home/index`'s year headings the date drops the year the heading said; `showDates: false` drops date and leader", async () => {
+    writeFileSync(join(root, "snypd.yaml"), yaml(", settings: { dateFormat: short }"));
+    await build(root);
+    const h = read("");
+    expect(h).toContain('datetime="2026-09-12">12 Sep</time>');
+    expect(h).toContain('datetime="2025-11-03">3 Nov</time>');
+    expect(read("posts")).toContain('datetime="2026-09-12">12 Sep 2026</time>');   // no heading above it: the whole date
+    writeFileSync(join(root, "snypd.yaml"), yaml(", settings: { showDates: false }"));
+    await build(root);
+    expect(read("posts")).not.toContain("snypd-entry-index-leader");
+    expect(read("posts")).not.toContain("<time");
+  });
+});
+
+describe("W4: `home/portfolio` — the front page is the work, each cover whole in a frame shaped like the grid's typical cover", () => {
+  const root = "corpora/_test/home-portfolio";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const item = (i: number, cover?: string) =>
+    `---\ntitle: Work ${i}\ndate: ${i <= 2 ? "2025" : "2026"}-01-${String(i).padStart(2, "0")}\nstatus: published\ncategory: product\n` +
+    (cover ? `cover: { image: /media/${cover}.png, alt: A cover }\n` : "") + `---\n\nBody ${i}.\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/media", "themes/p"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: p }\n");
+    writeFileSync(join(root, "content/pages/home.md"), `---\ntitle: A studio\nstatus: published\nhome: true\n---\n\n::cover{subtitle="Under the title." media="/media/reel.mp4"}\n\nWe make things.\n\n## How we work\n\n:::stat-row\n::stat{value="31" label="products"}\n::stat{value="11" label="weeks"}\n:::\n`);
+    writeFileSync(join(root, "content/media/wide.png"), png(300, 200, [1, 2, 3]));
+    writeFileSync(join(root, "content/media/tall.png"), png(200, 300, [4, 5, 6]));
+    // Fourteen works, more than the twelve the piece asks for: the newest three carry two wide covers and a tall one, the rest none.
+    for (let i = 1; i <= 14; i++) writeFileSync(join(root, `content/posts/w${i}.md`), item(i, i === 14 ? "wide" : i === 13 ? "tall" : i === 12 ? "wide" : undefined));
+    writeFileSync(join(root, "themes/p/theme.yaml"), "theme: p\nextends: base\npieces:\n  column: three-track\n  home: portfolio\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the intro without the cover, twelve works newest first, the frame the median shape, a wall label, the way to the archive, the `##` sections after", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("");
+    expect(h).toContain('<main class="snypd-home snypd-portfolio">');
+    expect(h).toContain('<header class="snypd-portfolio-intro"><h1>A studio</h1><p>We make things.</p>');
+    expect(h).not.toContain("snypd-cover");
+    expect(h).not.toContain("Under the title.");
+    // Twelve, the piece's `homeEntries` default, over base's six.
+    expect(h.match(/<li class="snypd-portfolio-work">/g)!.length).toBe(12);
+    expect(h.indexOf("Work 14")).toBeLessThan(h.indexOf("Work 13"));
+    expect(h).not.toContain(">Work 2<");
+    // Shapes 1.5, 0.667, 1.5: the median is 1.5, so the landscape covers fill their frames and the tall one stands in its own.
+    expect(h).toContain('style="--portfolio-frame: 1.5"');
+    expect(h).toContain('<span class="snypd-portfolio-frame"><img src="/media/wide.png" alt="" decoding="async" width="300" height="200">');
+    // No cover: the work is its name in the frame, hidden from the tree because the label says it again.
+    expect(h).toContain('<span class="snypd-portfolio-frame" data-empty=""><span aria-hidden="true">Work 11</span></span>');
+    expect(h).toContain('<span class="snypd-portfolio-label">2026 · Product</span>');
+    expect(h).toContain('<p class="snypd-portfolio-more"><a href="/posts/">Every post</a></p>');
+    const after = h.indexOf('<section class="snypd-portfolio-after" aria-labelledby="how-we-work">');
+    expect(after).toBeGreaterThan(h.indexOf("snypd-portfolio-more"));
+    expect(h.indexOf("snypd-stat-row")).toBeGreaterThan(after);
+  });
+
+  test("the first row's covers load eagerly; with no sized cover the frame is square", async () => {
+    const h = read("");
+    const imgs = [...h.matchAll(/<img src="\/media\/[a-z]+\.png"[^>]*>/g)].map((m) => m[0]);
+    expect(imgs.every((t) => !t.includes('loading="lazy"'))).toBe(true);     // all three covers are in the first row
+    for (const i of [12, 13, 14]) writeFileSync(join(root, `content/posts/w${i}.md`), item(i));
+    for (const d of ["dist", ".snypd"]) rmSync(join(root, d), { recursive: true, force: true });
+    await build(root);
+    expect(read("")).toContain('style="--portfolio-frame: 1"');
+  });
+});
+
+describe("W4: `list/grid` — an archive as a wall of covers cropped to one frame, broken at each year by a rule that carries it", () => {
+  const root = "corpora/_test/list-grid";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  const item = (i: number, date: string, cover?: string) =>
+    `---\ntitle: Work ${i}\ndate: ${date}\nstatus: published\ncategory: product\ntags: [${i === 4 ? "lamps" : "chairs"}]\n` +
+    (cover ? `cover: { image: /media/${cover}.png, alt: A cover }\n` : "") + `---\n\nBody ${i}.\n`;
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/media", "themes/g"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: G, url: https://g.example }\ntheme: { use: g }\n");
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: G\nstatus: published\nhome: true\n---\n\nHello.\n");   // so the list is at /posts/
+    writeFileSync(join(root, "content/media/wide.png"), png(300, 200, [1, 2, 3]));
+    writeFileSync(join(root, "content/media/tall.png"), png(200, 300, [4, 5, 6]));
+    writeFileSync(join(root, "content/posts/w1.md"), item(1, "2025-04-11", "tall"));
+    writeFileSync(join(root, "content/posts/w2.md"), item(2, "2025-11-20"));
+    writeFileSync(join(root, "content/posts/w3.md"), item(3, "2026-02-03", "wide"));
+    writeFileSync(join(root, "content/posts/w4.md"), item(4, "2026-03-27"));
+    writeFileSync(join(root, "content/posts/w5.md"), item(5, "2026-05-14", "wide"));
+    writeFileSync(join(root, "themes/g/theme.yaml"), "theme: g\nextends: base\npieces:\n  column: three-track\n  list: grid\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the archive: list/ruled's head, a year's rule over each year's tiles newest first, the frame the median shape, dates without the year the rule said", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    const h = read("posts");
+    expect(h).toContain('<main class="snypd-list"><h1>Posts</h1><p class="snypd-lede">5 posts, 2025–2026.</p>');
+    expect(h).toContain('<a href="/posts/" aria-current="page">All <span class="snypd-list-count">5</span></a>');
+    expect(h).not.toContain("snypd-entries");                                  // it draws its own tiles
+    const y26 = h.indexOf('<section class="snypd-tiles-year" aria-labelledby="y2026"><h2 class="snypd-tiles-mark" id="y2026">2026</h2>');
+    const y25 = h.indexOf('<section class="snypd-tiles-year" aria-labelledby="y2025"><h2 class="snypd-tiles-mark" id="y2025">2025</h2>');
+    expect(y26).toBeGreaterThan(-1);
+    expect(y25).toBeGreaterThan(y26);
+    expect(h.indexOf("Work 5")).toBeLessThan(h.indexOf("Work 3"));
+    expect(h.indexOf("Work 2")).toBeGreaterThan(y25);
+    // One frame for the list — the median of 1.5, 1.5 and 0.667 — so 2025's tall cover stands in 2026's shape.
+    expect(h.match(/<ol class="snypd-tiles" style="--tile-frame: 1.5">/g)!.length).toBe(2);
+    expect(h).toContain('<span class="snypd-tile-frame"><img src="/media/wide.png" alt="" decoding="async" width="300" height="200"></span>');
+    expect(h).toContain('<span class="snypd-tile-frame" data-empty=""><span aria-hidden="true">Work 4</span></span>');
+    expect(h).toContain('<span class="snypd-tile-label"><time datetime="2026-05-14">05-14</time> · Product</span>');
+    // The fifth tile is past the first row: its cover waits.
+    expect(h).toMatch(/<img src="\/media\/tall\.png" alt="" loading="lazy"/);
+  });
+
+  test("a list inside one year is one grid, with no rule, and each date whole", async () => {
+    const h = read("tag/lamps");
+    expect(h).not.toContain("snypd-tiles-year");
+    expect(h).toContain('<time datetime="2026-03-27">2026-03-27</time> · Product');
+  });
+
+  test("a term's page: the taxonomy as the kicker, the term current, All back to the archive, the tiles", async () => {
+    const h = read("tag/chairs");
+    expect(h).toContain('<h1><small class="snypd-list-kicker">Tag</small>chairs</h1><p class="snypd-lede">4 posts, 2025–2026.</p>');   // a term with no page is titled by its slug, as on list/ruled
+    expect(h).toContain('<a href="/posts/">All</a>');
+    expect(h).toContain('<a href="/tag/chairs/" aria-current="page">Chairs <span class="snypd-list-count">4</span></a>');
+    expect(h.match(/<li class="snypd-tile">/g)!.length).toBe(4);
+  });
+});
+
+describe("W4: `cover/page` — a page's first paragraph is its standfirst, so the markup must keep it next to the title", () => {
+  const root = "corpora/_test/cover-page";
+  const dist = join(root, "dist");
+  const read = (r: string, f = "index.html") => readFileSync(join(dist, r, f), "utf8");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/pages", "themes/c"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: C, url: https://c.example }\ntheme: { use: c }\n");
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\nWe make things slowly.\n\nThe rest.\n");
+    writeFileSync(join(root, "content/pages/studio.md"), "---\ntitle: Studio\nstatus: published\n---\n\n::cover{eyebrow=\"Since 2019\"}\n\nTwo rooms and a kiln.\n");
+    writeFileSync(join(root, "content/pages/work.md"), "---\ntitle: Work\nstatus: published\n---\n\n::cover{subtitle=\"What we made.\"}\n\nThe list.\n");
+    writeFileSync(join(root, "themes/c/theme.yaml"), "theme: c\nextends: base\npieces:\n  column: three-track\n  cover: page\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the three shapes the standfirst selectors read: h1 then p; a cover without a subtitle then p; a cover with one", async () => {
+    expect((await build(root)).fallbacks).toEqual([]);
+    expect(read("about")).toContain('<article class="snypd-page"><h1>About</h1><p>We make things slowly.</p>');
+    expect(read("studio")).toMatch(/<article class="snypd-page"><header class="snypd-cover"><p class="snypd-eyebrow">Since 2019<\/p><h1[^>]*>Studio<\/h1><\/header><p>Two rooms and a kiln.<\/p>/);
+    expect(read("work")).toContain('<p class="snypd-subtitle">What we made.</p></header><p>The list.</p>');
+    const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
+    expect(css).toContain(".snypd-page > h1:first-child + p");
+    expect(css).toContain(".snypd-page > .snypd-cover:first-child:not(:has(.snypd-subtitle)) + p");
+  });
+});
+
+describe("W4: `masthead/centered` — a grid over base's header, so the brand, the menu and the motion control must stay its children", () => {
+  const root = "corpora/_test/masthead-centered";
+  const dist = join(root, "dist");
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/pages", "content/nav", "content/media", "themes/m"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "content/media/clip.mp4"), new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]));   // an autoplaying cover is what brings the motion control
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: M, url: https://m.example }\ntheme: { use: m, settings: { tagline: Small machines. } }\n");
+    writeFileSync(join(root, "content/nav/header.yaml"), '- { label: "About", ref: "page/about" }\n');
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\n::cover{media=\"/media/clip.mp4\" autoplay=true}\n\nText.\n");
+    writeFileSync(join(root, "themes/m/theme.yaml"), "theme: m\nextends: base\npieces:\n  masthead: centered\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("the header's children are the brand (name, then tagline), the nav, and the motion control — the three the grid places", async () => {
+    await build(root);
+    const html = readFileSync(join(dist, "about/index.html"), "utf8");
+    const header = html.match(/<header class="snypd-masthead">([\s\S]*?)<\/header>/)![1]!;
+    // Top-level children only: strip each child's own contents and read the tags that are left.
+    const kids = [...header.matchAll(/<(div|nav|p)\b([^>]*)>/g)].filter((m) => !/snypd-tagline/.test(m[2]!)).map((m) => `${m[1]}${m[2]!.match(/class="([^"]*)"/)?.[1] ? `.${m[2]!.match(/class="([^"]*)"/)![1]}` : ""}`);
+    expect(kids).toEqual(["div.snypd-brand", "nav", "p.snypd-motion"]);
+    expect(header).toMatch(/<div class="snypd-brand"><a href="\/" rel="home">M<\/a><p class="snypd-tagline">Small machines\.<\/p><\/div>/);
+    const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
+    expect(css).toContain(".snypd-masthead{display: grid;grid-template-columns: 1fr auto 1fr");
+  });
+});
+
+describe("W4: `footer/index` — the site as a map, from `ctx.sections`, keyed on the map and not on the posts", () => {
+  const root = "corpora/_test/footer-index";
+  const dist = join(root, "dist");
+  const post = (slug: string, date: string, tags: string[], kind = "chairs") =>
+    writeFileSync(join(root, `content/posts/${slug}.md`), `---\ntitle: ${slug}\ndate: ${date}\nstatus: published\ncategory: ${kind}\ntags: [${tags.join(", ")}]\n---\n\nText.\n`);
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/posts", "content/pages", "content/nav", "themes/f"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), [
+      "snypd: 1", "site: { name: F, url: https://f.example, description: A studio. }",
+      "theme: { use: f, settings: { social: [{ label: Mail, url: \"mailto:f@f.example\" }] } }",
+      "",
+    ].join("\n"));
+    writeFileSync(join(root, "content/nav/footer.yaml"), '- { label: "Everything", ref: "/posts" }\n- { label: "About", ref: "page/about" }\n');
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\nUs.\n");
+    // A page holds `/`, so the posts have an archive of their own at `/posts/` (R1) for the map to name.
+    writeFileSync(join(root, "content/pages/home.md"), "---\ntitle: Home\nstatus: published\nhome: true\n---\n\nHello.\n");
+    // Nine tags: a cloud, not a section. Two categories: a section.
+    for (let i = 0; i < 9; i++) post(`p${i}`, `2026-01-${String(i + 1).padStart(2, "0")}`, [`t${i}`], i % 2 ? "lamps" : "chairs");
+    writeFileSync(join(root, "themes/f/theme.yaml"), "theme: f\nextends: base\nsettings:\n  - { id: social, type: link_list, label: Social }\npieces:\n  column: three-track\n  footer: index\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("Index is the archives then the menu's other items; a small taxonomy is a column; nine tags are not; Elsewhere is the social links", async () => {
+    await build(root);
+    const html = readFileSync(join(dist, "about/index.html"), "utf8");
+    const map = html.match(/<nav aria-label="Footer" class="snypd-footer-index-map">([\s\S]*?)<\/nav>/)![1]!;
+    const heads = [...map.matchAll(/<h2>([^<]*)<\/h2>/g)].map((m) => m[1]);
+    expect(heads).toEqual(["Index", "Categories", "Elsewhere"]);
+    // `/posts/` is headed by the menu's word for it, once — not again as a menu item.
+    expect(map).toContain('<li><a href="/posts/">Everything</a></li><li><a href="/about/" aria-current="page">About</a></li>');
+    expect(map.match(/href="\/posts\/"/g)!.length).toBe(1);
+    // A term with no page is titled from its slug.
+    expect(map).toContain('<li><a href="/category/chairs/">Chairs</a></li><li><a href="/category/lamps/">Lamps</a></li>');
+    expect(map).toContain('<ul class="snypd-social"><li><a href="mailto:f@f.example" rel="me">Mail</a></li></ul>');
+    expect(html).toContain('<p class="snypd-footer-index-name"><a href="/" rel="home">F</a></p><p>A studio.</p>');
+  });
+
+  test("a post under the terms the site has re-renders what it would have anyway; a new term re-renders every page", async () => {
+    await build(root);
+    const at = (r: string) => statSync(join(dist, r, "index.html")).mtimeMs;
+    const before = [at("about"), at("posts/p1")];
+    post("p9", "2026-02-01", ["t0"], "lamps");
+    await build(root);
+    // Under a category and a tag the site already has, the map is unchanged: the about page and an older post are not rewritten.
+    expect([at("about"), at("posts/p1")]).toEqual(before);
+    post("p10", "2026-02-02", ["t0"], "stools");
+    await build(root);
+    // A new category is a new line on every page's map.
+    expect(at("about")).toBeGreaterThan(before[0]!);
+    expect(at("posts/p1")).toBeGreaterThan(before[1]!);
+    expect(readFileSync(join(dist, "about/index.html"), "utf8")).toContain('<a href="/category/stools/">Stools</a>');
+  });
+
+  test("a theme with no piece asking for `ctx.sections` is not keyed on them: a new term re-renders only its own pages", async () => {
+    writeFileSync(join(root, "themes/f/theme.yaml"), "theme: f\nextends: base\nsettings:\n  - { id: social, type: link_list, label: Social }\npieces:\n  column: three-track\n  footer: line\n");
+    await build(root);
+    const at = (r: string) => statSync(join(dist, r, "index.html")).mtimeMs;
+    const before = [at("about"), at("posts/p1")];
+    post("p11", "2026-02-03", ["t1"], "benches");
+    await build(root);
+    expect([at("about"), at("posts/p1")]).toEqual(before);
+    expect(existsSync(join(dist, "category/benches/index.html"))).toBe(true);
+  });
+});
+
+describe("W4: `prose/book` display-heads — a drawn switch is judged as a drawn piece is (decision 278)", () => {
+  const root = "corpora/_test/prose-display-heads";
+  const dist = join(root, "dist");
+  const rule = (r: { rules: { rule: string; status: string; detail: string }[] }, name: string) => r.rules.find((x) => x.rule === name)!;
+  const theme = (sw: string) => writeFileSync(join(root, "themes/p/theme.yaml"), `theme: p\nextends: base\npieces:\n  prose: ${sw}\n`);
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    for (const d of ["content/pages", "themes/p"]) mkdirSync(join(root, d), { recursive: true });
+    cpSync("themes/base", join(root, "themes/base"), { recursive: true, filter: (f) => !f.endsWith("package.json") });
+    writeFileSync(join(root, "snypd.yaml"), "snypd: 1\nsite: { name: P, url: https://p.example }\ntheme: { use: p }\n");
+    writeFileSync(join(root, "content/pages/about.md"), "---\ntitle: About\nstatus: published\n---\n\n## A head\n\nText.\n");
+  });
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  test("off by default: book's heads, and `check theme` has nothing to refuse", async () => {
+    theme("book");
+    await build(root);
+    expect(readFileSync(join(dist, "assets/theme.css"), "utf8")).not.toContain("font-family: var(--font-display)");
+    expect(rule(await checkTheme(root, "p"), "pieces.draft")).toBeUndefined();
+  });
+
+  test("on: the title and section heads in the display face, the title at its own weight — and `check theme` would fail it as a draft", async () => {
+    theme("{ use: book, display-heads: true }");
+    await build(root);
+    const css = readFileSync(join(dist, "assets/theme.css"), "utf8");
+    expect(css).toContain("h1,h2{font-family: var(--font-display)}");
+    expect(css).toContain("h1{font-weight: normal;");
+    expect(css).toMatch(/--font-display:/);                     // read by the switch, so the optional token is emitted
+    expect(rule(await checkTheme(root, "p"), "pieces.draft")).toBeUndefined();
+    const d = rule(await asDraft("prose/book", "display-heads", () => checkTheme(root, "p")), "pieces.draft");
+    expect(d.status).toBe("fail");
+    expect(d.detail).toContain("prose/book display-heads is a draft");
   });
 });

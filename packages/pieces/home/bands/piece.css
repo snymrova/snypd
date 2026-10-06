@@ -1,0 +1,75 @@
+/* home/bands — carved from studio (S29, docs/17 §3). Every `##` section of the front page is one full-bleed
+   band, and a band is one declaration: `color-scheme` on the section, over the same `light-dark()` tokens
+   the rest of the page reads, so every colour inside it — text, hairlines, the accent, a chart's palette —
+   resolves to that side. The tokens do not change; the contrast gate already reads both sides of each.
+
+   A page made of bands is not the reading column: `main` is a plain block and each band is the grid (the
+   column's `--tracks`), so a figure that asks for `wide` gets it inside a band exactly as in a post, and
+   `full` is the band's own edge. Said of any page whose article is bands — the front page, and a site's
+   own layout built the same way (studio's case) — not of one class. */
+main:has(> .snypd-page > .snypd-band) { display: block; grid-template-columns: none; row-gap: normal; padding: 0; }
+main:has(> .snypd-page > .snypd-band) > .snypd-page { display: contents; }
+.snypd-band { display: grid; grid-template-columns: var(--tracks); row-gap: var(--space-3); padding-block: var(--space-6); background: var(--color-bg); color: var(--color-text); }
+.snypd-band[data-tone="dark"]  { color-scheme: dark; }
+.snypd-band[data-tone="light"] { color-scheme: light; }
+/* One edge (docs/18, decision 188): every child of a band starts on the `wide` track — the band's title, its
+   prose, its numbers, its cards — and prose is limited by the measure, never by an indent. */
+.snypd-band > * { grid-column: wide; max-width: var(--measure); }
+.snypd-band > :is(.snypd-cover, .snypd-stat-row, .snypd-steps, .snypd-entries, .snypd-logo-wall, figure, .snypd-chart, .snypd-diagram, .snypd-flow) { max-width: none; }
+/* …except where a block keeps a width of its own: a drawing is held to the track (a phone still scrolls it),
+   and the summary keeps its deck width. */
+.snypd-band > figure:is(.snypd-chart, .snypd-diagram, .snypd-flow) { max-width: 100%; }
+.snypd-band > .snypd-tldr { max-width: var(--measure-deck); }
+.snypd-band > .snypd-figure[data-width="full"] { grid-column: full; }
+
+/* The hero starts under a masthead that is sticky and transparent, and takes the fold. */
+.snypd-hero { position: relative; isolation: isolate; padding-top: calc(var(--size-masthead) + var(--space-5)); min-height: var(--size-hero); align-content: center; }
+.snypd-hero h1 { font-size: var(--size-display); letter-spacing: -0.045em; max-width: 12ch; }
+@supports (text-box: trim-both cap alphabetic) { .snypd-hero h1 { text-box: trim-both cap alphabetic; } }
+/* The showreel (docs/17 §4.1): a cover's `media` fills the hero behind the type, and a scrim in the band's
+   own background keeps the headline readable over whatever frame is under it. `base` swaps the clip for
+   its still under reduced motion; the still takes the same place. */
+.snypd-hero .snypd-cover-media { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; margin: 0; border-radius: 0; opacity: 0.6; }
+.snypd-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, var(--color-bg) 12%, color-mix(in oklab, var(--color-bg) 45%, transparent) 55%, color-mix(in oklab, var(--color-bg) 60%, transparent)); pointer-events: none; }
+.snypd-hero:not(:has(.snypd-cover-media))::before { content: none; }
+/* The subtitle over the reel is the weakest text on the page when it is muted grey over a highlight, so in
+   the hero it is the text colour, barely softened (docs/18 §2 · 12). */
+.snypd-hero .snypd-subtitle { color: var(--color-text); opacity: 0.85; }
+
+/* A band's title is its first line and carries its number as an eyebrow — the reference's `01`, `02` above
+   every section — counted by the page, so the author writes headings and nothing else. */
+.snypd-home { counter-reset: band; }
+.snypd-band > h2 { margin-top: 0; max-width: 18ch; counter-increment: band; }
+.snypd-band > h2::before {
+  content: counter(band, decimal-leading-zero) / "";
+  display: block; margin-bottom: var(--space-3);
+  font: 500 var(--size-small) / 1 var(--font-display); letter-spacing: 0.14em; color: var(--color-accent);
+}
+/* The entries band is the theme's, not the author's: it is not numbered, so three sections read 01–03 and
+   the cards read as the page's end (docs/18 §2 · 14). After the general rule, because the two pseudo-element
+   rules weigh the same and the later one wins. */
+.snypd-home-entries > h2 { margin-top: 0; counter-increment: none; }
+.snypd-home-entries > h2::before { content: none; }
+.snypd-band > h2 a { color: inherit; text-decoration: none; }
+.snypd-band > h2 a:hover { color: var(--color-accent); }
+
+/* Inside a band a block's title, and a call's, is the band's sub-heading, at h3 size (docs/18 §2 · 2). */
+.snypd-band :is(.snypd-steps, .snypd-faq) > h3 { font-size: var(--size-h3); letter-spacing: -0.01em; line-height: 1.15; }
+.snypd-band .snypd-cta > p:first-child { font-size: var(--size-h3); letter-spacing: -0.01em; line-height: 1.15; max-width: 24ch; }
+/* On the front page the steps stand side by side, the reference's service cards; in a post they are a list.
+   The same no-orphans rule as the numbers: four are four across, then two, then one; three are three, then
+   one. `data-count` is on the block (steps.tsx). */
+.snypd-home .snypd-steps { grid-column: wide; }
+.snypd-home .snypd-steps ol { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(var(--measure-step), 1fr)); }
+.snypd-home .snypd-steps[data-count="3"] ol { grid-template-columns: repeat(3, 1fr); }
+.snypd-home .snypd-steps[data-count="4"] ol { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 56rem) { .snypd-home .snypd-steps[data-count="4"] ol { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 34rem) { .snypd-home .snypd-steps[data-count="3"] ol, .snypd-home .snypd-steps[data-count="4"] ol { grid-template-columns: 1fr; } }
+
+/* The masthead takes the scheme of the band it starts on, and the footer keeps the alternation going — the
+   scheme the last band is not — so the page ends on one more band, not two of a colour with a hairline
+   between. With `bands: off`, neither has a tone to follow and both stay in the reader's scheme. */
+body:has(.snypd-hero[data-tone="dark"]) > header.snypd-masthead { color-scheme: dark; }
+body:has(.snypd-hero[data-tone="light"]) > header.snypd-masthead { color-scheme: light; }
+body:has(.snypd-home-entries[data-tone="dark"]) > footer  { color-scheme: light; }
+body:has(.snypd-home-entries[data-tone="light"]) > footer { color-scheme: dark; }

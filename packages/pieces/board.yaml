@@ -1,0 +1,110 @@
+# The board (docs/37 §5, docs/38 §9): where a piece is seen before it is chosen or approved.
+#
+# `stills` is how `snypd pieces stills` photographs every piece: the specimen, built once per piece on the
+# `host` theme with only that piece's slot swapped, cropped to the slot on the route named here. The
+# host is a theme with no residue (editorial, P3), so the still shows the piece and not a sheet's leftovers.
+#
+# `sets` are the token sets a piece must hold on (docs/37 §4·3, widened to five by docs/38 §9). Each is
+# colour, one shelf face and, where the set is about proportion, a few sizes: the values a board child theme
+# writes over whatever theme it extends. `look { board, sets: 3 }` takes the first three; `sets: 5` all.
+# A piece that is right on one set and wrong on another is faking a token the contract lacks (docs/37 §10):
+# find the token, do not narrow the board.
+stills:
+  host: editorial
+  root: corpora/specimen
+  # The route each slot is photographed on: where the specimen shows that slot best.
+  routes:
+    house:     /posts/long-read/
+    column:    /posts/every-primitive-once/
+    prose:     /posts/long-read/
+    code:      /posts/long-read/
+    blocks:    /posts/every-primitive-once/
+    cover:     /posts/every-primitive-once/
+    masthead:  /
+    list:      /changelog/
+    entries:   /posts/
+    post-foot: /posts/every-primitive-once/
+    footer:    /
+    home:      /
+    feature:   /changelog/1-0-0/
+    notes:     /posts/long-read/
+    toc:       /posts/long-read/
+    wall:      /posts/every-primitive-once/
+    motion:    /posts/long-read/
+    backdrop:  /
+    # A piece's own route, by id, where its slot's cannot show it: the changelog has no covers.
+    list/grid: /posts/
+
+sets:
+  - name: light-serif
+    line: A warm paper, a text serif, an oxblood link — the reading page.
+    face: source-serif-4
+    tokens:
+      color.scheme:    light
+      color.bg:        "#f7f4ec"
+      color.surface:   "#eee9dd"
+      color.text:      "#1f1b16"
+      color.muted:     "#665e54"
+      color.accent:    "#8c2f1b"
+      color.on-accent: "#ffffff"
+      color.border:    "#d8d0c1"
+
+  - name: dark-sans
+    line: A near-black, a grotesk, one cool blue — the tool at night.
+    face: instrument-sans
+    tokens:
+      color.scheme:    dark
+      color.bg:        "#111317"
+      color.surface:   "#1a1d23"
+      color.text:      "#e7e8eb"
+      color.muted:     "#9aa0aa"
+      color.accent:    "#7fb8ff"
+      color.on-accent: "#0b0d10"
+      color.border:    "#2c3038"
+
+  - name: loud-accent
+    line: White, a wide display grotesk, one hot red that has to carry the page.
+    face: bricolage-grotesque
+    tokens:
+      color.scheme:    light
+      color.bg:        "#ffffff"
+      color.surface:   "#f3f3f1"
+      color.text:      "#111111"
+      color.muted:     "#595959"
+      color.accent:    "#d40028"
+      color.on-accent: "#ffffff"
+      color.border:    "#e0e0e0"
+
+  - name: committed
+    line: The page drenched in one saturated cobalt, a display serif, a yellow that answers it.
+    face: young-serif
+    tokens:
+      color.scheme:    dark
+      color.bg:        "#1f2a8c"
+      color.surface:   "#2934a0"
+      color.text:      "#f7f1e1"
+      color.muted:     "#c6c9ee"
+      color.accent:    "#ffd447"
+      color.on-accent: "#1f2a8c"
+      color.border:    "#4450bb"
+
+  - name: pathological
+    line: Everything a piece might assume, broken — big body, huge condensed heads, a narrow column, square corners, tight leading.
+    face: barlow-condensed
+    tokens:
+      color.scheme:    light
+      color.bg:        "#fffdf8"
+      color.surface:   "#efece3"
+      color.text:      "#22201c"
+      color.muted:     "#67625a"
+      color.accent:    "#0b6e4f"
+      color.on-accent: "#ffffff"
+      color.border:    "#cdc7b9"
+      size.body:       "1.3rem"
+      size.h1:         "clamp(3rem, 2rem + 6vw, 6.5rem)"
+      size.h2:         "clamp(2rem, 1.5rem + 3vw, 3.4rem)"
+      size.h3:         "1.9rem"
+      measure:         "30rem"
+      radius:          "0"
+      leading.body:    "1.35"
+      leading.tight:   "0.95"

@@ -1,0 +1,19 @@
+piece: home/split
+from: folio
+line: A product page — one big centred sentence, the film under it, a button; then every `##` section a band with its heading beside its content; the site's lists as bands; the last section a dark close.
+reads: [font.display, size.small, size.body, size.display, space.1, space.3, space.4, space.5, space.6, color.bg, color.text, color.muted, color.border, radius, size.lede, size.window, size.window-narrow, size.close-code, measure.window, space.row-link]
+needs:
+  size.lede: clamp(1.5rem, 1.05rem + 1.25vw, 2.125rem)
+  size.window: 0.9375rem
+  size.window-narrow: 0.8125rem
+  size.close-code: 1rem
+  measure.window: 34rem
+  space.row-link: 9rem
+emits: [snypd-band, snypd-hero, snypd-lead, snypd-hero-action, snypd-close, snypd-home-list, snypd-home-more]
+settings:
+  - { id: heroLabel, type: text, label: "Hero button",      group: "Front page", default: "Start", info: "The word on the button under the front page's headline. With no link below, no button is drawn." }
+  - { id: heroHref,  type: text, label: "Hero button link", group: "Front page", default: "/start/", info: "Where that button goes — a Start page, the docs, an install guide. Site-relative or absolute; empty draws no button." }
+pairs:
+  column: three-track
+layouts:
+  home: ./layout.tsx

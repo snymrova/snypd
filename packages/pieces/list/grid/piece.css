@@ -1,0 +1,71 @@
+/* list/grid — drawn (W4, docs/37 §7; refs in piece.yaml). An archive for a type that is its pictures: the
+   head `list/ruled` draws, then a wall of tiles — each cover cropped to one frame the tiles share, the title
+   and a small label under it. The head, the grid and every year's rule share one left edge, the grid's, on
+   `wide`; words above the grid are held to the measure (decision 188).
+
+   The one signature detail: a list over more than one year breaks at each year's turn, and a rule across
+   the grid carries the year, set small in the UI face under the rule's left end — the wall stays a
+   timeline. The rule is the text colour, the only line on the page drawn that strong, so it reads as a
+   division and not as a border. */
+main.snypd-list:has(> .snypd-tiles, > .snypd-tiles-year) > * { grid-column: wide; max-width: var(--measure); }
+/* The filter strip runs the grid's width, so its rule and every year's rule end on one right edge. */
+main.snypd-list > :is(.snypd-tiles, .snypd-tiles-year, .snypd-list-filter) { max-width: none; }
+
+/* The head, as `list/ruled` sets it — a list piece stands alone on its slot, so it carries its own. */
+h1 > .snypd-list-kicker { display: block; font: 400 var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted); letter-spacing: 0.04em; margin-bottom: var(--space-2); }
+.snypd-lede { color: var(--color-muted); max-width: var(--measure); }
+.snypd-list-filter {
+  display: flex; flex-wrap: wrap; column-gap: var(--space-4); row-gap: 0; align-items: baseline;
+  font: 400 var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted);
+  border-top: 1px solid var(--color-border); padding-top: var(--space-3);
+}
+.snypd-list-filter + .snypd-list-filter { border-top: 0; padding-top: 0; margin-top: calc(-1 * var(--space-2)); }
+.snypd-list-filter-name { letter-spacing: 0.04em; text-transform: uppercase; font-size: calc(var(--size-small) * 0.86); }
+/* Each term is a tap target of 24px or more (WCAG 2.5.8): its padding is the lines' spacing, so the strip
+   keeps its rhythm and the row gap is none; and a word as short as *All* is held to 2em wide, which a
+   longer term already is (the sitting's board found *All* at 15px on a term's page on a phone). */
+.snypd-list-filter a { color: inherit; text-decoration: none; padding-block: 0.25em; min-inline-size: 2em; }
+/* On a phone the row is base's scroller and every term is a 44 px target, *All* as wide as it is tall. */
+@media (max-width: 37.5rem) { .snypd-list-filter a { min-inline-size: var(--size-tap); } }
+.snypd-list-filter a:hover { color: var(--color-accent); }
+.snypd-list-filter a[aria-current="page"] { color: var(--color-text); text-decoration: underline; text-decoration-color: var(--color-accent); text-decoration-thickness: 2px; text-underline-offset: 0.35em; }
+.snypd-list-count { font-variant-numeric: tabular-nums; opacity: 0.7; }
+
+/* The year's rule, then its tiles. */
+.snypd-tiles-year { display: grid; row-gap: var(--space-3); margin-top: var(--space-5); }
+.snypd-tiles-mark {
+  margin: 0; border-top: 1px solid var(--color-text); padding-top: var(--space-2);
+  font: 400 var(--size-small) / 1.4 var(--font-ui); letter-spacing: 0.04em; font-variant-numeric: tabular-nums lining-nums;
+  color: var(--color-text);
+}
+
+.snypd-tiles {
+  list-style: none; padding: 0; margin: var(--space-4) 0 0;
+  display: grid; gap: var(--space-5) var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--measure-tile)), 1fr));
+}
+.snypd-tiles-year > .snypd-tiles { margin-top: 0; }
+.snypd-tile { margin: 0; }
+.snypd-tile > a { display: grid; gap: var(--space-2); color: inherit; text-decoration: none; }
+/* Every cover cropped to the one frame: the grid reads as a wall, a row as one band. The fill shows only
+   while a picture loads, and behind a work that has none. */
+.snypd-tile-frame { display: grid; aspect-ratio: var(--tile-frame, 1); overflow: hidden; background: var(--color-surface); margin-bottom: var(--space-2); }
+.snypd-tile-frame > img { width: 100%; height: 100%; object-fit: cover; }
+.snypd-tile-frame[data-empty] { padding: var(--space-3); align-items: end; }
+.snypd-tile-frame[data-empty] > span {
+  font: 400 var(--size-h3) / var(--leading-tight) var(--font-display); letter-spacing: -0.01em;
+  text-wrap: balance; color: var(--color-muted);
+}
+.snypd-tile-name { font-weight: 500; line-height: var(--leading-tight); text-wrap: balance; }
+.snypd-tile-label { font: 400 var(--size-small) / 1.3 var(--font-ui); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.snypd-tile > a:hover .snypd-tile-name,
+.snypd-tile > a:focus-visible .snypd-tile-name {
+  color: var(--color-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em;
+}
+/* On a phone the wall is two across (the mobile pass), as a catalogue is on one: one tile to a row was a
+   scroll of single pictures, and two keep the grid a grid. The gaps close a step to give the pictures the
+   width. An empty tile's name is set a step down to fit the half width. */
+@media (max-width: 37.5rem) {
+  .snypd-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-3); }
+  .snypd-tile-frame[data-empty] > span { font-size: var(--size-body); }
+}

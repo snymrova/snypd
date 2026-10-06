@@ -1,0 +1,4 @@
+piece: notes/plain
+from: studio
+line: Footnotes left to base — its card on hover, unmarked reference numbers — and the ruled list at the end in small type.
+reads: [size.small, space.3, space.5, color.muted, color.border]

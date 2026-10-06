@@ -29,7 +29,8 @@ export function tokensCss(tokens: Record<string, string>): string {
 }
 
 /**
- * The four layers, in the order a site resolves them (decision 119). Declared in one statement at the
+ * The five layers, in the order a site resolves them (decision 119; `snypd.pieces` since decision 270,
+ * between base and the theme — a piece is shared, so a theme's own rule beats it whatever its specificity). Declared in one statement at the
  * top of the sheet so the order is the *statement's* and not the accident of which theme in the chain
  * happened to ship CSS: a parent with no stylesheet must not silently promote its child.
  *
@@ -37,7 +38,7 @@ export function tokensCss(tokens: Record<string, string>): string {
  * naming it now is what makes adding one later not a breaking change. Unlayered CSS still beats all four,
  * which is the escape hatch a person editing their own site should have.
  */
-export const CSS_LAYERS = "@layer snypd.tokens, snypd.base, snypd.theme, snypd.site;\n";
+export const CSS_LAYERS = "@layer snypd.tokens, snypd.base, snypd.pieces, snypd.theme, snypd.site;\n";
 
 /**
  * A theme's stylesheet name as a CSS layer identifier. Theme names are file paths and `theme:` keys, not
@@ -85,16 +86,19 @@ export function atImport(css: string): number {
  * between the webfont and the rest of the stack. Derived rather than declared because it is not a choice:
  * it names a face this function invents, and a theme that had to spell it out could spell it wrong.
  */
-export function fontFaceCss(font: ThemeFont, url: string): string {
+export function fontFaceCss(font: ThemeFont, url: string, cuts: { url: string; weight?: string | number; style: string }[] = []): string {
   const f = font.fallback;
-  return `@font-face {
+  // The cuts (decision 281) are the same family at another style or weight, so the browser fetches one
+  // only when something on the page is set in it — the italic for the first `<em>`, never on a page with none.
+  const face = (u: string, weight: string | number | undefined, style: string) => `@font-face {
   font-family: ${JSON.stringify(font.family)};
-  src: url(${JSON.stringify(url)}) format("woff2");
-  font-weight: ${font.weight ?? 400};
-  font-style: ${font.style ?? "normal"};
+  src: url(${JSON.stringify(u)}) format("woff2");
+  font-weight: ${weight ?? 400};
+  font-style: ${style};
   font-display: swap;
 }
-@font-face {
+`;
+  return face(url, font.weight, font.style ?? "normal") + cuts.map((c) => face(c.url, c.weight, c.style)).join("") + `@font-face {
   font-family: ${JSON.stringify(fallbackFamily(font))};
   src: local(${JSON.stringify(f.local)});
   size-adjust: ${f["size-adjust"]};

@@ -1,0 +1,2 @@
+/* plain-title — the title as a line of meta, in the display face: the row's tracking and capitals taken off. */
+.snypd-logo-wall-title { font: 500 var(--size-small) / 1.2 var(--font-display); letter-spacing: unset; text-transform: unset; }

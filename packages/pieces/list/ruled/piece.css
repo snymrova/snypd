@@ -1,0 +1,26 @@
+/* list/ruled — drawn (W4, docs/37 §7; refs in piece.yaml). An archive as a heading, an intro, and the
+   terms as a filter row set between two rules — the one signature detail: the row's own rule above it,
+   the first row's rule under it, so the filters read as the strip a newspaper section carries. The rows
+   are the `entries` piece's; a row-less entries piece (cards) leaves the strip on its one rule. The
+   heading, the lede and the filter row sit on whatever track the entries piece gives them. */
+h1 > .snypd-list-kicker { display: block; font: 400 var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted); letter-spacing: 0.04em; margin-bottom: var(--space-2); }
+.snypd-lede { color: var(--color-muted); max-width: var(--measure); }
+
+.snypd-list-filter {
+  display: flex; flex-wrap: wrap; column-gap: var(--space-4); row-gap: 0; align-items: baseline;
+  font: 400 var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted);
+  border-top: 1px solid var(--color-border); padding-top: var(--space-3);
+}
+/* Two taxonomies are two lines on one strip: the second carries no rule of its own. */
+.snypd-list-filter + .snypd-list-filter { border-top: 0; padding-top: 0; margin-top: calc(-1 * var(--space-2)); }
+.snypd-list-filter-name { letter-spacing: 0.04em; text-transform: uppercase; font-size: calc(var(--size-small) * 0.86); }
+/* Each term is a tap target of 24px or more (WCAG 2.5.8): its padding is the lines' spacing, so the strip
+   keeps its rhythm and the row gap is none; and a word as short as *All* is held to 2em wide, which a
+   longer term already is (the sitting's board found *All* at 15px on a term's page on a phone). */
+.snypd-list-filter a { color: inherit; text-decoration: none; padding-block: 0.25em; min-inline-size: 2em; }
+/* On a phone the row is base's scroller and every term is a 44 px target, *All* as wide as it is tall. */
+@media (max-width: 37.5rem) { .snypd-list-filter a { min-inline-size: var(--size-tap); } }
+.snypd-list-filter a:hover { color: var(--color-accent); }
+/* The one the reader is on is the text colour, underlined by the accent: a state, not a second style. */
+.snypd-list-filter a[aria-current="page"] { color: var(--color-text); text-decoration: underline; text-decoration-color: var(--color-accent); text-decoration-thickness: 2px; text-underline-offset: 0.35em; }
+.snypd-list-count { font-variant-numeric: tabular-nums; opacity: 0.7; }

@@ -317,7 +317,7 @@ export async function preview(root: string, opts: PreviewOptions = {}): Promise<
   const siteCtx = (): SiteCtx => {
     const tokens = resolveTokens(cfg.config.theme.tokens as Parameters<typeof resolveTokens>[0]);
     const css = styleSheet(tokens, theme.css, theme.font?.css);
-    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks, settings: settingValues(cfg), preview: false };   // served from this machine, never a crawler's
+    return { site: { name: cfg.config.site.name, url: cfg.config.site.url.replace(/\/$/, ""), description: cfg.config.site.description, icon: cfg.config.site.icon, image: cfg.config.site.image }, tokens, theme: { name: theme.name }, assets: { css: css ? "/assets/theme.css" : undefined, feed: "/feed.xml", llms: "/llms.txt", api: "/api/site.json", font: theme.font?.url }, config: cfg.config, media: {}, parts: theme.parts, nav: {}, hooks, settings: settingValues(cfg), preview: false, pieces: theme.piecesCtx };   // served from this machine, never a crawler's
   };
 
   const shell = (title: string, body: Html, route: string) => {

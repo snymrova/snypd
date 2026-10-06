@@ -1,0 +1,37 @@
+/* prose/docs — carved from technical. Headings tracked in rather than out, because a heading face that
+   sets wide and is not pulled back reads as a line of code instead of a title. */
+:root { color-scheme: var(--color-scheme); }
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: var(--size-body) / var(--leading-body) var(--font-body);
+  font-synthesis-weight: none;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading); line-height: var(--leading-tight);
+  font-weight: 600; letter-spacing: -0.035em; text-wrap: balance; margin: 0;
+}
+h1 { font-size: var(--size-h1); }
+h2 { font-size: var(--size-h2); margin-top: var(--space-5); }
+h3 { font-size: var(--size-h3); margin-top: var(--space-4); }
+/* Deep-linkable, and quiet until you are on it. */
+h2[id]:hover::after, h3[id]:hover::after { content: " #"; color: var(--color-border); }
+
+p { text-wrap: pretty; }
+ul, ol { padding-inline-start: 1.4em; }
+
+a { color: var(--color-accent); text-underline-offset: 0.16em; text-decoration-thickness: from-font; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: var(--radius); }
+strong { font-weight: 650; }
+img, svg { max-width: 100%; height: auto; }
+
+/* An ordinary blockquote: ruled and muted, set apart from the prose around it. */
+blockquote {
+  margin-block: var(--space-4); padding-left: var(--space-4);
+  border-left: 2px solid var(--color-border);
+  color: var(--color-muted);
+}

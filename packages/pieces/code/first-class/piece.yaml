@@ -1,0 +1,6 @@
+piece: code/first-class
+from: technical
+line: Code and tables as the content, not an aside — inline code bordered like a token, blocks as slabs, tables ruled with tabular figures and zebra rows.
+reads: [font.mono, font.ui, size.small, size.code, space.2, space.3, space.4, color.surface, color.border, color.text, radius]
+needs:
+  size.code: 0.85rem

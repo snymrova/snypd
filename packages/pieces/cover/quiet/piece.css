@@ -1,0 +1,31 @@
+/* cover/quiet — carved from editorial: the one place the theme raises its voice. One treatment, because
+   there is one cover (S14). */
+.snypd-eyebrow {
+  font: 600 var(--size-small) / 1.2 var(--font-ui);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--color-accent); margin-bottom: var(--space-2);
+}
+.snypd-subtitle {
+  font-size: var(--size-h3); line-height: 1.35; color: var(--color-muted);
+  margin-top: var(--space-3); max-width: var(--measure-deck); text-wrap: pretty;
+}
+/* The cover image is the only thing on the page that may leave the reading column; a cover's `media`
+   (S29) sits under the title the same way — there is no hero to put it behind. */
+.snypd-cover img:not(.snypd-cover-media) {
+  display: block; width: 100%; margin-top: var(--space-4);
+  border-radius: var(--radius); background: var(--color-surface);
+}
+/* No `display` on the media: which of a clip and its still shows is `base`'s decision (reduced motion,
+   the motion control), in a lower layer. A `display: block` here showed the still under the reel on
+   every load (docs/37 §1.4) — the bug cover/display was fixed for in docs/18 and this piece kept. */
+.snypd-cover-media {
+  vertical-align: top; width: 100%; margin-top: var(--space-4);
+  border-radius: var(--radius); background: var(--color-surface);
+}
+.snypd-byline {
+  font: var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border);
+}
+/* Here and not in `house`: prose's `a` comes after house and would win. */
+.snypd-byline a { color: inherit; }

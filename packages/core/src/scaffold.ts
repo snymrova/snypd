@@ -34,6 +34,8 @@ export interface ScaffoldResult {
   /** For a theme: the parent it extends, and how many tokens came with it. */
   extends?: string;
   inheritedTokens?: number;
+  /** For a theme over a parent on pieces: the slots it inherits, `slot: piece` (W0). Its theme.css then has no rules. */
+  pieces?: string[];
 }
 
 /**
@@ -89,6 +91,25 @@ const STARTER_TOKENS = `tokens:
   size.body:       { default: "1.05rem", customisable: true, kind: size, description: "Body size." }
   leading.body:    { default: 1.6, customisable: true, kind: number, description: "Body line height." }
 `;
+
+/**
+ * The stylesheet a theme gets over a parent on pieces (W0, docs/37 §1): no rules, only what the file is for.
+ *
+ * The starter below carries `a { color }` and `main { width }`, which a theme over `base` needs and a theme
+ * over pieces must not have: its sheet is `@layer snypd.theme`, above every piece, so those two bare rules
+ * beat `blocks/hairline`'s pill button (accent on black) and `column/three-track`'s grid on every page.
+ * The trial's pieces agent inherited both from this scaffold and spent a fix round finding them.
+ */
+export function starterPiecesCss(name: string, parent: string, pieces: string[]): string {
+  return `/* ${name} — over \`${parent}\`, which is on pieces: ${pieces.join(" · ")}.
+   Those draw the whole site. Change one in theme.yaml (\`pieces: { home: bands }\`, snypd://theme/pieces)
+   before writing a rule here.
+
+   This sheet is for the one bold move the brief names, and little else. It sits above every piece
+   (\`@layer snypd.theme\`), so a rule here wins whatever its specificity — and a bare one, \`a { … }\` or
+   \`main { … }\`, wins over every piece's link or column at once. Values are var()s: \`--color-accent\`. */
+`;
+}
 
 /** The starter stylesheet a scaffolded theme gets: every token it can reach, as the vars it will use. */
 export function starterCss(name: string, parent: string, tokens: { name: string; kind?: string }[]): string {
@@ -212,16 +233,18 @@ export function scaffoldTheme(root: string, input: { name: string; extends?: str
   if (!installed.some((t) => t.name === parent)) throw new WriteError(`no theme "${parent}" to extend`, `Installed: ${installed.map((t) => t.name).join(", ")}.`);
   // The parent's tokens, read through a config that names *it* — not the site's active theme, which may
   // be something else entirely and whose palette would then be listed in a comment about this one.
-  const tokens = themeTokens(loadConfig(root, { theme: parent }));
+  const parentCfg = loadConfig(root, { theme: parent });
+  const tokens = themeTokens(parentCfg);
+  const pieces = parentCfg.pieces.filter((p) => !p.always).map((p) => `${p.slot}: ${p.name}`);
 
   const dir = join(root, "themes", name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "theme.yaml"), starterThemeYaml(name, parent, tokens.length));
-  writeFileSync(join(dir, "theme.css"), starterCss(name, parent, tokens));
+  writeFileSync(join(dir, "theme.css"), pieces.length ? starterPiecesCss(name, parent, pieces) : starterCss(name, parent, tokens));
   writeFileSync(join(dir, "DESIGN.md"), starterDesign(name));
   writeFileSync(join(dir, "package.json"), `{ "name": "@snypd/theme-${name}", "version": "0.1.0", "type": "module", "license": "MIT" }\n`);
   return {
-    name, extends: parent, inheritedTokens: tokens.length, dir: `themes/${name}`,
+    name, extends: parent, inheritedTokens: tokens.length, pieces, dir: `themes/${name}`,
     files: ["theme.yaml", "theme.css", "DESIGN.md", "package.json"].map((f) => `themes/${name}/${f}`),
   };
 }

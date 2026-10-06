@@ -15,8 +15,9 @@ import { compile } from "./compile";
 import { generate, generateTheme } from "./corpus";
 import { countTokens, TOKENIZER } from "./tokens";
 import { resources as specResources } from "@snypd/spec";
-import { loadConfig, lintSite, MdastCache, SiteIndex, renderThemeSummary, INDEX_DIR } from "@snypd/core";
-import { pageSuite } from "./page";
+import { loadConfig, lintSite, MdastCache, SiteIndex, renderThemeSummary, INDEX_DIR, fontLaneKb } from "@snypd/core";
+import { pageSuite, pickRoutes } from "./page";
+import { buildAndServe } from "./gallery";
 import { suggestMetrics, scoreSuggest, formatSuggestScore, SUGGEST_CORPUS } from "./suggest";
 import { renderChart, renderDiagram, renderFlow, CHART_TYPES, MAX_POINTS, MAX_NODES, type ChartRow, type ChartType } from "@snypd/viz";
 import pkg from "../package.json";
@@ -27,7 +28,7 @@ export const BUDGETS = {
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
   jsKb: 0,                                                           // KB of client JS a content page may load or inline — declared by plugins, afforded by the site (P2, decision 84)
-  installCodeMb: 8,                                                  // MB of the release binary that is snypd's, not Bun's — the only half of the download this repo can move (F8)
+  installCodeMb: 10,                                                 // MB of the release binary that is snypd's, not Bun's — the only half of the download this repo can move (F8). 8 → 10 on 6 Oct 2026 (Sunny): the pieces shelf — stills, kits, the face cuts — put it at 6.86, over 80 % of 8; that growth is the product, so the line moved, not the shelf
   chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
   diagramRenderMs: 15, diagramSvgKb: 25,                             // D3, per diagram (spec: diagram.budget)
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
@@ -552,7 +553,7 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   // script budget because it chose the plugins, and it affords its theme nothing because the theme is
   // what it chose. Loading the theme here rather than reading the YAML is what makes the number the same
   // one the build used — including whose theme in the chain declared it.
-  const fontKb = (await loadTheme(loadConfig(root))).font?.kb ?? 0;
+  const fontKb = fontLaneKb((await loadTheme(loadConfig(root))).font);
   const { metrics, browser } = await pageSuite({ root, label: "editorial", jsKb: ACTIVE.jsKb, fontKb });
   metrics.push(...(await themeLane(root)));
   metrics.push(...(await deskLane(root, fontKb)));
@@ -562,6 +563,30 @@ export async function page(opts: { root?: string; quick?: boolean } = {}): Promi
   writeFileSync("bench/page.json", JSON.stringify({ ...report, browser }, null, 2));
   writeFileSync("bench/page.md", toMarkdown(report));
   return report;
+}
+
+/**
+ * The page suite over a *site* (W0, docs/37 §1): `bench` › run `page` from an agent building a theme.
+ *
+ * `page` above is the product's harness — the theme fixture, a second theme's lane, the Desk, a scratch
+ * first run — and it writes `bench/page.json` where it runs. Asked from a site, it built the site's
+ * `dist/`, measured the Desk and a fresh scaffold, and said nothing about the candidate: the trial's
+ * agents read a green gate that had never seen their theme. This measures one theme on this site's own
+ * pages, out of band (the switch `look` and `shoot` make), drafts included as the preview shows them,
+ * against this site's budgets and the theme's own font budget — and writes nothing but a scratch build
+ * it removes.
+ */
+export async function sitePage(opts: { root: string; theme?: string; variation?: string }): Promise<Report & { theme: string; routes: string[] }> {
+  ACTIVE = budgetsFor(opts.root);
+  const live = loadConfig(opts.root).config.theme;
+  const theme = opts.theme ?? live.use, variation = opts.theme ? opts.variation : (opts.variation ?? live.variation);
+  const who = `${theme}${variation ? ` › ${variation}` : ""}`;
+  const s = await buildAndServe(opts.root, { theme, variation, slug: `${theme}${variation ? `-${variation}` : ""}` }, "page", { drafts: true });
+  try {
+    const routes = pickRoutes(s.dist);
+    const { metrics } = await pageSuite({ root: opts.root, url: s.url, routes, label: who, jsKb: ACTIVE.jsKb, fontKb: s.fontKb });
+    return { version: VERSION, suite: "page", bun: Bun.version, date: new Date().toISOString(), tokenizer: TOKENIZER, metrics, theme: who, routes };
+  } finally { s.stop(); }
 }
 
 /**
@@ -584,7 +609,7 @@ async function themeLane(root: string): Promise<Metric[]> {
   const dist = join(root, "dist-technical");
   const index = await SiteIndex.open(root, join(root, INDEX_DIR, "index.technical.sqlite"));
   try { await build(root, { out: dist, cfg, index }); } finally { index.close(); }
-  const fontKb = (await loadTheme(cfg)).font?.kb ?? 0;
+  const fontKb = fontLaneKb((await loadTheme(cfg)).font);
   return (await pageSuite({ root, dist, label: cfg.config.theme.use, prefix: "tech", jsKb: ACTIVE.jsKb, fontKb })).metrics;
 }
 
@@ -638,7 +663,7 @@ async function firstRunLane(): Promise<Metric[]> {
   // and a lane that inherited the fixture's budget would be checking one site's bytes against another's
   // declaration. Today they are the same theme and the same number, which is exactly when a bug like
   // that is invisible.
-  const fontKb = (await loadTheme(loadConfig(dir))).font?.kb ?? 0;
+  const fontKb = fontLaneKb((await loadTheme(loadConfig(dir))).font);
   const s = await preview(dir, { port: 0, watch: false, deskRefresh: 0, prompts: PROMPTS.map((p) => ({ ...p, description: p.description ?? "" })) });
   try {
     await s.settled();
@@ -675,6 +700,7 @@ export async function suggest(opts: { root?: string } = {}): Promise<Report> {
   writeFileSync("bench/suggest.md", `${toMarkdown(report)}\n\n\`\`\`\n${formatSuggestScore(scoreSuggest(root))}\n\`\`\`\n`);
   return report;
 }
+export { carve, compareCarves, formatCarve, normalHtml, type CarveResult, type CarveFile, type CarveChange } from "./carve";
 export { scoreSuggest, formatSuggestScore, suggestMetrics, factsReport, SUGGEST_CORPUS } from "./suggest";
 
 /**
@@ -809,7 +835,7 @@ export async function run(opts: { quick?: boolean } = {}): Promise<Report> {
   if (!opts.quick) {   // the browser suite costs ~10 s and a Chrome; --quick is the inner-loop run
     const fixture = themeFixture();
     await build(fixture);
-    const fontKb = (await loadTheme(loadConfig(fixture))).font?.kb ?? 0;   // B1: the theme's declaration, not a constant
+    const fontKb = fontLaneKb((await loadTheme(loadConfig(fixture))).font);   // B1: the theme's declaration, not a constant
     metrics.push(...(await pageSuite({ root: fixture, label: "editorial", fontKb })).metrics);
     metrics.push(...(await deskLane(fixture, fontKb)));   // S18b: the Desk under the same browser as the public routes
     metrics.push(...(await firstRunLane()));      // S18f: the two states every user meets exactly once

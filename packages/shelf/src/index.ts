@@ -8,8 +8,9 @@
  * they reach it with a dynamic `import()` (see the cold-start memory: every static import is paid on
  * every `initialize`).
  *
- * The contract carries one web font (`ThemeFontSchema`), so a shelf face is always paired with a system
- * stack rather than with a second face: `pairsWith` is that stack.
+ * The contract carries one web font family (`ThemeFontSchema`), so a shelf face is always paired with a
+ * system stack rather than with a second face: `pairsWith` is that stack. Since decision 281 the family is
+ * more than one file: the roman, and its `cuts` — the italic, and a weight a static family cannot vary into.
  */
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -36,6 +37,19 @@ export interface ShelfFace {
   /** `font-weight` for the generated face: `400`, or a variable range like `400 700`. */
   weight: string;
   style: "normal";
+  /** Every upright weight the family reaches, roman and cuts together — what a piece can ask for honestly. */
+  weights: number[];
+  /** Whether an italic cut ships beside the roman. */
+  italic: boolean;
+  /** OpenType features the roman really carries that a piece can ask for by name (`tnum`, `onum`, `smcp`…). */
+  features: string[];
+  /** What the digits do with no feature on. `tabular` aligns a column with no `tnum` to ask for. */
+  digits: "tabular" | "proportional";
+  /** Axes still live in the file (`wght`), and the value each other axis was pinned at (`{ opsz: 16 }`). */
+  axes: string[];
+  pinned: Record<string, number>;
+  /** The files beside the roman, never preloaded (decision 281). */
+  cuts: ShelfCut[];
   /** Measured, in em. The seed's `leading.body` is worked out from `xHeight`. */
   xHeight: number;
   capHeight: number;
@@ -49,10 +63,21 @@ export interface ShelfFace {
   source: string;
 }
 
+export interface ShelfCut {
+  file: string;
+  weight: string;
+  style: "normal" | "italic";
+  bytes: number;
+  kb: number;
+  features: string[];
+  source: string;
+}
+
 export interface Shelf {
   source: { repo: string; ref: string };
   unicodes: string;
   features: string;
+  serifTextFeatures: string;
   faces: ShelfFace[];
 }
 
@@ -84,26 +109,32 @@ export interface InstalledFace {
 }
 
 /**
- * Copy a shelf face into `<themeDir>/fonts/` — the .woff2 and, beside it, `OFL.txt`, which the OFL
- * requires travel with the file and which is where editorial and studio already keep theirs. A face that
- * an earlier seed installed from the shelf is removed, so re-seeding with another face does not leave a
- * file behind that the theme no longer names.
+ * Copy a shelf face into `<themeDir>/fonts/` — the .woff2, its cuts, and, beside them, `OFL.txt`, which the
+ * OFL requires travel with the files and which is where editorial and studio already keep theirs. Files an
+ * earlier seed installed from the shelf are removed, so re-seeding with another face does not leave a file
+ * behind that the theme no longer names.
  */
 export function installFace(id: string, themeDir: string): InstalledFace {
   const face = shelfFace(id);
   if (!face) throw new Error(`no face "${id}" on the shelf — one of: ${loadShelf().faces.map((f) => f.id).join(", ")}`);
   const dir = join(themeDir, "fonts");
   mkdirSync(dir, { recursive: true });
-  const ours = new Set(loadShelf().faces.map((f) => `${f.id}.woff2`));
-  for (const name of readdirSync(dir)) if (ours.has(name) && name !== `${face.id}.woff2`) rmSync(join(dir, name));
-  writeFileSync(join(dir, `${face.id}.woff2`), readFileSync(shelfFile(face.file)));
+  const base = (rel: string) => rel.split("/").pop()!;
+  const files = [face.file, ...face.cuts.map((c) => c.file)];
+  const ours = new Set(loadShelf().faces.flatMap((f) => [f.file, ...f.cuts.map((c) => c.file)]).map(base));
+  const keep = new Set(files.map(base));
+  for (const name of readdirSync(dir)) if (ours.has(name) && !keep.has(name)) rmSync(join(dir, name));
+  for (const rel of files) writeFileSync(join(dir, base(rel)), readFileSync(shelfFile(rel)));
   writeFileSync(join(dir, "OFL.txt"), readFileSync(shelfFile(face.licence)));
   const font: ThemeFont = {
     family: face.family,
-    file: `./fonts/${face.id}.woff2`,
+    file: `./fonts/${base(face.file)}`,
     weight: face.weight,
     kb: face.kb,
     fallback: { ...face.fallback },
+    ...(face.cuts.length ? { cuts: face.cuts.map((c) => ({ file: `./fonts/${base(c.file)}`, weight: c.weight, style: c.style, kb: c.kb })) } : {}),
+    features: [...face.features],
+    digits: face.digits,
   };
   const q = (s: string) => `'${s}'`;
   return { font, stack: `${q(face.family)}, ${q(`${face.family} fallback`)}, ${face.tail}`, face };

@@ -1,0 +1,12 @@
+piece: list/ruled
+from: drawn
+line: An archive as a heading, an intro and the terms as a filter row set between two rules — each term a link with its count, the one the reader is on marked; a term's page keeps the row with its taxonomy as the heading's kicker.
+refs:
+  - { url: https://www.pentagram.com/work,          took: "the disciplines as a filter row over the work, counts beside them" }
+  - { url: https://github.blog/changelog/,           took: "heading, one line of intro, the labels as filters, then the list" }
+  - { url: https://www.smashingmagazine.com/articles/, took: "the category strip set between two rules" }
+reads: [font.ui, size.small, color.muted, color.text, color.accent, color.border, measure, space.2, space.3, space.4, size.tap]
+emits: [snypd-list, snypd-list-kicker, snypd-list-filter-name, snypd-list-count]
+layouts:
+  index: ./layout.tsx
+  term: ./term.tsx

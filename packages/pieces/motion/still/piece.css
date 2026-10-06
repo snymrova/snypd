@@ -1,0 +1,5 @@
+/* motion/still — carved from folio (Sunny, 19 Sep 2026: "pages should open instantly"). No view transition:
+   a cross-document transition holds the old page frozen until the new one is drawn, then animates, and even
+   with only a title morphing that hold reads as loading. The next page is prerendered, so it is swapped in.
+   This sheet is empty on purpose — the piece is the absence of `@view-transition` — and its one switch is
+   the only thing that moves. */

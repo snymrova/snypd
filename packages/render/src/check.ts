@@ -34,9 +34,11 @@ import { load as parseYaml } from "js-yaml";
 import {
   CONTRAST_PAIRS, contrastRatio, cssValue, loadConfig, loadPlugin, MAX_FONT_KB, PLUGIN_API, resolveColor, resolvePlugin,
   themeTokens, themeVariations, themeFile, isPlaceholder, pluginShortName, tiersOf, tokenVars,
-  type LoadedConfig, type Mode, type Rgb,
+  type LoadedConfig, type Mode, type Rgb, type ThemeFont,
 } from "@snypd/core";
-import { loadTheme, type Theme, LAYOUT_NAMES } from "./theme";
+import { themeContract } from "@snypd/spec";
+import { loadTheme, pieceCss, type Theme, LAYOUT_NAMES } from "./theme";
+import { bareElements, cssRules, literalHits, selectorClasses, selectorHits, styledClasses } from "./contract";
 import { applyChosen, chosenRules, designVerdict, plainCss, staticTaste } from "./taste";
 
 export type Status = "pass" | "warn" | "fail" | "skip";
@@ -83,6 +85,7 @@ export const GUARDED_CSS: { pattern: RegExp; what: string; tier: "two engines" |
   { pattern: /(?<![\w-])if\(/i, what: "if()", tier: "one engine", test: "(width: if(style(--x): 1px; else: 2px))" },
   { pattern: /@function\b/i, what: "@function", tier: "one engine", test: "at-rule(@function)" },
   { pattern: /\bcorner-shape\s*:/i, what: "corner-shape", tier: "one engine", test: "(corner-shape: squircle)" },
+  { pattern: /\bscroll-initial-target\s*:/i, what: "scroll-initial-target", tier: "one engine", test: "(scroll-initial-target: nearest)" },
 ];
 
 /**
@@ -210,7 +213,7 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
     add("coverage.parts", missingPart.length ? "fail" : "pass",
       missingPart.length
         ? `${missingPart.map((c) => c.name).join(", ")} — a layout that asks for one of these throws`
-        : `${theme.partCoverage.length}/${theme.partCoverage.length}${theme.partCoverage.some((c) => c.status === "own") ? ` (${theme.partCoverage.filter((c) => c.status === "own").map((c) => c.name).join(", ")} its own)` : ""}`);
+        : `${theme.partCoverage.length}/${theme.partCoverage.length}${theme.partCoverage.some((c) => c.status === "own") ? ` (${theme.partCoverage.filter((c) => c.status === "own").map((c) => c.name).join(", ")} its own)` : ""}${theme.partCoverage.some((c) => c.status === "piece") ? ` (${theme.partCoverage.filter((c) => c.status === "piece").map((c) => `${c.name} from ${c.via}`).join(", ")})` : ""}`);
   }
 
   // ── what a shelf needs and a build does not (decision 123) ─────────────────────────────────────
@@ -267,35 +270,108 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
   if (!theme?.font) add("font.budget", "skip", "this theme declares no webfont, and inherits none");
   else {
     const kb = +(theme.font.bytes.byteLength / 1024).toFixed(2);
-    add("font.budget", "pass", `${theme.font.file} — ${kb} KB against its own declaration of ${theme.font.kb}, ceiling ${MAX_FONT_KB} (decision 118)`);
+    const cuts = theme.font.loadedCuts.map((c) => `${c.file} ${+(c.bytes.byteLength / 1024).toFixed(2)} KB`);
+    add("font.budget", "pass", `${theme.font.file} — ${kb} KB against its own declaration of ${theme.font.kb}, ceiling ${MAX_FONT_KB} a file (decisions 118, 281)${cuts.length ? `; not preloaded: ${cuts.join(", ")}` : ""}`);
     // The family name is CSS's, not the font file's: a face nothing names is 30 KB nobody sees.
     const used = all.some((t) => String(t.value).includes(theme!.font!.family));
     add("font.used", used ? "pass" : "fail",
       used ? `\`${theme.font.family}\` is named by a token, so something renders in it`
         : `\`${theme.font.family}\` is declared and no token names it — the face downloads and nothing is set in it`);
     add("font.fallback", "pass", `metric-matched fallback: size-adjust ${theme.font.fallback["size-adjust"]}, ascent ${theme.font.fallback["ascent-override"]}`);
+    const craft = fontCraft(theme.font, theme.css ?? "", all.some((t) => t.name === "font.body" && String(t.value).includes(theme!.font!.family)));
+    add("font.craft", craft.length ? "warn" : "pass",
+      craft.length ? `${craft.join("; ")} — the browser fakes what the face does not carry (decision 281)`
+        : `every italic, weight and figure style the sheet asks for, \`${theme.font.family}\` carries${theme.font.cuts?.length ? ` (${theme.font.cuts.map((c) => c.style === "italic" ? "italic" : c.weight).join(", ")} beside the roman)` : ""}`);
+  }
+
+  // ── the pieces (docs/36 §4.6, decision 269) ─────────────────────────────────────────────────────
+  // What the theme is built from, and whether the theme gives them what they read. A contract token a
+  // piece reads and the theme does not declare is a `var()` with nothing behind it — the rule it sits in
+  // is dropped at computed-value time — so it fails. The contract lints themselves already ran when the
+  // piece went on the shelf (the manifest generator refuses a piece that breaks one); they run again here
+  // over the files *this* theme's switches include, so a finding carries the piece's file and line.
+  const pieces = theme?.pieces ?? cfg.pieces;
+  const pieceSources = theme ? pieces.flatMap((p) => pieceCss(p).map(({ file, css }) => ({ label: `piece/${p.id}/${file}`, css, piece: p }))) : [];
+  if (!pieces.length) add("pieces.used", "skip", "this theme is on no pieces — its sheet is all its own");
+  else {
+    const kb = pieces.reduce((a, p) => a + p.entry.kb + Object.entries(p.switches).reduce((b, [sw, v]) => b + (p.entry.switchKb[v === true ? sw : `${sw}-${v}`] ?? 0), 0), 0);
+    add("pieces.used", "pass", `${pieces.map((p) => `${p.slot}: ${p.name}${Object.entries(p.switches).filter(([sw, v]) => v !== p.entry.switches[sw]!.default).map(([sw, v]) => ` ${sw}=${v}`).join("")}${p.always ? " (always)" : ""}`).join(" · ")} — ${kb.toFixed(1)} KB of CSS, counted in \`cssKb\``);
+    const contract = themeContract();
+    const view = themeView(cfg);
+    // W4 (decision 278): a drawn piece is a draft until Sunny's sitting passes it on its board. It can be
+    // built and looked at — that is how it gets seen — but a theme that ships is on shelf pieces only.
+    // A drawn switch is the same: on, it is a draft's CSS in the theme.
+    const drafts = [
+      ...pieces.filter((p) => p.entry.draft).map((p) => p.id),
+      ...pieces.flatMap((p) => Object.entries(p.switches).filter(([sw, v]) => p.entry.switches[sw]?.draft && v !== p.entry.switches[sw]!.default).map(([sw]) => `${p.id} ${sw}`)),
+    ];
+    if (drafts.length) add("pieces.draft", "fail", `${drafts.join(", ")} ${drafts.length === 1 ? "is a draft" : "are drafts"} — seen on the board, not yet passed at a sitting; \`theme\` › look { board } shows it, and the shelf's other ${drafts.length === 1 ? "piece" : "pieces"} in the slot ship`);
+    const missing = [...new Set(pieces.flatMap((p) => p.entry.reads.filter((t) => contract.tokens.includes(t) && !(t in view)).map((t) => `${t} (${p.id})`)))];
+    add("pieces.tokens", missing.length ? "fail" : "pass",
+      missing.length ? `${missing.length} contract token${missing.length === 1 ? "" : "s"} a piece reads and this theme does not declare: ${missing.slice(0, 8).join(", ")}${missing.length > 8 ? "…" : ""} — each is a var() with nothing behind it; \`snypd theme seed\` writes all forty`
+        : `every token the pieces read is declared${Object.keys(view).length ? "" : " (none are read)"}`);
+    const hits = pieceSources.flatMap(({ label, css, piece }) => [
+      ...literalHits(css, contract.literals).map((h) => `${label}:${h.line} ${h.prop}: ${h.value}`),
+      ...selectorHits(css, [...contract.classes, ...piece.entry.emits], contract.classPrefixes).map((h) => `${label}:${h.line} .${h.cls}`),
+    ]);
+    add("pieces.contract", hits.length ? "fail" : "pass",
+      hits.length ? `${hits.length} outside the contract: ${hits.slice(0, 6).join("; ")}${hits.length > 6 ? `; +${hits.length - 6} more` : ""}` : `${pieceSources.length} sheet${pieceSources.length === 1 ? "" : "s"}, every literal in the vocabulary and every class one base or the piece emits`);
+    // Residue beats pieces (docs/36 §6a): a rule in `snypd.theme.<name>` wins over every piece whatever its
+    // specificity, so a theme's own sheet that styles a class one of its pieces styles has quietly taken
+    // that part of the piece over. A warning, because a bold move may mean it; the four carved themes hold none.
+    const own = typeof yaml.css === "string" ? themeFile(self.dir, yaml.css) : undefined;
+    if (own !== undefined) {
+      const styled = new Map<string, string>();
+      for (const { css, piece } of pieceSources) for (const r of cssRules(css)) for (const c of selectorClasses(r.selector)) if (!styled.has(c)) styled.set(c, piece.id);
+      const over = cssRules(own).flatMap((r) => [
+        ...styledClasses(r.selector).filter((c) => styled.has(c)).map((c) => `${basename(String(yaml.css))}:${r.line} .${c} (${styled.get(c)})`),
+        // A bare `a { color }` is the same takeover without naming a class: it beats blocks/hairline's
+        // `.snypd-button` on every <a> it is (the trial's accent-on-black pill, docs/37 §1.4). Only rules
+        // that paint or lay out, and only where the element is not scoped under a class of the theme's own
+        // (`.snypd-facts dd a` is studio's layout, which no piece draws).
+        ...(r.decls.some(([p]) => /^(color$|background|display$|border|font|padding|margin|text-decoration)/.test(p))
+          ? bareElements(r.selector).filter((b) => !b.classes.length || b.classes.some((c) => styled.has(c)))
+            .map((b) => `${basename(String(yaml.css))}:${r.line} ${b.tag} (bare — over every piece's <${b.tag}>${b.classes.length ? ` in .${b.classes[0]}` : ""}, classed or not)`) : []),
+      ]);
+      add("pieces.residue", over.length ? "warn" : "pass",
+        over.length ? `${over.length} rule${over.length === 1 ? "" : "s"} in the theme's own sheet style what its pieces style, and win over them whatever the specificity: ${over.slice(0, 6).join("; ")}${over.length > 6 ? `; +${over.length - 6} more` : ""} — move the rule into the piece, or take the slot off the theme and keep the rule`
+          : "the theme's own sheet styles no class its pieces style", String(yaml.css));
+    }
   }
 
   // ── the tier rule (U7, docs/14 §7 call 1) ──────────────────────────────────────────────────────
   // A two-engine or one-engine feature outside `@supports` is a finding with a line: not a failure,
   // because whether the fallback is "today's page" or "the menu is gone" is what the author has to
-  // look at, and this rule is the list of where to look. The theme's own sheet only — a parent's is
-  // the parent's finding, and it was checked when the parent was.
+  // look at, and this rule is the list of where to look. The theme's own sheet and its pieces' — the
+  // expanded CSS, less its ancestors': a parent's is the parent's finding, checked when the parent was.
   const ownCss = typeof yaml.css === "string" ? themeFile(self.dir, yaml.css) : undefined;
-  if (ownCss === undefined) add("css.enhancement-guarded", "skip", "this theme has no stylesheet of its own");
+  const sources = [...(ownCss !== undefined ? [{ label: basename(String(yaml.css)), css: ownCss }] : []), ...pieceSources];
+  if (!sources.length) add("css.enhancement-guarded", "skip", "this theme has no stylesheet of its own");
   else {
-    const loose = unguardedCss(ownCss);
+    const loose = sources.flatMap(({ label, css }) => unguardedCss(css).map((l) => ({ ...l, label })));
     add("css.enhancement-guarded", loose.length ? "warn" : "pass",
       loose.length
-        ? `${loose.length} use${loose.length === 1 ? "" : "s"} of a ${[...new Set(loose.map((l) => l.tier))].join("/")} feature outside \`@supports\`: ${loose.slice(0, 6).map((l) => `${basename(String(yaml.css))}:${l.line} ${l.what} — \`@supports ${l.test}\``).join("; ")}${loose.length > 6 ? `; +${loose.length - 6} more` : ""} — fine when the fallback is the page as it is; a finding when a reader needs it`
-        : `every two-engine and one-engine feature this build knows is under \`@supports\`, or absent (${GUARDED_CSS.length} checked)`,
-      String(yaml.css));
+        ? `${loose.length} use${loose.length === 1 ? "" : "s"} of a ${[...new Set(loose.map((l) => l.tier))].join("/")} feature outside \`@supports\`: ${loose.slice(0, 6).map((l) => `${l.label}:${l.line} ${l.what} — \`@supports ${l.test}\``).join("; ")}${loose.length > 6 ? `; +${loose.length - 6} more` : ""} — fine when the fallback is the page as it is; a finding when a reader needs it`
+        : `every two-engine and one-engine feature this build knows is under \`@supports\`, or absent (${GUARDED_CSS.length} checked${pieceSources.length ? `, over ${ownCss !== undefined ? "the theme's sheet and " : ""}${pieceSources.length} from its pieces` : ""})`,
+      ownCss !== undefined ? String(yaml.css) : undefined);
   }
 
   // ── taste (docs/29 TF5, decision 225): the static half, all warnings ─────────────────────────────
-  // The theme's own sheet for the CSS rules (a parent's was judged when the parent was), the resolved
-  // tokens for the face and the neutrals. A rule the brief names under `## Chosen` still reports.
-  const taste = staticTaste({ css: ownCss, cssFile: typeof yaml.css === "string" ? basename(yaml.css) : undefined, tokens: themeView(cfg), fontFamily: theme?.font?.family });
+  // The theme's own sheet and its pieces' for the CSS rules (a parent's was judged when the parent was),
+  // the resolved tokens for the face and the neutrals. A rule the brief names under `## Chosen` still
+  // reports. Each source is read on its own so a finding names its file; the rows are then folded, the
+  // worst verdict winning and every distinct finding kept.
+  const tokensView = themeView(cfg);
+  let taste = staticTaste({ css: ownCss, cssFile: typeof yaml.css === "string" ? basename(yaml.css) : undefined, tokens: tokensView, fontFamily: theme?.font?.family });
+  for (const src of pieceSources) {
+    const more = staticTaste({ css: src.css, cssFile: src.label, tokens: tokensView, fontFamily: theme?.font?.family });
+    taste = taste.map((row) => {
+      const o = more.find((m) => m.rule === row.rule);
+      if (!o || o.status !== "warn") return row;
+      if (row.status !== "warn") return o;
+      return row.detail === o.detail ? row : { ...row, detail: `${row.detail} · ${o.detail}` };
+    });
+  }
   for (const t of applyChosen(taste, chosenRules(design))) add(t.rule, t.status, t.detail);
 
   // ── contrast (docs/11 §5 item 4) ───────────────────────────────────────────────────────────────
@@ -411,4 +487,33 @@ export function formatCheck(r: CheckResult): string {
   return [head, ...body, "",
     `${tally}${warns ? `, ${warns} to look at` : ""}${skips ? `, ${skips} not checked` : ""} — ${r.rules.length} rules`,
   ].join("\n");
+}
+
+/**
+ * **What the sheet asks of the face that the face cannot give** (decision 281, docs/38 §1). Each is a thing
+ * the browser silently fakes: a slanted roman for `em`, a smeared bold, scaled capitals, or nothing at all
+ * for a figure style. Read against the whole resolved sheet, so a rule that sets another family is counted
+ * too — which is why it warns and never fails. `features`/`digits` absent (a hand-vendored face): the two
+ * feature questions are not asked.
+ */
+export function fontCraft(font: Pick<ThemeFont, "weight" | "style" | "cuts" | "features" | "digits">, css: string, setsProse: boolean): string[] {
+  const out: string[] = [];
+  const cuts = font.cuts ?? [];
+  const hasItalic = font.style === "italic" || cuts.some((c) => c.style === "italic");
+  if (!hasItalic && (setsProse || /font-style:\s*italic/.test(css))) out.push(setsProse ? "no italic: every `em` and `cite` in prose is a slanted roman" : "no italic, and the sheet sets `font-style: italic`");
+  const span = (w: string | number | undefined): [number, number] => { const [a, b] = String(w ?? 400).split(" ").map(Number); return [a, b ?? a]; };
+  const spans = [span(font.weight), ...cuts.filter((c) => c.style === "normal").map((c) => span(c.weight))];
+  const top = Math.max(...spans.map(([, b]) => b));
+  // Lighter than the face falls back to its lightest, which is honest; heavier is synthesised — a smear —
+  // unless `font-synthesis-weight: none`, and then it is silently the roman. Within 50 the browser rounds.
+  const asked = [...css.matchAll(/(?:font-weight:|\bfont:)\s*(\d{3})\b/g)].map((m) => +m[1]);
+  const far = [...new Set(asked.filter((w) => w > top + 50))].sort();
+  if (far.length) out.push(`asks for weight ${far.join(", ")} and the face stops at ${top}`);
+  if (font.features) {
+    const f = new Set(font.features);
+    if (/tabular-nums|["']tnum["']/.test(css) && !f.has("tnum") && font.digits !== "tabular") out.push("`tabular-nums` asked, and the face has no tabular figures");
+    if (/oldstyle-nums|["']onum["']/.test(css) && !f.has("onum")) out.push("`oldstyle-nums` asked, and the face has none");
+    if (/(?:all-)?small-caps|["'](?:smcp|c2sc)["']/.test(css) && !f.has("smcp")) out.push("`small-caps` asked, and the face has none: the browser scales capitals");
+  }
+  return out;
 }

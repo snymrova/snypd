@@ -1,0 +1,20 @@
+# studio as a kit: the theme's own `pieces:` on its own tokens. Composing it unchanged gives studio back.
+kit: studio
+line: A studio's site — full-bleed bands and a showreel, cases as cards and three-band pages, a name set huge at the foot.
+extends: studio
+pieces:
+  column:    { use: three-track, rhythm: tight, fit: true }
+  prose:     display
+  code:      { use: quiet, display-heads: true }
+  blocks:    hairline
+  cover:     display
+  masthead:  bar
+  entries:   cards
+  post-foot: pills
+  footer:    colophon
+  home:      bands
+  list:      plain
+  feature:   facts
+  notes:     plain
+  wall:      marquee
+  motion:    { use: glide, progress: false, reveal: true }

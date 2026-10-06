@@ -1,0 +1,12 @@
+/* post-foot/pills — carved from studio. Tags and the twin are one band under a rule; the tags are pills on
+   one baseline (`li + li` reached the second and third and dropped them 8 px, docs/19 §2 · 4), and the
+   Markdown twin is not a fourth pill but a text link in the source links' idiom — muted, dotted rule — so
+   where it wraps under the tags it does not read as one of them (§2 · 7). */
+.snypd-post-footer { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--color-border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); }
+.snypd-terms { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.snypd-terms li { margin-top: 0; }
+.snypd-terms a { font: 500 var(--size-small) / 1 var(--font-display); text-decoration: none; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 100vmax; padding: 0.5em 1em; }
+.snypd-terms a:hover { color: var(--color-text); border-color: var(--color-text); }
+.snypd-twin { margin: 0; }
+.snypd-twin a { font: 500 var(--size-small) / 1 var(--font-display); color: var(--color-muted); text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.snypd-twin a:hover { color: var(--color-text); text-decoration-style: solid; }

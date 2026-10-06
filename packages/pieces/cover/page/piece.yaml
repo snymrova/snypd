@@ -1,0 +1,9 @@
+piece: cover/page
+from: drawn
+line: A top for a site whose pages say something — the title, then a standfirst in the text colour a size up, and nothing about when or who. On a page with no cover the standfirst is the page's own first paragraph; on a post it is the cover's subtitle, and the byline is one quiet line under it with no rule.
+refs:
+  - { url: https://sive.rs/about,        took: "a page opens on its title and its first sentence — nothing says when it was written or by whom" }
+  - { url: https://www.theguardian.com/, took: "the standfirst: one sentence a size up under the headline, before the body starts" }
+reads: [font.ui, size.small, size.h3, color.text, color.muted, color.surface, radius, space.2, space.3, space.4, space.5, measure.deck]
+needs:
+  measure.deck: 34rem

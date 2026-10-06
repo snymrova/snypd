@@ -109,7 +109,7 @@ export class Session {
     const contents = (result as { contents?: { text?: string }[] } | undefined)?.contents;
     const text = "error" in res
       ? `error ${res.error.code}: ${res.error.message}`
-      : ((result as ToolResult | undefined)?.content?.map((c) => c.text).join("\n") ?? contents?.map((c) => c.text ?? "").join("\n") ?? JSON.stringify(result));
+      : ((result as ToolResult | undefined)?.content?.map((c) => ("text" in c ? c.text : "")).join("\n") ?? contents?.map((c) => c.text ?? "").join("\n") ?? JSON.stringify(result));
     // `isError` is a *tool* failure the agent can read and fix, so it is a completed turn that did not
     // work — not a protocol error. Both are `ok: false`; only the protocol one ends the run.
     const ok = !("error" in res) && !(result as ToolResult | undefined)?.isError;

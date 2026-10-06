@@ -6,8 +6,10 @@
 # tables and code blocks given the width they need instead of being squeezed into the reading column.
 # Same fourteen primitives, same six layouts, same markup — and that is the claim U6b is here to test.
 #
-# **It declares no layouts and no primitives, and one part beyond the masthead** (`toc`, U6b). Everything
-# else resolves up `extends:` to `base`, whose coverage report is what proves it (D8).
+# **It declares no layouts, no primitives, no parts and no stylesheet** (P3, docs/36 §6). It is built from
+# pieces — the shelf in `packages/pieces`, most of it carved from this very sheet — and a token set. Every
+# layout and primitive resolves up `extends:` to `base`, whose coverage report is what proves it (D8), and
+# `snypd bench carve` proved the pieces render every page this sheet rendered, element by element.
 #
 # **No webfont, deliberately** (B1 made that a declaration a theme can make). The face that carries this
 # theme is the monospace, and monospace is the one category where the system stack is already excellent
@@ -19,12 +21,23 @@ theme: technical
 version: 0.1.0
 spec: ^1
 extends: base
-css: ./theme.css
-# Two parts overridden, three inherited. `toc` is `base`'s empty slot in the post layout (U6b): this is
-# the theme that wanted a contents list, and the reason that slot exists rather than a forked layout.
-parts:
-  header: ./parts/header.tsx
-  toc:    ./parts/toc.tsx
+# One piece per question (docs/36 §2). `title-bar` and `block` ship the masthead and contents-list parts;
+# the rest is CSS over base's markup. The column's switches are what make it this theme's: a tight rhythm
+# for a page that is scanned, and code and tables in the breakout track because here they are the content.
+pieces:
+  column:    { use: three-track, rhythm: tight, data: true }
+  prose:     docs
+  code:      first-class
+  blocks:    ruled
+  cover:     path
+  masthead:  title-bar
+  entries:   rows
+  post-foot: ruled
+  footer:    { use: line, quiet-links: true }
+  notes:     cards
+  toc:       block
+  wall:      row
+  motion:    glide
 # What this theme lets a site choose without writing CSS (U3). Four of these are the ones `base`'s own
 # footer, entry list and byline read — declared again here because a theme's settings are its own, and a
 # theme that inherits parts and not their settings is a theme whose footer note silently stops working.
@@ -70,7 +83,7 @@ personality: >-
   break out as they do everywhere. Zero JS.
 
 tokens:
-  # ── Colour. Every value is a light-dark() pair; `color-scheme: var(--color-scheme)` in theme.css does
+  # ── Colour. Every value is a light-dark() pair; `color-scheme: var(--color-scheme)` in `prose/docs` does
   # the rest, and `phosphor` commits to dark by setting the one token rather than restating the palette.
   color.scheme:    { default: "light dark", customisable: true, kind: keyword, description: "What `color-scheme` this theme asks the browser for, and therefore which side of every light-dark() pair resolves. `light dark` follows the reader; `dark` or `light` commits." }
   color.bg:        { default: "light-dark(#fbfbfc, #101114)", customisable: true, kind: color, description: "Page background." }
@@ -111,7 +124,7 @@ tokens:
   leading.tight: { default: "1.25", customisable: true, kind: number, description: "Heading line height. Looser than editorial's: mono headings wrap more often, and a wrapped mono heading at 1.15 touches itself." }
   measure:      { default: "44rem", customisable: true, kind: size, description: "Width of the reading column — ten rems wider than editorial's, because reference is scanned and a code line is longer than a sentence." }
 
-  # ── Space. One ratio, six steps; every gap in theme.css is one of these.
+  # ── Space. One ratio, six steps; every gap in its pieces is one of these.
   space.1: { default: "0.25rem", customisable: true, kind: size, description: "Hairline gap." }
   space.2: { default: "0.5rem",  customisable: true, kind: size, description: "Inside a line." }
   space.3: { default: "0.9rem",  customisable: true, kind: size, description: "Between paragraphs." }
@@ -119,3 +132,7 @@ tokens:
   space.5: { default: "2.5rem",  customisable: true, kind: size, description: "Between sections." }
   space.6: { default: "4rem",    customisable: true, kind: size, description: "Page top and bottom." }
   radius:  { default: "3px",     customisable: true, kind: size, description: "Corner radius; small on purpose." }
+
+  # ── Motion. The title's glide between pages: quicker than editorial's 280 ms, because a reference
+  # reader is moving between pages to look something up, not to arrive somewhere.
+  motion.duration: { default: "240ms", description: "The shared title's glide between pages (motion/glide)." }

@@ -1,0 +1,15 @@
+piece: masthead/plain
+from: folio
+line: Base's header as it comes — the name or logo in the display face at the left, the menu small at the right, one hairline under; a link that leaves the site is drawn as an outlined button.
+reads: [font.display, size.small, size.body, space.2, space.4, color.text, color.muted, color.bg, color.border, radius, size.masthead, size.brand, size.logo, space.menu, space.menu-narrow, space.chip]
+needs:
+  size.masthead: 3.875rem
+  size.brand: 1.375rem
+  size.logo: 1.75rem
+  space.menu: 1.75rem
+  space.menu-narrow: 1.125rem
+  space.chip: 0.5rem 0.875rem
+pairs:
+  column: three-track
+switches:
+  menu-button: { default: false, description: "Keep the Menu button on a phone. Off, a menu of six items or fewer is a row under the name that scrolls sideways; a longer one is behind the button either way." }

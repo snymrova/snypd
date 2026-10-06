@@ -113,19 +113,143 @@ export function handlers(root: string): Handlers {
         (stranded.length ? `# ${stranded.length} value${stranded.length === 1 ? "" : "s"} in snypd.yaml this theme does not declare, left from another one: ${stranded.join(", ")}\n` : "")];
     }
     if (part === "coverage") {
-      const { loadTheme } = await import("@snypd/render");
+      const { loadTheme, typeLayout, isFeatureType } = await import("@snypd/render");
+      const { listContent } = await import("@snypd/core");
       const t = await loadTheme(cfg);
       const by = (s: string) => t.coverage.filter((x) => x.status === s);
+      // What draws each of this site's types here (W3, docs/37 §6): the layout, and the piece it comes from.
+      // A type with roles and no `feature` piece renders as a post — said, so the facts strip does not vanish silently.
+      const counts = new Map<string, number>();
+      for (const f of listContent(root, cfg)) counts.set(f.type, (counts.get(f.type) ?? 0) + 1);
+      const types = Object.keys(cfg.config.types).filter((n) => cfg.config.types[n]!.layout).map((n) => {
+        const { used } = typeLayout(cfg.config, t.layouts, n);
+        const from = t.layoutCoverage.find((l) => l.name === used);
+        const feature = isFeatureType(cfg.config, n);
+        return { type: n, items: counts.get(n) ?? 0, layout: used, ...(from?.status === "piece" ? { piece: from.via } : from?.via ? { via: from.via } : {}),
+          ...(feature && used !== "feature" ? { note: "its fields carry roles, and this theme has no `feature` piece — it renders without its facts; `pieces: { feature: … }` draws them" } : {}) };
+      });
       return [JSON_, JSON.stringify({
         theme: t.name, extends: t.chain.slice(1).map((l) => l.name),
         summary: { own: by("own").length, inherited: by("inherited").length, fallback: by("fallback").length, missing: by("missing").length, total: t.coverage.length },
         layouts: Object.keys(t.layouts).sort(),
+        types,
         primitives: t.coverage,
         parts: t.partCoverage,
-        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries, toc) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout. `toc` is the post layout's contents slot and renders nothing in `base`: a theme that wants a contents list overrides it and reads `page.headings`",
+        note: "own = this theme's own component · inherited = an ancestor's (`via`) · fallback = another primitive's component stands in · piece = a piece's (`via` is <slot>/<name>, snypd://theme/pieces) · missing = the generic wrapper, which styles nothing. parts (shell, header, footer, entries, toc) resolve the same way; override one with `parts: { header: ./parts/header.tsx }` in theme.yaml and no layout. `toc` is the post layout's contents slot and renders nothing in `base`: a theme that wants a contents list overrides it and reads `page.headings`",
       }, null, 2)];
     }
-    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /variations, /settings, /coverage)`);
+    /**
+     * The shelf (docs/36 §5): every slot a theme is assembled from, and every piece that fills one. The
+     * index is one gist per piece — its line up to the first " — " — which is what an agent chooses a slot's
+     * piece on; `snypd://theme/pieces/<slot>` is the whole of each piece in one slot, read once a slot is
+     * being decided. P3 split it: one line apiece in full was 1,566 tokens at 22 pieces, and the shelf
+     * doubles when studio and folio are carved. Generated from the manifest, so it never disagrees with
+     * what `pieces:` accepts; the active theme's pieces are marked. The index is gated at 1,200 tokens.
+     */
+    if (part === "pieces" || part.startsWith("pieces/")) {
+      const m = (await import("../../pieces/src/index")).loadPieces();
+      const on = new Map(cfg.pieces.map((p) => [p.id, p]));
+      // A switch with `of:` prints its values; a bare name is an on/off one (the index's legend says so).
+      // A draft switch is left out, as a draft piece is (decision 278); its slot's file names it.
+      const sw = (v: (typeof m.pieces)[string]) => Object.entries(v.switches).filter(([, d]) => !d.draft).map(([k, d]) => d.of ? `${k}=${d.of.join("|")}` : k);
+      const pairs = (v: (typeof m.pieces)[string]) => Object.entries(v.pairs).map(([k, w]) => `${k}: ${Array.isArray(w) ? w.join("|") : w}`);
+      if (part !== "pieces") {
+        const slot = part.slice("pieces/".length);
+        const s = m.slots.find((x) => x.slot === slot);
+        if (!s) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} — no slot "${slot}" (slots: ${m.slots.map((x) => x.slot).join(", ")})`);
+        const vs = Object.values(m.pieces).filter((p) => p.slot === slot);
+        const body = vs.map((v) => {
+          const using = on.get(v.piece);
+          return [`  ${v.name}:${using ? `   # IN USE${Object.keys(using.switches).length ? ` — ${Object.entries(using.switches).map(([k, x]) => `${k}=${x}`).join(", ")}` : ""}` : ""}`,
+            `    line: ${JSON.stringify(v.line)}`,
+            `    from: ${v.from}   # ${v.kb} KB of CSS${Object.keys(v.switchKb).length ? ` + switch files` : ""}`,
+            ...(Object.keys(v.switches).length ? ["    switches:", ...Object.entries(v.switches).flatMap(([k, d]) => [
+              `      ${k}: ${d.of ? d.of.join(" | ") : "true | false"}   # default ${d.default}${d.description ? ` — ${d.description}` : ""}${d.draft ? " — DRAFT: unseen; a theme that turns it on fails `check theme` until a sitting passes it (decision 278)" : ""}`,
+              ...(d.refs?.length ? d.refs.map((r) => `        # drawn from ${r.url} — ${r.took}`) : []),
+            ])] : []),
+            ...(Object.keys(v.needs).length ? [`    needs:   # tokens beyond the contract, with this default; the theme may set them`, ...Object.entries(v.needs).map(([k, x]) => `      ${k}: ${JSON.stringify(x)}`)] : []),
+            ...(v.settings.length ? [`    settings: [${v.settings.map((x) => x.id).join(", ")}]   # snypd://theme/settings once in use`] : []),
+            ...(pairs(v).length ? [`    pairs: { ${pairs(v).join(", ")} }`] : []),
+            // W4: a drawn piece says where its ideas came from; a draft says it has not been passed on sight.
+            ...(v.refs.length ? [`    refs:   # drawn from — the page, and the one idea taken`, ...v.refs.map((r) => `      - { url: ${r.url}, took: ${JSON.stringify(r.took)} }`)] : []),
+            ...(v.draft ? [`    draft: true   # unseen — on its board, not on the shelf: a theme on it fails \`check theme\` until a sitting passes it (decision 278)`] : []),
+            ...([...Object.keys(v.parts), ...Object.keys(v.layouts)].length ? [`    ships: [${[...Object.keys(v.parts).map((x) => `part ${x}`), ...Object.keys(v.layouts).map((x) => `layout ${x}`)].join(", ")}]`] : []),
+            // W2: the picture, as a link — it costs nothing until it is opened (~350 tokens at 1280).
+            ...(v.stills ? [`    still: snypd://theme/pieces/${v.piece}/still-1280.webp   # also still-390.webp${v.stills.fresh ? "" : " — older than the piece"}`] : []),
+          ].join("\n");
+        });
+        return [YAML, `# ${slot}: ${s.line}${s.always ? " — always on, for every theme on pieces" : ""}\n# \`pieces: { ${slot}: <name> }\`, or \`{ use: <name>, <switch>: <value> }\`. \`theme\` › look { board: "${slot}" } draws every one below on this site's content, in one picture.\n${slot}:\n${body.join("\n") || "  {}   # nothing on the shelf yet"}\n`];
+      }
+      // Folded where nothing is being decided (W1, docs/37): `house` is always on and gets no line; a slot
+      // with one piece is that piece on the slot's own line. A piece's KB is in its slot's file, not here —
+      // nobody chooses a masthead on its weight, and at 42 pieces the index had passed its 1,200 tokens.
+      const lines: string[] = [];
+      const empty: string[] = [];
+      const gist = (v: (typeof m.pieces)[string]) => JSON.stringify(v.line.split(" — ")[0]!.replace(/[.;:,]$/, ""));
+      // A pair with a slot that has one piece on the shelf is no choice (`column: three-track`, on most drawn
+      // pieces): it is said once, on that slot's line, and loading a theme still warns of an unlooked-at pair.
+      const shelf = Object.values(m.pieces).filter((p) => !p.draft);
+      const only = new Map(m.slots.map((s) => [s.slot, shelf.filter((p) => p.slot === s.slot)] as const).filter(([, vs]) => vs.length === 1).map(([k, vs]) => [k, vs[0]!.name]));
+      const chosen = (v: (typeof m.pieces)[string]) => Object.entries(v.pairs).filter(([k, w]) => only.get(k) !== w).map(([k, w]) => `${k}: ${Array.isArray(w) ? w.join("|") : w}`);
+      const pairedBy = (v: (typeof m.pieces)[string]) => only.get(v.slot) === v.name ? shelf.filter((p) => p.pairs[v.slot] === v.name).length : 0;
+      const meta = (v: (typeof m.pieces)[string]) => [...(sw(v).length ? [sw(v).join(", ")] : []), ...(chosen(v).length ? [`pairs ${chosen(v).join(", ")}`] : []), ...(pairedBy(v) ? [`paired by ${pairedBy(v)}`] : []), ...(on.has(v.piece) ? ["IN USE"] : [])];
+      for (const s of m.slots) {
+        if (s.always) continue;
+        // A draft is not on the shelf an agent chooses from (decision 278); its slot's file still names it.
+        const vs = Object.values(m.pieces).filter((p) => p.slot === s.slot && !p.draft);
+        if (!vs.length) { empty.push(s.slot); continue; }
+        if (vs.length === 1) {
+          const v = vs[0]!;
+          lines.push(`  ${s.slot}: { ${v.name}: ${gist(v)} }   # ${[s.line, ...meta(v)].join(" · ")}`);
+          continue;
+        }
+        lines.push(`  ${s.slot}:   # ${s.line}`);
+        // A gist that opens with its slot's own words (*The fourteen primitives*, *The end of a post*) drops them.
+        const head = s.line.split(/:| — /)[0]!;
+        const short = (v: (typeof m.pieces)[string]) => { const g = gist(v); return g.startsWith(`"${head} `) ? `"…${g.slice(head.length + 2)}` : g; };
+        for (const v of vs) lines.push(`    ${v.name}: ${short(v)}${meta(v).length ? `   # ${meta(v).join(" · ")}` : ""}`);
+      }
+      const use = cfg.config.theme.use;
+      return [YAML, `# The shelf (docs/36): each slot and the pieces that fill it, one gist each; snypd://theme/pieces/<slot>\n` +
+        `# is a slot whole. Name one per slot in theme.yaml: \`pieces: { toc: block }\`, or \`{ use: <name>, <switch>:\n` +
+        `# <value> }\`; a bare switch is true|false. A piece sits on any theme, and the theme's own theme.css wins\n` +
+        `# over it (\`@layer snypd.pieces\` is beneath \`snypd.theme\`). \`house\` — the rules every sheet shares — is under every theme on pieces.\n` +
+        `# Before choosing, \`theme\` › look { board: "<slot>" } draws a slot's pieces on this site's pages.\n` +
+        (cfg.pieces.length ? "" : `# \`${use}\` is on no pieces — its sheet is all its own.\n`) +
+        `slots:\n${lines.join("\n")}\n` +
+        (empty.length ? `# nothing on the shelf yet for: ${empty.join(", ")}\n` : "")];
+    }
+    /**
+     * The kits (docs/37 §4, §6 step 1): whole sites somebody looked at, one piece per slot and what they
+     * stand on — where an agent starts, so it decides the one to three slots it changes and not fifteen.
+     * A kit's pieces are one line, in slot order, a switch as `name+switch`; a kit over another kit's theme is
+     * written as what it changes. Drafts are named and not
+     * listed, as the shelf index does with a draft piece (decision 278). Gated at 700 tokens.
+     */
+    if (part === "kits") {
+      const { loadKits } = await import("../../pieces/src/index");
+      const kits = Object.values(loadKits());
+      const one = (p: string | Record<string, unknown>) => typeof p === "string" ? p : [p.use, ...Object.entries(p).filter(([k]) => k !== "use").map(([k, v]) => v === true ? k : `${k}=${v}`)].join("+");
+      const seen = kits.filter((k) => !k.draft), drafts = kits.filter((k) => k.draft);
+      // A kit over another listed kit's theme is that kit's pieces with a few slots changed, and is written
+      // so (`...studio, home: portfolio`): what it changes is what it is. One that drops a slot is written whole.
+      const own = (k: (typeof kits)[number]) => {
+        const all = Object.entries(k.pieces).map(([s, p]) => [s, one(p as never)] as const);
+        const base = seen.find((b) => b.kit === k.extends && b.kit !== k.kit);
+        if (!base || Object.keys(base.pieces).some((s) => !(s in k.pieces))) return all.map(([s, p]) => `${s}: ${p}`).join(", ");
+        const was = new Map(Object.entries(base.pieces).map(([s, p]) => [s, one(p as never)]));
+        return [`...${base.kit}`, ...all.filter(([s, p]) => was.get(s) !== p).map(([s, p]) => `${s}: ${p}`)].join(", ");
+      };
+      return [YAML, `# Kits: whole sites, each a piece per slot over a theme's tokens, looked at whole (docs/37 §4).\n` +
+        `# Start from the nearest: \`theme\` › compose { name, kit, change: { <slot>: <piece> } } writes a theme that\n` +
+        `# is the kit with those slots swapped, and \`seed\`/\`face\` retune it. snypd://theme/pieces/<slot> for a slot's other pieces.\n` +
+        `# \`...studio\` is studio's pieces, then the slots this kit changes.\n` +
+        `kits:\n${seen.map((k) => [`  ${k.kit}:`, `    line: ${JSON.stringify(k.line)}`,
+          `    on: ${k.extends}${k.seed ? `   # seed ${k.seed.accent}${k.seed.strategy ? ` ${k.seed.strategy}` : ""}${k.seed.scheme ? ` ${k.seed.scheme}` : ""}` : ""}${k.face ? `, face ${k.face}` : ""}`,
+          `    pieces: { ${own(k)} }`].join("\n")).join("\n") || "  {}"}\n` +
+        (drafts.length ? `# drafts, unseen until a sitting passes their pieces: ${drafts.map((k) => k.kit).join(", ")} — compose one to see it; \`check theme\` fails it\n` : "")];
+    }
+    if (part) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (theme reads: snypd://theme, /tokens, /variations, /settings, /coverage, /pieces, /pieces/<slot>, /kits)`);
     return [YAML, c.renderThemeSummary(root, cfg)];
   };
   return {
@@ -141,6 +265,8 @@ export function handlers(root: string): Handlers {
         { uri: "snypd://theme/tokens", name: "theme/tokens", mimeType: YAML, description: "Every token the theme declares, with its value, default and whether it may be set from snypd.yaml — the knobs that change how the site looks without writing CSS" },
         ...(c.settingDecls.length ? [{ uri: "snypd://theme/settings", name: "theme/settings", mimeType: YAML, description: "What this theme lets the site choose without writing CSS — each setting's type, what it means, and what it is set to now; `theme` › set_settings writes one" }] : []),
         ...(c.variations.length ? [{ uri: "snypd://theme/variations", name: "theme/variations", mimeType: YAML, description: "The complete named looks this theme ships — what each one is and which tokens it moves; `theme` › set with `variation` switches in one word" }] : []),
+        { uri: "snypd://theme/pieces", name: "theme/pieces", mimeType: YAML, description: "The shelf: every slot a theme is assembled from (masthead, prose, entries…) and the pieces that fill each, one line apiece — what `pieces:` in theme.yaml can name" },
+        { uri: "snypd://theme/kits", name: "theme/kits", mimeType: YAML, description: "Kits: whole sites, one piece per slot over a theme's tokens, each looked at whole — where to start a theme; `theme` › compose takes one and changes a few slots" },
         { uri: "snypd://theme/coverage", name: "theme/coverage", mimeType: JSON_, description: "Which of the 14 primitives and 5 parts (shell, header, footer, entries, toc) this theme renders itself, which it inherits, and which fall back — read before writing a theme" },
         { uri: "snypd://themes", name: "themes", mimeType: YAML, description: "Every theme this site can switch to — installed and bundled — with what each reads as and the looks it ships; `theme` › set takes any of them" },
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
@@ -161,11 +287,29 @@ export function handlers(root: string): Handlers {
         { uriTemplate: "snypd://content/{type}/{slug}", name: "content", mimeType: YAML, description: "One content item: its frontmatter, then the markdown body. Add `.md` for the file exactly as it is on disk" },
         { uriTemplate: "snypd://history/{type}/{slug}", name: "history", mimeType: JSON_, description: "Commits touching one item, newest first, each with the principal that made it (docs/02 §7)" },
         { uriTemplate: "snypd://lint/{type}/{slug}", name: "lint", mimeType: JSON_, description: "Lint diagnostics for one content file: rule id, severity, line, message and a fix hint (docs/01 editorial lint)" },
+        { uriTemplate: "snypd://theme/pieces/{slot}", name: "theme/pieces/slot", mimeType: YAML, description: "Every piece in one slot of the shelf, whole: its line, provenance, switches and what each does, the tokens it needs, its settings and pairs — read once snypd://theme/pieces has narrowed a slot to a choice" },
+        { uriTemplate: "snypd://theme/pieces/{slot}/{name}/{still}", name: "theme/pieces/still", mimeType: "image/webp", description: "A piece's still (W2): `still-1280.webp` (≤ 640×400, ~350 tokens) or `still-390.webp` (≤ 195×422) — its slot on the specimen, on the shelf's host theme with only that piece swapped in. snypd://theme/pieces/<slot> links each piece's" },
+        { uriTemplate: "snypd://look/{id}/{picture}", name: "look", mimeType: "image/webp", description: "A picture `theme` › look took (E1): `full.webp` is the whole page with every problem boxed, `before.webp` the previous look at the same crop. The look's result links the ones it made; the last two dozen are kept" },
         { uriTemplate: "snypd://{plugin}/last", name: "plugin/last", mimeType: YAML, description: "What one plugin said the last few times an event fired at it (P4): its rows from the event ring, newest first. `snypd://plugins` names the plugins that react" },
       ];
     },
     async readResource(uri) {
       const text = (mimeType: string, text: string) => [{ uri, mimeType, text }];
+      // The one binary resource (E1): a picture from `.snypd/look/`, by the id and name the look linked.
+      const lookM = /^snypd:\/\/look\/(?:([0-9a-f]{8})\/(crop|full|before)|(board-[a-z-]+-[0-9a-f]{8}|tour-[0-9a-f]{8}))\.webp$/.exec(uri);
+      if (lookM) {
+        // `board-<slot>-<id>.webp` (W2) and `tour-<id>.webp` (W5) sit beside the looks' directories: a sheet is not one look's picture.
+        const file = lookM[3] ? join(root, ".snypd", "look", `${lookM[3]}.webp`) : join(root, ".snypd", "look", lookM[1]!, `${lookM[2]}.webp`);
+        if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (the last two dozen looks are kept; look again)`);
+        return [{ uri, mimeType: "image/webp", blob: readFileSync(file).toString("base64") }];
+      }
+      // A piece's still (W2): the slot on the specimen, shot by `snypd pieces stills`, read from the shelf in a checkout.
+      const stillM = /^snypd:\/\/theme\/pieces\/([a-z][a-z0-9-]*)\/([a-z][a-z0-9-]*)\/(still-(?:1280|390)\.webp)$/.exec(uri);
+      if (stillM) {
+        const file = join(import.meta.dir, "..", "..", "pieces", stillM[1]!, stillM[2]!, stillM[3]!);
+        if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (no still for ${stillM[1]}/${stillM[2]} here — \`look { board: "${stillM[1]}" }\` draws the slot on this site instead)`);
+        return [{ uri, mimeType: "image/webp", blob: readFileSync(file).toString("base64") }];
+      }
       const contentM = /^snypd:\/\/(content|history)\/([a-z][a-z0-9-]*)\/([a-z0-9][a-z0-9/-]*?)(\.md)?$/i.exec(uri);
       if (contentM) {
         const c = await loadCore(), cfg = await config();

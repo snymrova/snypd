@@ -1,0 +1,14 @@
+/* feature/log — a dated entry, carved from folio's `log` (W3). The facts are one ruled strip on the
+   breakout track, the term muted over the value in the display face; a list fact's items are separated by
+   a middle dot. A true `role: flag` is a pill beside the kicker. Under the body, the neighbour on the same
+   track under a small heading. */
+.snypd-badge { font: 500 var(--size-badge) / 1 var(--font-display); color: var(--color-text); border: 1px solid currentColor; border-radius: 100vmax; padding: 0.3em 0.7em; }
+.snypd-facts { grid-column: wide; margin: 0 0 var(--space-4); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); padding-block: var(--space-3); border-block: 1px solid var(--color-border); font-size: var(--size-small); }
+.snypd-facts > div { display: grid; gap: 2px; }
+.snypd-facts dt { color: var(--color-muted); }
+.snypd-facts dd { margin: 0; font: 500 1em / 1.4 var(--font-display); }
+.snypd-facts a { color: inherit; text-decoration: none; }
+.snypd-facts a:hover { text-decoration: underline; }
+.snypd-fact-items > * + *::before { content: " · " / ""; color: var(--color-muted); }
+.snypd-around { grid-column: wide; margin-top: var(--space-5); }
+.snypd-around > h2 { margin: 0 0 var(--space-3); font-size: var(--size-small); letter-spacing: 0; color: var(--color-muted); }

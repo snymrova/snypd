@@ -1,0 +1,10 @@
+piece: blocks/rows
+from: folio
+line: The fourteen primitives as ruled rows — no box inside a box, only a hairline above a block or one quiet surface, numbers in the display face, steps and questions as rows under hairlines, one solid button.
+reads: [font.display, font.ui, font.mono, size.body, size.small, size.h2, size.h3, size.number, space.1, space.2, space.3, space.4, space.5, color.surface, color.border, color.accent, color.on-accent, color.text, color.muted, color.bg, color.viz.1, color.viz.2, color.viz.4, radius, motion.quick, measure.deck, measure.stat, space.step, space.step-row, space.button]
+needs:
+  measure.deck: 36rem
+  measure.stat: 10rem
+  space.step: 3.5rem
+  space.step-row: 1.25rem
+  space.button: 0.875rem 1.25rem

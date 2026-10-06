@@ -1,0 +1,48 @@
+/* home/index — drawn (W4, docs/37 §7; refs in piece.yaml). The front page is the ruled index: a line of
+   intro, then every entry newest first, the year set in the margin. The rows are the `entries` piece's;
+   this piece owns the page — the intro at prose size, the year hanging in the column's own margin and
+   staying there while its entries scroll past (the one signature detail), the way to each archive under
+   the list, and the page's `##` sections as an afterword.
+
+   The intro and the afterword are subgrids over the column's own tracks with its rhythm inside them — not
+   `display: contents`, whose children the column's `main > *` cannot see and the grid drops in the gutter,
+   and not a plain grid, where a block that names a track (a stat row on `wide`) opens an implicit column
+   beside the heading. Their children take the text track at zero specificity, so a block's own
+   `grid-column` wins. A year's group is a subgrid over `wide`, so its mark sits in the margin track and
+   its rows on the text track. */
+.snypd-index-intro, .snypd-index-after { grid-column: full; display: grid; grid-template-columns: subgrid; row-gap: var(--space-4); }
+:where(.snypd-index-intro, .snypd-index-after) > * { grid-column: text; }
+.snypd-index-intro > h1 {
+  font: 400 var(--size-h2) / var(--leading-tight) var(--font-display);
+  letter-spacing: -0.01em; text-wrap: balance; margin: 0;
+}
+
+.snypd-index-year { grid-column: wide; display: grid; grid-template-columns: subgrid; align-items: baseline; }
+.snypd-index-year > * { grid-column: text; }
+.snypd-index-year:first-of-type { margin-top: var(--space-4); }
+/* Tight within a year, one breath between years: the group's rows are ruled, so the gap between groups is
+   the only space the page adds. */
+.snypd-index-year + .snypd-index-year { margin-top: var(--space-4); }
+.snypd-index-mark {
+  margin: 0; font: 400 var(--size-small) / 1 var(--font-ui); color: var(--color-muted);
+  letter-spacing: 0.04em; font-variant-numeric: tabular-nums; text-transform: none;
+}
+/* Once the column has a margin (past the measure plus its breakout), the year moves out into it and
+   sticks: a reader scrolling 2024's entries sees 2024 beside them the whole way. The group aligns by
+   baseline, so the year sits on the first row's line whatever the `entries` piece draws — a ledger's
+   sub-heading or an index's one line. Under that, the year heads its rows on the text track. */
+@media (min-width: 52.5rem) {
+  .snypd-index-mark { grid-column: wide-start / text-start; justify-self: end; width: max-content; padding-inline-end: var(--space-4); position: sticky; top: var(--space-3); }
+}
+@media (max-width: 52.49rem) {
+  .snypd-index-mark { padding-bottom: var(--space-2); }
+}
+
+.snypd-index-more { font: 400 var(--size-small) / 1.5 var(--font-ui); color: var(--color-muted); margin-top: var(--space-2); }
+.snypd-index-more a { color: inherit; text-decoration-color: var(--color-border); text-underline-offset: 0.2em; }
+.snypd-index-more a:hover { color: var(--color-accent); text-decoration-color: currentColor; }
+
+.snypd-index-after > h2 { margin-top: var(--space-5); font-size: var(--size-h3); }
+/* The afterword is set a step down from a page, so its sub-heads step down with it, a block's title among
+   them: at the h3 size, a `steps` title stood level with the h2 above it (notebook's shoot, h2:h3 1.0). */
+.snypd-index-after h3 { font-size: var(--size-body); }

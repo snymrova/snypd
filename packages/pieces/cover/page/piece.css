@@ -1,0 +1,37 @@
+/* cover/page — drawn (W4, docs/37 §7; refs in piece.yaml). A top for a site whose pages say something:
+   the title, then a standfirst, then the body — and nothing about when or who.
+
+   The one signature detail is the standfirst: one sentence a size up, in the text colour and not muted,
+   because it is the page's first sentence and not its meta. A cover's subtitle is one; on a page that
+   opens without a cover, the page's own first paragraph is — the author writes no field for it, and a
+   reader's first sentence is the author's. The space under it is a group's, so the body starts after a
+   pause. A post opens the same way; it carries one more line, its byline, small and muted and closing
+   the cover, with no rule — the date is there for a reader who looks, and draws nothing. */
+.snypd-eyebrow {
+  font: 400 var(--size-small) / 1.3 var(--font-ui); color: var(--color-muted);
+  margin-bottom: var(--space-3); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+}
+.snypd-subtitle,
+.snypd-page > h1:first-child + p,
+.snypd-page > .snypd-cover:first-child:not(:has(.snypd-subtitle)) + p {
+  font-size: var(--size-h3); line-height: 1.35; color: var(--color-text);
+  max-width: var(--measure-deck); text-wrap: pretty;
+}
+.snypd-subtitle { margin-top: var(--space-3); }
+.snypd-page > h1:first-child + p,
+.snypd-page > .snypd-cover:first-child:not(:has(.snypd-subtitle)) + p { margin-top: var(--space-3); margin-bottom: var(--space-5); }
+.snypd-page > .snypd-cover:first-child:has(.snypd-subtitle) { margin-bottom: var(--space-5); }
+
+.snypd-cover > img:not(.snypd-cover-media) {
+  display: block; width: 100%; margin-top: var(--space-4);
+  border-radius: var(--radius); background: var(--color-surface);
+}
+/* No `display` on the media: which of a clip and its still shows is `base`'s decision, a layer down. */
+.snypd-cover-media { width: 100%; margin-top: var(--space-4); border-radius: var(--radius); background: var(--color-surface); }
+
+.snypd-byline { font: 400 var(--size-small) / 1.4 var(--font-ui); color: var(--color-muted); margin-bottom: var(--space-4); }
+/* With no rule to divide them, the byline belongs to the cover by space alone: nothing between them but
+   the column's gap, and a group's space after it. */
+.snypd-cover:has(+ .snypd-byline) { margin-bottom: 0; }
+/* Here and not in `house`: prose's `a` comes after house and would win. */
+.snypd-byline a { color: inherit; }

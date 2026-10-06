@@ -1,0 +1,8 @@
+piece: wall/row
+from: technical, folio
+line: Marks in a row under a hairline — a `marquee` wall is the same row, still.
+reads: [font.ui, font.display, size.small, space.1, space.2, space.3, space.4, color.muted, color.border, size.mark, size.tap]
+needs:
+  size.mark: 2rem
+switches:
+  plain-title: { default: false, description: "The wall's title as written, in the display face — not tracked capitals in the UI face." }

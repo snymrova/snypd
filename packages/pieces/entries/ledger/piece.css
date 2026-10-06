@@ -1,0 +1,28 @@
+/* entries/ledger — carved from folio. A dated list as ruled rows: the title, a small muted line under it
+   (what kind of entry, and its own mark), the date at the right. An archive shows the description under
+   the line; a front page's rows do not. A list page's heading and rows take the breakout track, so the
+   date sits out at the column's wide edge. */
+main > .snypd-ledger, main:has(> .snypd-ledger) > h1 { grid-column: wide; }
+main:has(> .snypd-ledger) > h1 { margin-bottom: var(--space-3); }
+.snypd-ledger { list-style: none; padding: 0; margin: 0; }
+.snypd-ledger > li { margin: 0; border-top: 1px solid var(--color-border); }
+.snypd-ledger > li:last-child { border-bottom: 1px solid var(--color-border); }
+.snypd-ledger-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); align-items: start; padding-block: var(--space-row); color: inherit; text-decoration: none; }
+.snypd-ledger-what { display: grid; gap: var(--space-row-line); min-width: 0; }
+/* A list is read by title, so the title is the largest thing in the row — the sub-heading size — and the
+   summary steps below the prose. */
+.snypd-ledger-title { font: 500 var(--size-h3) / 1.25 var(--font-display); letter-spacing: -0.015em; text-wrap: balance; }
+.snypd-ledger-row:hover .snypd-ledger-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+.snypd-ledger-meta { font-size: var(--size-small); color: var(--color-muted); }
+.snypd-ledger-text { font-size: calc(var(--size-body) * 0.94); line-height: 1.5; color: var(--color-muted); text-wrap: pretty; max-width: var(--measure-excerpt); margin-top: var(--space-1); }
+.snypd-ledger-when { font-size: var(--size-small); color: var(--color-muted); white-space: nowrap; padding-top: 0.2em; font-variant-numeric: tabular-nums; }
+.snypd-ledger-empty { color: var(--color-muted); }
+.snypd-home .snypd-ledger-text { display: none; }
+@media (max-width: 47.5rem) {
+  .snypd-ledger-row { grid-template-columns: minmax(0, 1fr); }
+  .snypd-ledger-when { padding-top: 0; }
+}
+/* The line under an archive's title (`list`) sits on the ledger's track, a step above its first row; so
+   does a filter row, which closes on the ledger's first rule. */
+main:has(> .snypd-ledger) > .snypd-lede { grid-column: wide; margin-bottom: var(--space-4); }
+main:has(> .snypd-ledger) > .snypd-list-filter { grid-column: wide; }

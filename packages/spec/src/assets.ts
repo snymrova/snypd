@@ -24,6 +24,7 @@ import _defaults_budgets_yaml from "../defaults/budgets.yaml" with { type: "text
 import _defaults_field_types_yaml from "../defaults/field-types.yaml" with { type: "text" };
 import _defaults_statuses_yaml from "../defaults/statuses.yaml" with { type: "text" };
 import _defaults_taxonomies_yaml from "../defaults/taxonomies.yaml" with { type: "text" };
+import _defaults_theme_contract_yaml from "../defaults/theme-contract.yaml" with { type: "text" };
 import _defaults_types_yaml from "../defaults/types.yaml" with { type: "text" };
 import _detect_callout_yaml from "../detect/callout.yaml" with { type: "text" };
 import _detect_chart_yaml from "../detect/chart.yaml" with { type: "text" };
@@ -60,6 +61,7 @@ export const ASSETS: Readonly<Record<string, string>> = {
   "defaults/field-types.yaml": _defaults_field_types_yaml,
   "defaults/statuses.yaml": _defaults_statuses_yaml,
   "defaults/taxonomies.yaml": _defaults_taxonomies_yaml,
+  "defaults/theme-contract.yaml": _defaults_theme_contract_yaml,
   "defaults/types.yaml": _defaults_types_yaml,
   "detect/callout.yaml": _detect_callout_yaml,
   "detect/chart.yaml": _detect_chart_yaml,

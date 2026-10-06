@@ -1,0 +1,4 @@
+piece: post-foot/ruled
+from: technical
+line: The end of a post as one ruled band — terms as bordered `#tags`, the markdown twin as `↓ source`.
+reads: [font.ui, size.small, space.2, space.3, space.4, space.5, color.border, color.muted, color.accent, radius]
