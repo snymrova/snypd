@@ -271,6 +271,8 @@ export function handlers(root: string): Handlers {
         { uri: "snypd://themes", name: "themes", mimeType: YAML, description: "Every theme this site can switch to — installed and bundled — with what each reads as and the looks it ships; `theme` › set takes any of them" },
         { uri: "snypd://plugins", name: "plugins", mimeType: YAML, description: "The plugins `plugins:` names: version, where each was found, what it declares (types, taxonomies), its options and capabilities, and whether it loaded — plus the bundled set one line enables" },
         { uri: "snypd://nav", name: "nav", mimeType: YAML, description: "The menus: which locations the theme renders (header, footer) and what each content/nav/<location>.yaml holds, every `ref` resolved to its route — `site` › set_nav writes one" },
+        { uri: "snypd://guide/get-started", name: "guide/get-started", mimeType: MD, description: "The first run, as the `get-started` prompt says it, for an agent that cannot open prompts: which of three situations this site is in, and the calls in order — the post, the site's face (description, front page, About, menu) and putting it online" },
+        { uri: "snypd://guide/site-basics", name: "guide/site-basics", mimeType: MD, description: "The `site-basics` prompt as a resource: the icon, the not-found page and the share cards a finished site has" },
         { uri: "snypd://bench/latest", name: "bench/latest", mimeType: MD, description: "The last full benchmark report: every speed and size budget with its measured value" },
         // One per plugin that reacts (P4, docs/10 §4.5): what it said the last few times an event fired.
         // Listed rather than left to the template, because a plugin's own resource is only discoverable
@@ -349,6 +351,11 @@ export function handlers(root: string): Handlers {
         return text(JSON_, JSON.stringify({ file: r.file, errors: r.errors, warnings: r.warnings, words: r.words, skipped: r.skipped, diagnostics: r.diagnostics }, null, 2));
       }
       if (uri === "snypd://config") return text(YAML, (await config()).render());
+      const guide = /^snypd:\/\/guide\/([a-z-]+)$/.exec(uri)?.[1];
+      if (guide) {
+        const g = await (await import("./prompts")).guideText(guide);
+        if (g) return text(MD, g);
+      }
       if (uri.startsWith("snypd://spec")) {
         const r = (await loadSpec()).resource(uri);
         if (r) return text(r.mimeType, r.text());

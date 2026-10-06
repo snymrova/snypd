@@ -542,7 +542,7 @@ describe("find_tools + the catalogue", () => {
 
     expect(structured(scaffolded)).toMatchObject({ theme: "scratchy", extends: "editorial" });
     expect(readFileSync(`${site}/themes/scratchy/theme.yaml`, "utf8")).toContain("extends: editorial");
-    expect(structured(activated)).toMatchObject({ theme: "scratchy", from: "editorial", changed: true });
+    expect(structured(activated)).toMatchObject({ theme: "scratchy", from: "studio", changed: true });   // a new site starts on studio (6 Oct 2026)
   });
 
   /**
@@ -1282,7 +1282,13 @@ describe("the first run, from the agent's side", () => {
     // on the majority branch, D1's temporary account is explained before it happens — no click, and a
     // claim link the agent must relay with its deadline — and the agent is told there is nothing to ask
     // for that the call does not get for itself.
-    expect(s).toContain("4. **Put it online.**");
+    expect(s).toContain("5. **Put it online.**");
+    // 6 Oct 2026: a new site gets a face before it goes online — description, a front page from the
+    // recipe, About and a header menu — because every theme looked bare drawing a name and one title.
+    expect(s).toContain("3. **Give the site a face");
+    expect(s).toContain("snypd://spec/home");
+    expect(s).toContain("set_nav");
+    expect(s).toContain("Do not invent facts");
     expect(s).toContain("`site` › deploy, one call");
     expect(s).toContain("temporary account — no tab, no click");
     expect(s).toContain("the URL **and** the claim link");
@@ -1323,10 +1329,32 @@ describe("the first run, from the agent's side", () => {
     expect(d).not.toContain("`draft` (the default)");
   });
 
+  /**
+   * 6 Oct 2026, found by running a real agent on a fresh site: in Claude Code a prompt is a slash command
+   * for the person, so "start with the `get-started` prompt" pointed the agent at a script it could not
+   * open. It wrote one post, deployed, and the site was a name over one title. The instructions now name
+   * the same text as a resource, and say the face is part of going online.
+   */
+  test("the first-run script is a resource the agent can read, and the instructions name it", async () => {
+    const [init, list, guide] = await session([
+      req(1, "initialize"),
+      req(2, "resources/list"),
+      req(3, "resources/read", { uri: "snypd://guide/get-started" }),
+    ], site);
+    const ins = init.result.instructions as string;
+    expect(ins).toContain("snypd://guide/get-started");
+    expect(ins).toContain("snypd://spec/home");
+    expect(ins).toContain("About page and a menu");
+    expect(list.result.resources.map((r: { uri: string }) => r.uri)).toContain("snypd://guide/get-started");
+    const g = guide.result.contents[0].text as string;
+    expect(g).toContain("3. **Give the site a face");
+    expect(g).toContain("5. **Put it online.**");
+  });
+
   test("`site` › init takes no arguments, and the text it returns is addressed to the agent", async () => {
     const [, init] = await session([req(1, "initialize"), call(2, "site", { action: "init" })], site);
     expect(init.result.isError).toBeUndefined();
-    expect(structured(init)).toMatchObject({ ok: true, git: true, placeholderUrl: true, name: "mcp-first-run" });
+    expect(structured(init)).toMatchObject({ ok: true, git: true, placeholderUrl: true, name: "Mcp First Run" });   // the folder's slug, said as words
     const s = init.result.content[0].text as string;
     expect(s).toContain("placeholder");
     expect(s).toContain("Do not ask for it yet.");           // the first deploy sets it from the host (L2)

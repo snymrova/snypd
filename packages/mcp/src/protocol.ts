@@ -67,7 +67,7 @@ export interface Handlers {
  * 50 ms, so this may not become "…and this site has no content yet". A pointer costs nothing to write and
  * nothing to read; `get-started` is the thing that branches on state, because by then a tool call is cheap.
  */
-const INSTRUCTIONS = "Start with the `get-started` prompt: it branches on what this site already is — empty, scaffolded, or established — and names the calls in the order that works. Otherwise: read snypd://config, then snypd://spec/primitives, before writing content — a post that is only prose wastes the vocabulary this CMS exists for. Writes go to a draft branch; publishing a draft-policy type needs a human to approve that exact version on /_snypd, the page this server serves for them.";
+const INSTRUCTIONS = "Read snypd://guide/get-started first (the `get-started` prompt, as a resource you can read): it branches on what this site already is — empty, scaffolded, or established — and names the calls in the order that works. A site goes online with a face, not just a post: a description, a front page (snypd://spec/home), an About page and a menu — every theme draws only what the site gives it. Otherwise: read snypd://config, then snypd://spec/primitives, before writing content — a post that is only prose wastes the vocabulary this CMS exists for. Writes go to a draft branch; publishing a draft-policy type needs a human to approve that exact version on /_snypd, the page this server serves for them.";
 
 export function initializeResult(params: Record<string, unknown> | undefined): InitializeResult {
   const asked = String(params?.protocolVersion ?? "");

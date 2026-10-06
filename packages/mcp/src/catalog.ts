@@ -86,7 +86,7 @@ export const CATALOG: Tool[] = [
       name: str("`init`: the site's name, as a reader sees it. Optional — defaults to the directory's name. `push`: the repository to create when this site has no remote yet — optional, and defaults to the site's name; `owner/name` puts it under an organisation"),
       url: str("`init`: the absolute origin it will be served from, e.g. https://example.com. Optional — defaults to a localhost placeholder, because the feed, sitemap and JSON-LD need a real one at publish and not before"),
       description: str("`init`: one sentence about the site"),
-      theme: str("`init`: the theme to start on. Default `editorial`"),
+      theme: str("`init`: the theme to start on. Default `studio`"),
       public: { type: "boolean", description: "`push`: when this site has no remote and one is created, make the repository public. The default is private — a site's repository holds its drafts branch, which is every word nobody has approved" },
       preview: { type: "boolean", description: "`push`: send `snypd/drafts` instead of the site, so a host that builds branches serves a preview *with the drafts in it* (noindex, at its preview URL). This sends every unapproved word on the site to the remote — readable by anyone who can read the repository, and by anyone with the preview URL. Nothing is published by it. Read the result's first lines before relaying it as done" },
       login: { type: "boolean", description: "`deploy`: put the site on the person's own Cloudflare account — `wrangler login` opens a tab and they click allow once. For after they claim a temporary site, or when they have an account and want it there from the start" },

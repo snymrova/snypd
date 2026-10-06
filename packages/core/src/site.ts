@@ -457,6 +457,19 @@ function shouldInitRepo(root: string): boolean {
 }
 
 /**
+ * The theme a new site starts on: `studio` since 6 Oct 2026 (Sunny). Shown a fresh site on every shipped
+ * theme, editorial read as a bare list in a narrow grey column; studio, given the same name, sentence and
+ * home page, reads as a site — a dark hero in display type, a stats band, an accent, a Menu on a phone.
+ */
+export const DEFAULT_THEME = "studio";
+
+/** `demo-site` → "Demo Site", `my_notes` → "My Notes"; anything that is not a bare lowercase slug is kept as typed. */
+export function nameFromDir(dir: string): string {
+  if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/.test(dir)) return dir;
+  return dir.split(/[-_]/).map((w) => w[0]!.toUpperCase() + w.slice(1)).join(" ");
+}
+
+/**
  * Write the smallest `snypd.yaml` that loads, plus the directories content lives in (S16). This is what the
  * `get-started` prompt calls first: `setConfig` patches a config, and something has to have written one.
  * Deliberately tiny — every key it leaves out is a key `snypd://config` already answers from the spec, and a
@@ -476,7 +489,9 @@ export function initSite(root: string, input: InitInput): InitResult {
   if (existsSync(file)) throw new WriteError(`${CONFIG_FILE} already exists`, "This site is already initialised — `site` › set_config changes one key, `site` › doctor says whether it is sound.");
   // Named after the directory when nobody said otherwise — which is what the person called it, and is
   // one `site` › set_config away from whatever they meant. `resolve` first, so `.` is not a site called ".".
-  const name = input.name?.trim() || basename(resolve(root)) || "site";
+  // A slug is said as words (6 Oct 2026): `demo-site` was the name in the header, the front page's
+  // heading and the footer of every new site, lowercase and hyphenated, three times on one screen.
+  const name = input.name?.trim() || nameFromDir(basename(resolve(root))) || "Site";
   if (input.url !== undefined) { try { new URL(input.url); } catch { throw new WriteError(`"${input.url}" is not a URL`, "An absolute origin the site will be served from, e.g. https://example.com — the feed, sitemap and JSON-LD all need it."); } }
   const url = (input.url ?? PLACEHOLDER_URL).replace(/\/+$/, "");
   const placeholderUrl = isPlaceholderUrl(url);
@@ -489,7 +504,7 @@ site:
   url: ${JSON.stringify(url)}${placeholderUrl ? "   # placeholder — the feed, sitemap and JSON-LD are absolute, so publishing needs the real one" : ""}${input.description ? `\n  description: ${JSON.stringify(input.description)}` : ""}
 
 theme:
-  use: ${input.theme ?? "editorial"}
+  use: ${input.theme ?? DEFAULT_THEME}
 `;
   // Asked before a byte is written, because the answer is "is this directory empty" and one line from now
   // it will not be. `initRepo` uses `-b main`, which is `DEFAULT_BASE` — so the branch a publish lands on

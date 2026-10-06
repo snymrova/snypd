@@ -7,7 +7,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { loadConfig, setConfig, setRedirect, setNav, loadNav, navLocations, renderNav, redirects, normalizeRoute, themeTokens, initSite, onPath, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded, bundledPluginDir, bundledPluginNames, isBundledDir, themeSignature } from "./index";
+import { loadConfig, setConfig, setRedirect, setNav, loadNav, navLocations, renderNav, redirects, normalizeRoute, themeTokens, initSite, nameFromDir, DEFAULT_THEME, onPath, bundledDir, bundledNames, themeFile, themeFiles, themeHas, git, isRepoRoot, mcpCommand, commitHint, Repo, DEFAULT_BASE, PLACEHOLDER_URL, isPlaceholderUrl, initRepo, readHeartbeat, writeHeartbeat, harnessState, onboardingFacts, onboarded, bundledPluginDir, bundledPluginNames, isBundledDir, themeSignature } from "./index";
 
 const root = "corpora/_test/site-writes";
 const config = (extra = "") => writeFileSync(`${root}/snypd.yaml`, `# a comment a human wrote\nsnypd: 1\nsite:\n  name: T   # and one here\n  url: https://t.example\n${extra}`);
@@ -235,6 +235,22 @@ describe("initSite", () => {
    * gone. Made before the repository question is asked, so a directory born empty a moment ago is
    * treated like one that was empty all along: it gets its repo.
    */
+  /**
+   * 6 Oct 2026: shown a fresh site, every theme drew `demo-site` three times on one screen and little else.
+   * A bare lowercase slug is said as words; anything a person typed with capitals, dots or spaces is theirs.
+   * And a new site starts on studio, the theme that reads as a site when given a name and a front page.
+   */
+  test("a slug for a name is said as words, and a new site starts on studio", () => {
+    expect(nameFromDir("demo-site")).toBe("Demo Site");
+    expect(nameFromDir("my_notes")).toBe("My Notes");
+    expect(nameFromDir("blog")).toBe("Blog");
+    for (const kept of ["snypd.rocks", "Ash & Ember", "MySite", "a--b", ""]) expect(nameFromDir(kept)).toBe(kept);
+    const dir = mkdtempSync(join(tmpdir(), "snypd-default-"));
+    initSite(dir, { deploy: "none" });
+    expect(loadConfig(dir).config.theme.use).toBe(DEFAULT_THEME);
+    expect(DEFAULT_THEME).toBe("studio");
+  });
+
   test("`init <dir>` makes the directory, then treats it as the empty one it is", () => {
     const parent = mkdtempSync(join(tmpdir(), "snypd-parent-"));
     const dir = join(parent, "my-site");
@@ -243,7 +259,7 @@ describe("initSite", () => {
       const r = initSite(dir, {});
       expect(r.dirCreated).toBe(true);
       expect(r.gitInit).toBe(true);
-      expect(r.name).toBe("my-site");
+      expect(r.name).toBe("My Site");                                     // the slug, said as words
       expect(isRepoRoot(dir)).toBe(true);
       expect(loadConfig(dir).ok).toBe(true);
       // A directory that exists is reported as not made, so the CLI's first line does not lie.

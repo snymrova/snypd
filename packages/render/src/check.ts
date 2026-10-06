@@ -284,6 +284,19 @@ async function check(stand: { root: string; searchPaths?: string[] }, root: stri
         : `every italic, weight and figure style the sheet asks for, \`${theme.font.family}\` carries${theme.font.cuts?.length ? ` (${theme.font.cuts.map((c) => c.style === "italic" ? "italic" : c.weight).join(", ")} beside the roman)` : ""}`);
   }
 
+  // ── the prose face (6 Oct 2026) ─────────────────────────────────────────────────────────────────
+  // Found on a real first run: an agent asked for a "terminal" look set `font.body` to IBM Plex Mono,
+  // and every paragraph, the hero and the list read as a code listing — wide, even letters with no
+  // shapes for the eye to pick up, the slowest face on the shelf for running text. Mono is for code,
+  // labels and, if a theme wants the flavour, headings (technical does); the prose face is not where it
+  // goes. A fail, not a warning, because an agent reads a warning as optional and this one is the page.
+  const bodyFace = all.find((t) => t.name === "font.body")?.value;
+  const firstFamily = typeof bodyFace === "string" ? bodyFace.split(",")[0]!.trim().replace(/^['"]|['"]$/g, "") : "";
+  const mono = /\bmono\b|\bcode\b|courier|consolas|menlo|monaco|^ui-monospace$|^monospace$/i.test(firstFamily);
+  add("font.prose", mono ? "fail" : firstFamily ? "pass" : "skip",
+    mono ? `\`font.body\` leads with \`${firstFamily}\`, a monospace face — every paragraph reads as code. Set prose in a text face (a serif or sans from snypd://theme/pieces' shelf) and keep the mono for \`font.ui\`, code or headings`
+      : firstFamily ? `prose is set in \`${firstFamily}\`, a text face` : "no `font.body` token to judge");
+
   // ── the pieces (docs/36 §4.6, decision 269) ─────────────────────────────────────────────────────
   // What the theme is built from, and whether the theme gives them what they read. A contract token a
   // piece reads and the theme does not declare is a `var()` with nothing behind it — the rule it sits in

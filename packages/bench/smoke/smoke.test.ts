@@ -85,9 +85,10 @@ describe("the compiled binary, in a directory it has never seen", () => {
   test("`build` renders the site from themes that exist only inside the binary", () => {
     const r = run(["build", "."]);
     expect(r.code, r.err).toBe(0);
-    // The default theme is `editorial`, which `extends: base` — so this is the whole chain resolving,
-    // 20 `.tsx` importing and a stylesheet loading with no `themes/` directory anywhere on the disk.
-    expect(r.out).toContain("theme editorial");
+    // The default theme is `studio` (since 6 Oct 2026), which `extends: base` and is drawn from pieces —
+    // so this is the whole chain resolving, every piece's `.tsx` importing and a stylesheet loading with
+    // no `themes/` directory anywhere on the disk.
+    expect(r.out).toContain("theme studio");
     expect(r.out).toContain("14/14 primitives");
     expect(existsSync(join(dir, "dist", "index.html"))).toBe(true);
   });
@@ -136,7 +137,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
         "}", "",
       ].join("\n"));
       const yaml = join(site, "snypd.yaml");
-      writeFileSync(yaml, readFileSync(yaml, "utf8").replace(/^(\s*use:\s*)editorial\b/m, "$1local"));
+      writeFileSync(yaml, readFileSync(yaml, "utf8").replace(/^(\s*use:\s*)studio\b/m, "$1local"));
       writeFileSync(join(site, "content/posts/hi.md"), "---\ntitle: Hi\nstatus: published\ndate: 2026-09-19\n---\n\nA post.\n");
 
       const r = run(["build", "."], site);
@@ -257,7 +258,7 @@ describe("the compiled binary, in a directory it has never seen", () => {
     const report = doc.result.content.map((c) => c.text).join("\n");
 
     expect(report).toContain("config loads");
-    expect(report).toContain("theme `editorial` resolves");
+    expect(report).toContain("theme `studio` resolves");
     // The whole assertion: the themes are inside the binary, and doctor knows what they declare.
     expect(report).not.toContain("the theme does not declare");
   }, 30_000);

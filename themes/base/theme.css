@@ -60,7 +60,10 @@ img, svg, video { max-width: 100%; height: auto; }
 @media (max-width: 37.5rem) {
   .snypd-masthead a[rel="home"] { display: inline-block; }
   footer :is(nav, .snypd-social, .snypd-offices) a { display: inline-block; }
-  :is(.snypd-masthead a[rel="home"], .snypd-menu-button, .snypd-button, .snypd-motion label, #snypd-menu a, .snypd-scroller > a, footer :is(nav, .snypd-social, .snypd-offices) a) {
+  /* The front page's list heading is a link to the archive ("Latest posts", "Notes", "Work"): a heading's
+     line box is shorter than its size, so on a phone it measured 34–36 px tall (the 5 Oct tours). */
+  :is(h2#snypd-latest, h2[id^="snypd-list-"]) > a { display: inline-block; }
+  :is(.snypd-masthead a[rel="home"], .snypd-menu-button, .snypd-button, .snypd-motion label, #snypd-menu a, .snypd-scroller > a, footer :is(nav, .snypd-social, .snypd-offices) a, :is(h2#snypd-latest, h2[id^="snypd-list-"]) > a) {
     box-sizing: border-box; min-block-size: 2.75rem; align-content: center;
   }
   /* A short word in a row is a narrow target, so the row's items and the button are held as wide as tall. */

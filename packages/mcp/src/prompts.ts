@@ -88,9 +88,15 @@ Then \`find_tools\` with "set up a new site" to unlock the \`site\` tool, and \`
 
 1. **Learn the vocabulary first.** Read \`snypd://spec/primitives\`. ${n.primitives} primitives — a post that is only prose is a post that wastes every one of them. Read \`snypd://theme\` for what is installed, and \`snypd://theme/tokens\` for what can be recoloured without writing CSS.
 2. **Write one real post.** Not "Hello world" — something true about this site, using at least two primitives. \`content.create\`, then fix whatever the lint it hands back tells you to fix, and repeat until it is clean. The hints are there to be acted on, not relayed to me.
-3. **Show me, then publish it — or hand it to me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Then \`content.publish\`. It publishes unless this type's \`mcp.write\` is \`draft\` — then the refusal says so, and you give me the review URL and I approve that exact version there. A placeholder \`site.url\` does not stop a publish; step 4 resolves it. Say which of the two happened.
-4. **Put it online.** \`find_tools\` with "put it online" unlocks the \`site\` tool; then \`site\` › deploy, one call. It builds, uploads through the host's own CLI and answers with the URL. Two things it may do on the way, and both are its to do, not yours to prepare for: on a machine with no Cloudflare login it puts the site on a temporary account — no tab, no click — and when \`site.url\` is the placeholder it sets it from the host's answer, builds again and uploads again, so the first deploy is two uploads. A temporary site is deleted after an hour unless I claim it: give me the URL **and** the claim link and the time from its answer, in those words, and say that claiming is free and is where I would sign up to Cloudflare. If I claim it, \`site\` › deploy with \`login: true\` once afterwards. Do not ask me for a URL, a repository or an account: nothing is needed that the call does not get for itself. If it refuses, read the refusal — every one names its next action — and do that, or relay it to me when the action is mine (\`deploy.push\` is \`human\`; a site that deploys on push, where \`site\` › push is the call instead).
-5. **Report**, in one short paragraph: the URL, what exists now, what the theme is, and what I should decide next — theme, tokens, more posts, or backing the repository up on GitHub (say so and it is one call).
+3. **Give the site a face — the theme can only draw what the site gives it.** A new site has a name and nothing else, so its front page is a list of one title, its header and footer hold only the name, and every theme looks bare. Before anything goes online, write these, all in the spirit of what I told you the site is for (\`find_tools\` with "site config" unlocks the \`site\` tool):
+   - \`site\` › set_config \`site.description\`: one plain sentence a stranger would understand. If I named the site and the config says otherwise, \`site.name\` too; the folder's name is only a placeholder.
+   - **the front page**: read \`snypd://spec/home\` and follow it — \`content.create\` type \`page\`, frontmatter \`home: true\`, a \`cover\`, one block before the first \`##\`, a few short sections. Its title is the site's promise in a few words, not its name.
+   - **an About page** (\`page\`, slug \`about\`): three or four honest sentences.
+   - \`site\` › set_nav \`header\`: the posts archive (\`ref: "/posts"\`, labelled with the word this site would use) and About.
+   Do not invent facts, numbers or people to fill them: a stat needs a source, and a section with nothing true in it is left out.
+4. **Show me, then publish it — or hand it to me.** \`content.render_preview\` and give me the URL, the markdown twin and the review link. Then \`content.publish\` the post, the front page and About. It publishes unless this type's \`mcp.write\` is \`draft\` — then the refusal says so, and you give me the review URL and I approve that exact version there. A placeholder \`site.url\` does not stop a publish; step 5 resolves it. Say which of the two happened.
+5. **Put it online.** \`find_tools\` with "put it online" unlocks the \`site\` tool; then \`site\` › deploy, one call. It builds, uploads through the host's own CLI and answers with the URL. Two things it may do on the way, and both are its to do, not yours to prepare for: on a machine with no Cloudflare login it puts the site on a temporary account — no tab, no click — and when \`site.url\` is the placeholder it sets it from the host's answer, builds again and uploads again, so the first deploy is two uploads. A temporary site is deleted after an hour unless I claim it: give me the URL **and** the claim link and the time from its answer, in those words, and say that claiming is free and is where I would sign up to Cloudflare. If I claim it, \`site\` › deploy with \`login: true\` once afterwards. Do not ask me for a URL, a repository or an account: nothing is needed that the call does not get for itself. If it refuses, read the refusal — every one names its next action — and do that, or relay it to me when the action is mine (\`deploy.push\` is \`human\`; a site that deploys on push, where \`site\` › push is the call instead).
+6. **Report**, in one short paragraph: the URL, what exists now, what the theme is, and what I should decide next — theme, tokens, more posts, or backing the repository up on GitHub (say so and it is one call).
 
 ---
 
@@ -292,6 +298,20 @@ export const counts = (): Promise<Counts> => (counted ??= Promise.all([import("@
   .then(([spec, render]) => ({ primitives: spec.primitiveNames().length, parts: render.PART_NAMES.length })));
 
 type PromptSets = Awaited<ReturnType<typeof import("@snypd/core").loadPluginPrompts>>["sets"];
+
+/**
+ * A prompt's text as something an agent can *read* (6 Oct 2026). In Claude Code an MCP prompt is a slash
+ * command the person types; the agent cannot open one. So the instructions' "start with `get-started`"
+ * pointed every agent at a script it could not reach, and the first run went post → deploy with nothing
+ * on the front page. `snypd://guide/<name>` serves the same text as a resource, which every harness lets
+ * the agent read. One text, two doors: the prompt and the resource never drift.
+ */
+export const GUIDES = ["get-started", "site-basics"] as const;
+export async function guideText(name: string): Promise<string | undefined> {
+  const r = name === "get-started" ? getStarted({}, await counts()) : name === "site-basics" ? siteBasics() : undefined;
+  const m = r?.messages[0]?.content;
+  return m && "text" in m ? m.text : undefined;
+}
 
 export function handlers(root: string): Pick<Handlers, "listPrompts" | "getPrompt"> {
   // Session-scoped, not module-scoped: one process can serve two roots, and neither may see the other's
