@@ -2722,9 +2722,9 @@ The second heading with this text, which is what makes the id de-duplication wor
     // forked a layout and neither touched a primitive.
     const body = (h: string) => h.slice(h.indexOf("<h2"), h.indexOf('<footer class="snypd-post-footer"'));
     expect(body(te)).toBe(body(ed));
-    // And a different argument about it: one measure is 34rem and the other 44rem, one sets headings in
+    // And a different argument about it: one measure is 37rem and the other 44rem, one sets headings in
     // the body face and the other in mono, and only one of them has a contents list.
-    expect(edCss).toContain("--measure: 34rem");
+    expect(edCss).toContain("--measure: 37rem");
     expect(teCss).toContain("--measure: 44rem");
     expect(te).toContain("snypd-toc");
     expect(ed).not.toContain("snypd-toc");
