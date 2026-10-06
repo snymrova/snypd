@@ -39,6 +39,15 @@
  *    validator accepts and `deploy` publishes under *Custom domains* (⚠ b, likewise from source).
  *    That is docs/31 §7's domain step, after launch; nothing here writes it yet.
  *
+ *  - **`deploy --temporary`** (D1, 6 Oct 2026): on a machine with no credential at all, wrangler makes
+ *    a preview account — a proof-of-work challenge, the terms notice (accepted, with no terminal to ask
+ *    on), then `Temporary account ready:` / `Account: <name> (created|reused)` / `Claim within: <n
+ *    minutes>` / `Claim URL: <url>` on stdout, before the upload. The account is cached per *machine*
+ *    (`wrangler-temporary-account.toml` in wrangler's own config dir, never read here — it holds the
+ *    account's token) and reused until it expires, so every deploy in that hour answers at one URL and
+ *    the first one after it at a new one. With any credential present `--temporary` is refused, and
+ *    `wrangler login` clears the cached account.
+ *
  * `stdin` is closed on every call. Wrangler's prompts fall back to their defaults when there is no
  * terminal, which makes every run here deterministic and every question it would have asked a line
  * in stderr that `deployHint` can name. The one thing that is deliberately *not* set is any wrangler
@@ -167,15 +176,23 @@ export interface HostDeploy {
   uploaded?: number;
   skipped?: number;
   versionId?: string;
+  /** Set when this went to a temporary preview account (`--temporary`). */
+  temporary?: TemporaryAccount;
   reason?: string;
   hint?: string;
   run: HostRun;
 }
 
+/**
+ * A preview account wrangler made (or reused) for a machine with no credential. Gone at `expiresAt`
+ * unless a person opens `claimUrl` first, which makes it theirs.
+ */
+export interface TemporaryAccount { name: string; created: boolean; claimUrl: string; expiresAt: string }
+
 /** `wrangler deploy` in the site root, and its stdout read back as the three facts a person is owed. */
-export async function hostDeploy(root: string, runner: Runner, opts: { timeoutMs?: number } = {}): Promise<HostDeploy> {
-  const run = await wrangler(root, runner, ["deploy"], { timeoutMs: opts.timeoutMs ?? DEPLOY_TIMEOUT_MS });
-  const parsed = parseDeploy(run.stdout);
+export async function hostDeploy(root: string, runner: Runner, opts: { timeoutMs?: number; temporary?: boolean; now?: Date } = {}): Promise<HostDeploy> {
+  const run = await wrangler(root, runner, opts.temporary ? ["deploy", "--temporary"] : ["deploy"], { timeoutMs: opts.timeoutMs ?? DEPLOY_TIMEOUT_MS });
+  const parsed = { ...parseDeploy(run.stdout), ...(opts.temporary ? { temporary: parseTemporary(run.stdout, opts.now) } : {}) };
   if (run.ok && parsed.urls.length) return { ok: true, ...parsed, run };
   const all = `${run.stdout}\n${run.stderr}`;
   if (run.timedOut) return { ok: false, ...parsed, reason: `wrangler deploy gave up after ${Math.round((opts.timeoutMs ?? DEPLOY_TIMEOUT_MS) / 60_000)} minutes`, hint: "The first deploy also installs wrangler; on a slow line that alone can take a while. Call deploy again — an upload that was cut off is resumed, not repeated.", run };
@@ -210,13 +227,29 @@ export function parseDeploy(stdout: string): { urls: string[]; url?: string; upl
   return { urls, url, uploaded, skipped, versionId };
 }
 
+/**
+ * wrangler's `Temporary account ready:` block. It prints the claim window relative to now
+ * (`formatDistanceToNowStrict`: "60 minutes", "59 minutes", "1 hour"), so the deadline is that from
+ * the moment the output was read — a few seconds late at worst, and never early.
+ */
+export function parseTemporary(stdout: string, now = new Date()): TemporaryAccount | undefined {
+  const m = /Temporary account ready:[\s\S]*?Account:\s*(.+?)\s*\((created|reused)\)[\s\S]*?Claim within:\s*(\d+)\s*(second|minute|hour|day)s?[\s\S]*?Claim URL:\s*(\S+)/.exec(stdout);
+  if (!m) return undefined;
+  const unit = { second: 1_000, minute: 60_000, hour: 3_600_000, day: 86_400_000 }[m[4] as "second"];
+  return { name: m[1]!, created: m[2] === "created", claimUrl: m[5]!, expiresAt: new Date(now.getTime() + Number(m[3]) * unit).toISOString() };
+}
+
 /** The failures a first deploy actually has, each with the one line that fixes it (F3). */
 export function deployHint(output: string): { reason: string; hint: string } | undefined {
   const onboarding = /register a (?:different )?(?:workers\.dev )?subdomain (?:here:|at)\s*(https:\/\/dash\.cloudflare\.com\/\S+?)\.?(?:\s|$)/i.exec(output)?.[1];
   if (/workers\.dev subdomain/i.test(output) && (onboarding || /register a workers\.dev subdomain/i.test(output)))
     return { reason: "this Cloudflare account has no workers.dev subdomain yet, and wrangler could not ask for one without a terminal", hint: `Register one — it is a free hostname for every Worker on the account — ${onboarding ? `at ${onboarding}` : "in the Workers section of the Cloudflare dashboard"}, then call deploy again. Run from inside an agent harness, wrangler registers it itself from the site's directory name.` };
+  if (/`--temporary` can't be used/.test(output))
+    return { reason: "this machine is logged in to Cloudflare, so wrangler will not use a temporary account", hint: "Call deploy without `temporary`: it goes to the account this machine is logged in to." };
+  if (/Failed to (?:request a proof-of-work challenge|create a temporary preview account)|proof-of-work challenge is not supported/i.test(output))
+    return { reason: "Cloudflare would not make a temporary account just now", hint: "Call deploy again in a minute, or with `login: true` to put the site on a Cloudflare account of the person's own — a tab opens and they click allow once." };
   if (/not authenticated|not logged in|Unable to authenticate|Authentication error|\b10000\b/i.test(output))
-    return { reason: "Cloudflare does not know this machine", hint: `Call deploy again: it runs \`wrangler login\` first and a person clicks allow once. Or run \`npx -y wrangler@${WRANGLER_VERSION} login\` in a shell.` };
+    return { reason: "Cloudflare does not know this machine", hint: `Call deploy with \`login: true\`: it runs \`wrangler login\` first and a person clicks allow once. Or run \`npx -y wrangler@${WRANGLER_VERSION} login\` in a shell.` };
   if (/already taken|name is already in use|\b10008\b/i.test(output))
     return { reason: "a Worker with this name already exists on the account", hint: "`name` in wrangler.toml is the Worker's name and the first label of its free hostname. Change it to something this account does not already have, then deploy again." };
   if (/Missing entry-point|assets directory|does not exist|ENOENT.*dist/i.test(output))
@@ -294,6 +327,8 @@ export interface DeployResult {
   versionId?: string;
   /** `wrangler login` ran, and a person clicked. */
   loggedIn?: boolean;
+  /** It went to a temporary preview account: live until `expiresAt`, a person's for keeps once claimed. */
+  temporary?: TemporaryAccount;
   /** The first deploy set `site.url` from the host and deployed again with it: two uploads, one answer. */
   urlSet?: string;
   /** Repo-relative paths this changed (`snypd.yaml` when the URL was set) — the caller commits them. */
@@ -334,6 +369,8 @@ export interface DeployRecord {
   account?: HostAccount;
   /** How many uploads that call made: two on a first deploy, one after. */
   deploys: number;
+  /** The temporary account it went to, when it did — so doctor and the next deploy know the clock. */
+  temporary?: TemporaryAccount;
 }
 
 export const deployPath = (root: string) => join(root, INDEX_DIR, "deploy.json");
@@ -355,17 +392,33 @@ export function readDeploy(root: string): DeployRecord | undefined {
   try {
     const j = JSON.parse(readFileSync(f, "utf8")) as Partial<DeployRecord>;
     if (typeof j.url !== "string" || typeof j.at !== "string" || typeof j.target !== "string") return undefined;
-    return { at: j.at, by: j.by ?? "", target: j.target, url: j.url, urls: Array.isArray(j.urls) ? j.urls.filter((u): u is string => typeof u === "string") : [j.url], files: j.files ?? 0, bytes: j.bytes ?? 0, uploaded: j.uploaded, versionId: j.versionId, account: j.account, deploys: j.deploys ?? 1 };
+    return { at: j.at, by: j.by ?? "", target: j.target, url: j.url, urls: Array.isArray(j.urls) ? j.urls.filter((u): u is string => typeof u === "string") : [j.url], files: j.files ?? 0, bytes: j.bytes ?? 0, uploaded: j.uploaded, versionId: j.versionId, account: j.account, deploys: j.deploys ?? 1, temporary: j.temporary && typeof j.temporary.claimUrl === "string" && typeof j.temporary.expiresAt === "string" ? j.temporary : undefined };
   } catch { return undefined; }
 }
 
 /**
- * The walk's step 9 (docs/31 §3): preflight, login if the host has never seen this machine, build,
- * upload, read the URL back — and when `site.url` was the placeholder, set it, build again and upload
- * again, because the feed, the sitemap and every JSON-LD block were written against `localhost` the
- * first time. Two uploads on a first deploy; one every time after.
+ * The walk's step 9 (docs/31 §3): preflight, build, upload, read the URL back — and when `site.url`
+ * was the placeholder, set it, build again and upload again, because the feed, the sitemap and every
+ * JSON-LD block were written against `localhost` the first time. Two uploads on a first deploy; one
+ * every time after.
+ *
+ * **Who it goes to (D1).** A machine logged in to Cloudflare deploys to that account. A machine with
+ * no credential deploys to a **temporary** one (`wrangler deploy --temporary`): no login, no tab, no
+ * click — the person gets a URL and a link to claim it within the hour, and claiming is the only step
+ * that needs a Cloudflare account. `login: true` is the other way: `wrangler login` first (decision
+ * 230), the site on the person's own account from the start.
+ *
+ * One case is not ours to guess. The last deploy from here went to a temporary account whose hour has
+ * passed: if the person claimed it, the site lives on their account now and the next deploy belongs
+ * there (`login: true`); if not, it is gone, and `temporary: true` puts it up on a new account at a new
+ * URL. Deploying temporarily by default there would quietly fork a claimed site, so it refuses and
+ * names both calls.
+ *
+ * `site.url` follows the host while it is the placeholder **or** the address of the temporary account
+ * it was last on — a new temporary account, or a login to a real one, moves the site, and the feed
+ * has to move with it. A URL a person set by hand is never touched.
  */
-export async function deploySite(root: string, cfg: LoadedConfig, opts: { build: BuildFn; as?: "agent" | "human"; who?: string; env?: NodeJS.ProcessEnv; loginTimeoutMs?: number; deployTimeoutMs?: number }): Promise<DeployResult> {
+export async function deploySite(root: string, cfg: LoadedConfig, opts: { build: BuildFn; as?: "agent" | "human"; who?: string; env?: NodeJS.ProcessEnv; loginTimeoutMs?: number; deployTimeoutMs?: number; login?: boolean; temporary?: boolean; now?: () => Date }): Promise<DeployResult> {
   const who = opts.who ?? principal();
   const at = () => new Date().toISOString();
   const state = await deployState(root, cfg, { env: opts.env });
@@ -374,27 +427,42 @@ export async function deploySite(root: string, cfg: LoadedConfig, opts: { build:
   if (state.policy === "human" && (opts.as ?? "agent") !== "human")
     return refuse("`deploy.push` is `human` on this site", `A person deploys it: \`npx -y wrangler@${WRANGLER_VERSION} deploy\` from the site root after \`snypd build\`, or \`site\` › set_config \`deploy.push\` \`agent\` — the default for a new site — and this tool does.`);
 
+  if (opts.login && opts.temporary) return refuse("`login` and `temporary` ask for opposite things", "`login: true` puts the site on the person's own Cloudflare account; `temporary: true` on a throwaway one they can claim. Pick one.");
   const runner = findRunner(opts.env)!;
+  const now = opts.now ?? (() => new Date());
+  const last = readDeploy(root);
   let loggedIn: boolean | undefined;
+  let temporary = false;
   if (state.loggedIn === false) {
-    const login = await hostLogin(root, runner, { timeoutMs: opts.loginTimeoutMs });
-    if (!login.ok) return refuse(login.reason!, login.hint, { loggedIn: false });
-    loggedIn = true;
-  }
+    if (opts.login) {
+      const login = await hostLogin(root, runner, { timeoutMs: opts.loginTimeoutMs });
+      if (!login.ok) return refuse(login.reason!, login.hint, { loggedIn: false });
+      loggedIn = true;
+    } else {
+      const lapsed = last?.temporary && Date.parse(last.temporary.expiresAt) <= now().getTime();
+      if (lapsed && !opts.temporary)
+        return refuse(`the last deploy went to a temporary Cloudflare account, and its hour ended at ${last.temporary!.expiresAt.slice(11, 16)} UTC`,
+          `Ask the person whether they claimed it (${last.temporary!.claimUrl}). Claimed: \`site\` › deploy with \`login: true\` — they log in to that account once, and the site stays at ${last.url}. Not claimed: it is gone; \`site\` › deploy with \`temporary: true\` puts it up on a new temporary account, at a new URL.`);
+      temporary = true;
+    }
+  } else if (opts.temporary) return refuse("this machine is logged in to Cloudflare, so wrangler will not use a temporary account", `Call deploy without \`temporary\` and it goes to the account this machine is logged in to${state.account?.email ? ` (${state.account.email})` : ""}.`);
 
   const paths: string[] = [];
   let deploys = 0;
   const once = async (): Promise<HostDeploy | DeployResult> => {
     try { await opts.build(root); } catch (e) { return refuse(`the build failed: ${(e as Error).message}`, "Nothing was uploaded. `site` › build says more; `content.lint` usually says why."); }
     deploys++;
-    return await hostDeploy(root, runner, { timeoutMs: opts.deployTimeoutMs });
+    return await hostDeploy(root, runner, { timeoutMs: opts.deployTimeoutMs, temporary, now: now() });
   };
 
   let d = await once();
   if ("state" in d) return d;
   if (!d.ok) return refuse(d.reason!, d.hint, { loggedIn, deploys });
+  const first = d;
   let urlSet: string | undefined;
-  if (state.placeholderUrl && d.url) {
+  const sameUrl = (a: string, b: string) => a.replace(/\/+$/, "").toLowerCase() === b.replace(/\/+$/, "").toLowerCase();
+  const wasTemporary = !!last?.temporary && sameUrl(state.url, last.url);
+  if ((state.placeholderUrl || wasTemporary) && d.url && !sameUrl(d.url, state.url)) {
     const w = setConfig(root, "site.url", d.url);
     paths.push(...w.paths);
     urlSet = d.url;
@@ -405,8 +473,11 @@ export async function deploySite(root: string, cfg: LoadedConfig, opts: { build:
   }
   const size = distSize(join(root, "dist"));
   const done = at();
-  recordDeploy(root, { at: done, by: who, target: state.target!, url: d.url!, urls: d.urls, files: size.files, bytes: size.bytes, uploaded: d.uploaded, versionId: d.versionId, account: state.account, deploys });
-  return { ok: true, target: state.target, url: d.url, urls: d.urls, uploaded: d.uploaded, skipped: d.skipped, bytes: size.bytes, files: size.files, versionId: d.versionId, loggedIn, urlSet, paths, deploys, by: who, at: done, state };
+  // The account's clock starts when wrangler makes it; a second upload in the same call reuses it, so
+  // the first answer's deadline is the true one.
+  const tmp = temporary ? (first.temporary ?? d.temporary) : undefined;
+  recordDeploy(root, { at: done, by: who, target: state.target!, url: d.url!, urls: d.urls, files: size.files, bytes: size.bytes, uploaded: d.uploaded, versionId: d.versionId, account: state.account, deploys, temporary: tmp });
+  return { ok: true, target: state.target, url: d.url, urls: d.urls, uploaded: d.uploaded, skipped: d.skipped, bytes: size.bytes, files: size.files, versionId: d.versionId, loggedIn, temporary: tmp, urlSet, paths, deploys, by: who, at: done, state };
 }
 
 /** What the host now holds, counted on disk — wrangler says how many files went, not how big the site is. */

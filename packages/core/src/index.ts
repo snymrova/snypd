@@ -22,7 +22,7 @@ export { Repo, git, initRepo, isRepoRoot, principal, commitHint, builtBranch, DR
 export { writeDeploy, buildCommand, DEPLOY_TARGETS, HOST_CHOICES, DEFAULT_HOST, LAUNCHER, VERSION, type DeployTarget, type HostChoice } from "./deploy";
 // S19a: the push — the only outward-facing act in the product, and the one a person performs (decision 44).
 export { pushState, pushSite, pushHint, deployTarget, originName, PUSH_ROUTE, DRAFTS_PUSH_EXPOSES, type PushState, type PushResult, type PushCommit, type PushBlocker } from "./push";
-export { deployState, deploySite, deployMode, deployHint, parseDeploy, findRunner, whoami, hostLogin, hostDeploy, runTool, distSize, recordDeploy, readDeploy, deployPath, WRANGLER_VERSION, LOGIN_TIMEOUT_MS, DEPLOY_TIMEOUT_MS, type DeployState, type DeployResult, type DeployRecord, type HostDeploy, type HostAccount, type LoginResult, type Runner, type HostRun, type BuildFn } from "./host";
+export { deployState, deploySite, deployMode, deployHint, parseDeploy, parseTemporary, findRunner, whoami, hostLogin, hostDeploy, runTool, distSize, recordDeploy, readDeploy, deployPath, WRANGLER_VERSION, LOGIN_TIMEOUT_MS, DEPLOY_TIMEOUT_MS, type DeployState, type DeployResult, type DeployRecord, type TemporaryAccount, type HostDeploy, type HostAccount, type LoginResult, type Runner, type HostRun, type BuildFn } from "./host";
 // L5: the backup — `gh` creates the repository a direct-deployed site never needed until somebody wanted a copy.
 export { remoteState, createRemote, findGh, ghAuth, ghHint, repoNameFor, WORKFLOW_SCOPE, type RemoteState, type RemoteResult, type GhCli, type GhAccount } from "./remote";
 // P4: tier 4 — speak (docs/10 §4.2). A plugin's MCP tools and prompts: the contract, the loaders, and the call.

@@ -111,3 +111,39 @@ Alongside, not instead of: the theme factory proof sitting (needs Sunny, ~1 day)
 ## 8. What this document does not do
 
 It does not change the build, the renderer or the content model. It does not make snypd hold a token. It does not remove the placeholder URL; it moves where the placeholder is resolved from a question to a person into an answer from a host. It does not claim three actions; L4 measures them.
+
+---
+
+## 9. D1 — a temporary account by default, built 6 Oct 2026
+
+**What changed.** `site › deploy` on a machine with no Cloudflare credential no longer runs `wrangler login`. It runs `wrangler deploy --temporary`. Wrangler makes a preview account, the site is live at once, and the answer carries a claim link and a deadline an hour away. Claiming is free, and it is where the person signs up to Cloudflare. It comes *after* the URL, and only a person who wants to keep the site pays it. §3's "nobody gets a URL on somebody else's host anonymously" stopped being true when Cloudflare shipped temporary accounts. The click it justified is gone, so the front door is **two human actions** (`bench/onboard.md`: type · say).
+
+**What wrangler 4.135 does, read from its source** (`host.ts` header):
+- The account is cached per machine, in `wrangler-temporary-account.toml` in wrangler's own config dir. snypd never reads it, because it holds the account's token.
+- It is reused until it expires, so every deploy in the hour answers at one URL, and the first one after it answers at a new one.
+- With any credential present, `--temporary` is refused. `wrangler login` clears the cached account.
+- The flag is hidden from `--help`, which is one more reason the version is pinned.
+
+**The rule** (`deploySite`):
+
+| machine | deploy does |
+|---|---|
+| logged in | that account, as before |
+| not logged in | `--temporary` |
+| not logged in, `login: true` | `wrangler login` first (decision 230), then that account |
+| not logged in, last deploy temporary and its hour gone | refuses and names both calls: claimed → `login: true`; not claimed → `temporary: true`, a new account at a new URL |
+
+The last row is the one case only the person can answer. Deploying temporarily by default there would quietly fork a site they had claimed.
+
+**`site.url`** follows the host while it is the placeholder, **or** while it is the address of the temporary account the site was last on. A new temporary account, or a login to a real one, moves the site, and the feed moves with it. A URL a person set by hand is never touched.
+
+**What the agent sees.**
+- The answer's first line says "on a temporary account". The second is the deadline and the claim link, marked as the thing to relay.
+- `.snypd/deploy.json` keeps the account, the claim link and the deadline. Doctor reads the clock from it and never starts wrangler: "on a temporary Cloudflare account until …, unless a person claims it at …", or, once the hour is gone, both calls.
+- `get-started` step 4 tells the agent to relay the URL **and** the claim link and its time.
+
+**Proof.**
+- The stub learned `deploy --temporary`: created and reused, refused when logged in, a refusal to make one, and login clearing the cache.
+- host.test adds six cases: the default, reuse inside the hour, the lapsed refusal and `temporary: true` moving the site, claim then `login: true`, logged in, and Cloudflare refusing.
+- The MCP first run, the onboard walk (2 and 4 actions, measured) and the prompt are updated.
+- **A real deploy**: a fresh `snypd init` site, deployed with an empty wrangler config dir. It went to `https://d1-probe.meteor-earl.workers.dev` with two uploads and `site.url` set, and served 200 with its canonical on that origin. A second deploy reused the account: one upload, the same URL.

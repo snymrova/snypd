@@ -76,7 +76,7 @@ export const CATALOG: Tool[] = [
   { name: "site",
     description: "Change the site itself rather than a post: one config key, a menu, a redirect for a URL that moved, a health report, a build, or putting the site online — `deploy` uploads it through the host's own CLI and answers with the URL. Config writes are validated before they stick — a patch that would not load is rolled back and the diagnostics come back instead, so a wrong key cannot leave the site broken. Read snypd://config first: it is the merged result with provenance, so it already says where every value came from; snypd://nav is the menus.",
     inputSchema: S({
-      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `deploy` to put it online — builds, uploads through the host's CLI (Cloudflare, `wrangler`), and answers with the URL; on a machine the host has never seen it runs `wrangler login` first and a person clicks allow once · `push` to back the site up on GitHub and send the published branch — on a site with no remote it creates the repository first, private, through `gh` (or, with `preview`, it pushes the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "deploy", "push"] }),
+      action: str("`init` a new site here · `set_config` one key · `explain_config` where a value came from · `set_nav` a menu · `set_redirect` for a moved URL · `set_deploy` to add a host's config to a site that has none · `doctor` for a health report · `build` the site to dist/ · `deploy` to put it online — builds, uploads through the host's CLI (Cloudflare, `wrangler`), and answers with the URL; on a machine with no Cloudflare login it goes to a temporary account, no click, and answers with a link to claim it within the hour · `push` to back the site up on GitHub and send the published branch — on a site with no remote it creates the repository first, private, through `gh` (or, with `preview`, it pushes the drafts branch for a preview)", { enum: ["init", "set_config", "explain_config", "set_nav", "set_redirect", "set_deploy", "doctor", "build", "deploy", "push"] }),
       path: str("`set_config`/`explain_config`: a dotted path into the config, e.g. `site.name`, `theme.use`, `types.post.urlPattern`. Bracket a key that contains dots"),
       value: { description: "`set_config`: the new value — any JSON. `null` deletes the key and restores whatever it was overriding" },
       location: str("`set_nav`: which menu — a location the theme declares (`header`, `footer`; snypd://nav lists them)"),
@@ -89,6 +89,8 @@ export const CATALOG: Tool[] = [
       theme: str("`init`: the theme to start on. Default `editorial`"),
       public: { type: "boolean", description: "`push`: when this site has no remote and one is created, make the repository public. The default is private — a site's repository holds its drafts branch, which is every word nobody has approved" },
       preview: { type: "boolean", description: "`push`: send `snypd/drafts` instead of the site, so a host that builds branches serves a preview *with the drafts in it* (noindex, at its preview URL). This sends every unapproved word on the site to the remote — readable by anyone who can read the repository, and by anyone with the preview URL. Nothing is published by it. Read the result's first lines before relaying it as done" },
+      login: { type: "boolean", description: "`deploy`: put the site on the person's own Cloudflare account — `wrangler login` opens a tab and they click allow once. For after they claim a temporary site, or when they have an account and want it there from the start" },
+      temporary: { type: "boolean", description: "`deploy`: a new temporary account when the last one's hour has passed unclaimed — the site moves to a new URL. Only when the person says they did not claim it" },
       deploy: str("`init`/`set_deploy`: the host's half — a build command and `dist/` as the output dir, plus a PR workflow. On `init` the default is `cloudflare` (docs/31 decision 229); `none` is for a site served by something that needs no config of ours. Required on `set_deploy`. snypd holds no credential either way", { enum: ["cloudflare", "vercel", "none"] }),
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
@@ -524,9 +526,10 @@ export async function call(root: string, name: string, args: Record<string, unkn
          * **`deploy` uploads** (docs/31 §4, decisions 228–230): the walk's step 9. Build, `wrangler deploy`
          * from the site root through the host's own CLI, read the URL back — and on a first deploy set
          * `site.url` from what the host said, build again and upload again, so nothing the host serves
-         * points at `localhost`. On a machine Cloudflare has never seen it runs `wrangler login` first,
-         * which opens a tab; the person clicks *allow* and this call continues. That wait is the one
-         * human action inside the tool, and the result's first line says whether it happened.
+         * points at `localhost`. On a machine Cloudflare has never seen it goes to a **temporary**
+         * account (D1): no tab, no click, and the answer leads with the hour the site has and the link
+         * that keeps it — the one thing in it an agent must relay. `login: true` runs `wrangler login`
+         * first instead, and the person clicks *allow*.
          *
          * `deploy.push: human` refuses here exactly as it refuses `push` (229). A site with a remote and
          * no `deploy.mode` is a git-connected site and is sent to `push` instead — snypd.rocks and every
@@ -535,17 +538,20 @@ export async function call(root: string, name: string, args: Record<string, unkn
         if (action === "deploy") {
           const cfgDeploy = cfgOf();
           const { build } = await import("@snypd/render");
-          const r = await c.deploySite(root, cfgDeploy, { as: "agent", build: async (rt) => { await build(rt); } });
+          const r = await c.deploySite(root, cfgDeploy, { as: "agent", login: args.login === true, temporary: args.temporary === true, build: async (rt) => { await build(rt); } });
           const kb = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${(n / 1024).toFixed(0)} KB`;
-          const structured = { ok: r.ok, deployed: r.ok, target: r.target, url: r.url, urls: r.urls, uploaded: r.uploaded, skipped: r.skipped, files: r.files, bytes: r.bytes, versionId: r.versionId, loggedIn: r.loggedIn, urlSet: r.urlSet, deploys: r.deploys, mode: r.state.mode, policy: r.state.policy, blockers: r.state.blockers, by: r.by, at: r.at };
+          const structured = { ok: r.ok, deployed: r.ok, target: r.target, url: r.url, urls: r.urls, uploaded: r.uploaded, skipped: r.skipped, files: r.files, bytes: r.bytes, versionId: r.versionId, loggedIn: r.loggedIn, temporary: r.temporary, urlSet: r.urlSet, deploys: r.deploys, mode: r.state.mode, policy: r.state.policy, blockers: r.state.blockers, by: r.by, at: r.at };
           if (!r.ok) return { ...fail(`not deployed: ${r.reason}`, r.hint), structuredContent: { ...structured, error: r.reason, hint: r.hint } };
           const git = r.paths.length ? await commit(r.paths, `site: url ${r.urlSet} — from ${r.target}`) : "";
+          const t = r.temporary;
+          const left = t ? Math.max(0, Math.round((Date.parse(t.expiresAt) - Date.now()) / 60_000)) : 0;
           return text([
-            `${r.url} is live — ${r.files} file${r.files === 1 ? "" : "s"}, ${kb(r.bytes ?? 0)}, on ${r.target}${r.uploaded !== undefined ? ` (${r.uploaded} uploaded${r.skipped ? `, ${r.skipped} the host already had` : ""})` : ""}.`,
+            `${r.url} is live — ${r.files} file${r.files === 1 ? "" : "s"}, ${kb(r.bytes ?? 0)}, on ${r.target}${t ? ", on a temporary account" : ""}${r.uploaded !== undefined ? ` (${r.uploaded} uploaded${r.skipped ? `, ${r.skipped} the host already had` : ""})` : ""}.`,
+            ...(t ? [`**Tell the person this, with the link:** the site is up for ${left} more minute${left === 1 ? "" : "s"} (until ${t.expiresAt.slice(11, 16)} UTC) and then deleted, unless they claim it at ${t.claimUrl} — free, and it is where they sign up to Cloudflare if they have not. Deploys before then go to the same account and URL. Once claimed, \`site\` › deploy with \`login: true\` once, and every deploy after goes to their account.`] : []),
             ...(r.loggedIn ? [`Cloudflare had not seen this machine: \`wrangler login\` ran and a person allowed it. It will not ask again here.`] : []),
             ...(r.urlSet ? [`site.url was the placeholder; it is now ${r.urlSet}, read back from the host — the site was built and uploaded a second time against it, so its feed, sitemap and JSON-LD say the right origin. ${git}`] : []),
             ...(r.urls && r.urls.length > 1 ? [`Also answers at ${r.urls.filter((u) => u !== r.url).join(", ")}.`] : []),
-            `Every deploy from now on is one call and no clicks. This machine is the only copy of the words — \`site\` › push backs it up: it creates a private repository through \`gh\` and sends the published branch, drafts stay here.`,
+            `${t ? "Every deploy in that hour" : "Every deploy from now on"} is one call and no clicks. This machine is the only copy of the words — \`site\` › push backs it up: it creates a private repository through \`gh\` and sends the published branch, drafts stay here.`,
           ].join("\n"), structured);
         }
         /**
@@ -1118,8 +1124,14 @@ async function doctor(root: string): Promise<ToolResult> {
       const runner = c.findRunner();
       if (runner) ok(`host: ${dep.target}, deployed from here through wrangler ${dep.wrangler} via \`${runner.kind}\`${dep.policy === "human" ? " — `deploy.push` is `human`, so `site` › deploy reports and a person uploads" : ""}`);
       else warn(`host: ${dep.target}, but neither \`npx\` nor \`bunx\` is on this machine, so wrangler cannot run — install Node (https://nodejs.org) or Bun (https://bun.sh); snypd does not bundle the host's CLI`);
-      if (last) ok(`last deploy ${when(last.at)} by ${last.by}: ${last.url} — ${last.files} file${last.files === 1 ? "" : "s"}${last.deploys > 1 ? `, ${last.deploys} uploads` : ""}${last.account?.email ? `; logged in as ${last.account.email} then` : ""}`);
-      else warn("no deploy on record here — `site` › deploy puts it online: one call, and on a machine the host has never seen a person clicks allow once");
+      if (last) ok(`last deploy ${when(last.at)} by ${last.by}: ${last.url} — ${last.files} file${last.files === 1 ? "" : "s"}${last.deploys > 1 ? `, ${last.deploys} uploads` : ""}${last.account?.email ? `; logged in as ${last.account.email} then` : ""}${last.temporary ? "; on a temporary account" : ""}`);
+      else warn("no deploy on record here — `site` › deploy puts it online: one call, and on a machine with no Cloudflare login it goes to a temporary account, no click");
+      // D1: a temporary account is a clock. Doctor reads it from the record, not from wrangler.
+      if (last?.temporary) {
+        const t = last.temporary;
+        if (Date.parse(t.expiresAt) > Date.now()) warn(`the site is on a temporary Cloudflare account until ${when(t.expiresAt)} UTC, then deleted — unless a person claims it at ${t.claimUrl}; after that, \`site\` › deploy with \`login: true\` once`);
+        else warn(`the temporary account's hour ended ${when(t.expiresAt)} UTC — claimed, the site is on the person's account and \`site\` › deploy with \`login: true\` reaches it; not claimed, it is gone and \`site\` › deploy with \`temporary: true\` puts it up at a new URL`);
+      }
       // The backup row (L5). A direct-deployed site is live with no repository anywhere but this disk,
       // and that is a fact worth saying once a deploy has happened — not before, when "no remote" is
       // simply what a site being written looks like.

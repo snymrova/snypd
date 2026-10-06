@@ -1279,11 +1279,14 @@ describe("the first run, from the agent's side", () => {
     // needs one (decision 63) and asking for a production domain before the first pixel is the defect.
     expect(s).toContain("Do **not** ask for the URL");
     // L3 (docs/31 §4): the prompt ends online, not at a review URL — `site` › deploy is a numbered step
-    // on the majority branch, the pause for the *allow* click is explained before it happens, and the
-    // agent is told there is nothing to ask for that the call does not get for itself.
+    // on the majority branch, D1's temporary account is explained before it happens — no click, and a
+    // claim link the agent must relay with its deadline — and the agent is told there is nothing to ask
+    // for that the call does not get for itself.
     expect(s).toContain("4. **Put it online.**");
     expect(s).toContain("`site` › deploy, one call");
-    expect(s).toContain("click *allow*");
+    expect(s).toContain("temporary account — no tab, no click");
+    expect(s).toContain("the URL **and** the claim link");
+    expect(s).not.toContain("click *allow*");
     expect(s).toContain("Do not ask me for a URL, a repository or an account");
     expect(s).not.toContain("step 4's to report");
   });
@@ -1491,8 +1494,9 @@ describe("the first run, from the agent's side", () => {
   /**
    * The walk's step 9 through the tool (docs/31 §3), against the stub wrangler: nobody is logged in,
    * the site has the placeholder, one call — and the answer is a URL, with `site.url` set and committed.
+   * Since D1 nobody logged in means a temporary account: no login, and the claim link leads the answer.
    */
-  test("site › deploy: login, build, upload, URL back, site.url set and committed, second upload against it", async () => {
+  test("site › deploy: a temporary account, build, upload, URL back, site.url set and committed, second upload against it", async () => {
     const state = resolve("corpora/_test/mcp-first-run-stub");
     rmSync(state, { recursive: true, force: true });
     const env = { SNYPD_WRANGLER: resolve("packages/core/src/wrangler.stub.sh"), STUB_STATE: state };
@@ -1504,27 +1508,35 @@ describe("the first run, from the agent's side", () => {
         req(3, "resources/read", { uri: "snypd://config" }),
       ], site);
       expect(deployed.result.isError).toBeUndefined();
-      const s = structured(deployed) as { ok: boolean; url: string; deploys: number; urlSet: string; loggedIn: boolean; files: number };
-      expect(s).toMatchObject({ ok: true, url: "https://mcp-first-run.stub.workers.dev", deploys: 2, urlSet: "https://mcp-first-run.stub.workers.dev", loggedIn: true });
+      const HOST = "https://mcp-first-run.quiet-otter-1.workers.dev";
+      const s = structured(deployed) as { ok: boolean; url: string; deploys: number; urlSet: string; loggedIn?: boolean; files: number; temporary: { claimUrl: string; expiresAt: string } };
+      expect(s).toMatchObject({ ok: true, url: HOST, deploys: 2, urlSet: HOST });
+      expect(s.loggedIn).toBeUndefined();                                    // no tab, no click
+      expect(s.temporary.claimUrl).toBe("https://dash.cloudflare.com/claim-preview?claimToken=quiet-otter-1");
       expect(s.files).toBeGreaterThan(0);
       const text = deployed.result.content[0].text as string;
-      expect(text.startsWith("https://mcp-first-run.stub.workers.dev is live")).toBe(true);
+      expect(text.startsWith(`${HOST} is live`)).toBe(true);
+      expect(text.split("\n")[0]).toContain("on a temporary account");
+      expect(text.split("\n")[1]).toContain(s.temporary.claimUrl);           // the one thing the agent must relay, second line
+      expect(text).toContain("login: true");
       expect(text).toContain("committed");                                   // the URL change landed
-      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toEqual(["whoami --json", "login", "deploy", "deploy"]);
-      expect(cfg.result.contents[0].text).toContain("https://mcp-first-run.stub.workers.dev");
+      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toEqual(["whoami --json", "deploy --temporary", "deploy --temporary"]);
+      expect(cfg.result.contents[0].text).toContain(HOST);
       // L3: doctor now answers the four host questions from the record the deploy left, and nothing it
       // says here started wrangler — the stub's call log above is the whole of what ran.
       const [, doc] = await session([req(1, "initialize"), call(2, "site", { action: "doctor" })], site);
       const d = doc.result.content[0].text as string;
       expect(d).toContain("last deploy ");
-      expect(d).toContain("https://mcp-first-run.stub.workers.dev — ");
+      expect(d).toContain(`${HOST} — `);
       expect(d).toContain("2 uploads");
-      expect(d).toContain("site.url is the host's — https://mcp-first-run.stub.workers.dev");
+      expect(d).toContain(`site.url is the host's — ${HOST}`);
+      expect(d).toContain("on a temporary Cloudflare account until");       // D1: the clock, from the record
+      expect(d).toContain(s.temporary.claimUrl);
       expect(d).not.toContain("placeholder");
-      expect(structured(doc).facts.lastDeploy).toMatchObject({ urlIsHosts: true, url: "https://mcp-first-run.stub.workers.dev", deploys: 2 });
-      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toHaveLength(4);
+      expect(structured(doc).facts.lastDeploy).toMatchObject({ urlIsHosts: true, url: HOST, deploys: 2 });
+      expect(readFileSync(`${state}/calls`, "utf8").trim().split("\n")).toHaveLength(3);
       // The site the host holds was built against the host's URL, not localhost.
-      expect(readFileSync(`${site}/dist/index.html`, "utf8")).toContain("https://mcp-first-run.stub.workers.dev");
+      expect(readFileSync(`${site}/dist/index.html`, "utf8")).toContain(HOST);
       expect(readFileSync(`${site}/dist/index.html`, "utf8")).not.toContain("localhost:4321");
     } finally {
       for (const k of Object.keys(env)) delete process.env[k];

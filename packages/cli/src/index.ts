@@ -381,7 +381,7 @@ switch (verb) {
         // default — the agent can take the post all the way to a URL, so the sentence says so; a site
         // that will be served by something else stops at the post.
         "", r.deploy === "cloudflare" ? "    Write me a first post and put it online." : "    Write me a first post.", "",
-        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary, write the post${r.deploy === "cloudflare" ? ", and put it online (the host asks you to click allow once, in a tab it opens)" : ""}.`,
+        `If a harness is already open here, restart it so the snypd tools load. Nothing needs to be carried across: the next session's \`initialize\` names the \`get-started\` prompt, and everything else is on disk — it will read the site, learn the vocabulary, write the post${r.deploy === "cloudflare" ? ", and put it online (with no Cloudflare login on this machine it goes up on a temporary account, and you get a link to claim it within the hour)" : ""}.`,
         "", `    ${there}`);
       console.log(wrap(out.join("\n")));
     } catch (e) {

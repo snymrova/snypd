@@ -83,9 +83,18 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * needing a restart (178). The two that left are named in the case below, and the one that arrived,
    * `allow-host`, is the irreducible one.
    */
-  test("three human actions on the front door: type the line, say the sentence, click allow", () => {
+  /**
+   * **Two, since D1** (6 Oct 2026). The click left: a machine with no Cloudflare credential deploys to a
+   * temporary account, and the person is handed a link to claim it within the hour instead of a tab to
+   * allow before anything is live. "Nobody gets a URL on somebody else's host anonymously" stopped being
+   * true when Cloudflare shipped `wrangler deploy --temporary`; the host still sees the person once, at
+   * the claim, but only a person who wants to keep the site pays it, and they pay it *after* the URL.
+   * Measured again: the walk counts `allow-host` only when the deploy says login ran, and it did not.
+   */
+  test("two human actions on the front door: type the line, say the sentence — and a claim link, not a click", () => {
     expect(walk.door).toBe("front");
-    expect(walk.actions.map((a) => a.kind)).toEqual(["type", "say", "allow-host"]);
+    expect(walk.actions.map((a) => a.kind)).toEqual(["type", "say"]);
+    expect(walk.claimUrl).toMatch(/^https:\/\/dash\.cloudflare\.com\/claim-preview\?claimToken=/);
     expect(walk.actions.length).toBeLessThanOrEqual(HANDOFF_BUDGET);   // F1's budget, and not moved to meet it
     expect(walk.actions.map((a) => a.kind)).not.toContain("answer-url");   // the product stopped asking (L2)
     // Both halves of the typed line are the product's, and both are read off what it printed rather than
@@ -101,10 +110,10 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * both directions, for the reason the count has always been pinned: the two doors differ by exactly
    * two actions, and if that ever becomes one or three it is because the product moved.
    */
-  test("the second door is five, and the two extra are the name question and the restart", () => {
-    expect(relay.actions).toHaveLength(5);
-    expect(relay.actions.map((a) => a.kind)).toEqual(["paste", "answer", "approve-shell", "restart", "allow-host"]);
-    expect(relay.actions).toHaveLength(HANDOFF_BUDGET);   // the older door still lands exactly on the budget
+  test("the second door is four, and the extra are the paste, the name question, the shell approval and the restart", () => {
+    expect(relay.actions).toHaveLength(4);
+    expect(relay.actions.map((a) => a.kind)).toEqual(["paste", "answer", "approve-shell", "restart"]);
+    expect(relay.actions.length).toBeLessThanOrEqual(HANDOFF_BUDGET);
     const extra = relay.actions.map((a) => a.kind).filter((k) => !walk.actions.some((a) => a.kind === k));
     expect(extra).toEqual(["paste", "answer", "approve-shell", "restart"]);
   });
@@ -137,7 +146,7 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
     const irreducible = relay.actions.filter((a) => a.irreducible).map((a) => a.kind);
     expect(irreducible).toContain("approve-shell");
     expect(irreducible).toContain("restart");
-    expect(irreducible).toContain("allow-host");             // the host must see the person once (docs/31 §3)
+    expect(irreducible).not.toContain("allow-host");         // D1: the host sees the person at the claim, after the URL, if they keep it
     // And the one that left is gone from the walk rather than quietly reclassified as optional.
     expect(relay.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
@@ -148,10 +157,10 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * that makes removing an irreducible action expensive is about the *product* removing it, which is
    * why the relay walk above still pays both and the case above still pins them.
    */
-  test("the front door's one irreducible action is the host's, and it is the last thing a person does", () => {
+  test("the front door pays no irreducible action since D1: the last thing a person does is say the sentence", () => {
     const irreducible = walk.actions.filter((a) => a.irreducible).map((a) => a.kind);
-    expect(irreducible).toEqual(["allow-host"]);
-    expect(walk.actions.at(-1)!.kind).toBe("allow-host");
+    expect(irreducible).toEqual([]);
+    expect(walk.actions.at(-1)!.kind).toBe("say");
     expect(walk.actions.map((a) => a.kind)).not.toContain("approve-post");
   });
 
@@ -164,11 +173,11 @@ describe("F1 — the handoff (docs/08 §2, decision 65)", () => {
    * to being measured, and the distinction is kept rather than blurred.
    */
   test("every action a product can prove was proved by the product refusing", () => {
-    expect(walk.actions.filter((a) => a.proof !== "structural").map((a) => a.kind)).toEqual(["allow-host"]);
-    expect(relay.actions.filter((a) => a.proof !== "structural").map((a) => a.kind)).toEqual(["restart", "allow-host"]);
-    // One observed wait now, and it is the host's: `deploy` reported that login ran. `publishCheck` no
-    // longer refuses for the URL (L2); it still refuses for an approval on a site that asks (S19c).
-    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual(["allow-host"]);
+    expect(walk.actions.filter((a) => a.proof !== "structural").map((a) => a.kind)).toEqual([]);
+    expect(relay.actions.filter((a) => a.proof !== "structural").map((a) => a.kind)).toEqual(["restart"]);
+    // No observed wait on the front door since D1: `deploy` reported no login. `publishCheck` no longer
+    // refuses for the URL (L2); it still refuses for an approval on a site that asks (S19c).
+    expect(walk.actions.filter((a) => a.proof === "refused").map((a) => a.kind)).toEqual([]);
   });
 
   /**
@@ -282,12 +291,14 @@ describe("F3 — the seven states, each naming its own next action", () => {
 
   /**
    * State 6: live. `site` › deploy, docs/31 §3 step 9 — the URL came from the host, `site.url` was the
-   * placeholder so the site was built and uploaded twice, and the person's part was one click.
+   * placeholder so the site was built and uploaded twice, and the person's part was nothing (D1): a
+   * temporary account, and a claim link to keep it.
    */
   test("6 · live → `site` › deploy ends at the host's URL, two uploads the first time", () => {
-    expect(walk.url).toMatch(/^https:\/\/[a-z0-9-]+\.stub\.workers\.dev$/);
+    expect(walk.url).toMatch(/^https:\/\/[a-z0-9-]+\.quiet-otter-1\.workers\.dev$/);
     expect(walk.deploys).toBe(2);
-    expect(walk.actions.map((a) => a.kind)).toContain("allow-host");
+    expect(walk.claimUrl).toBeDefined();
+    expect(walk.actions.map((a) => a.kind)).not.toContain("allow-host");
   });
 });
 

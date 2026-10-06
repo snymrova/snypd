@@ -9,6 +9,12 @@
 # records every invocation, one argv per line. `STUB_DEPLOY` picks the deploy's outcome:
 #   ok (default) · nosub (a fresh account with no workers.dev subdomain, non-interactive) · notauth
 # `STUB_LOGIN=hang` makes login wait for a click that never comes, for the timeout path.
+#
+# `deploy --temporary` (D1) is wrangler's preview account: refused when logged in, else the terms
+# notice and the `Temporary account ready:` block, then the upload. `temp` holds the cached account's
+# subdomain — reused while it exists, as wrangler reuses it inside the hour; delete it and the next one
+# is a new account (`made` counts them) at a new URL, as after the hour. Login clears it, as wrangler's
+# does. `STUB_TEMP=fail` is Cloudflare refusing to make one.
 set -e
 : "${STUB_STATE:?STUB_STATE must name a directory}"
 mkdir -p "$STUB_STATE"
@@ -26,11 +32,26 @@ case "$1" in
     echo "Opening a link in your default browser: https://dash.cloudflare.com/oauth2/auth?stub=1"
     if [ "${STUB_LOGIN:-}" = hang ]; then sleep 30; exit 1; fi
     : > "$STUB_STATE/loggedin"
+    rm -f "$STUB_STATE/temp"
     echo "Successfully logged in." ;;
   deploy)
     echo " ⛅️ wrangler 4.135.0"
     echo "───────────────────"
-    if [ ! -f "$STUB_STATE/loggedin" ] || [ "${STUB_DEPLOY:-ok}" = notauth ]; then
+    sub=stub
+    if [ "${2:-}" = --temporary ]; then
+      if [ -f "$STUB_STATE/loggedin" ]; then
+        echo "✘ [ERROR] You're already authenticated with Cloudflare, so \`--temporary\` can't be used. Temporary preview accounts are only for unauthenticated use. Either remove \`--temporary\` to use your existing account, or log out (and unset CLOUDFLARE_API_TOKEN) first." >&2; exit 1
+      fi
+      if [ -f "$STUB_STATE/temp" ]; then sub=$(cat "$STUB_STATE/temp"); how=reused
+      else
+        echo "Continuing means you accept Cloudflare's Terms of Service (https://www.cloudflare.com/terms/) and Privacy Policy (https://www.cloudflare.com/privacypolicy/)."
+        echo "Solving proof-of-work challenge…"
+        if [ "${STUB_TEMP:-}" = fail ]; then echo "✘ [ERROR] Failed to create a temporary preview account (503 Service Unavailable)." >&2; exit 1; fi
+        echo x >> "$STUB_STATE/made"; sub="quiet-otter-$(wc -l < "$STUB_STATE/made" | tr -d ' ')"; printf '%s' "$sub" > "$STUB_STATE/temp"; how=created
+      fi
+      echo "Temporary account ready:"
+      printf '\tAccount: Quiet Otter (%s)\n\tClaim within: 60 minutes\n\tClaim URL: https://dash.cloudflare.com/claim-preview?claimToken=%s\n' "$how" "$sub"
+    elif [ ! -f "$STUB_STATE/loggedin" ] || [ "${STUB_DEPLOY:-ok}" = notauth ]; then
       echo "✘ [ERROR] You are not authenticated. Please run \`wrangler login\`." >&2; exit 1
     fi
     [ -d dist ] || { echo "✘ [ERROR] The directory specified by the \"assets.directory\" field in your configuration file does not exist: ./dist" >&2; exit 1; }
@@ -49,7 +70,7 @@ case "$1" in
     echo "Total Upload: 0.23 KiB / gzip: 0.17 KiB"
     echo "Uploaded $name (1.10 sec)"
     echo "Deployed $name triggers (0.31 sec)"
-    echo "  https://$name.stub.workers.dev"
+    echo "  https://$name.$sub.workers.dev"
     echo "Current Version ID: 00000000-0000-4000-8000-000000000001" ;;
   *) echo "stub: unknown command $1" >&2; exit 2 ;;
 esac
