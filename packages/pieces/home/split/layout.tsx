@@ -21,7 +21,8 @@ export default function Home({ ctx, page, lists = [], route, title, description,
   const label = settingText(ctx, "heroLabel"), href = settingText(ctx, "heroHref");
   const order = menu(ctx, "header", route).map((i) => i.href.replace(/\/$/, ""));
   const rank = (r: string) => { const i = order.indexOf(r); return i < 0 ? order.length : i; };
-  const bandsOfLists = [...lists].sort((a, b) => rank(a.route) - rank(b.route));
+  // A list with nothing in it is not a band: "Nothing published yet" is an archive's line, not a front page's.
+  const bandsOfLists = lists.filter((l) => l.entries.length > 0).sort((a, b) => rank(a.route) - rank(b.route));
   const closing = sections.length > 1 ? sections[sections.length - 1] : undefined;
   const body = closing ? sections.slice(0, -1) : sections;
   const band = (s: typeof sections[number], close = false) => (

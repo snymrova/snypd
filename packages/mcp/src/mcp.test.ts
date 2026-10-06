@@ -1727,9 +1727,39 @@ describe("theme › look", () => {
       const sets = (await s.handle(call(8, "theme", { action: "look", board: "wall", sets: 3 }))) as any;
       expect(sets.result.structuredContent).toMatchObject({ variants: ["marquee", "row"], sets: ["light-serif", "dark-sans", "loud-accent"] });
       expect(sets.result.structuredContent.cells).toHaveLength(6);
+      // `name` swaps the pieces into that theme: the cells extend it, not the live one (W5 found them on the live one).
+      const other = (await s.handle(call(9, "theme", { action: "look", board: "wall", name: "technical" }))) as any;
+      expect(other.result.structuredContent.theme).toBe("technical");
       expect(readFileSync(join(site, "snypd.yaml"), "utf8")).toBe(live);
       expect(readdirSync(site).filter((f) => f.startsWith("dist-board-"))).toEqual([]);
       expect(readdirSync(join(site, ".snypd", "look")).filter((f) => f.startsWith("board-") && !f.endsWith(".webp"))).toEqual([]);   // the scratch themes are gone
+    } finally { await s.close(); }
+  }, 120_000);
+
+  test("W5: `tour` is the whole theme — three routes at 1280 and 390 in one sheet, facts first, the sheet and each crop as links that read back", async () => {
+    const eyes = await import("@snypd/bench/look");
+    const s = createServer(site);
+    try {
+      const clash = (await s.handle(call(1, "theme", { action: "look", tour: true, route: "/posts/" }))) as any;
+      expect(clash.result.isError).toBe(true);
+      expect(clash.result.content[0].text).toContain("a tour takes no route");
+      if (!eyes.eyesBrowser()) return;
+      const live = readFileSync(join(site, "snypd.yaml"), "utf8");
+      const r = (await s.handle(call(2, "theme", { action: "look", tour: true, name: "technical" }))) as any;
+      expect(r.result.isError).toBeUndefined();
+      expect(r.result.content.map((c: any) => c.type)).toEqual(["text", "image", ...Array(7).fill("resource_link")]);
+      const t = r.result.content[0].text as string;
+      expect(t).toMatch(/^tour · technical · 3 routes × 1280 \+ 390 · light/);
+      expect(t).toMatch(/gates: check theme technical — \d+ pass/);
+      expect(t).toContain("pairs:");
+      expect(r.result.structuredContent.routes.map((x: any) => x.route)).toEqual(["/", "/posts/", "/posts/long-read/"]);
+      expect(r.result.structuredContent.stops.map((x: any) => `${x.kind} ${x.width}`)).toEqual(["front 1280", "front 390", "list 1280", "list 390", "feature 1280", "feature 390"]);
+      for (const link of r.result.content.slice(2)) {
+        const pic = (await s.handle({ jsonrpc: "2.0", id: 3, method: "resources/read", params: { uri: link.uri } })) as any;
+        expect(Buffer.from(pic.result.contents[0].blob, "base64").subarray(8, 12).toString()).toBe("WEBP");
+      }
+      expect(readFileSync(join(site, "snypd.yaml"), "utf8")).toBe(live);
+      expect(readdirSync(site).filter((f) => f.startsWith("dist-tour-"))).toEqual([]);
     } finally { await s.close(); }
   }, 120_000);
 

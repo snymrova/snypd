@@ -296,9 +296,9 @@ export function handlers(root: string): Handlers {
     async readResource(uri) {
       const text = (mimeType: string, text: string) => [{ uri, mimeType, text }];
       // The one binary resource (E1): a picture from `.snypd/look/`, by the id and name the look linked.
-      const lookM = /^snypd:\/\/look\/(?:([0-9a-f]{8})\/(crop|full|before)|(board-[a-z-]+-[0-9a-f]{8}))\.webp$/.exec(uri);
+      const lookM = /^snypd:\/\/look\/(?:([0-9a-f]{8})\/(crop|full|before)|(board-[a-z-]+-[0-9a-f]{8}|tour-[0-9a-f]{8}))\.webp$/.exec(uri);
       if (lookM) {
-        // `board-<slot>-<id>.webp` (W2) sits beside the looks' directories: a sheet is not one look's picture.
+        // `board-<slot>-<id>.webp` (W2) and `tour-<id>.webp` (W5) sit beside the looks' directories: a sheet is not one look's picture.
         const file = lookM[3] ? join(root, ".snypd", "look", `${lookM[3]}.webp`) : join(root, ".snypd", "look", lookM[1]!, `${lookM[2]}.webp`);
         if (!existsSync(file)) throw new RpcError(E.RESOURCE_NOT_FOUND, `Resource not found: ${uri} (the last two dozen looks are kept; look again)`);
         return [{ uri, mimeType: "image/webp", blob: readFileSync(file).toString("base64") }];

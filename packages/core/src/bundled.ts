@@ -629,7 +629,7 @@ export const BUNDLED_PIECES: Readonly<Record<string, BundledTheme>> = {
     },
   },
   "home/split": {
-    hash: "e58ede8a52722c0ac8056f019c532701cbc68865",
+    hash: "92c2e4705c232da25ed831dc9e2295b53945cb38",
     files: {
       "piece.css": _piece_home_split_piece_css,
       "piece.yaml": _piece_home_split_piece_yaml,

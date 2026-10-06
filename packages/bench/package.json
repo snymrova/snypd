@@ -8,7 +8,8 @@
     "./look": "./src/look.ts",
     "./cdp": "./src/cdp.ts",
     "./eyes": "./src/eyes.ts",
-    "./board": "./src/board.ts"
+    "./board": "./src/board.ts",
+    "./tour": "./src/tour.ts"
   },
   "license": "MIT",
   "dependencies": {

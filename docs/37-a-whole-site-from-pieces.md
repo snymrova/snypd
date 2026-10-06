@@ -452,3 +452,37 @@ Its wrap and overflow are `!important` in base's layer, as the phone menu's layo
 **Proof.** `SETS=5 shots/mobile/sweep.sh five`: every slot's board at 390 on all five token sets, on the specimen and on Ferrule (22 boards). The first run had 336 of 350 cells clean. The 14 failures were Ferrule's name on the pathological set at 43 px wide, so the name is now held as wide as tall too. The rerun has **350 of 350 clean**. Twenty-three pieces' 390 stills were reshot, and now show the floor and the strips. Typecheck clean. **716 pass / 0 fail.**
 
 **Left in W5.** `look { tour }`; `look { board: "kits" }`; kit stills; `build-theme` rewritten around kits; then the trial on a fresh agent (§8). The gallery strip that docs/39 proposes stands on this pass's scroller.
+
+---
+
+## 19. `look { tour }`, built 5 Oct 2026
+
+**`theme › look { tour: true, name?, variation?, scheme? }`** (`@snypd/bench/tour`, step 4 of §6) shows the theme a visitor meets: three routes, each at 1280 and 390, as one picture. Each crop is the first screen. The theme is always built out of band (`buildAndServe`), the live one too, so the routes are picked from the build itself. It takes no `route`, `slot`, `width`, `state` or `board` and refuses them by name; a plain look is the call for one page or one slot. `snypd pieces tour [root] [--theme] [--scheme] [--out]` is the same call from a shell.
+
+**The three routes** (`tourRoutes`, pure over the content and the build, so it is tested without a browser):
+- **front**: `/`.
+- **list**: the archive of the type with the most entries. On a blog whose front page *is* the archive, it is the term page with the most entries on it.
+- **feature**: the entry with the most to draw, scored as its type's fields set per entry plus its own kilobytes. Neither half works alone. Fields alone pick the specimen's changelog (five fields, a paragraph each) over its 13 kB long read. Length alone picks Ferrule's about page over its case studies. The sum picks `/posts/long-read/` and `/work/kiln-to-table/`.
+
+A kind the site lacks is said (`ℹ no list — …`), never guessed.
+
+**Facts first, about each whole page.** The text comes first:
+- the **gates**: `check theme`, asked while the theme builds;
+- the **pairs**: the load's `theme.pieces` warnings;
+- every page's detectors and taste rules, **below the fold included**. The picture is the first screen, but the findings are about the whole page.
+
+Then come the sheet and the links: one row per route, the laptop's screen beside the phone's, both drawn to one height. The sheet is 909×1568, about 1.9k image tokens, linked as `snypd://look/tour-<id>.webp`, and each crop is linked too. Specimen 4.9 s, Ferrule 6.8 s.
+
+**A bug it found in the board.** Under a `theme` override, `loadConfig` leaves `config.theme.use` on the site's theme. So `look { board, name }` had been building its cells as children of the *live* theme, with the named theme's current pieces. The board and the tour now take the named theme as the parent. The MCP board test covers it, and fails without the fix.
+
+**What the first tours found** that the mobile pass's slot boards did not:
+- the front page's `h2#snypd-latest > a` at 36 px on a phone, on editorial ("Latest posts") and studio ("Work");
+- Ferrule's FAQ summaries (`details.snypd-faq-item > summary`) at 30 px;
+- the long read's table 88 px past a 390 viewport on editorial;
+- `taste.eyebrow` on Ferrule's case-study kicker.
+
+None of these are fixed here.
+
+**Tests:** tour (the specimen, Ferrule and a blog whose front page is the archive; a route missing from the build is never picked); mcp (`tour` with `route` is refused by name; a tour of a theme that is not live answers with gates, pairs, three routes, six stops, and a sheet and six crops that read back; the site is untouched and no `dist-tour-*` is left; a board on a named theme extends that theme). **730 pass / 0 fail**, typecheck clean.
+
+**Left in W5.** `look { board: "kits" }`; kit stills; `build-theme` rewritten around kits; then the trial (§8).

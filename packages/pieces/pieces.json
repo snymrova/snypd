@@ -2771,7 +2771,7 @@
       "draft": false,
       "slot": "home",
       "name": "split",
-      "kb": 4.28,
+      "kb": 4.34,
       "switchKb": {},
       "files": [
         "layout.tsx",

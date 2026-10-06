@@ -578,11 +578,12 @@ switch (verb) {
    * `snypd pieces stills|board` (W2, docs/37 §5): the shelf seen. `stills` photographs every piece (or the
    * ones named, or `--stale`) on the specimen and writes `still-1280.webp` + `still-390.webp` beside each
    * `piece.yaml`; `board <slot>` is every variant of one slot on this site's content in one picture, on the
-   * theme's own tokens or on `--sets=3|5` of board.yaml's.
+   * theme's own tokens or on `--sets=3|5` of board.yaml's. `tour` (W5) is the whole theme: front page, a
+   * list and a feature page at 1280 and 390, one picture.
    */
   case "pieces": {
     const opt = (n: string) => [...flags].find((f) => f.startsWith(`--${n}=`))?.slice(n.length + 3);
-    const USAGE = "usage: snypd pieces stills [<slot>/<name>…] [--stale]\n       snypd pieces board <slot> [root] [--sets=1|3|5] [--theme=<name>] [--variants=a,b] [--route=/x/] [--width=1280] [--out=board.webp]";
+    const USAGE = "usage: snypd pieces stills [<slot>/<name>…] [--stale]\n       snypd pieces board <slot> [root] [--sets=1|3|5] [--theme=<name>] [--variants=a,b] [--route=/x/] [--width=1280] [--out=board.webp]\n       snypd pieces tour [root] [--theme=<name>] [--variation=<name>] [--scheme=light|dark] [--out=tour.webp]";
     const fail = (e: unknown) => { const err = e as Error & { hint?: string }; console.error(err.message); if (err.hint) console.error(`↳ ${err.hint}`); process.exit(1); };
     const { closeEyes } = await import("@snypd/bench/look");
     if (args[0] === "stills") {
@@ -614,6 +615,24 @@ switch (verb) {
       } catch (e) { fail(e); } finally { closeEyes(); }
       break;
     }
+    if (args[0] === "tour") {
+      const { tour, formatTour } = await import("@snypd/bench/tour");
+      const { join } = await import("node:path");
+      const { copyFileSync, mkdirSync } = await import("node:fs");
+      const root = args[1] ?? ".";
+      const scheme = opt("scheme");
+      if (scheme && scheme !== "light" && scheme !== "dark") { console.error(`--scheme=${scheme}: light or dark`); process.exit(2); }
+      const cacheDir = join(root, ".snypd", "look");
+      mkdirSync(cacheDir, { recursive: true });
+      try {
+        const r = await tour({ root, theme: opt("theme"), variation: opt("variation"), scheme: scheme as "light" | "dark" | undefined, cacheDir, onStop: (l, i, n) => console.error(`${i}/${n} ${l}`) });
+        const out = opt("out") ?? "tour.webp";
+        copyFileSync(r.file, out);
+        console.log(formatTour(r));
+        console.log(`sheet: ${out} (${r.image.width}×${r.image.height})`);
+      } catch (e) { fail(e); } finally { closeEyes(); }
+      break;
+    }
     console.error(USAGE); process.exit(2);
   }
   // S18d′: a distributed binary is asked "which one is this?" by bug reports, package managers and
@@ -636,6 +655,7 @@ switch (verb) {
       "  snypd eyes [install]                                                  which browser theme › look uses; `install` fetches chrome-headless-shell once",
       "  snypd pieces stills [<slot>/<name>…] [--stale]                        photograph every piece on the specimen, beside its piece.yaml (needs Chrome)",
       "  snypd pieces board <slot> [root] [--sets=1|3|5] [--variants=a,b] [--out=file]   every variant of one slot on this site, one picture (needs Chrome)",
+      "  snypd pieces tour [root] [--theme=<name>] [--scheme=light|dark] [--out=file]   the whole theme: front page, a list, a feature page at 1280 + 390 (needs Chrome)",
       "  snypd cards [root] [--force]                                          share cards per page + icons from site.icon, in the theme (needs Chrome)",
       "  snypd bench [agent [--driver=claude:<model>]|writes [--models=a,b] [--topics=N|A-B] [--merge]|gallery [--out=dir] [--only=a,b] [--scheme=light|dark|both]|report [bench/latest.md] [--out=file]|onboard|page|visual|suggest [--facts [--shape=X]]|compare]",
       "  snypd new theme|plugin <name> [--extends=base]                        scaffold one, in themes/ or plugins/",

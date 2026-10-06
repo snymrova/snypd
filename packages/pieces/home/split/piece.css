@@ -28,6 +28,7 @@ main:has(> .snypd-page > .snypd-band) > .snypd-page { display: contents; }
 .snypd-hero { border-top: 0; }
 .snypd-hero > .snypd-cover { grid-column: 1 / -1; grid-row: 1; margin: 0; text-align: center; }
 .snypd-hero h1 { font-size: var(--size-display); line-height: 1.02; letter-spacing: -0.035em; max-width: 12.5em; margin-inline: auto; text-wrap: balance; }
+.snypd-hero .snypd-subtitle { margin-inline: auto; }
 .snypd-hero > .snypd-lead { display: contents; }
 .snypd-lead > * { grid-column: 1 / -1; margin-block: 0; min-width: 0; }
 .snypd-lead > figure { grid-column: 1 / -1; grid-row: 2; margin-top: calc(var(--space-6) * 0.583); }
@@ -64,7 +65,8 @@ main:has(> .snypd-page > .snypd-band) > .snypd-page { display: contents; }
 .snypd-close > pre { background: none; padding: 0; border-radius: 0; font-size: var(--size-close-code); line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .snypd-close .snypd-cta { border-top: 0; padding-top: 0; margin-block: var(--space-4) 0; }
 .snypd-close .snypd-cta > p:first-child { font: inherit; letter-spacing: 0; }
-.snypd-close .snypd-cta > p:first-child, .snypd-close .snypd-cta > p:nth-child(2) { color: var(--color-muted); margin-top: 0; }
+.snypd-close .snypd-cta > p:first-child { margin-top: 0; }
+.snypd-close .snypd-cta > p:nth-child(2) { color: var(--color-muted); margin-top: 0; }
 
 /* The fold: at 47.5 rem two columns are one, heading first. The refusal's link drops under its line. */
 @media (max-width: 47.5rem) {

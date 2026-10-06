@@ -115,7 +115,7 @@ export interface SheetCell { image?: { data: string; width: number; height: numb
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-async function render(page: Page, html: string, width: number): Promise<{ data: string; width: number; height: number }> {
+export async function photograph(page: Page, html: string, width: number): Promise<{ data: string; width: number; height: number }> {
   await page.send("Emulation.setDeviceMetricsOverride", { width, height: 600, deviceScaleFactor: 1, mobile: false });
   const { frameTree } = await page.send<{ frameTree: { frame: { id: string } } }>("Page.getFrameTree");
   await page.send("Page.setDocumentContent", { frameId: frameTree.frame.id, html });
@@ -172,7 +172,7 @@ export async function composeSheet(opts: { cols: string[]; rows: string[]; cells
   const html = `<!doctype html><meta charset=utf-8><body style="margin:0;background:#e8e8ec;color:#1b1b1f;font:12px/1.35 system-ui,sans-serif">
     <div style="display:inline-grid;grid-template-columns:${L.label ? `${L.label}px ` : ""}repeat(${L.c},${L.colW}px);gap:${gap}px;padding:${pad}px">
     <div style="grid-column:1/-1;font-size:13px">${esc(opts.title)}</div>${body}</div></body>`;
-  return eyesPage((page) => render(page, html, width));
+  return eyesPage((page) => photograph(page, html, width));
 }
 
 /**
@@ -184,7 +184,7 @@ async function frameStill(image: { data: string; width: number; height: number }
   const fw = frame[0], fh = Math.min(frame[1], Math.max(24, Math.ceil(image.height * scale)));
   const html = `<!doctype html><body style="margin:0"><div style="width:${fw}px;height:${fh}px;overflow:hidden;background:#fff;display:flex;justify-content:center;align-items:flex-start">
     <img style="width:${Math.round(image.width * scale)}px;display:block" src="data:image/webp;base64,${image.data}"></div></body>`;
-  const r = await eyesPage((page) => render(page, html, fw));
+  const r = await eyesPage((page) => photograph(page, html, fw));
   return { data: r.data, size: [r.width, r.height] };
 }
 
@@ -252,7 +252,8 @@ export async function board(opts: BoardOptions): Promise<BoardResult> {
   if (!m.slots.some((s) => s.slot === slot)) throw Object.assign(new Error(`no slot "${slot}"`), { hint: `slots: ${m.slots.map((s) => s.slot).join(", ")}` });
   const live = loadConfig(opts.root, { theme: opts.theme, variation: opts.variation });
   if (!live.ok) throw Object.assign(new Error(`theme "${opts.theme ?? "(live)"}" does not load`), { hint: live.diagnostics.filter((d) => d.level === "error").map((d) => d.message).join("; ") });
-  const parent = live.config.theme.use;
+  // `theme.use` stays the site's under a `theme` override: the theme being looked at is the one named.
+  const parent = opts.theme ?? live.config.theme.use;
   const current = live.pieces.find((p) => p.slot === slot)?.name;
   const shelf: PieceEntry[] = Object.values(m.pieces).filter((p) => p.slot === slot);
   let variants: Column[] = shelf.flatMap((p) => [{ entry: p, label: p.name },

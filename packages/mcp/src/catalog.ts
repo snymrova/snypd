@@ -68,6 +68,7 @@ export const CATALOG: Tool[] = [
       since: str("`look`: `last` (default) says what changed since the previous look at the same route, crop, width, scheme and state; `none` skips it", { enum: ["last", "none"] }),
       view: str("`look`: `picture` (default) or `outline` — landmarks and headings, ~150 tokens, no image", { enum: ["picture", "outline"] }),
       board: str("`look`: every piece that can fill one slot (`home`, `masthead`, `entries`…), each on this site's own content, side by side in one picture — how to choose a piece before writing `pieces:`. With `name`, swapped into that theme instead of the live one"),
+      tour: { type: "boolean", description: "`look`: the whole theme in one picture — the front page, a list and the longest page of the site's richest type, each at 1280 and 390, first screens; the gates, the pairs and every page's findings first, as text. With `name`, a theme that is not live. Takes `scheme`; not `route`, `slot`, `width`, `state` or `board`" },
       sets: { type: "number", description: "`look` with `board`: 1 (default) on the theme's own tokens; 3 or 5 draws each piece on the board's token sets too (light serif, dark sans, loud accent, committed, pathological) — does it hold on any palette?" },
     }, ["action"]),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true } },
@@ -875,6 +876,11 @@ async function lookAt(root: string, args: Record<string, unknown>, cfgOf: () => 
     ].join("\n"), { ok: true, picture: false, reason: why, hint, check: { ok: r.ok, rules: shown } });
   };
   if (!eyes.eyesBrowser()) return await blind("no browser on this machine", "`snypd eyes install` fetches chrome-headless-shell (~90 MB) to ~/.cache/snypd once — a person runs it; or set SNYPD_CHROME to any Chromium.");
+  if (args.tour === true) {
+    const clash = ["board", "slot", "selector", "route", "width", "state", "target", "view"].filter((k) => args[k] !== undefined);
+    if (clash.length) return fail(`a tour takes no ${clash.join(", ")}`, "A tour is three routes at two widths, chosen for you. One page or one slot is a plain look: drop `tour`.");
+    return await tourAt(root, { other: !!other, themeName, variation, scheme: scheme as "light" | "dark" | undefined, cacheDir, uri, fail });
+  }
   const boardSlot = opt("board");
   if (boardSlot) return await boardAt(root, boardSlot, args, { other: !!other, themeName, variation, width, cacheDir, uri, fail });
   if (!other && !ctx.preview) return fail("no preview server to look at", "`theme` › look runs inside `snypd serve`, which shares the session's preview with content.render_preview.");
@@ -934,6 +940,33 @@ async function boardAt(root: string, slot: string, args: Record<string, unknown>
       { type: "resource_link", uri: o.uri(file), name: `board ${slot}`, mimeType: "image/webp", description: `${r.variants.length} × ${r.sets.length} on ${r.theme}, ${r.route} at ${r.width} px` },
     ],
     structuredContent: { ok: true, ...facts, image: { width: image.width, height: image.height, mimeType: image.mimeType }, sheet: o.uri(file) },
+  };
+}
+
+/**
+ * `look { tour }` (W5, docs/37 §6 step 4): the theme a visitor meets — front page, a list, a feature page,
+ * each at 1280 and 390 — built out of band, the live theme too, so the routes come from the build. Facts
+ * first (gates, pairs, each page's findings), then the sheet, then the sheet and each crop as links.
+ */
+async function tourAt(root: string, o: { other: boolean; themeName: string; variation?: string; scheme?: "light" | "dark"; cacheDir: string; uri: (f: string) => string; fail: typeof fail }): Promise<ToolResult> {
+  const eyes = await import("@snypd/bench/look");
+  const t = await import("@snypd/bench/tour");
+  let r;
+  try { r = await t.tour({ root, theme: o.themeName, variation: o.variation, scheme: o.scheme, cacheDir: o.cacheDir }); }
+  catch (e) {
+    const err = e as Error & { hint?: string };
+    if (err instanceof eyes.NoBrowserError) return o.fail(err.message, err.hint);
+    return o.fail(err.message, err.hint ?? "");
+  }
+  const { image, file, stops, ...facts } = r;
+  return {
+    content: [
+      { type: "text", text: t.formatTour(r, o.uri) },
+      { type: "image", data: image.data, mimeType: image.mimeType },
+      { type: "resource_link", uri: o.uri(file), name: "tour", mimeType: "image/webp", description: `${r.routes.length} routes × 1280 + 390 on ${r.theme}` },
+      ...stops.filter((s) => s.file).map((s) => ({ type: "resource_link" as const, uri: o.uri(s.file!), name: `${s.kind} ${s.width}`, mimeType: "image/webp", description: `${s.route} at ${s.width}, the first screen` })),
+    ],
+    structuredContent: { ok: true, ...facts, stops: stops.map(({ image: _i, file: f, ...s }) => ({ ...s, crop: f && o.uri(f) })), image: { width: image.width, height: image.height, mimeType: image.mimeType }, sheet: o.uri(file) },
   };
 }
 
