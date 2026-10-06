@@ -28,7 +28,7 @@ export const BUDGETS = {
   mdReduction: 85,                                                   // % (enforced from S7, real HTML)
   lintPer1000: 1000,                                                 // ms, lint stage over 1k posts (S5 gate)
   jsKb: 0,                                                           // KB of client JS a content page may load or inline — declared by plugins, afforded by the site (P2, decision 84)
-  installCodeMb: 8,                                                  // MB of the release binary that is snypd's, not Bun's — the only half of the download this repo can move (F8)
+  installCodeMb: 10,                                                 // MB of the release binary that is snypd's, not Bun's — the only half of the download this repo can move (F8). 8 → 10 on 6 Oct 2026 (Sunny): the pieces shelf — stills, kits, the face cuts — put it at 6.86, over 80 % of 8; that growth is the product, so the line moved, not the shelf
   chartRenderMs: 3, chartSvgKb: 12,                                  // D3, per chart (spec: chart.budget)
   diagramRenderMs: 15, diagramSvgKb: 25,                             // D3, per diagram (spec: diagram.budget)
   flowRenderMs: 15, flowSvgKb: 25,                                   // D3, per flow (spec: flow.budget)
